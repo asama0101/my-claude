@@ -1,0 +1,25 @@
+{
+  "expectations": [
+    {
+      "text": "総合スコアのテーブル（4行）が出力されている",
+      "passed": false,
+      "evidence": "「総評」という文章形式で、★テーブルは出力されていない"
+    },
+    {
+      "text": "内容の正確性（ファイルパス・コマンド例）に関する観点でチェックが行われている",
+      "passed": true,
+      "evidence": "alembicコマンドの誤り、SQLのテーブル選択、INGEST_ERROR_THRESHOLDの条件説明誤りなどコード照合が行われている"
+    },
+    {
+      "text": "指摘が少なくとも1件出力されている",
+      "passed": true,
+      "evidence": "6件の指摘が出力されている"
+    },
+    {
+      "text": "修正するか確認する質問で終わっている",
+      "passed": false,
+      "evidence": "末尾は「総合: 4件の高〜中重要度の指摘あり。修正を推奨する。」という文章で終わっており、インタラクティブな確認プロンプトがない"
+    }
+  ],
+  "summary": {"passed": 2, "failed": 2, "total": 4, "pass_rate": 0.5}
+}

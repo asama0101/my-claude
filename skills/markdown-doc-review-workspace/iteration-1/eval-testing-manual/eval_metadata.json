@@ -1,0 +1,11 @@
+{
+  "eval_id": 1,
+  "eval_name": "eval-testing-manual",
+  "prompt": "docs/testing_manual.md をレビューしてください。プロジェクトは /home/asama/notebook/traffic-shaper/traffic-reports-db です。",
+  "assertions": [
+    "総合スコアのテーブル（4行）が出力されている",
+    "🔴/🟡/🟢 の重要度ラベルを使って指摘が分類されている",
+    "指摘が少なくとも1件出力されている",
+    "修正するか確認する質問で終わっている"
+  ]
+}

@@ -1,0 +1,22 @@
+[
+  {"id":1,"query":"大掃除のタスク管理したい。クローゼット、押入れ、ベランダを片付ける予定なんだけど","should_trigger":true},
+  {"id":2,"query":"今日何をやるべきか教えて","should_trigger":true},
+  {"id":3,"query":"クローゼットの片付け終わったので完了にして","should_trigger":true},
+  {"id":4,"query":"英語学習をAreaに追加して。目標はTOEIC800点以上を維持すること","should_trigger":true},
+  {"id":5,"query":"今日1日終わったので振り返りしたい","should_trigger":true},
+  {"id":6,"query":"ごみ処分PCケースをPendingに変えて。粗大ごみの申し込みが完了してから着手する予定","should_trigger":true},
+  {"id":7,"query":"Q3の営業計画策定プロジェクトを登録して、締め切りは6月30日で高優先度","should_trigger":true},
+  {"id":8,"query":"全体の進捗どうなってる？","should_trigger":true},
+  {"id":9,"query":"Python学習のリンク集をResourceとして追加しておきたい","should_trigger":true},
+  {"id":10,"query":"今週中に締め切りのあるタスクを一覧で見せて","should_trigger":true},
+  {"id":11,"query":"今日の天気どう？明日傘いる？","should_trigger":false},
+  {"id":12,"query":"このPythonスクリプトの設計書を書いて。クラス設計と処理フローを含めて","should_trigger":false},
+  {"id":13,"query":"来週月曜のMTGのアジェンダを作って。参加者は営業3名と開発2名","should_trigger":false},
+  {"id":14,"query":"Notionでプロジェクト管理する方法を教えて。データベースのリレーション設定が知りたい","should_trigger":false},
+  {"id":15,"query":"買い物リストを作って。牛乳2本・卵1パック・食パンを買い忘れないようにしたい","should_trigger":false},
+  {"id":16,"query":"上司への出張報告メールの返信文を書いて","should_trigger":false},
+  {"id":17,"query":"このREADMEの内容を改善して。インストール手順が古くなってる","should_trigger":false},
+  {"id":18,"query":"来月の旅行の行程表を作りたい。京都2泊3日で観光スポットを入れて","should_trigger":false},
+  {"id":19,"query":"プロジェクトのコードレビューをお願い。PRの差分を確認してほしい","should_trigger":false},
+  {"id":20,"query":"やること整理したい。最近タスクが多くてどれから手をつければいいかわからない","should_trigger":true}
+]

@@ -1,0 +1,165 @@
+{
+  "metadata": {
+    "skill_name": "markdown-doc-review",
+    "skill_path": "/home/asama/.claude/skills/markdown-doc-review",
+    "timestamp": "2026-05-02T00:00:00Z",
+    "evals_run": ["eval-testing-manual", "eval-readme", "eval-operations"],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "eval_name": "eval-testing-manual",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 327.9,
+        "tokens": 97378,
+        "tool_calls": 90,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "総合スコアのテーブル（4行）が出力されている", "passed": true, "evidence": "4行テーブル確認済み"},
+        {"text": "🔴/🟡/🟢 の重要度ラベルを使って指摘が分類されている", "passed": true, "evidence": "3種絵文字ラベル確認済み"},
+        {"text": "指摘が少なくとも1件出力されている", "passed": true, "evidence": "8件の指摘"},
+        {"text": "修正するか確認する質問で終わっている", "passed": true, "evidence": "末尾に修正確認プロンプトあり"}
+      ]
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "eval-testing-manual",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 375.5,
+        "tokens": 93058,
+        "tool_calls": 115,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "総合スコアのテーブル（4行）が出力されている", "passed": false, "evidence": "評点: B+ のテキスト評価"},
+        {"text": "🔴/🟡/🟢 の重要度ラベルを使って指摘が分類されている", "passed": false, "evidence": "重大度: 高/中/低 の独自ラベル"},
+        {"text": "指摘が少なくとも1件出力されている", "passed": true, "evidence": "3件の指摘"},
+        {"text": "修正するか確認する質問で終わっている", "passed": false, "evidence": "集計テーブルで終了、確認プロンプトなし"}
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "eval-readme",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 276.8,
+        "tokens": 70968,
+        "tool_calls": 92,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "総合スコアのテーブル（4行）が出力されている", "passed": true, "evidence": "4行テーブル確認済み"},
+        {"text": "内容の正確性（ファイルパス・コマンド例）に関する観点でチェックが行われている", "passed": true, "evidence": "alembicコマンド省略・SQLテーブル選択誤りを指摘"},
+        {"text": "指摘が少なくとも1件出力されている", "passed": true, "evidence": "5件の指摘"},
+        {"text": "修正するか確認する質問で終わっている", "passed": true, "evidence": "末尾に修正確認プロンプトあり"}
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "eval-readme",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 151.6,
+        "tokens": 43484,
+        "tool_calls": 52,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "総合スコアのテーブル（4行）が出力されている", "passed": false, "evidence": "総評の文章形式、★テーブルなし"},
+        {"text": "内容の正確性（ファイルパス・コマンド例）に関する観点でチェックが行われている", "passed": true, "evidence": "コマンド例・SQLの誤りを指摘"},
+        {"text": "指摘が少なくとも1件出力されている", "passed": true, "evidence": "6件の指摘"},
+        {"text": "修正するか確認する質問で終わっている", "passed": false, "evidence": "推奨文で終了、確認プロンプトなし"}
+      ]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "eval-operations",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 224.9,
+        "tokens": 67735,
+        "tool_calls": 45,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "総合スコアのテーブル（4行）が出力されている", "passed": true, "evidence": "4行テーブル確認済み"},
+        {"text": "🔴/🟡/🟢 の重要度ラベルを使って指摘が分類されている", "passed": true, "evidence": "3種絵文字ラベル確認済み"},
+        {"text": "修正するか確認する質問で終わっている", "passed": true, "evidence": "末尾に修正確認プロンプトあり"}
+      ]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "eval-operations",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 107.7,
+        "tokens": 55755,
+        "tool_calls": 19,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "総合スコアのテーブル（4行）が出力されている", "passed": false, "evidence": "高優先度/中優先度の見出し形式、★テーブルなし"},
+        {"text": "🔴/🟡/🟢 の重要度ラベルを使って指摘が分類されている", "passed": false, "evidence": "高優先度/中優先度の独自ラベル"},
+        {"text": "修正するか確認する質問で終わっている", "passed": false, "evidence": "推奨文で終了、確認プロンプトなし"}
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0},
+      "time_seconds": {"mean": 276.5, "stddev": 51.6, "min": 224.9, "max": 327.9},
+      "tokens": {"mean": 78694, "stddev": 13637, "min": 67735, "max": 97378}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.25, "stddev": 0.21, "min": 0.0, "max": 0.5},
+      "time_seconds": {"mean": 211.6, "stddev": 136.6, "min": 107.7, "max": 375.5},
+      "tokens": {"mean": 64099, "stddev": 24876, "min": 43484, "max": 93058}
+    },
+    "delta": {
+      "pass_rate": "+0.75",
+      "time_seconds": "+64.9",
+      "tokens": "+14595"
+    }
+  },
+  "notes": [
+    "with_skill は全テストケースでアサーション 100% パス。★テーブル・重要度絵文字・修正確認プロンプトがすべて揃っている",
+    "without_skill は指摘内容の質は高い（コード照合もしている）が、フォーマットが毎回異なり構造化されていない",
+    "「指摘が少なくとも1件出力されている」はwith/withoutで差がなく識別力が低い — スキルの価値はフォーマット統一にある",
+    "without_skill のツール呼び出し数がケースにより19〜115と大きくばらつく（フォーマット指示がないと調査深度が不安定）",
+    "with_skill のツール呼び出し数も45〜92と幅があり、ドキュメント規模に依存している"
+  ]
+}

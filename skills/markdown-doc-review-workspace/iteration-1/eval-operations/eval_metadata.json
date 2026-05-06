@@ -1,0 +1,10 @@
+{
+  "eval_id": 3,
+  "eval_name": "eval-operations",
+  "prompt": "/home/asama/notebook/traffic-shaper/traffic-reports-db/docs/operations.md を見て問題ないか確認して",
+  "assertions": [
+    "総合スコアのテーブル（4行）が出力されている",
+    "🔴/🟡/🟢 の重要度ラベルを使って指摘が分類されている",
+    "修正するか確認する質問で終わっている"
+  ]
+}
