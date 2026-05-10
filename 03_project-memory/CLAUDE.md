@@ -115,51 +115,7 @@ flowchart TD
 | ファイル | 内容 | 読むタイミング |
 |---|---|---|
 | `.claude/dev.md` | 開発ガイドライン、テスト方針、GitHub運用 | コーディング・コミット・PR作成時 |
-| `.claude/docs.md` | 仕様検討ルール、ドキュメント配置・記法、処理フロー設計、図示ガイドライン、仕様レビュー観点 | ドキュメント作成・設計レビュー時 |
-
-## 新プロジェクトへの適用手順
-
-新規プロジェクト開始時に一度だけ実施する。
-
-### 前提条件
-
-| ツール | バージョン |
-|---|---|
-| Python | 3.11+ |
-| uv | 最新 |
-| Docker | 20.10+ |
-| GitHub CLI (`gh`) | 最新 |
-
-### 手順
-
-1. **テンプレートをコピー**
-   ```bash
-   mkdir -p .claude
-   cp -r /path/to/03_project-memory/* .claude/
-   ```
-
-2. **このファイル（CLAUDE.md）のプレースホルダーを埋める** — 各セクションの `>` 引用ブロックを参照して記入し、引用行は削除する
-
-3. **ディレクトリ構造を作成**
-   ```bash
-   mkdir -p src/{pkg} tests/{unit,integration,e2e} tests/fixtures \
-     docs/{design/decisions,design/flows,operations,requirements,scenario} config
-   ```
-   `docs/PHASE.html` を作成して現在のフェーズを記載する
-
-4. **仮想環境・依存関係を初期化**
-   ```bash
-   uv init
-   uv add {主要ライブラリ} structlog
-   uv add --dev pytest pytest-asyncio mypy ruff
-   ```
-
-5. **pyproject.toml を設定**（ruff / mypy / pytest の設定を追加）
-
-6. **GitHub リポジトリを作成・Branch Protection を設定**
-   ```bash
-   gh repo create {プロジェクト名} --private --source . --push
-   ```
-   `main` と `develop` に force push 禁止・ブランチ削除禁止を設定する
-
-7. **ruff / mypy / pytest が通ることを確認して開発開始**
+| `.claude/docs.md` | 仕様検討ルール、ドキュメント配置・記法、処理フロー設計、図示ガイドライン | ドキュメント作成・設計レビュー時 |
+| `.claude/review.md` | 仕様レビュー観点 | 仕様・設計のレビュー時 |
+| `docs/PHASE.html` | 現在の開発フェーズ | セッション開始時（必読） |
+| `docs/spec.md` | 外部 I/F の詳細仕様 | 外部システム連携の実装・レビュー時 |
