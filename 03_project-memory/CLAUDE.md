@@ -3,12 +3,15 @@
 ## プロジェクト概要
 
 > 2〜3 行でシステムの目的を記載。略語は初出時に定義する。
-> 例: 〇〇装置を REST API 経由で一元管理するバックエンドサービス。〇〇（説明）の CRUD・ステータス取得・設定一括適用を提供し、複数拠点の装置を並列制御する。
+
+（ここに記入）
 
 ## 機能一覧
 
 > 動詞始まりの箇条書き。機能 ID は要件定義書（docs/requirements/）の FR-xxx と揃える。
-> 例: `- 〇〇の登録・更新・削除・一覧取得（FR-001〜004）`
+
+- （機能1: FR-001）
+- （機能2: FR-002）
 
 ## アーキテクチャ
 
@@ -22,6 +25,23 @@ flowchart TD
     SVC --> EXT[外部システム]
 ```
 
+## 技術スタック
+
+> 「要選択」の行を埋めてから使用する。「固定」はプロジェクト標準として変更しない。
+
+| 区分 | 採用技術 | 種別 |
+|---|---|---|
+| 言語 | Python X.XX | 要選択 |
+| Web フレームワーク | （例: FastAPI） | 要選択 |
+| バリデーション | （例: Pydantic） | 要選択 |
+| 非同期 HTTP | （例: aiohttp） | 要選択 |
+| DB / ストレージ | （例: PostgreSQL + SQLAlchemy） | 要選択 |
+| ログ | structlog | 固定 |
+| テスト | pytest / pytest-asyncio | 固定 |
+| Lint / 型検査 | ruff / mypy --strict | 固定 |
+| 依存管理 | uv | 固定 |
+| コンテナ | Docker | 固定 |
+
 ## 外部 I/F 仕様
 
 > 詳細は docs/spec.md に分離し、ここではポインタと主要エンドポイントのみ記載。
@@ -31,31 +51,17 @@ flowchart TD
 | POST | `/api/v1/resources` | リソース登録 |
 | GET  | `/api/v1/resources/{id}` | リソース取得 |
 
-## 技術スタック
-
-> 言語バージョン・主要ライブラリ・ミドルウェアを記載。Claude がコードを書く際の選択基準になる。
-
-| 区分 | 採用技術 |
-|---|---|
-| 言語 | Python X.XX |
-| Web フレームワーク | （例: FastAPI） |
-| バリデーション | （例: Pydantic） |
-| 非同期 HTTP | （例: aiohttp） |
-| ログ | structlog |
-| DB / ストレージ | （例: PostgreSQL + SQLAlchemy） |
-| テスト | pytest / pytest-asyncio |
-| Lint / 型検査 | ruff / mypy --strict |
-| 依存管理 | uv |
-| コンテナ | Docker |
-
 ## システムスケール要件
 
-> 数値で定量的に記載。「高速」「多い」などの曖昧な表現は禁止。
+> 数値で定量的に記載。「高速」「多い」などの曖昧な表現は禁止。該当しない行は削除する。
 
 | 指標 | 目標値 |
 |---|---|
 | レスポンスタイム | p95 ≤ X 秒 |
 | 同時接続数 | ≤ X セッション |
+| 可用性 | X % 以上 |
+| データ量（DB） | X GB 以下 |
+| バッチ処理時間 | X 分以内 |
 
 ## Claudeの振る舞い
 
@@ -76,20 +82,12 @@ flowchart TD
 - **大規模変更の計画提示**: X ファイル超 or X 行超の新規実装は、実装前に計画を提示し承認を得る
 - **既存ファイルのリファクタ**: 依頼されない限り行わない。改善余地は PR本文への記載 or 別Issueとして提案する
 
-### 不可逆操作の統制
-
-副作用のある操作は実行前に確認を取る。対象例:
-
-- **Git**: push、force push、merge、rebase、ブランチ削除、tag操作
-- **GitHub**: Issue/PR作成、コメント投稿、ラベル変更
-- **ファイルシステム**: ファイル/ディレクトリ削除、設定ファイル上書き
-
 ### 出力言語
 
 - コード内コメント・docstring: 日本語
-- コミットメッセージ: type/scope は英小文字、subject は日本語(例: `feat(launcher): ワーカー同時起動数の上限制御を追加`)
+- コミットメッセージ: type/scope は英小文字、subject は日本語（例: `feat(auth): JWTトークン検証を追加`）
 - Issue・PR・ドキュメント: 日本語
-- 例外メッセージ・ログメッセージ: 日本語(structlogのキー名は英語)
+- 例外メッセージ・ログメッセージ: 日本語（structlogのキー名は英語）
 
 ## 開発フェーズ
 
@@ -101,7 +99,7 @@ flowchart TD
 | 2. 要件定義 | docs/requirements/02_functional.html, 03_non_functional.html |
 | 3. 基本設計 | docs/design/architecture.html, data_model.html, interfaces.html |
 | 4. 詳細設計 | docs/design/配下 + 各モジュールのdocstring(*.html) + **処理フロー図** |
-| 5. 実装 | TDD(処理フロー図に沿って実装) |
+| 5. 実装 | TDD（処理フロー図に沿って実装） |
 
 ## 参照ドキュメント索引
 
