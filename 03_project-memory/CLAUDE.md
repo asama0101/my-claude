@@ -103,7 +103,7 @@ flowchart TD
 |---|---|
 | 1. 要求整理 | docs/requirements/01_overview.html |
 | 2. 要件定義 | docs/requirements/02_functional.html, 03_non_functional.html |
-| 3. 基本設計 | docs/design/architecture.html, data_model.html, interfaces.html |
+| 3. 基本設計 | docs/design/architecture.html, data_model.html, interfaces.html, spec.md |
 | 4. 詳細設計 | docs/design/flows/[機能名].html（処理フロー図）, 各モジュールの docstring |
 | 5. 実装 | src/ 配下のコード, tests/ 配下のテスト（TDD） |
 

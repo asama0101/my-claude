@@ -6,33 +6,28 @@
 
 `docs/` 配下は HTML。外部仕様書（`docs/spec.md` 等）のみ Markdown。`.claude/` は Markdown（本ガイドライン対象外）。
 
-## プロジェクトドキュメント
-
-| ドキュメント | 配置先 | 作成タイミング |
-|---|---|---|
-| 用語集 | docs/glossary.html | 要件定義 |
-| 外部仕様書 | docs/spec.md | 基本設計 |
-| 性能しきい値 | docs/performance_thresholds.html | 基本設計 |
-| 処理フロー設計 | docs/design/flows/*.html | 詳細設計 |
-| テスト計画書 | docs/test_plan.html | 基本設計完了時 |
-| Scenario Test手順書 | docs/scenario/*.html | 詳細設計〜実装 |
-| 構築・デプロイ手順書 | docs/operations/setup.html | 実装中盤 |
-| 日常運用手順書 | docs/operations/daily.html | 実装完了直前 |
-| 障害対応手順書 | docs/operations/incident.html | 実装完了直前 |
-| バックアップ・リストア手順書 | docs/operations/backup.html | バックアップ機能実装時 |
-| ADR | docs/design/decisions/*.html | 設計判断発生時 |
-
-### 全ドキュメント共通の必須セクション
-
-対象読者・前提知識 / 本ドキュメントの目的 / 関連ドキュメントへのリンク / 改訂履歴
-
-### 作成の指針
+## 作成の指針
 
 - 前提知識に依存せずドキュメント単体で伝わるよう記述する
 - What だけでなく Why（採用理由・却下した代替案）を書く
 - 略語は初出時に正式名称を併記、ドメイン固有概念は説明を付ける
 - 用語集を `docs/glossary.html` に集約し各ドキュメントから参照する
 - 要件 → 設計 → 実装の各段階で前段への参照を明示する
+
+## プロジェクトドキュメント
+
+全ドキュメント共通の必須セクション: 対象読者・前提知識 / 本ドキュメントの目的 / 関連ドキュメントへのリンク / 改訂履歴
+
+| ドキュメント | 役割 | 配置先 | タイミング |
+|---|---|---|---|
+| 用語集 | 専門用語・略語の定義 | docs/glossary.html | 要件定義 |
+| 外部仕様書 | 外部 I/F の詳細仕様 | docs/spec.md | 基本設計 |
+| 性能しきい値 | Load/Stress Test の基準値 | docs/performance_thresholds.html | 基本設計 |
+| テスト計画書 | テスト範囲・合格基準 | docs/test_plan.html | 基本設計完了時 |
+| 処理フロー設計 | 機能ごとの処理フロー図 | docs/design/flows/*.html | 詳細設計 |
+| シナリオテスト手順書 | 受け入れテストの手動手順 | docs/scenario/*.html | 詳細設計〜実装 |
+| 運用手順書 | 構築・日常・障害対応・バックアップ | docs/operations/*.html | 実装中盤〜完了 |
+| ADR | 設計判断の記録 | docs/design/decisions/*.html | 設計判断発生時 |
 
 ## 図示・視覚化ガイドライン
 
