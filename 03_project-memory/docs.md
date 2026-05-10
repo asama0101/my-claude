@@ -25,13 +25,18 @@
 | アーキテクチャ設計書 | コンポーネント構成・責任分界・要件トレース | docs/design/architecture.html | 基本設計 |
 | データモデル設計書 | テーブル定義・ER図・制約・インデックス | docs/design/data_model.html | 基本設計 |
 | インターフェース設計書 | コンポーネント間 I/F 定義 | docs/design/interfaces.html | 基本設計 |
+| セキュリティ設計書 | 認証・認可・暗号化・監査ログ設計 | docs/design/security.html | 基本設計 |
+| 環境構成書 | 開発/ステージング/本番の構成・Docker・ネットワーク | docs/design/infrastructure.html | 基本設計 |
+| 監視・アラート設計書 | 監視メトリクス・アラート条件・通知先 | docs/design/monitoring.html | 基本設計 |
 | 外部仕様書 | 外部 I/F の詳細仕様 | docs/spec.md | 基本設計 |
 | 性能しきい値 | Load/Stress Test の基準値 | docs/performance_thresholds.html | 基本設計 |
 | テスト計画書 | テスト範囲・合格基準・スケジュール | docs/test_plan.html | 基本設計完了時 |
 | 内部 API 設計書 | エンドポイント・リクエスト/レスポンス・認証 | docs/design/api.html | 詳細設計 |
+| エラーコード定義書 | エラーコード・メッセージ・HTTP ステータス対応表 | docs/design/error_codes.html | 詳細設計 |
 | 処理フロー設計 | 機能ごとの処理フロー図 | docs/design/flows/*.html | 詳細設計 |
 | テストケース一覧 | 機能別テストケース・合否基準 | docs/test_cases.html | 詳細設計〜実装 |
 | シナリオテスト手順書 | 受け入れテストの手動手順 | docs/scenario/*.html | 詳細設計〜実装 |
+| テスト結果報告書 | テスト実施結果・リリース判定の根拠 | docs/test_report.html | 実装完了時 |
 | 運用手順書 | 構築・日常・障害対応・バックアップ | docs/operations/*.html | 実装中盤〜完了 |
 | ADR | 設計判断の記録 | docs/design/decisions/*.html | 設計判断発生時 |
 
