@@ -91,15 +91,23 @@ flowchart TD
 
 ## 開発フェーズ
 
-作業開始時、Claudeは必ず docs/PHASE.html を読み、現在のフェーズに対応する成果物のみを扱う。
+作業開始時、Claudeは必ず `docs/PHASE.html` を読み現在のフェーズを確認する。フェーズ移行はユーザーの明示的な承認後に行う。当フェーズの成果物を作成・更新し、前フェーズの成果物は参照・補足更新のみとする。
 
-| フェーズ | 成果物 |
+| フェーズ | 作成・更新する成果物 |
 |---|---|
 | 1. 要求整理 | docs/requirements/01_overview.html |
 | 2. 要件定義 | docs/requirements/02_functional.html, 03_non_functional.html |
 | 3. 基本設計 | docs/design/architecture.html, data_model.html, interfaces.html |
-| 4. 詳細設計 | docs/design/配下 + 各モジュールのdocstring(*.html) + **処理フロー図** |
-| 5. 実装 | TDD（処理フロー図に沿って実装） |
+| 4. 詳細設計 | docs/design/flows/[機能名].html（処理フロー図）, 各モジュールの docstring |
+| 5. 実装 | src/ 配下のコード, tests/ 配下のテスト（TDD） |
+
+### docs/PHASE.html の記載フォーマット
+
+```html
+<p>現在のフェーズ: X. フェーズ名</p>
+<p>移行日: YYYY-MM-DD</p>
+<p>完了基準: （このフェーズを終えるための条件）</p>
+```
 
 ## 参照ドキュメント索引
 
