@@ -2,54 +2,52 @@
 
 ## プロジェクト概要
 
-<!-- 例: 以下を参考に 2〜3 行で記載。略語は初出時に定義する -->
-帯域制御装置（QoS 装置）を REST API 経由で一元管理するバックエンドサービス。
-subport（サブポート: 帯域制御の最小単位）の CRUD・ステータス取得・設定一括適用を提供し、
-複数拠点の装置を asyncio で並列制御する。
+<!-- 2〜3 行でシステムの目的を記載。略語は初出時に定義する。
+例: 〇〇装置を REST API 経由で一元管理するバックエンドサービス。
+    〇〇（説明）の CRUD・ステータス取得・設定一括適用を提供し、複数拠点の装置を並列制御する。 -->
 
 ## 機能一覧
 
-<!-- 例: 動詞始まりの箇条書き。機能 ID は要件定義書（docs/requirements/）の FR-xxx と揃える -->
-- subport の登録・更新・削除・一覧取得（FR-001〜004）
-- 装置ステータスのポーリング取得（FR-005）
-- 複数装置への設定一括適用（FR-006）
-- 設定失敗時の Syslog 通知（FR-007）
-- メンテナンスモードの切替（FR-008）
-- 装置追加・撤去（FR-009）
+<!-- 動詞始まりの箇条書き。機能 ID は要件定義書（docs/requirements/）の FR-xxx と揃える。
+例:
+- 〇〇の登録・更新・削除・一覧取得（FR-001〜004）
+- 〇〇ステータスのポーリング取得（FR-005）
+- 設定失敗時の通知（FR-006）
+-->
 
 ## アーキテクチャ
 
-<!-- 例: Mermaid flowchart で主要コンポーネントとデータの流れを示す。15 要素以内に収める -->
+<!-- Mermaid flowchart で主要コンポーネントとデータの流れを示す。15 要素以内に収める。
+例:
 ```mermaid
 flowchart TD
-    Client[クライアント] -->|HTTP| API[FastAPI\nAPIサーバ]
-    API --> SVC[サービス層\nビジネスロジック]
-    SVC --> HTTP[HTTPクライアント層\naiohttp]
-    HTTP -->|HTTPS| DEV[帯域制御装置群\n複数拠点]
-    SVC --> LOG[structlog\nログ出力]
+    Client[クライアント] -->|HTTP| API[APIサーバ]
+    API --> SVC[サービス層]
+    SVC --> DB[(DB)]
+    SVC --> EXT[外部システム]
 ```
+-->
 
-## 装置仕様
+## 外部 I/F 仕様
 
-<!-- 例: 詳細は docs/spec.md に分離し、ここではポインタと主要エンドポイントのみ記載 -->
+<!-- 詳細は docs/spec.md に分離し、ここではポインタと主要エンドポイントのみ記載。
+例:
 詳細は `docs/spec.md` を参照。主なエンドポイント:
-
 | メソッド | パス | 概要 |
 |---|---|---|
-| POST | `/api/v1/subports` | subport 登録 |
-| GET | `/api/v1/devices/{id}/status` | ステータス取得 |
-| POST | `/api/v1/devices/bulk-apply` | 設定一括適用 |
+| POST | `/api/v1/resources` | リソース登録 |
+| GET  | `/api/v1/resources/{id}` | リソース取得 |
+-->
 
 ## システムスケール要件
 
-<!-- 例: 数値で定量的に記載。「高速」「多い」などの曖昧な表現は禁止 -->
+<!-- 数値で定量的に記載。「高速」「多い」などの曖昧な表現は禁止。
+例:
 | 指標 | 目標値 |
 |---|---|
-| レスポンスタイム | p95 ≤ 2 秒（装置 1 台への操作） |
+| レスポンスタイム | p95 ≤ 2 秒 |
 | 同時接続数 | ≤ 50 セッション |
-| 管理装置数 | ≤ 200 台 |
-| subport 数 | 装置あたり ≤ 1,000 |
-| 設定一括適用 | 200 台同時送信で ≤ 30 秒 |
+-->
 
 ## Claudeの振る舞い
 
@@ -126,7 +124,7 @@ flowchart TD
    cp -r /path/to/03_project-memory/* .claude/
    ```
 
-2. **このファイル（CLAUDE.md）のプレースホルダーを埋める** — 上記の各セクションにある `<!-- 例: -->` コメントを参照して記入し、コメント行は削除する
+2. **このファイル（CLAUDE.md）のプレースホルダーを埋める** — 上記各セクションの `<!-- ... -->` コメントを参照して記入し、コメント行は削除する
 
 3. **ディレクトリ構造を作成**
    ```bash
@@ -138,8 +136,8 @@ flowchart TD
 4. **仮想環境・依存関係を初期化**
    ```bash
    uv init
-   uv add fastapi uvicorn pydantic structlog
-   uv add --dev pytest pytest-asyncio mypy ruff httpx
+   uv add {主要ライブラリ} structlog
+   uv add --dev pytest pytest-asyncio mypy ruff
    ```
 
 5. **pyproject.toml を設定**（ruff / mypy / pytest の設定を追加）
