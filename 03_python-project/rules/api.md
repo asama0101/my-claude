@@ -1,8 +1,8 @@
 ---
 paths:
   - "src/**"
-  - "docs/**"
-  - "**/*.html"
+  - "docs/design/**"
+  - "docs/spec.md"
 ---
 # API設計規約
 

@@ -3,7 +3,6 @@ paths:
   - "src/**"
   - "tests/**"
   - "pyproject.toml"
-  - "*.toml"
 ---
 # コーディング規約
 
