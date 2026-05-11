@@ -148,7 +148,7 @@ flowchart TD
 
 ## 開発フェーズ
 
-作業開始時、Claudeは必ず `docs/PHASE.html` を読み現在のフェーズを確認する。フェーズ移行はユーザーの明示的な承認後に行う。当フェーズの成果物を作成・更新し、前フェーズの成果物は参照・補足更新のみとする。
+作業開始時、Claudeは必ず `.claude/task.md` を読み現在のフェーズを確認する。フェーズ移行はユーザーの明示的な承認後に行う。当フェーズの成果物を作成・更新し、前フェーズの成果物は参照・補足更新のみとする。
 
 | フェーズ | 作成・更新する成果物 |
 |---|---|
@@ -158,27 +158,17 @@ flowchart TD
 | 4. 詳細設計 | docs/design/api.html, error_codes.html, flows/[機能名].html（処理フロー図）, 各モジュールの docstring |
 | 5. 実装 | src/ 配下のコード, tests/ 配下のテスト（TDD） |
 
-### docs/PHASE.html の記載フォーマット
-
-```html
-<p>現在のフェーズ: X. フェーズ名</p>
-<p>移行日: YYYY-MM-DD</p>
-<p>完了基準: （このフェーズを終えるための条件）</p>
-```
-
 ## 参照ドキュメント索引
 
 以下の rules ファイルは paths 指定により該当ファイル編集時に自動ロードされる。
 
 | ファイル | 適用パス | 内容 |
 |---|---|---|
-| `.claude/rules/dev.md` | `src/**`, `tests/**`, `*.toml` | 開発ガイドライン、テスト方針、GitHub運用 |
+| `.claude/rules/coding.md` | `src/**`, `tests/**`, `*.toml` | コーディング規約、命名規則、docstring |
+| `.claude/rules/testing.md` | `tests/**` | テスト方針、CI種別 |
+| `.claude/rules/github.md` | （全体） | ブランチ・コミット・PR・Issue・セキュリティ |
+| `.claude/rules/review.md` | `src/**`, `tests/**` | コードレビュー規約 |
+| `.claude/rules/security.md` | `src/**` | セキュリティ規約 |
+| `.claude/rules/api.md` | `src/**`, `docs/**`, `**/*.html` | API設計規約 |
 | `.claude/rules/docs.md` | `docs/**`, `**/*.html` | ドキュメント配置・記法、図示ガイドライン |
-| `.claude/rules/review.md` | `docs/**`, `**/*.html`, `**/*.md` | 仕様レビュー観点 |
-
-作業内容に応じて手動参照するファイル:
-
-| ファイル | 内容 | 読むタイミング |
-|---|---|---|
-| `docs/PHASE.html` | 現在の開発フェーズ | セッション開始時（必読） |
-| `docs/spec.md` | 外部 I/F の詳細仕様 | 外部システム連携の実装・レビュー時 |
+| `.claude/rules/design-review.md` | `docs/**`, `**/*.html`, `**/*.md` | 仕様レビュー観点 |
