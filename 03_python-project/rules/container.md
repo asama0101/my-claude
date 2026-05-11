@@ -30,6 +30,7 @@ RUN uv sync --frozen --no-dev
 FROM python:3.12-slim AS runtime
 WORKDIR /app
 COPY --from=builder /app/.venv ./.venv
+ENV PATH="/app/.venv/bin:$PATH"
 COPY src/ ./src/
 ```
 
