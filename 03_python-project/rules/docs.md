@@ -11,6 +11,11 @@ paths:
 
 `docs/` 配下は HTML。外部仕様書（`docs/spec.md` 等）のみ Markdown。`.claude/` は Markdown（本ガイドライン対象外）。
 
+新規ドキュメント作成時は `docs/templates/base.html` をコピーして使用する。
+処理フロー設計書は `docs/templates/flow.html` をコピーして使用する。
+Mermaid（`mermaid.min.js`）は `docs/assets/mermaid.min.js` にローカル保存する（CDN 直参照禁止）。
+インストール: `curl -o docs/assets/mermaid.min.js https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js`
+
 ## 作成の指針
 
 - 前提知識に依存せずドキュメント単体で伝わるよう記述する

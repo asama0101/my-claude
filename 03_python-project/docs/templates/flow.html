@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[機能名]の処理フロー</title>
+  <link rel="stylesheet" href="../../assets/style.css">
+  <script src="../../assets/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true });</script>
+</head>
+<body>
+
+<header>
+  <h1>[機能名]の処理フロー</h1>
+</header>
+
+<section id="meta">
+  <h2>基本情報</h2>
+  <table>
+    <tr><th>対象読者</th><td>[例: バックエンド開発者]</td></tr>
+    <tr><th>前提知識</th><td>[例: アーキテクチャ設計書を読了していること]</td></tr>
+    <tr><th>本ドキュメントの目的</th><td>[機能名]の処理の流れ・分岐・エラーハンドリングを明示する</td></tr>
+  </table>
+  <p>関連: <a href="../architecture.html">アーキテクチャ設計書</a> / <a href="../../docs/spec.md">外部仕様書</a></p>
+</section>
+
+<section id="overview">
+  <h2>1. 全体フロー（概略）</h2>
+  <p>入力: [入力データの説明]<br>出力: [出力データの説明]</p>
+
+  <pre class="mermaid">
+flowchart TD
+    Start([開始]) --> Input[入力受付]
+    Input --> Process[処理]
+    Process --> |成功| Output([出力])
+    Process --> |失敗| Error([エラー処理])
+  </pre>
+
+  <p><strong>凡例:</strong> 角丸四角 = 端点、四角 = 処理、菱形 = 分岐</p>
+</section>
+
+<section id="sub-process-1">
+  <h2>2. [サブ処理1の名前]</h2>
+  <p>§1 の「[ステップ名]」の詳細。</p>
+  <!-- Mermaid 図を追加 -->
+</section>
+
+<!-- 必要に応じてサブ処理セクションを追加 -->
+
+<section id="history">
+  <h2>改訂履歴</h2>
+  <table>
+    <thead>
+      <tr><th>日付</th><th>バージョン</th><th>変更内容</th><th>担当</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>YYYY-MM-DD</td><td>1.0</td><td>初版作成</td><td></td></tr>
+    </tbody>
+  </table>
+</section>
+
+</body>
+</html>
