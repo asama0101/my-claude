@@ -169,7 +169,7 @@ flowchart TD
 | `.claude/rules/coding.md` | `src/**`, `tests/**`, `*.toml` | コーディング規約、命名規則、docstring |
 | `.claude/rules/testing.md` | `tests/**` | テスト方針、CI種別 |
 | `.claude/rules/github.md` | （全体） | ブランチ・コミット・PR・Issue・セキュリティ |
-| `.claude/rules/review.md` | `src/**`, `tests/**` | コードレビュー規約 |
+| `.claude/rules/code-review.md` | `src/**`, `tests/**` | コードレビュー規約 |
 | `.claude/rules/security.md` | `src/**` | セキュリティ規約 |
 | `.claude/rules/api.md` | `src/**`, `docs/**`, `**/*.html` | API設計規約 |
 | `.claude/rules/docs.md` | `docs/**`, `**/*.html` | ドキュメント配置・記法、図示ガイドライン |
