@@ -209,3 +209,5 @@ project/
 | `.claude/rules/api.md` | `src/**`, `docs/**`, `**/*.html` | API設計規約 |
 | `.claude/rules/docs.md` | `docs/**`, `**/*.html` | ドキュメント配置・記法、図示ガイドライン |
 | `.claude/rules/design-review.md` | `docs/**`, `**/*.html`, `**/*.md` | 仕様レビュー観点 |
+| `.claude/rules/container.md` | `Dockerfile`, `docker-compose*.yml`, `.dockerignore` | コンテナ構成規約（multi-stage・non-root・ヘルスチェック等） |
+| `.claude/rules/database.md` | `src/**/repositories/**`, `src/**/models/**`, `**/alembic/**`, `*.toml` | DB アクセス規約（N+1回避・トランザクション・マイグレーション） |
