@@ -1,6 +1,0 @@
-{
-  "eval_id": 1,
-  "eval_name": "full-workflow",
-  "prompt": "登録→Todo追加→完了→進捗確認のフロー",
-  "assertions": []
-}

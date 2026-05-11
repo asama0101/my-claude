@@ -1,6 +1,0 @@
-{
-  "eval_id": 2,
-  "eval_name": "today-tasks",
-  "prompt": "今日のタスク表示（期限フィルタ）",
-  "assertions": []
-}
