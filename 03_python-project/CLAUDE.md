@@ -90,6 +90,39 @@ flowchart TD
 | 依存管理 | uv | 固定 |
 | コンテナ | Docker | 固定 |
 
+## ディレクトリ構成
+
+> プロジェクト開始時に `<package>` を実際のパッケージ名に置き換える。src/ レイアウトを標準とする。
+
+```
+project/
+├── src/
+│   └── <package>/
+│       ├── __init__.py
+│       ├── main.py           ← エントリーポイント
+│       ├── api/              ← ルーター・エンドポイント定義
+│       ├── services/         ← ビジネスロジック
+│       ├── repositories/     ← DB アクセス層
+│       ├── models/           ← ORM・Pydantic モデル
+│       └── core/             ← 設定・依存性注入・共通ユーティリティ
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── fixtures/             ← 外部応答サンプル
+├── docs/
+│   ├── requirements/
+│   ├── design/
+│   │   ├── flows/
+│   │   └── decisions/        ← ADR
+│   ├── testing/
+│   │   └── scenario/
+│   └── operations/
+├── pyproject.toml
+├── Dockerfile
+├── CHANGELOG
+└── CLAUDE.md
+```
+
 ## 外部 I/F 仕様
 
 > 詳細は docs/spec.md に分離し、ここではポインタと主要エンドポイントのみ記載する。
