@@ -48,6 +48,23 @@ paths:
 | CHANGELOG | リリースごとの変更内容・バージョン履歴 | CHANGELOG | リリース |
 | ADR | 設計判断の記録 | docs/design/decisions/*.html | 全フェーズ |
 
+### ADR（アーキテクチャ決定記録）
+
+重要な設計判断を `docs/design/decisions/ADR-NNN-<タイトル>.html` に記録する。
+番号 NNN は連番（001, 002, …）。
+
+**必須セクション:**
+
+| セクション | 内容 |
+|---|---|
+| ステータス | `Proposed` / `Accepted` / `Deprecated` / `Superseded by ADR-NNN` のいずれか |
+| コンテキスト | この決定が必要になった背景・制約・問題 |
+| 決定 | 何を採用したか（1文で明言する） |
+| 影響 | この決定がもたらすトレードオフ・副作用 |
+| 代替案 | 検討したが採用しなかった案と却下理由 |
+
+ステータスが `Superseded` の場合、後継 ADR へのリンクを本文先頭に置く。
+
 ## 図示・視覚化ガイドライン
 
 Mermaid を基準とし、表現困難な場合のみ draw.io（`.drawio.svg` 形式）を使用する。
