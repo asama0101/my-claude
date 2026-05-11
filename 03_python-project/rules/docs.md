@@ -65,6 +65,33 @@ paths:
 
 ステータスが `Superseded` の場合、後継 ADR へのリンクを本文先頭に置く。
 
+### CHANGELOG
+
+[Keep a Changelog](https://keepachangelog.com/ja/) 形式を採用する。
+バージョンは [Semantic Versioning](https://semver.org/lang/ja/) に従う。
+
+**セクション構造:**
+
+```
+## [Unreleased]
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [1.0.0] - YYYY-MM-DD
+### Added
+- 初回リリース
+```
+
+**ルール:**
+- リリース前の変更はすべて `[Unreleased]` に追記する
+- リリース時に `[Unreleased]` を `[x.y.z] - YYYY-MM-DD` に変更し、新しい `[Unreleased]` セクションを追加する
+- 各変更は動詞（過去形）で始める: 「〇〇を追加した」「〇〇を修正した」
+- Breaking Change は `### Changed` に `**破壊的変更:**` プレフィックスを付ける
+
 ## 図示・視覚化ガイドライン
 
 Mermaid を基準とし、表現困難な場合のみ draw.io（`.drawio.svg` 形式）を使用する。
