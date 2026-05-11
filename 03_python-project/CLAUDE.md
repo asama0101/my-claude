@@ -32,6 +32,7 @@ uv run ruff check src/ && uv run mypy src/ && uv run pytest tests/
 > 初めてこのリポジトリに触るClaude・開発者が迷わず動かせるよう、手順を順番に記述する。
 > NG例: 「適宜設定する」
 > OK例: 「3. .env.sample をコピーして .env を作成し、DATABASE_URL を設定する」
+> 未確定の場合: セクションを削除せず空欄のままにする。task.md の「保留・未解決事項」に記録し、フェーズ1完了前に記入する。Claude は空欄の場合、推測で進めず確認する。
 
 1. （依存インストール: 例 `uv sync`）
 2. （環境変数設定: 例 `.env.sample` を `.env` にコピーして各変数を設定）
@@ -43,6 +44,7 @@ uv run ruff check src/ && uv run mypy src/ && uv run pytest tests/
 > `.env` に必要な全変数を列挙する。「どこで使われるか」も書くとClaude が文脈を把握しやすい。
 > NG例: 「各自設定すること」
 > OK例: 下表の形式で必須・任意を明記する
+> 未確定の場合: task.md の「保留・未解決事項」に記録し、フェーズ1完了前に記入する。Claude は表が空欄の場合、推測で進めず確認する。
 
 | 変数名 | 用途 | 必須 | 例 |
 |--------|------|------|-----|
@@ -152,7 +154,7 @@ flowchart TD
 
 | フェーズ | 作成・更新する成果物 |
 |---|---|
-| 1. 要求整理 | docs/requirements/01_overview.html |
+| 1. 要求整理 | docs/requirements/01_overview.html（完了条件: 本ファイルのローカルセットアップ・環境変数セクションが記入済みであること） |
 | 2. 要件定義 | docs/requirements/02_functional.html, 03_non_functional.html |
 | 3. 基本設計 | docs/design/architecture.html, data_model.html, interfaces.html, security.html, infrastructure.html, monitoring.html, spec.md, performance_thresholds.html, test_plan.html |
 | 4. 詳細設計 | docs/design/api.html, error_codes.html, flows/[機能名].html（処理フロー図）, 各モジュールの docstring |
