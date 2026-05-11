@@ -86,6 +86,8 @@ ARG DATABASE_PASSWORD
 ENV DATABASE_URL=""
 ```
 
+シークレットの保管・ローテーション方針は `rules/security.md` のシークレット管理を参照する。
+
 ## レイヤーキャッシュ最適化
 
 変更頻度の低いものを先にコピーする:
