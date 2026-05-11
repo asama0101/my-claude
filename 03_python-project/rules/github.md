@@ -9,10 +9,12 @@
 | `main` | リリース版（常にデプロイ可能な状態を維持） | - |
 | `develop` | 開発統合 | - |
 | `feature/*` | 機能追加・修正 | develop → develop |
+| `hotfix/*` | 本番バグの緊急修正 | main → main & develop |
 
 命名: `feature/[issue番号]-[簡潔な説明]`（例: `feature/42-add-maintenance-mode`）
 
 リリース時は `develop` → `main` にマージする。
+`hotfix/*` は `main` にマージ後、`develop` にも必ずバックマージする。
 
 ## コミット規約
 
@@ -20,7 +22,14 @@ Conventional Commits を採用。形式: `<type>(<scope>): <subject>`
 
 type: `feat` / `fix` / `docs` / `style` / `refactor` / `test` / `chore` / `perf`
 
-例: `feat(auth): JWTトークン検証を追加`
+scope: 変更対象のモジュール・機能名をスネークケースで書く（例: `auth`, `order`, `user`）
+
+破壊的変更（API 互換を壊す変更）は type に `!` を付ける: `feat(api)!: レスポンス形式を変更`
+
+例:
+- `feat(auth): JWTトークン検証を追加`
+- `fix(order): 重複注文チェックのバグを修正`
+- `feat(api)!: エラーレスポンス形式を変更`
 
 ## PR運用
 
