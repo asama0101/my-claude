@@ -156,9 +156,11 @@ flowchart TD
 |---|---|
 | 1. 要求整理 | docs/requirements/01_overview.html（完了条件: 本ファイルのローカルセットアップ・環境変数セクションが記入済みであること） |
 | 2. 要件定義 | docs/requirements/02_functional.html, 03_non_functional.html |
-| 3. 基本設計 | docs/design/architecture.html, data_model.html, interfaces.html, security.html, infrastructure.html, monitoring.html, spec.md, performance_thresholds.html, test_plan.html |
-| 4. 詳細設計 | docs/design/api.html, error_codes.html, flows/[機能名].html（処理フロー図）, 各モジュールの docstring |
-| 5. 実装 | src/ 配下のコード, tests/ 配下のテスト（TDD） |
+| 3. 基本設計 | docs/design/architecture.html, data_model.html, security.html, infrastructure.html, monitoring.html, spec.md, docs/testing/plan.html |
+| 4. 詳細設計 | docs/design/api.html, error_codes.html, flows/[機能名].html（処理フロー図）, docs/testing/cases.html, docs/testing/scenario/*.html, 各モジュールの docstring |
+| 5. 実装 | src/ 配下のコード, tests/ 配下のテスト（TDD）, docs/design/code_guide.html（任意） |
+| 6. テスト | docs/testing/report.html（テスト結果報告・リリース判定の根拠） |
+| 7. リリース・運用 | docs/operations/deploy.html, docs/operations/*.html, CHANGELOG |
 
 ## 参照ドキュメント索引
 
