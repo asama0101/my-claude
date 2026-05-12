@@ -4,8 +4,8 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
 PROJECT_DIR=$(pwd)
 
-# ── pip install チェック ────────────────────────────
-if echo "$COMMAND" | grep -qE '(^|&&|\|)\s*pip\s+install'; then
+# ── pip install チェック（pip / pip3 / python -m pip）──
+if echo "$COMMAND" | grep -qE '(^|&&|\|)\s*(pip3?\s+install|python[0-9.]*\s+-m\s+pip\s+install)'; then
   if [ -z "$VIRTUAL_ENV" ]; then
     echo "❌ pip install はvenv内でのみ許可されています。" >&2
     echo "   python -m venv .venv && source .venv/bin/activate" >&2
