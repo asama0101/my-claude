@@ -114,6 +114,8 @@
 | bash-guard.sh | Bash実行前 | `rm` 等の破壊的コマンドをブロック。ブロック時は **自分で実行せず、ユーザーへ `! <コマンド>` の形式で実行を依頼**すること |
 | venv-guard.sh | Bash実行前 | venv外での `pip install` / `uv add` をブロック |
 | context7-remind.sh | セッション開始時 | context7 使用指示を自動注入 |
+| skill-logger.sh | Skill/context7 ツール使用後 | 使用スキル・プラグインを `~/.claude/logs/session-skills-<日付>.log` に追記 |
+| session-summary.sh | セッション終了時（Stop） | セッション中に使用したスキル一覧を出力 |
 
 ### Python 開発の必須要件
 
