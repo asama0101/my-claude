@@ -84,6 +84,46 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/asama/.claude/hooks/skill-logger.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__plugin_context7_context7__query-docs",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/asama/.claude/hooks/skill-logger.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__plugin_context7_context7__resolve-library-id",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/asama/.claude/hooks/skill-logger.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "stop",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/asama/.claude/hooks/session-summary.sh"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
