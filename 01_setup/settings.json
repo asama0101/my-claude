@@ -59,6 +59,17 @@
     "disableBypassPermissionsMode": "disable"
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/asama/.claude/hooks/context7-remind.sh"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",

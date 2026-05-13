@@ -88,10 +88,13 @@
 | python-patterns | 型ヒント、EAFP、dataclass、デコレータ、並行処理 |
 | python-testing | pytestフィクスチャ、パラメトライズ、モック、非同期テスト |
 
-### プラグインスキル（superpowers / context7 / claude-md-management / skill-creator）
+### プラグインスキル（superpowers / claude-md-management / skill-creator）
 
 `settings.json` の `enabledPlugins` で有効化済み。セッション開始時に `superpowers:using-superpowers` が自動読み込みされ、利用可能な全スキル（TDD・デバッグ・レビュー・計画等）が提示される。
-`context7` はライブラリ・フレームワークの最新ドキュメント検索に使用（React/FastAPI/Prisma等）。
+
+### context7（MCP サーバー）
+
+`settings.json` の `enabledPlugins` と `SessionStart` フックで自動読込済み。ライブラリ・フレームワーク・SDK・API に関する質問では**必ず**使用すること。トレーニングデータに頼らず `resolve-library-id` → `query-docs` の順で呼び出す。
 
 ---
 
@@ -104,12 +107,13 @@
 
 ## アクティブなHooks
 
-`settings.json` で以下の PreToolUse フックが常時動作中:
+`settings.json` で以下のフックが常時動作中:
 
 | Hook | トリガー | 効果 |
 |------|---------|------|
-| bash-guard.sh | Bash実行前 | `rm -rf /` 系の破壊的コマンドをブロック |
+| bash-guard.sh | Bash実行前 | `rm` 等の破壊的コマンドをブロック。ブロック時は **自分で実行せず、ユーザーへ `! <コマンド>` の形式で実行を依頼**すること |
 | venv-guard.sh | Bash実行前 | venv外での `pip install` / `uv add` をブロック |
+| context7-remind.sh | セッション開始時 | context7 使用指示を自動注入 |
 
 ### Python 開発の必須要件
 

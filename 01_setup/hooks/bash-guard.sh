@@ -93,6 +93,7 @@ for pattern in "${BLOCKED_PATTERNS[@]}"; do
   if echo "$COMMAND" | grep -qiP "$pattern"; then
     echo "❌ BLOCKED: $COMMAND" >&2
     echo "   matched pattern: $pattern" >&2
+    echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
     exit 2
   fi
 done
