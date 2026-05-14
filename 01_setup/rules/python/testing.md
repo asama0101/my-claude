@@ -48,6 +48,34 @@ def test_database_connection():
     ...
 ```
 
+## テストデータの初期化・クリーンアップ（必須）
+
+すべてのテストは **独立していなければならない**。テスト実行前にデータを初期化し、実行後に必ずクリーンアップすること。
+
+**必須パターン（yield フィクスチャ）:**
+
+```python
+@pytest.fixture
+def db_session():
+    session.begin()
+    setup_test_data(session)   # テスト前: 初期データ投入
+    yield session
+    session.rollback()         # テスト後: 必ずロールバック
+
+@pytest.fixture(autouse=True)
+def reset_state():
+    initialize()               # テスト前: 状態をリセット
+    yield
+    cleanup()                  # テスト後: 必ずクリーンアップ
+```
+
+**禁止事項:**
+- テスト間でデータ・状態を共有する（グローバル変数への書き込みなど）
+- ティアダウンを省略する（`yield` 後はテスト失敗時も必ず実行される）
+- DB テストでロールバック/削除なしにコミットしたままにする
+
+---
+
 ## テスト構造（AAAパターン）
 
 Arrange-Act-Assert（準備-実行-検証）構造を優先する:
