@@ -82,12 +82,16 @@
 
 ### ローカルスキル（`~/.claude/skills/`）
 
-| Skill | Purpose |
-|-------|---------|
-| api-design | RESTリソース設計、HTTPメソッド、ページネーション、レート制限 |
-| fastapi-patterns | アプリファクトリ、Pydanticスキーマ、DI、非同期、OpenAPI |
-| python-patterns | 型ヒント、EAFP、dataclass、デコレータ、並行処理 |
-| python-testing | pytestフィクスチャ、パラメトライズ、モック、非同期テスト |
+ドメイン固有の実装パターンを提供する。superpowers のプロセススキル（brainstorming・writing-plans 等）と**組み合わせて**使う。
+
+| Skill | 使用タイミング |
+|-------|--------------|
+| api-design | REST エンドポイントのURL設計・HTTPステータスコード・ページネーション・エラー形式を決めるとき |
+| fastapi-patterns | FastAPI のルーター・Pydanticスキーマ・DI・非同期実装・テストを書くとき |
+| python-patterns | Python コードの型ヒント・イディオム・dataclass・非同期パターンを適用するとき |
+| python-testing | pytest フィクスチャ・モック・パラメトライズ・非同期テストを書くとき |
+
+> **役割分担**: superpowers = 作業プロセス（計画・TDDサイクル・デバッグ手順）、ローカルスキル = ドメイン知識（実装パターン・コード規約）。
 
 ### プラグインスキル（superpowers / claude-md-management / skill-creator）
 
@@ -115,7 +119,7 @@
 | bash-guard.sh | Bash実行前 | `rm` 等の破壊的コマンドをブロック。ブロック時は **自分で実行せず、ユーザーへ `! <コマンド>` の形式で実行を依頼**すること |
 | venv-guard.sh | Bash実行前 | venv外での `pip install` / `uv add` をブロック |
 | context7-remind.sh | セッション開始時 | context7 使用指示を自動注入 |
-| skill-logger.sh | Skill/context7 ツール使用後 | 使用スキル・プラグインを `~/.claude/logs/session-skills-<日付>.log` に追記 |
+| skill-logger.sh | Skill/Agent/context7 ツール使用後 | 使用スキル・エージェント・プラグインを `~/.claude/logs/session-usage-<日付>.log` に追記 |
 | session-summary.sh | セッション終了時（Stop） | セッション中に使用したスキル一覧を出力 |
 
 ### Python 開発の必須要件
