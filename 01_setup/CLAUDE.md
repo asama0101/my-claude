@@ -117,14 +117,14 @@
 | Hook | トリガー | 効果 |
 |------|---------|------|
 | bash-guard.sh | Bash実行前 | `rm` 等の破壊的コマンドをブロック。ブロック時は **自分で実行せず、ユーザーへ `! <コマンド>` の形式で実行を依頼**すること |
-| venv-guard.sh | Bash実行前 | venv外での `pip install` / `uv add` をブロック |
+| venv-guard.sh | Bash実行前 | venv外での `pip install` / `pip uninstall` / `uv add` をブロック |
 | context7-remind.sh | セッション開始時 | context7 使用指示を自動注入 |
 | skill-logger.sh | Skill/Agent/context7 ツール使用後 | 使用スキル・エージェント・プラグインを `~/.claude/logs/session-usage-<日付>.log` に追記 |
 | session-summary.sh | セッション終了時（Stop） | セッション中に使用したスキル一覧を出力 |
 
 ### Python 開発の必須要件
 
-- `pip install` は必ずプロジェクトのvenv内で実行すること
+- `pip install` / `pip uninstall` は必ずプロジェクトのvenv内で実行すること
 - セットアップ例: `python -m venv .venv && source .venv/bin/activate`（uvを使う場合: `uv venv && source .venv/bin/activate`）
 
 PostToolUse フックの追加設定が必要な場合は `/update-config` スキルを使用。

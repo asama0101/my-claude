@@ -6,18 +6,35 @@ PROJECT_DIR=$(pwd)
 
 # ── pip install チェック（pip / pip3 / python -m pip）──
 if echo "$COMMAND" | grep -qE '(^|&&|\|)\s*(pip3?\s+install|python[0-9.]*\s+-m\s+pip\s+install)'; then
-  if [ -z "$VIRTUAL_ENV" ]; then
+  if [ -z "$VIRTUAL_ENV" ] && [ ! -d "$PROJECT_DIR/.venv" ]; then
     echo "❌ pip install はvenv内でのみ許可されています。" >&2
     echo "   python -m venv .venv && source .venv/bin/activate" >&2
     exit 2
   fi
-  if [[ "$VIRTUAL_ENV" != "$PROJECT_DIR"* ]]; then
+  if [ -n "$VIRTUAL_ENV" ] && [[ "$VIRTUAL_ENV" != "$PROJECT_DIR"* ]]; then
     echo "❌ venvがプロジェクトフォルダ外です。" >&2
     echo "   現在のvenv: $VIRTUAL_ENV" >&2
     echo "   プロジェクト: $PROJECT_DIR" >&2
     exit 2
   fi
-  echo "✅ pip: venv確認OK: $VIRTUAL_ENV" >&2
+  echo "✅ pip install: venv確認OK" >&2
+  exit 0
+fi
+
+# ── pip uninstall チェック（pip / pip3 / python -m pip）──
+if echo "$COMMAND" | grep -qE '(^|&&|\|)\s*(pip3?\s+uninstall|python[0-9.]*\s+-m\s+pip\s+uninstall)'; then
+  if [ -z "$VIRTUAL_ENV" ] && [ ! -d "$PROJECT_DIR/.venv" ]; then
+    echo "❌ pip uninstall はvenv内でのみ許可されています。" >&2
+    echo "   python -m venv .venv && source .venv/bin/activate" >&2
+    exit 2
+  fi
+  if [ -n "$VIRTUAL_ENV" ] && [[ "$VIRTUAL_ENV" != "$PROJECT_DIR"* ]]; then
+    echo "❌ venvがプロジェクトフォルダ外です。" >&2
+    echo "   現在のvenv: $VIRTUAL_ENV" >&2
+    echo "   プロジェクト: $PROJECT_DIR" >&2
+    exit 2
+  fi
+  echo "✅ pip uninstall: venv確認OK" >&2
   exit 0
 fi
 

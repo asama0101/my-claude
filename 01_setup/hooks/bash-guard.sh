@@ -63,7 +63,6 @@ BLOCKED_PATTERNS=(
   'yum\s+remove\s+-y'
   'dnf\s+remove\s+-y'
   'npm\s+uninstall\s+-g'                    # グローバルパッケージ削除
-  'pip\s+uninstall'                         # Python パッケージ削除
 
   # ── ファイル内容消去 ────────────────────────────
   'truncate\s+.*-s\s+0'                     # ファイルを空にする
