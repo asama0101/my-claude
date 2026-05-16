@@ -50,6 +50,7 @@
 |-----------|----------|
 | agents.md | エージェントオーケストレーション、どのエージェントをいつ使用するか |
 | code-review.md | コードレビュー基準（CRITICAL/HIGH/MEDIUM/LOW）、セキュリティチェック |
+| planning-checklist.md | writing-plans 前・subagent-driven-development 中・実装完了後のチェックリスト |
 
 ### python/（*.py ファイル対象）
 
@@ -70,7 +71,7 @@
 |-------|---------|--------------|
 | planner | 機能実装計画 | 複雑な機能・リファクタリング着手前 |
 | architect | システム設計・アーキテクチャ | 設計判断・スケーラビリティ検討時 |
-| tdd-guide | テスト駆動開発 | 新機能・バグ修正時（テストファースト） |
+| tdd-guide | テスト駆動開発 | **新機能・バグ修正時は必須**（テストファースト）。汎用 `claude` エージェントで代替しない |
 | code-reviewer | 品質/セキュリティレビュー | コード作成・変更後に必ず使用 |
 | e2e-runner | Playwright E2E テスト | 重要ユーザーフローの動作確認時 |
 | refactor-cleaner | デッドコードのクリーンアップ | 未使用コード削除・コードメンテ時 |
@@ -101,6 +102,16 @@
 
 `settings.json` の `enabledPlugins` と `SessionStart` フックで自動読込済み。ライブラリ・フレームワーク・SDK・API に関する質問では**必ず**使用すること。トレーニングデータに頼らず `resolve-library-id` → `query-docs` の順で呼び出す。
 
+**計画フェーズ（`writing-plans` 実行前）でも使用すること。** 実装で使うライブラリの型制約・API の破壊的変更・依存関係の制限は、実装中ではなく計画時に確認する。
+
+### スキル使用時の注意
+
+| スキル | よくある逸脱 | 守るべきこと |
+|--------|------------|------------|
+| `brainstorming` | 既存ドキュメントがあるとき設計ドキュメント作成ステップをスキップ | 仕様書があっても `docs/superpowers/specs/` に実装アプローチの簡易ドキュメントを作る |
+| `subagent-driven-development` | タスク数が多いとき spec/quality レビューを省略 | タスクごとに必ず 2 段階レビューを実施。「テストが通った」はレビュー省略の正当化にならない |
+| `writing-plans` | ライブラリ API をトレーニングデータで推定して計画に書く | context7 で確認済みの API のみプランに記載する |
+
 ---
 
 ## 自動メモリシステム
@@ -117,10 +128,13 @@
 | Hook | トリガー | 効果 |
 |------|---------|------|
 | bash-guard.sh | Bash実行前 | `rm` 等の破壊的コマンドをブロック。ブロック時は **自分で実行せず、ユーザーへ `! <コマンド>` の形式で実行を依頼**すること |
-| venv-guard.sh | Bash実行前 | venv外での `pip install` / `pip uninstall` / `uv add` をブロック |
+| venv-guard.sh | Bash実行前 | venv外での `pip install` / `pip uninstall` / `uv add` をブロック（venv パス直接指定は許可） |
+| tdd-guard.sh | Write/Edit後（*.py） | `tests/` 外の Python ファイル編集時に tdd-guide 使用を促す。汎用エージェントでの代替防止 |
 | context7-remind.sh | セッション開始時 | context7 使用指示を自動注入 |
+| task-finish-suggest-review.sh | TaskUpdate（status=completed） | Task 完了時に code-reviewer または security-review の実施を提案。レビュー漏れ防止 |
 | skill-logger.sh | Skill/Agent/context7 ツール使用後 | 使用スキル・エージェント・プラグインを `~/.claude/logs/session-usage-<日付>.log` に追記 |
 | session-summary.sh | セッション終了時（Stop） | セッション中に使用したスキル一覧を出力 |
+| session-close-remind.sh | Stop（活性セッションのみ） | `session-close-improve` 未実施の場合にリマインドを表示 |
 
 ### Python 開発の必須要件
 

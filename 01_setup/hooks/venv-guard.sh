@@ -4,6 +4,14 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
 PROJECT_DIR=$(pwd)
 
+# ── venv パス直接指定の早期許可 ─────────────────────────────────────────────
+# /path/to/.venv/bin/pip install や .venv/bin/pip install のように
+# venv バイナリを明示指定している場合は venv 内とみなして許可する
+if echo "$COMMAND" | grep -qE '([./]venv|\.venv)/bin/pip[0-9.]*\s+(install|uninstall)'; then
+  echo "✅ pip: venv バイナリ直接指定のため許可" >&2
+  exit 0
+fi
+
 # ── pip install チェック（pip / pip3 / python -m pip）──
 if echo "$COMMAND" | grep -qE '(^|&&|;)\s*(pip3?\s+install|python[0-9.]*\s+-m\s+pip\s+install)'; then
   if [ -z "$VIRTUAL_ENV" ] && [ ! -d "$PROJECT_DIR/.venv" ]; then

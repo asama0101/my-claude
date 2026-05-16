@@ -1,0 +1,35 @@
+{
+  "skill_name": "session-close-improve",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "メモリを増強するので終了しますが、大丈夫ですか？",
+      "expected_output": "振り返り（Skills/Agents/Rules の評価）→ CLAUDE.md 更新の提案 → 新しいツール提案 → メモリ保存 の流れが実行される。単に「大丈夫です」で終わらない。",
+      "assertions": [
+        "振り返り（retrospective）セクションが出力に含まれる",
+        "CLAUDE.md の更新について言及されている",
+        "メモリへの保存が実施または提案されている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "このセッションを通じて、CLAUDE.mdを更新して",
+      "expected_output": "セッションの学びを振り返り、/claude-md-management:claude-md-improver を使って CLAUDE.md を更新する。更新後にレビューして整合性を確認する。",
+      "assertions": [
+        "claude-md-management:claude-md-improver スキルが呼び出される",
+        "振り返りの内容が CLAUDE.md 更新の根拠として使われている",
+        "更新後のレビューが実施されている"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "今回のセッションで作るべきだった skills・Agent・rules・Hookはあるか",
+      "expected_output": "振り返りを行い、セッション中に発生した問題から Hook/Rule/Skill の提案をする。提案にはなぜ必要かの根拠と工数の概算が含まれる。",
+      "assertions": [
+        "今回のセッションの振り返りに基づいた提案が含まれる",
+        "提案ごとに「解決する問題」が明記されている",
+        "YAGNI（今回実際に困った問題のみ）が守られている"
+      ]
+    }
+  ]
+}

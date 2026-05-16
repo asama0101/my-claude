@@ -87,6 +87,15 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/asama/.claude/hooks/tdd-guard.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Skill",
         "hooks": [
           {
@@ -130,6 +139,10 @@
           {
             "type": "command",
             "command": "/home/asama/.claude/hooks/session-summary.sh"
+          },
+          {
+            "type": "command",
+            "command": "/home/asama/.claude/hooks/session-close-remind.sh"
           },
           {
             "type": "command",
