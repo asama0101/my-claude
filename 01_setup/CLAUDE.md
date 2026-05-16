@@ -83,10 +83,11 @@
 
 ### ローカルスキル（`~/.claude/skills/`）
 
-ドメイン固有の実装パターンを提供する。superpowers のプロセススキル（brainstorming・writing-plans 等）と**組み合わせて**使う。
+ドメイン固有の実装パターンとプロジェクト固有のプロセスを提供する。superpowers のプロセススキル（brainstorming・writing-plans 等）と**組み合わせて**使う。
 
 | Skill | 使用タイミング |
 |-------|--------------|
+| session-close-improve | 実装完了後・長い作業セッション終了時に積極的に使用。CLAUDE.md 更新・Hook/Rule/Skill 提案・メモリ保存を行う |
 | api-design | REST エンドポイントのURL設計・HTTPステータスコード・ページネーション・エラー形式を決めるとき |
 | fastapi-patterns | FastAPI のルーター・Pydanticスキーマ・DI・非同期実装・テストを書くとき |
 | python-patterns | Python コードの型ヒント・イディオム・dataclass・非同期パターンを適用するとき |
