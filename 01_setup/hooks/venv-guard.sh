@@ -5,7 +5,7 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 PROJECT_DIR=$(pwd)
 
 # ── pip install チェック（pip / pip3 / python -m pip）──
-if echo "$COMMAND" | grep -qE '(^|&&|\|)\s*(pip3?\s+install|python[0-9.]*\s+-m\s+pip\s+install)'; then
+if echo "$COMMAND" | grep -qE '(^|&&|;)\s*(pip3?\s+install|python[0-9.]*\s+-m\s+pip\s+install)'; then
   if [ -z "$VIRTUAL_ENV" ] && [ ! -d "$PROJECT_DIR/.venv" ]; then
     echo "❌ pip install はvenv内でのみ許可されています。" >&2
     echo "   python -m venv .venv && source .venv/bin/activate" >&2
@@ -22,7 +22,7 @@ if echo "$COMMAND" | grep -qE '(^|&&|\|)\s*(pip3?\s+install|python[0-9.]*\s+-m\s
 fi
 
 # ── pip uninstall チェック（pip / pip3 / python -m pip）──
-if echo "$COMMAND" | grep -qE '(^|&&|\|)\s*(pip3?\s+uninstall|python[0-9.]*\s+-m\s+pip\s+uninstall)'; then
+if echo "$COMMAND" | grep -qE '(^|&&|;)\s*(pip3?\s+uninstall|python[0-9.]*\s+-m\s+pip\s+uninstall)'; then
   if [ -z "$VIRTUAL_ENV" ] && [ ! -d "$PROJECT_DIR/.venv" ]; then
     echo "❌ pip uninstall はvenv内でのみ許可されています。" >&2
     echo "   python -m venv .venv && source .venv/bin/activate" >&2
