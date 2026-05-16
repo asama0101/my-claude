@@ -93,7 +93,7 @@
 | python-patterns | Python コードの型ヒント・イディオム・dataclass・非同期パターンを適用するとき |
 | python-testing | pytest フィクスチャ・モック・パラメトライズ・非同期テストを書くとき |
 
-> **役割分担**: superpowers = 作業プロセス（計画・TDDサイクル・デバッグ手順）、ローカルスキル = ドメイン知識（実装パターン・コード規約）。
+> **役割分担**: superpowers = 汎用プロセス（計画・TDDサイクル・デバッグ手順）、ローカルスキル = ドメイン知識 + プロジェクト固有プロセス（実装パターン・コード規約・セッション終了フロー）。
 
 ### プラグインスキル（superpowers / claude-md-management / skill-creator）
 
