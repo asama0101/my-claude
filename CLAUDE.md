@@ -15,6 +15,7 @@ bash sync_file.sh   # ~/.claude/ → 01_setup/ へ同期して git push（commit
 | パス | 内容 |
 |-----|------|
 | `01_setup/` | `~/.claude/` のミラー（hooks / skills / agents / rules / settings.json / CLAUDE.md） |
+| &nbsp;&nbsp;└ `rules/go/` | Go 向けルール（coding-style / testing / patterns / gin） |
 | `02_private-skills/` | プライベートカスタムスキル（superpowers プラグイン外） |
 | `03_python-project/` | Python バックエンド開発テンプレート（CLAUDE.md + rules/） |
 | `sync_file.sh` | 同期スクリプト |

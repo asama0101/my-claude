@@ -146,6 +146,9 @@
 | `tdd-guide` / `code-reviewer` | ETL の「冗長な変換を1行削除する」程度の簡素化を「リファクタリングだから tdd-guide 不要」「2行だから code-reviewer 不要」と判断してスキップ | `.dt.convert_time_zone()` 削除のような ETL ロジック変更は動作に影響する可能性がある。変更の種類（バグ修正・新機能・簡素化）に関わらず Python ファイルを変更したら tdd-guide・code-reviewer は必須 |
 | `brainstorming` | ボトルネック分析・探索作業を会話でこなし「分析済みだから brainstorming は不要」と判断して writing-plans に直行する | 分析が済んでいても brainstorming を呼ぶ。spec ファイル（`docs/superpowers/specs/`）が未作成になることを防ぐために必要 |
 | `writing-plans` + `context7` | 「探索ベンチマークで API の動作を確認済み」「このライブラリは十分知っている」という理由で context7 をスキップして計画を書く | 探索コードで動作確認した API でも、計画に記載する前に context7 で正式ドキュメントを確認する。`context7-plan-remind.sh` フックが writing-plans 実行前にリマインドする |
+| `go-patterns` / `go-testing` / `gin-patterns` スキル作成・更新時 | 「Gin/testify は十分知っている」という理由で context7 をスキップしてコード例を書く | go-patterns・go-testing・gin-patterns を作成・更新する際も、コード例に使う API（`c.ShouldBindJSON`・`assert.Equal`・`t.Parallel()` 等）を context7 で確認してから書く |
+| rule/skill/agent の markdown 作成後 | 「設定ファイル・ドキュメントだから code-reviewer は不要」と判断してスキップする | `.md` ファイルであっても rule/skill/agent は実際の動作に影響する設定。作成・変更後は必ず code-reviewer を呼ぶ |
+| rule/skill/agent を新規作成するとき | 「要件が明確だから brainstorming は不要」と判断して Plan モードに直行する | rule/skill/agent の新規作成は機能追加に該当するため brainstorming が必要。Claude-md-improver 経由でも同様 |
 | `impl-doc-builder`（HTML セクション番号変更） | セクションを移動したとき「移動元番号への参照」を見落とし、事後 grep で修正する羽目になる | 変更前に `grep -n 'Section [0-9]'` で全テキスト参照を列挙し「参照先が移動するもの」と「参照元番号が変わるもの」の両方を網羅する。変更後にも同じ grep で確認する |
 | `impl-doc-builder`（Write ツールで大規模書き直し） | 1,000行超の HTML を Write ツールで一括書き直したとき、新たなミスが混入しても自分では気づけない | 大規模書き直し後は必ず code-reviewer を呼ぶ。Write ツールは既存の誤りを直す一方で新たな誤りを生む可能性がある（今回の例: `_detect_late_files` 戻り値型・`logging.DEBUG` vs `logging.INFO`・カラム順序の3件が混入 → code-reviewer で全検出）。「Write 後の code-reviewer は必須」のパターン |
 
