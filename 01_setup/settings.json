@@ -83,6 +83,15 @@
             "command": "/home/asama/.claude/hooks/venv-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/asama/.claude/hooks/context7-plan-remind.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -92,6 +101,10 @@
           {
             "type": "command",
             "command": "/home/asama/.claude/hooks/tdd-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "/home/asama/.claude/hooks/tdd-guard-go.sh"
           }
         ]
       },

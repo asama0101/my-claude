@@ -180,6 +180,56 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db)) -> UserResp
     return UserResponse.model_validate(user)
 ```
 
+### Go パターン (HIGH)
+
+Go/Gin コードのレビュー時は以下も確認:
+
+- **エラーの無視** — `_ = err` や `err` チェックなしで次の行に進む
+- **コンテキストの欠如** — I/O を伴う関数の第一引数に `context.Context` がない
+- **goroutine リーク** — `go func()` 起動後にキャンセル/終了制御がない（`ctx.Done()` で止まれない）
+- **グローバル変数へのミューテーション** — パッケージレベル変数を関数内で変更している
+- **インターフェースの過大定義** — 単一ファイルに 8 メソッド以上の神インターフェース
+- **`panic` の乱用** — 初期化フロー以外でのパニック使用（通常フローは `error` を返す）
+- **nil ポインタリスク** — インターフェース戻り値の nil チェックなしで `.Field` / `.Method()` アクセス
+- **defer でのエラー無視** — `defer rows.Close()` のエラーを `defer func() { _ = rows.Close() }` で無視
+- **型アサーションの非チェック** — `x.(Type)` を `, ok` なしで使う（panic リスク）
+- **`gin.Default()` の本番使用** — Logger/Recovery が自動付与され設定を制御しにくい
+
+```go
+// BAD: エラー無視 + goroutine リーク
+go func() {
+    result, _ := fetchData()  // エラー無視
+    for {
+        doWork(result)  // キャンセル条件なし
+    }
+}()
+
+// GOOD: エラー処理 + ctx でキャンセル
+go func() {
+    result, err := fetchData()
+    if err != nil {
+        log.Printf("fetchData failed: %v", err)
+        return
+    }
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        default:
+            doWork(result)
+        }
+    }
+}()
+```
+
+```go
+// BAD: コンテキストなし
+func (r *repo) FindByID(id string) (*User, error) { ... }
+
+// GOOD: コンテキスト第一引数
+func (r *repo) FindByID(ctx context.Context, id string) (*User, error) { ... }
+```
+
 ### パフォーマンス (MEDIUM)
 
 - **非効率なアルゴリズム** — O(n log n) や O(n) が可能なのに O(n^2)

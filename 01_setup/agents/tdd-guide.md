@@ -77,6 +77,54 @@ pytest --cov=. --cov-report=term-missing
 - [ ] アサーションは具体的で意味がある
 - [ ] カバレッジが 80%以上
 
+## Go テスト（testify）
+
+### コマンド
+
+```bash
+go test ./...
+go test -cover ./...
+go test -v -run TestFunctionName ./...
+go test -race ./...   # データ競合検出
+```
+
+### テーブル駆動テスト（Go の標準パターン）
+
+```go
+func TestAdd(t *testing.T) {
+    tests := []struct {
+        name    string
+        a, b    int
+        want    int
+    }{
+        {"positive", 2, 3, 5},
+        {"zero", 0, 5, 5},
+        {"negative", -1, 1, 0},
+    }
+    for _, tt := range tests {
+        tt := tt
+        t.Run(tt.name, func(t *testing.T) {
+            t.Parallel()
+            assert.Equal(t, tt.want, Add(tt.a, tt.b))
+        })
+    }
+}
+```
+
+### testify の使い方
+
+- `assert.*` — テスト失敗後も続行（複数アサーションを並べたい場合）
+- `require.*` — 即時停止（nil チェック後の操作など、後続が panic するリスクがある場合）
+- `mockObj.AssertExpectations(t)` — テスト終了前に必ず呼ぶ
+
+### Go TDD での必須エッジケース
+
+1. **nil/ゼロ値** 入力
+2. **空スライス/空文字列**
+3. **無効な引数**（負の値・範囲外など）
+4. **エラーパス**（`errors.Is` で正しいエラー型を検証）
+5. **コンテキストキャンセル**（`context.Canceled`・`context.DeadlineExceeded`）
+
 ## v1.8 評価駆動 TDD 補足
 
 TDD フローに評価駆動開発を統合する:
