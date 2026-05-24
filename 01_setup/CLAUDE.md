@@ -47,7 +47,6 @@
 | tdd-guide | テスト駆動開発 | **新機能・バグ修正時は必須**（テストファースト）。汎用 `claude` エージェントで代替しない |
 | code-reviewer | 品質/セキュリティレビュー | コード作成・変更後に必ず使用 |
 | python-dev | Python/FastAPI実装 | Python/FastAPI コードを書くとき |
-| go-dev | Go/Gin実装 | Go/Gin コードを書くとき |
 | api-designer | REST API設計 | エンドポイント・スキーマ設計時 |
 | e2e-runner | Playwright E2E テスト | 重要ユーザーフローの動作確認時 |
 | refactor-cleaner | デッドコードのクリーンアップ | 未使用コード削除・コードメンテ時 |
