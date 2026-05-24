@@ -73,14 +73,8 @@ context7 はライブラリ・SDK・API 質問で**必ず**使用（SessionStart
 | Hook | 効果 |
 |------|------|
 | bash-guard.sh | `rm` 等の破壊的コマンドをブロック。ブロック時はユーザーへ `! <コマンド>` 形式で依頼すること |
-| tdd-guard.sh/tdd-guard-go.sh | `tests/` 外の Python / `*_test.go` 以外の Go 編集時に tdd-guide 使用を促す |
+| tdd-guard.sh | `tests/` 外の Python 実装ファイル編集時に tdd-guide 使用を促す |
 | session-close-remind.sh | `session-close-improve` 未実施の場合にセッション終了時リマインド |
 
 詳細（venv-guard / context7-remind / skill-logger 等）は `~/.claude/settings.json` 参照。
 
-### Python 開発の必須要件
-
-- `pip install` / `pip uninstall` は必ずプロジェクトのvenv内で実行すること
-- セットアップ例: `python -m venv .venv && source .venv/bin/activate`（uvを使う場合: `uv venv && source .venv/bin/activate`）
-
-PostToolUse フックの追加設定が必要な場合は `/update-config` スキルを使用。
