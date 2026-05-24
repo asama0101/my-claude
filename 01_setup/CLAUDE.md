@@ -46,6 +46,9 @@
 | architect | システム設計・アーキテクチャ | 設計判断・スケーラビリティ検討時 |
 | tdd-guide | テスト駆動開発 | **新機能・バグ修正時は必須**（テストファースト）。汎用 `claude` エージェントで代替しない |
 | code-reviewer | 品質/セキュリティレビュー | コード作成・変更後に必ず使用 |
+| python-dev | Python/FastAPI実装 | Python/FastAPI コードを書くとき |
+| go-dev | Go/Gin実装 | Go/Gin コードを書くとき |
+| api-designer | REST API設計 | エンドポイント・スキーマ設計時 |
 | e2e-runner | Playwright E2E テスト | 重要ユーザーフローの動作確認時 |
 | refactor-cleaner | デッドコードのクリーンアップ | 未使用コード削除・コードメンテ時 |
 | doc-updater | ドキュメント更新 | README・ガイド・コードマップ更新時 |
@@ -54,7 +57,7 @@
 
 ## スキル
 
-ローカル: `~/.claude/skills/`（session-close-improve / api-design / fastapi-patterns 等）。プラグイン（superpowers / context7）は `enabledPlugins` で有効化済み。  
+ローカル: `~/.claude/skills/session-close-improve`（セッション終了時の改善ワークフロー専用）。プラグイン（superpowers / context7）は `enabledPlugins` で有効化済み。  
 context7 はライブラリ・SDK・API 質問で**必ず**使用（SessionStart フック参照）。`resolve-library-id` → `query-docs` の順。
 
 ---

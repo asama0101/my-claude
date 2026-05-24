@@ -12,7 +12,7 @@ FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 [[ "$FILE" == */test_*.py ]] && exit 0
 [[ "$(basename "$FILE")" == test_*.py ]] && exit 0
 
-echo "⚠️  [tdd-guard] 実装ファイルを編集しました: $(basename "$FILE")" >&2
-echo "   tdd-guide エージェントを使って TDD（テストファースト）で開発しましたか？" >&2
+echo "⚠️  [tdd-guard] Python 実装ファイルを編集しました: $(basename "$FILE")" >&2
+echo "   python-dev エージェント（実装）または tdd-guide エージェント（TDD）を使いましたか？" >&2
 echo "   汎用 claude エージェントで代替しないこと（CLAUDE.md 参照）" >&2
 exit 0
