@@ -142,23 +142,24 @@ TDD フローに評価駆動開発を統合する:
 4. テストと評価を再実行し、pass@1 と pass@3 を報告する。
 
 リリースクリティカルなパスは、マージ前に pass^3 の安定性を目標とすること。
+---
 
-## Python テスト規約
+### Python テスト規約
 
-# Python テスト
 
-## フレームワーク
+
+### フレームワーク
 
 テストフレームワークとして **pytest** を使用する。
 
-## 最低テストカバレッジ: 80%
+### 最低テストカバレッジ: 80%
 
 テスト種別（すべて必須）:
 1. **ユニットテスト** — 個々の関数、ユーティリティ
 2. **統合テスト** — APIエンドポイント、データベース操作
 3. **E2Eテスト** — 重要なユーザーフロー
 
-## テスト駆動開発
+### テスト駆動開発
 
 必須ワークフロー:
 1. まずテストを書く（RED）
@@ -168,13 +169,13 @@ TDD フローに評価駆動開発を統合する:
 5. リファクタリング（IMPROVE）
 6. カバレッジを確認（80%以上）
 
-## カバレッジ
+### カバレッジ
 
 ```bash
 pytest --cov=src --cov-report=term-missing
 ```
 
-## テストの整理
+### テストの整理
 
 テストの分類には `pytest.mark` を使用する:
 
@@ -190,7 +191,7 @@ def test_database_connection():
     ...
 ```
 
-## テストデータの初期化・クリーンアップ（必須）
+### テストデータの初期化・クリーンアップ（必須）
 
 すべてのテストは **独立していなければならない**。テスト実行前にデータを初期化し、実行後に必ずクリーンアップすること。
 
@@ -218,7 +219,7 @@ def reset_state():
 
 ---
 
-## テスト構造（AAAパターン）
+### テスト構造（AAAパターン）
 
 Arrange-Act-Assert（準備-実行-検証）構造を優先する:
 
@@ -235,7 +236,7 @@ def test_calculates_similarity_correctly():
     assert similarity == 0.0
 ```
 
-## テスト命名
+### テスト命名
 
 テスト対象の振る舞いを説明する記述的な名前を使用する:
 
@@ -245,18 +246,18 @@ def test_raises_value_error_when_api_key_missing():
 def test_falls_back_to_db_when_cache_unavailable():
 ```
 
-## テスト失敗のトラブルシューティング
+### テスト失敗のトラブルシューティング
 
 1. **tdd-guide** エージェントを使用する
 2. テストの独立性を確認する
 3. モックが正しいことを確認する
 4. テストではなく実装を修正する（テストが間違っている場合を除く）
 
-## エージェントサポート
+### エージェントサポート
 
 - **tdd-guide** — 新機能に対して積極的に使用し、テストファーストを強制する
 
-## 非同期テスト
+### 非同期テスト
 
 非同期エンドポイントのテストには `pytest-asyncio` と `httpx` を使用する:
 
@@ -270,26 +271,26 @@ async def test_get_user(async_client: AsyncClient):
     assert response.status_code == 200
 ```
 
-## 参考
+### 参考
 
 スキル: `python-testing` で詳細なpytestパターンとフィクスチャを参照。
 
-## Go テスト規約
+### Go テスト規約
 
-# Go テスト
 
-## フレームワーク
+
+### フレームワーク
 
 標準 `testing` パッケージ + **testify** を使用する。
 
-## 最低テストカバレッジ: 80%
+### 最低テストカバレッジ: 80%
 
 テスト種別（すべて必須）:
 1. **ユニットテスト** — 個々の関数、ユーティリティ
 2. **統合テスト** — HTTP ハンドラー、データベース操作
 3. **E2Eテスト** — 重要なユーザーフロー
 
-## テスト駆動開発
+### テスト駆動開発
 
 必須ワークフロー:
 1. まずテストを書く（RED）
@@ -299,7 +300,7 @@ async def test_get_user(async_client: AsyncClient):
 5. リファクタリング（IMPROVE）
 6. カバレッジを確認（80%以上）
 
-## カバレッジ
+### カバレッジ
 
 ```bash
 go test -cover ./...
@@ -307,7 +308,7 @@ go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 ```
 
-## テーブル駆動テスト（Go の標準パターン）
+### テーブル駆動テスト（Go の標準パターン）
 
 Go では**テーブル駆動テスト**が慣用的:
 
@@ -336,7 +337,7 @@ func TestAdd(t *testing.T) {
 }
 ```
 
-## テスト命名
+### テスト命名
 
 `TestFunctionName_Scenario` 形式:
 
@@ -346,7 +347,7 @@ func TestGetUser_ReturnsError_WhenIDNotFound(t *testing.T) {...}
 func TestCreateUser_ReturnsValidationError_WhenEmailMissing(t *testing.T) {...}
 ```
 
-## テストの独立性（必須）
+### テストの独立性（必須）
 
 すべてのテストは **独立していなければならない**:
 
@@ -374,7 +375,7 @@ func TestWithFile(t *testing.T) {
 - テスト後のクリーンアップを省略する
 - DB テストでロールバック/削除なしにコミットしたままにする
 
-## testify の使い方
+### testify の使い方
 
 ```go
 import (
@@ -400,7 +401,7 @@ func TestSomething(t *testing.T) {
 - `require.*` — nil ポインタ参照が起こりうる箇所の直前
 - `assert.*` — それ以外の検証
 
-## テスト構造（AAAパターン）
+### テスト構造（AAAパターン）
 
 Arrange-Act-Assert（準備-実行-検証）構造を優先する:
 
@@ -419,7 +420,7 @@ func TestCalculateSimilarity(t *testing.T) {
 }
 ```
 
-## 並列テスト
+### 並列テスト
 
 独立したテストには `t.Parallel()` を使う:
 
@@ -430,37 +431,37 @@ func TestExpensive(t *testing.T) {
 }
 ```
 
-## テスト失敗のトラブルシューティング
+### テスト失敗のトラブルシューティング
 
 1. **tdd-guide** エージェントを使用する
 2. テストの独立性を確認する（前のテストの状態が残っていないか）
 3. モックが正しいことを確認する
 4. テストではなく実装を修正する（テストが間違っている場合を除く）
 
-## エージェントサポート
+### エージェントサポート
 
 - **tdd-guide** — 新機能に対して積極的に使用し、テストファーストを強制する
 
-## 参考
+### 参考
 
 スキル: `go-testing` で詳細な testify パターンとテーブル駆動テストを参照。
 
-## Python テスト詳細パターン（pytest）
+### Python テスト詳細パターン（pytest）
 
-# Python テストパターン
+
 
 pytest、TDD メソドロジー、ベストプラクティスを使った Python アプリケーションの総合テスト戦略。
 
-## 使用場面
+### 使用場面
 
 - 新規 Python コードを書くとき（TDD に従う: レッド → グリーン → リファクタリング）
 - Python プロジェクトのテストスイートを設計するとき
 - Python のテストカバレッジをレビューするとき
 - テストインフラをセットアップするとき
 
-## テストの核心哲学
+### テストの核心哲学
 
-### テスト駆動開発（TDD）
+#### テスト駆動開発（TDD）
 
 常に TDD サイクルに従う:
 
@@ -469,19 +470,19 @@ pytest、TDD メソドロジー、ベストプラクティスを使った Python
 3. **REFACTOR**: テストをグリーンに保ちながらコードを改善する
 
 ```python
-# Step 1: 失敗するテストを書く（RED）
+
 def test_add_numbers():
     result = add(2, 3)
     assert result == 5
 
-# Step 2: 最小限の実装を書く（GREEN）
+
 def add(a, b):
     return a + b
 
-# Step 3: 必要に応じてリファクタリング（REFACTOR）
+
 ```
 
-### カバレッジ要件
+#### カバレッジ要件
 
 - **目標**: コードカバレッジ 80% 以上
 - **クリティカルパス**: 100% カバレッジが必須
@@ -491,9 +492,9 @@ def add(a, b):
 pytest --cov=mypackage --cov-report=term-missing --cov-report=html
 ```
 
-## pytest の基礎
+### pytest の基礎
 
-### 基本的なテスト構造
+#### 基本的なテスト構造
 
 ```python
 import pytest
@@ -515,50 +516,50 @@ def test_list_append():
     assert len(items) == 4
 ```
 
-### アサーション
+#### アサーション
 
 ```python
-# 等値
+
 assert result == expected
 
-# 不等値
+
 assert result != unexpected
 
-# 真偽値
+
 assert result  # Truthy
 assert not result  # Falsy
 assert result is True  # 厳密に True
 assert result is False  # 厳密に False
 assert result is None  # 厳密に None
 
-# メンバーシップ
+
 assert item in collection
 assert item not in collection
 
-# 比較
+
 assert result > 0
 assert 0 <= result <= 100
 
-# 型チェック
+
 assert isinstance(result, str)
 
-# 例外テスト（推奨アプローチ）
+
 with pytest.raises(ValueError):
     raise ValueError("error message")
 
-# 例外メッセージのチェック
+
 with pytest.raises(ValueError, match="invalid input"):
     raise ValueError("invalid input provided")
 
-# 例外属性のチェック
+
 with pytest.raises(ValueError) as exc_info:
     raise ValueError("error message")
 assert str(exc_info.value) == "error message"
 ```
 
-## フィクスチャ
+### フィクスチャ
 
-### 基本的なフィクスチャの使い方
+#### 基本的なフィクスチャの使い方
 
 ```python
 import pytest
@@ -574,7 +575,7 @@ def test_sample_data(sample_data):
     assert sample_data["age"] == 30
 ```
 
-### セットアップ/ティアダウン付きフィクスチャ
+#### セットアップ/ティアダウン付きフィクスチャ
 
 ```python
 @pytest.fixture
@@ -596,17 +597,17 @@ def test_database_query(database):
     assert len(result) > 0
 ```
 
-### フィクスチャのスコープ
+#### フィクスチャのスコープ
 
 ```python
-# function スコープ（デフォルト）— テストごとに実行
+
 @pytest.fixture
 def temp_file():
     with open("temp.txt", "w") as f:
         yield f
     os.remove("temp.txt")
 
-# module スコープ — モジュールごとに1回実行
+
 @pytest.fixture(scope="module")
 def module_db():
     db = Database(":memory:")
@@ -614,7 +615,7 @@ def module_db():
     yield db
     db.close()
 
-# session スコープ — テストセッションで1回実行
+
 @pytest.fixture(scope="session")
 def shared_resource():
     resource = ExpensiveResource()
@@ -622,7 +623,7 @@ def shared_resource():
     resource.cleanup()
 ```
 
-### パラメーター付きフィクスチャ
+#### パラメーター付きフィクスチャ
 
 ```python
 @pytest.fixture(params=[1, 2, 3])
@@ -635,7 +636,7 @@ def test_numbers(number):
     assert number > 0
 ```
 
-### 複数フィクスチャの使用
+#### 複数フィクスチャの使用
 
 ```python
 @pytest.fixture
@@ -651,7 +652,7 @@ def test_user_admin_interaction(user, admin):
     assert admin.can_manage(user)
 ```
 
-### autouse フィクスチャ
+#### autouse フィクスチャ
 
 ```python
 @pytest.fixture(autouse=True)
@@ -666,10 +667,10 @@ def test_without_fixture_call():
     assert Config.get_setting("debug") is False
 ```
 
-### 共有フィクスチャ用 conftest.py
+#### 共有フィクスチャ用 conftest.py
 
 ```python
-# tests/conftest.py
+
 import pytest
 
 @pytest.fixture
@@ -690,9 +691,9 @@ def auth_headers(client):
     return {"Authorization": f"Bearer {token}"}
 ```
 
-## パラメトライズ
+### パラメトライズ
 
-### 基本的なパラメトライズ
+#### 基本的なパラメトライズ
 
 ```python
 @pytest.mark.parametrize("input,expected", [
@@ -705,7 +706,7 @@ def test_uppercase(input, expected):
     assert input.upper() == expected
 ```
 
-### 複数パラメーター
+#### 複数パラメーター
 
 ```python
 @pytest.mark.parametrize("a,b,expected", [
@@ -719,7 +720,7 @@ def test_add(a, b, expected):
     assert add(a, b) == expected
 ```
 
-### ID 付きパラメトライズ
+#### ID 付きパラメトライズ
 
 ```python
 @pytest.mark.parametrize("input,expected", [
@@ -732,7 +733,7 @@ def test_email_validation(input, expected):
     assert is_valid_email(input) is expected
 ```
 
-### パラメトライズドフィクスチャ
+#### パラメトライズドフィクスチャ
 
 ```python
 @pytest.fixture(params=["sqlite", "postgresql", "mysql"])
@@ -751,45 +752,45 @@ def test_database_operations(db):
     assert result is not None
 ```
 
-## マーカーとテスト選択
+### マーカーとテスト選択
 
-### カスタムマーカー
+#### カスタムマーカー
 
 ```python
-# 遅いテストにマーク
+
 @pytest.mark.slow
 def test_slow_operation():
     time.sleep(5)
 
-# 統合テストにマーク
+
 @pytest.mark.integration
 def test_api_integration():
     response = requests.get("https://api.example.com")
     assert response.status_code == 200
 
-# ユニットテストにマーク
+
 @pytest.mark.unit
 def test_unit_logic():
     assert calculate(2, 3) == 5
 ```
 
-### 特定テストの実行
+#### 特定テストの実行
 
 ```bash
-# 速いテストだけ実行
+
 pytest -m "not slow"
 
-# 統合テストだけ実行
+
 pytest -m integration
 
-# 統合テストまたは遅いテストを実行
+
 pytest -m "integration or slow"
 
-# ユニットテストで遅くないものを実行
+
 pytest -m "unit and not slow"
 ```
 
-### pytest.ini でのマーカー設定
+#### pytest.ini でのマーカー設定
 
 ```ini
 [pytest]
@@ -800,9 +801,9 @@ markers =
     django: marks tests as requiring Django
 ```
 
-## モックとパッチ
+### モックとパッチ
 
-### 関数のモック
+#### 関数のモック
 
 ```python
 from unittest.mock import patch, Mock
@@ -818,7 +819,7 @@ def test_with_mock(api_call_mock):
     assert result["status"] == "success"
 ```
 
-### 戻り値のモック
+#### 戻り値のモック
 
 ```python
 @patch("mypackage.Database.connect")
@@ -832,7 +833,7 @@ def test_database_connection(connect_mock):
     connect_mock.assert_called_once_with("localhost")
 ```
 
-### 例外のモック
+#### 例外のモック
 
 ```python
 @patch("mypackage.api_call")
@@ -846,7 +847,7 @@ def test_api_error_handling(api_call_mock):
     api_call_mock.assert_called_once()
 ```
 
-### コンテキストマネージャーのモック
+#### コンテキストマネージャーのモック
 
 ```python
 @patch("builtins.open", new_callable=mock_open)
@@ -860,7 +861,7 @@ def test_file_reading(mock_file):
     assert result == "file content"
 ```
 
-### autospec の使用
+#### autospec の使用
 
 ```python
 @patch("mypackage.DBConnection", autospec=True)
@@ -873,7 +874,7 @@ def test_autospec(db_mock):
     db_mock.assert_called_once()
 ```
 
-### クラスインスタンスのモック
+#### クラスインスタンスのモック
 
 ```python
 class TestUserService:
@@ -889,7 +890,7 @@ class TestUserService:
         repo_mock.return_value.save.assert_called_once()
 ```
 
-### プロパティのモック
+#### プロパティのモック
 
 ```python
 @pytest.fixture
@@ -906,7 +907,7 @@ def test_with_mock_config(mock_config):
     assert mock_config.api_key == "test-key"
 ```
 
-### pytest-mock の mocker フィクスチャ
+#### pytest-mock の mocker フィクスチャ
 
 `@patch` デコレーターより Pythonic で、複数フィクスチャと組み合わせが容易（`pip install pytest-mock` が必要）。
 
@@ -932,9 +933,9 @@ def test_async_with_mocker(mocker):
     mock_call.assert_awaited_once()
 ```
 
-## 非同期コードのテスト
+### 非同期コードのテスト
 
-### pytest-asyncio による非同期テスト
+#### pytest-asyncio による非同期テスト
 
 ```python
 import pytest
@@ -952,7 +953,7 @@ async def test_async_with_fixture(async_client):
     assert response.status_code == 200
 ```
 
-### 非同期フィクスチャ
+#### 非同期フィクスチャ
 
 ```python
 @pytest.fixture
@@ -969,7 +970,7 @@ async def test_api_endpoint(async_client):
     assert response.status_code == 200
 ```
 
-### 非同期関数のモック
+#### 非同期関数のモック
 
 ```python
 @pytest.mark.asyncio
@@ -984,9 +985,9 @@ async def test_async_mock(api_call_mock):
     assert result["status"] == "ok"
 ```
 
-## 例外のテスト
+### 例外のテスト
 
-### 期待される例外のテスト
+#### 期待される例外のテスト
 
 ```python
 def test_divide_by_zero():
@@ -1000,7 +1001,7 @@ def test_custom_exception():
         validate_input("invalid")
 ```
 
-### 例外属性のテスト
+#### 例外属性のテスト
 
 ```python
 def test_exception_with_details():
@@ -1012,9 +1013,9 @@ def test_exception_with_details():
     assert "error" in str(exc_info.value)
 ```
 
-## 副作用のテスト
+### 副作用のテスト
 
-### ファイル操作のテスト
+#### ファイル操作のテスト
 
 ```python
 import tempfile
@@ -1033,7 +1034,7 @@ def test_file_processing():
         os.unlink(temp_path)
 ```
 
-### pytest の tmp_path フィクスチャを使ったテスト
+#### pytest の tmp_path フィクスチャを使ったテスト
 
 ```python
 def test_with_tmp_path(tmp_path):
@@ -1046,7 +1047,7 @@ def test_with_tmp_path(tmp_path):
     # tmp_path は自動クリーンアップされる
 ```
 
-### tmpdir フィクスチャを使ったテスト
+#### tmpdir フィクスチャを使ったテスト
 
 ```python
 def test_with_tmpdir(tmpdir):
@@ -1058,9 +1059,9 @@ def test_with_tmpdir(tmpdir):
     assert result == "data"
 ```
 
-## テスト整理
+### テスト整理
 
-### ディレクトリ構成
+#### ディレクトリ構成
 
 ```
 tests/
@@ -1080,7 +1081,7 @@ tests/
     └── test_user_flow.py
 ```
 
-### テストクラス
+#### テストクラス
 
 ```python
 class TestUserService:
@@ -1103,9 +1104,9 @@ class TestUserService:
         assert not self.service.user_exists(1)
 ```
 
-## ベストプラクティス
+### ベストプラクティス
 
-### すべきこと
+#### すべきこと
 
 - **TDD に従う**: コードより先にテストを書く（レッド → グリーン → リファクタリング）
 - **テスト前後でデータを初期化する**: `yield` フィクスチャで setup/teardown を必ずセットで実装する。テスト前に初期データを準備し、テスト後にロールバック/削除する
@@ -1117,7 +1118,7 @@ class TestUserService:
 - **80% 以上のカバレッジを目指す**: クリティカルパスに集中する
 - **テストを速く保つ**: マークで遅いテストを分離する
 
-### すべきでないこと
+#### すべきでないこと
 
 - **実装をテストしない**: 内部ではなく動作をテストする
 - **テスト内で複雑な条件分岐を使わない**: テストはシンプルに保つ
@@ -1128,9 +1129,9 @@ class TestUserService:
 - **print 文を使わない**: アサーションと pytest の出力を使う
 - **脆すぎるテストを書かない**: 過度に詳細なモックを避ける
 
-## よくあるパターン
+### よくあるパターン
 
-### API エンドポイントのテスト（FastAPI/Flask）
+#### API エンドポイントのテスト（FastAPI/Flask）
 
 ```python
 @pytest.fixture
@@ -1152,7 +1153,7 @@ def test_create_user(client):
     assert response.json["name"] == "Alice"
 ```
 
-### データベース操作のテスト
+#### データベース操作のテスト
 
 ```python
 @pytest.fixture
@@ -1172,7 +1173,7 @@ def test_create_user(db_session):
     assert retrieved.email == "alice@example.com"
 ```
 
-### クラスメソッドのテスト
+#### クラスメソッドのテスト
 
 ```python
 class TestCalculator:
@@ -1188,9 +1189,9 @@ class TestCalculator:
             calculator.divide(10, 0)
 ```
 
-## pytest 設定
+### pytest 設定
 
-### pytest.ini
+#### pytest.ini
 
 ```ini
 [pytest]
@@ -1211,7 +1212,7 @@ markers =
     unit: marks tests as unit tests
 ```
 
-### pyproject.toml
+#### pyproject.toml
 
 ```toml
 [tool.pytest.ini_options]
@@ -1233,44 +1234,44 @@ markers = [
 ]
 ```
 
-## テスト実行コマンド
+### テスト実行コマンド
 
 ```bash
-# 全テストを実行
+
 pytest
 
-# 特定ファイルを実行
+
 pytest tests/test_utils.py
 
-# 特定テストを実行
+
 pytest tests/test_utils.py::test_function
 
-# 詳細出力で実行
+
 pytest -v
 
-# カバレッジ付きで実行
+
 pytest --cov=mypackage --cov-report=html
 
-# 速いテストだけ実行
+
 pytest -m "not slow"
 
-# 最初の失敗で停止
+
 pytest -x
 
-# N 件失敗で停止
+
 pytest --maxfail=3
 
-# 最後に失敗したテストを実行
+
 pytest --lf
 
-# パターンでテストを実行
+
 pytest -k "test_user"
 
-# 失敗時にデバッガーを起動
+
 pytest --pdb
 ```
 
-## クイックリファレンス
+### クイックリファレンス
 
 | パターン | 使い方 |
 |---------|--------|
@@ -1286,22 +1287,22 @@ pytest --pdb
 
 **覚えておくこと**: テストもコードだ。クリーンで読みやすく、保守しやすく保つこと。良いテストはバグを捕まえ、優れたテストはバグを未然に防ぐ。
 
-## Go テスト詳細パターン（testify）
+### Go テスト詳細パターン（testify）
 
-# Go テストパターン
+
 
 testify、TDD メソドロジー、ベストプラクティスを使った Go アプリケーションの総合テスト戦略。
 
-## 使用場面
+### 使用場面
 
 - 新規 Go コードを書くとき（TDD に従う: レッド → グリーン → リファクタリング）
 - Go プロジェクトのテストスイートを設計するとき
 - Go のテストカバレッジをレビューするとき
 - テストインフラをセットアップするとき
 
-## テストの核心哲学
+### テストの核心哲学
 
-### テスト駆動開発（TDD）
+#### テスト駆動開発（TDD）
 
 常に TDD サイクルに従う:
 
@@ -1324,7 +1325,7 @@ func Add(a, b int) int {
 // Step 3: 必要に応じてリファクタリング（REFACTOR）
 ```
 
-### カバレッジ要件
+#### カバレッジ要件
 
 - **目標**: コードカバレッジ 80% 以上
 - **クリティカルパス**: 100% カバレッジが必須
@@ -1336,9 +1337,9 @@ go tool cover -func=coverage.out   # 関数別カバレッジ
 go tool cover -html=coverage.out   # HTML レポート
 ```
 
-## testify の基礎
+### testify の基礎
 
-### assert vs require
+#### assert vs require
 
 ```go
 import (
@@ -1364,7 +1365,7 @@ func TestUser(t *testing.T) {
 - `require.*`: nil チェック直後、エラーチェック、テストが意味をなさなくなる前提条件
 - `assert.*`: それ以外の検証（複数のアサーションを並べて全結果を確認したい）
 
-### よく使うアサーション
+#### よく使うアサーション
 
 ```go
 // 等値
@@ -1402,9 +1403,9 @@ assert.Panics(t, func() { doRiskyThing() })
 assert.NotPanics(t, func() { safeThing() })
 ```
 
-## テーブル駆動テスト（Go の標準パターン）
+### テーブル駆動テスト（Go の標準パターン）
 
-### 基本構造
+#### 基本構造
 
 ```go
 func TestCalculate(t *testing.T) {
@@ -1437,7 +1438,7 @@ func TestCalculate(t *testing.T) {
 }
 ```
 
-### エラーメッセージ付き
+#### エラーメッセージ付き
 
 ```go
 tests := []struct {
@@ -1474,9 +1475,9 @@ for _, tt := range tests {
 }
 ```
 
-## モック（testify/mock）
+### モック（testify/mock）
 
-### モック定義
+#### モック定義
 
 ```go
 // モック構造体
@@ -1498,7 +1499,7 @@ func (m *MockUserRepository) Save(ctx context.Context, user *User) error {
 }
 ```
 
-### モック使用
+#### モック使用
 
 ```go
 func TestGetUser_ReturnsUser(t *testing.T) {
@@ -1531,7 +1532,7 @@ func TestGetUser_ReturnsError_WhenNotFound(t *testing.T) {
 }
 ```
 
-### mock.Anything と具体的な引数
+#### mock.Anything と具体的な引数
 
 ```go
 // 引数を問わない
@@ -1546,9 +1547,9 @@ mockRepo.On("Save", mock.Anything, mock.MatchedBy(func(u *User) bool {
 })).Return(nil)
 ```
 
-## フィクスチャとセットアップ
+### フィクスチャとセットアップ
 
-### TestMain でのグローバルセットアップ
+#### TestMain でのグローバルセットアップ
 
 ```go
 func TestMain(m *testing.M) {
@@ -1563,7 +1564,7 @@ func TestMain(m *testing.M) {
 }
 ```
 
-### t.Cleanup でのテスト別クリーンアップ
+#### t.Cleanup でのテスト別クリーンアップ
 
 ```go
 func setupTestDB(t *testing.T) *sql.DB {
@@ -1585,7 +1586,7 @@ func TestWithDatabase(t *testing.T) {
 }
 ```
 
-## HTTP ハンドラーのテスト
+### HTTP ハンドラーのテスト
 
 ```go
 func TestUserHandler_GetUser(t *testing.T) {
@@ -1636,7 +1637,7 @@ func TestUserHandler_GetUser(t *testing.T) {
 }
 ```
 
-## ベンチマークテスト
+### ベンチマークテスト
 
 ```go
 func BenchmarkCalculate(b *testing.B) {
@@ -1648,7 +1649,7 @@ func BenchmarkCalculate(b *testing.B) {
 // 実行: go test -bench=. -benchmem ./...
 ```
 
-## テスト失敗のトラブルシューティング
+### テスト失敗のトラブルシューティング
 
 1. **tdd-guide** エージェントを使用する
 2. テストの独立性を確認する
@@ -1657,7 +1658,7 @@ func BenchmarkCalculate(b *testing.B) {
 5. `-run` フラグで特定テストのみ実行: `go test -run TestGetUser ./...`
 6. `-race` でデータ競合検出: `go test -race ./...`
 
-## テストの品質チェックリスト
+### テストの品質チェックリスト
 
 - [ ] テーブル駆動テストでエッジケースをカバーしている
 - [ ] `require.NoError` でエラーチェックしてから結果を検証している
