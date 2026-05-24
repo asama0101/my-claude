@@ -1,3 +1,7 @@
+---
+paths: ["_agent_rules_context_/**"]
+---
+
 # コードレビュー基準
 
 ## 目的

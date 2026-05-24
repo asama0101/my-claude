@@ -1,3 +1,7 @@
+---
+paths: ["_agent_rules_context_/**"]
+---
+
 # 計画段階チェックリスト
 
 ## 目的

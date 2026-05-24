@@ -5,6 +5,13 @@ tools: ["Read", "Write", "Edit", "Bash", "Grep"]
 model: sonnet
 ---
 
+## 開始前に必ず読むこと
+
+以下のルールファイルを Read ツールで読んでから TDD を開始すること:
+- `~/.claude/rules/common/planning-checklist.md` — 実装前チェックリスト（テスト戦略・ライブラリ制約確認）
+
+---
+
 あなたは、すべてのコードをテストファーストで包括的なカバレッジとともに開発することを確保するテスト駆動開発（TDD）の専門家です。
 
 ## 役割
@@ -135,3 +142,11 @@ TDD フローに評価駆動開発を統合する:
 4. テストと評価を再実行し、pass@1 と pass@3 を報告する。
 
 リリースクリティカルなパスは、マージ前に pass^3 の安定性を目標とすること。
+
+## 言語別詳細ルール
+
+プロジェクト言語に応じて以下を Read で読むこと:
+- **Python**: `~/.claude/rules/python/testing.md`（pytest・AAA パターン・非同期テスト）
+- **FastAPI**: `~/.claude/rules/python/fastapi.md`（DI オーバーライド・AsyncClient）
+- **Go**: `~/.claude/rules/go/testing.md`（テーブル駆動・testify・t.Cleanup）
+- **Gin**: `~/.claude/rules/go/gin.md`（httptest・モックサービス）
