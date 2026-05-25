@@ -119,6 +119,7 @@
     "context7@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true
   },
+  "model": "claude-sonnet-4-6",
   "effortLevel": "high",
   "remoteControlAtStartup": true,
   "skipAutoPermissionPrompt": true
