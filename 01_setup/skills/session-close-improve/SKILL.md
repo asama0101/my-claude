@@ -44,7 +44,42 @@ description: |
 - ❌ <省略されたエージェント/スキル>: <根本原因> → <対策候補>
 ```
 
-❌ がなければ Step 2 をスキップして Step 3 へ。
+❌ がなければ Step 2 をスキップして Step 3 へ（ただし **Step 1.5 は ❌ の有無に関わらず必ず実施**する）。
+
+---
+
+## Step 1.5: superpowers spec/plan の完了確認とアーカイブ
+
+superpowers の spec（brainstorming）/ plan（writing-plans）が「終わったのか」を後から確認できるよう、成果物ファイルベースで完了状態を可視化し、完全完了したものを `done/` へアーカイブする。
+
+1. **対象の有無を確認**: cwd の `docs/superpowers/specs/` と `docs/superpowers/plans/` を確認。どちらも無ければ本ステップをスキップ（`done/` 配下のファイルは集計対象外）。
+
+2. **状態を判定して一覧表示**:
+   - **spec**: ファイルが存在すれば ✅（spec フェーズ完了）。
+   - **plan**: チェックボックスを集計して実装進捗を出す。
+     ```bash
+     done=$(grep -cE '^[[:space:]]*- \[x\]' <plan.md>); todo=$(grep -cE '^[[:space:]]*- \[ \]' <plan.md>)
+     # todo==0 かつ done>0 → ✅完全完了 / todo>0 → 🔄進行中 done/(done+todo) / done==0 → 未着手
+     ```
+
+   表示フォーマット:
+   ```
+   === superpowers spec/plan 状態 ===
+   spec フェーズ : ✅ docs/superpowers/specs/2026-05-25-foo-design.md
+   plan フェーズ : ✅ docs/superpowers/plans/2026-05-25-foo.md  実装 8/8 → done/ へ移動可
+   plan フェーズ : 🔄 docs/superpowers/plans/2026-05-20-bar.md  実装 3/8（進行中・据え置き）
+   =================================
+   ```
+
+3. **完了分のアーカイブ（承認必須）**: plan が 100%（todo==0 かつ done>0）のものを「アーカイブ候補」として提示し、**ユーザー承認を得てから** `git mv` で移動する:
+   ```bash
+   mkdir -p docs/superpowers/plans/done
+   git mv docs/superpowers/plans/<file>.md docs/superpowers/plans/done/
+   ```
+   - 対応する spec も完了とみなせる場合は、対応関係（日付/トピックが異なりうるため自動マッチしない）を**ユーザーに確認**のうえ `mkdir -p docs/superpowers/specs/done && git mv` で移動する。
+   - **非破壊原則**: 移動前に必ず承認を得る。未完了（チェックボックス未消化）のファイルは絶対に動かさない。
+
+active フォルダ＝進行中、`done/`＝完了済み、という状態が後から一目で分かるようになる。
 
 ---
 
@@ -116,5 +151,6 @@ Step 2 で変更した場合のみ、目視で確認:
 ## 終了宣言前チェックリスト
 
 - [ ] Step 1: サブエージェント評価完了・❌ 項目を Step 2 に引き継いだ（またはなし）
+- [ ] Step 1.5: spec/plan 完了確認・完了分を承認のうえ done/ へ移動（または該当なし）
 - [ ] Step 2: 3条件を満たすものだけ更新した（またはスキップ）
 - [ ] Step 3: メモリ保存完了・CLAUDE.md 確認済み

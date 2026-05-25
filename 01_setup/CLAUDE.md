@@ -21,7 +21,7 @@
 2. **遂行**: 進捗を随時マークし、各ステップで高レベルなサマリーを提供する。
 3. **記録**: 完了後、プロジェクトの `.claude/lessons.md` に学びを蓄積する（ファイルがなければ新規作成）。予期しなかった問題・回避策・次回役立つ非自明な知見のみ記録する。
    - **使い分け**: `lessons.md`はプロジェクト固有の技術的知見。会話をまたいで保持すべきユーザー嗜好・フィードバックは自動メモリシステム（`memory/MEMORY.md`）に保存する。
-   - **修正・指示変更を受けたとき**: 即座に自動メモリ（feedback タイプ）として保存する。セッション終了時に `session-close-improve` を実行して CLAUDE.md に反映する（`session-close-remind.sh` フックがリマインドする）。
+   - **修正・指示変更を受けたとき**: 即座に自動メモリ（feedback タイプ）として保存する。セッション終了時に `session-close-improve` を実行して CLAUDE.md に反映する（`session-close-remind.sh` フックが自動起動する）。
 
 ---
 
@@ -80,7 +80,7 @@ context7 はライブラリ・SDK・API 質問で**必ず**使用（SessionStart
 |------|------|
 | bash-guard.sh | `rm` 等の破壊的コマンドをブロック。ブロック時はユーザーへ `! <コマンド>` 形式で依頼すること |
 | tdd-guard.sh | `tests/` 外の Python 実装ファイル編集時に tdd-guide 使用を促す |
-| session-close-remind.sh | `session-close-improve` 未実施の場合にセッション終了時リマインド |
+| session-close-remind.sh | アクティブセッション終了時に `session-close-improve` を自動起動（decision:block）。1日1回・stop_hook_active でループ防止 |
 
 詳細（venv-guard / context7-remind / skill-logger 等）は `~/.claude/settings.json` 参照。
 
