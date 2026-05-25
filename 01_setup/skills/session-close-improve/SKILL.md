@@ -23,7 +23,7 @@ description: |
 | エージェント | 必須場面 | 使用できたか |
 |------------|---------|-----------|
 | tdd-guide | 新機能・バグ修正 | ✅ / ❌ |
-| code-reviewer | コード変更後 | ✅ / ❌ |
+| reviewer-*（run-reviewers スキル） | コード変更後 | ✅ / ❌ |
 | python-dev | Python/FastAPI 実装 | ✅ / ❌ |
 | api-designer | API 設計 | ✅ / ❌ |
 
