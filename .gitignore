@@ -1,3 +1,5 @@
 sync_file.sh
 **/.ipynb_checkpoints/
 **/superpowers/
+__pycache__/
+*.pyc
