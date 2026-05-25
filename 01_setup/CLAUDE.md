@@ -63,7 +63,7 @@
 ## スキル
 
 ローカル: `~/.claude/skills/session-close-improve`（セッション終了時の改善ワークフロー専用）。プラグイン（superpowers / context7）は `enabledPlugins` で有効化済み。  
-context7 はライブラリ・SDK・API 質問で**必ず**使用（SessionStart フック参照）。`resolve-library-id` → `query-docs` の順。
+context7 はライブラリ・SDK・API 質問で**必ず**使用（context7 MCP の instructions が常時注入される）。`resolve-library-id` → `query-docs` の順。
 
 ---
 
@@ -80,7 +80,7 @@ context7 はライブラリ・SDK・API 質問で**必ず**使用（SessionStart
 |------|------|
 | bash-guard.sh | `rm` 等の破壊的コマンドをブロック。ブロック時はユーザーへ `! <コマンド>` 形式で依頼すること |
 | tdd-guard.sh | `tests/` 外の Python 実装ファイル編集時に tdd-guide 使用を促す |
-| session-close-remind.sh | アクティブセッション終了時に `session-close-improve` を自動起動（decision:block）。1日1回・stop_hook_active でループ防止 |
+| session-close-remind.sh | アクティブセッション終了時に `session-close-improve` を自動起動（decision:block）。transcript ベースでセッションごとに1回・stop_hook_active でループ防止 |
 
-詳細（venv-guard / context7-remind / skill-logger 等）は `~/.claude/settings.json` 参照。
+詳細（venv-guard / context7-plan-remind / session-retrospective 等）は `~/.claude/settings.json` 参照。
 

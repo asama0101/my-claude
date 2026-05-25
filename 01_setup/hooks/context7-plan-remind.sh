@@ -2,7 +2,8 @@
 # context7-plan-remind.sh
 # writing-plans スキル実行前に context7 確認を促す（PreToolUse: Skill）
 
-SKILL=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('skill',''))" 2>/dev/null)
+INPUT=$(cat)
+SKILL=$(echo "$INPUT" | jq -r '.tool_input.skill // empty' 2>/dev/null)
 
 if [[ "$SKILL" == *"writing-plans"* ]]; then
     echo "📋 writing-plans を実行します"

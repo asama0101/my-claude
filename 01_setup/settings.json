@@ -59,17 +59,6 @@
     "disableBypassPermissionsMode": "disable"
   },
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /home/asama/.claude/hooks/context7-remind.sh"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -103,52 +92,11 @@
             "command": "/home/asama/.claude/hooks/tdd-guard.sh"
           }
         ]
-      },
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/home/asama/.claude/hooks/skill-logger.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/home/asama/.claude/hooks/skill-logger.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__plugin_context7_context7__query-docs",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/home/asama/.claude/hooks/skill-logger.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__plugin_context7_context7__resolve-library-id",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/home/asama/.claude/hooks/skill-logger.sh"
-          }
-        ]
       }
     ],
     "Stop": [
       {
-        "matcher": "stop",
         "hooks": [
-          {
-            "type": "command",
-            "command": "/home/asama/.claude/hooks/session-summary.sh"
-          },
           {
             "type": "command",
             "command": "/home/asama/.claude/hooks/session-close-remind.sh"
