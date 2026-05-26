@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>トラヒック統計取り込みシステム 要求仕様書</title>
+  <style>
+    :root {
+      --ivory: #FAF9F5;
+      --slate: #141413;
+      --clay: #D97757;
+      --oat: #E3DACC;
+      --olive: #788C5D;
+      --rust: #B04A3F;
+      --white: #FFFFFF;
+      --sky-bg: #DBEAFE;
+      --sky-fg: #1D4ED8;
+      --gray-100: #F0EEE6;
+      --gray-300: #D1CFC5;
+      --gray-500: #87867F;
+      --gray-700: #3D3D3A;
+      --sans: system-ui, -apple-system, sans-serif;
+      --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+      --radius: 8px;
+      --border: 1.5px solid var(--gray-300);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--sans);
+      background: var(--ivory);
+      color: var(--slate);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page { max-width: 960px; margin: 0 auto; padding: 48px 32px 96px; }
+
+    /* ===== TOC ===== */
+    .toc {
+      background: var(--white);
+      border: 1.5px solid var(--gray-300);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin: 24px 0 48px;
+    }
+    .toc-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--gray-500);
+      margin-bottom: 14px;
+    }
+    .toc ol { padding-left: 20px; list-style-type: decimal; }
+    .toc li { padding: 3px 0; font-size: 14px; }
+    .toc a { color: var(--clay); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ===== Section Number ===== */
+    .sec-num {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--clay);
+      margin-right: 8px;
+    }
+
+    /* ===== Doc Header ===== */
+    .doc-header {
+      margin-bottom: 48px;
+      padding-bottom: 32px;
+      border-bottom: var(--border);
+    }
+    .doc-eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--clay);
+      margin-bottom: 8px;
+    }
+    .doc-title {
+      font-size: 36px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--slate);
+    }
+    .doc-meta {
+      font-size: 12px;
+      color: var(--gray-500);
+    }
+
+    /* ===== Headings — aligned with flow-id-sier-spec.html ===== */
+    h2 {
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 24px;
+      color: var(--slate);
+      margin: 52px 0 18px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid var(--gray-300);
+      scroll-margin-top: 100px;
+    }
+    h3 {
+      font-family: var(--sans);
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--slate);
+      margin: 28px 0 10px;
+    }
+    h4 {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gray-500);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin: 18px 0 7px;
+    }
+    p { margin: 12px 0; font-size: 13px; line-height: 1.7; }
+    strong { font-weight: 700; color: var(--slate); }
+    em { font-style: italic; }
+
+    code {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: var(--gray-100);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--rust);
+    }
+    pre {
+      background: var(--gray-100);
+      padding: 16px;
+      border-radius: var(--radius);
+      overflow-x: auto;
+      margin: 12px 0;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    pre code { background: none; padding: 0; color: var(--slate); }
+
+    /* ===== Badges ===== */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .badge-clay  { background: #FDEBD7; color: var(--clay); }
+    .badge-olive { background: #E4EDD9; color: var(--olive); }
+    .badge-sky   { background: var(--sky-bg); color: var(--sky-fg); }
+    .badge-gray  { background: var(--gray-100); color: var(--gray-700); }
+    .badge-rust  { background: #F7E0DF; color: var(--rust); }
+
+    /* ===== Stat Cards ===== */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .stat-card {
+      background: var(--white);
+      border: var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+    }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--gray-500);
+      margin-bottom: 4px;
+    }
+    .stat-value { font-size: 17px; font-weight: 700; color: var(--slate); }
+    .stat-sub { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+
+    /* ===== Flow Diagram (aligned with flow-id-sier-spec.html) ===== */
+    .flow-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+    .flow-box {
+      background: var(--white);
+      border: 1.5px solid var(--gray-300);
+      border-radius: 10px;
+      padding: 14px 22px;
+      text-align: center;
+      flex: 1;
+      min-width: 150px;
+    }
+    .flow-box--main {
+      border-color: var(--clay);
+      background: #FEF9EE;
+    }
+    .flow-box-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--gray-500);
+      margin-bottom: 5px;
+    }
+    .flow-box strong { font-size: 14px; color: var(--slate); display: block; }
+    .flow-box-sub { font-size: 12px; color: var(--gray-500); margin-top: 3px; }
+    .flow-arrow {
+      font-size: 22px;
+      color: var(--clay);
+      padding: 0 6px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    /* ===== Scope Steps (aligned with flow-id-sier-spec.html) ===== */
+    .scope-steps { margin: 16px 0; }
+    .scope-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: var(--white);
+      border: 1.5px solid var(--gray-300);
+      border-radius: 10px;
+      padding: 14px 18px;
+    }
+    .scope-step-num {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--white);
+      background: var(--clay);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .scope-step-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--slate);
+      margin-bottom: 4px;
+    }
+    .scope-step-body { flex: 1; font-size: 13px; }
+    .scope-step-arrow {
+      text-align: left;
+      font-size: 18px;
+      color: var(--clay);
+      margin: 4px 0 4px 20px;
+    }
+
+    /* ===== Info & Warning Boxes ===== */
+    .warning-box {
+      background: #FEF9C3;
+      border: 1.5px solid #FDE047;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+    .info-box {
+      background: #EFF6FF;
+      border: 1.5px solid #BFDBFE;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+
+    /* ===== Checklist ===== */
+    .checklist { list-style: none; padding: 0; margin: 12px 0; }
+    .checklist li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      margin-bottom: 6px;
+      background: var(--white);
+      border: var(--border);
+      font-size: 13px;
+    }
+    .check-id {
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--gray-100);
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      font-family: var(--mono);
+    }
+    .check-content { flex: 1; }
+    .check-text { font-size: 13px; margin-bottom: 3px; font-weight: 600; }
+    .check-method { font-size: 11px; color: var(--gray-500); }
+
+    /* ===== Tables ===== */
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+    th {
+      background: var(--gray-100);
+      text-align: left;
+      padding: 8px 12px;
+      font-weight: 600;
+      border-bottom: var(--border);
+      color: var(--slate);
+    }
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--gray-100);
+      vertical-align: top;
+      line-height: 1.5;
+    }
+    tr:hover td { background: #FAFAF8; }
+
+    /* ===== Section ===== */
+    section { margin-bottom: 32px; }
+    ul { padding-left: 20px; margin: 10px 0; }
+    li { padding: 3px 0; font-size: 13px; }
+
+    /* ===== Print & Responsive ===== */
+    @media print {
+      pre { break-inside: avoid; }
+      .flow-row { break-inside: avoid; }
+      table { break-inside: avoid; }
+    }
+    @media (max-width: 768px) {
+      .page { padding: 24px 16px 64px; }
+      .doc-title { font-size: 28px; }
+      .stat-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <!-- Doc Header -->
+    <header class="doc-header">
+      <div class="doc-eyebrow">traffic-stats-etl · 要求仕様書</div>
+      <div class="doc-title">トラヒック統計取り込み 要求仕様書</div>
+      <div class="doc-meta">
+        版数：1.0 &nbsp;|&nbsp; 発行日：2026-05-26
+      </div>
+    </header>
+
+    <!-- TOC -->
+    <div class="toc">
+      <div class="toc-title">目次</div>
+      <ol>
+        <li><a href="#overview">文書概要</a></li>
+        <li><a href="#terms">用語定義</a></li>
+        <li><a href="#flow-id-format">flow_id フォーマット定義</a></li>
+        <li><a href="#subport-format">subport フォーマット定義</a></li>
+        <li><a href="#system">システム概要</a></li>
+        <li><a href="#scale">スケール仕様</a></li>
+        <li><a href="#input">入力ファイル仕様</a></li>
+        <li><a href="#process">処理要件</a></li>
+        <li><a href="#schema">DB スキーマ</a></li>
+        <li><a href="#select-queries">想定 SELECT クエリ</a></li>
+        <li><a href="#nonfunc">SLA・非機能要件</a></li>
+        <li><a href="#acceptance">システムのポイント</a></li>
+      </ol>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- 01. 文書概要                                                        -->
+    <!-- ================================================================= -->
+    <section id="overview">
+      <h2><span class="sec-num">01</span>文書概要</h2>
+
+      <h3>1.1 目的</h3>
+      <p>本書は、帯域制御デバイス（FITELnet FX2）が送信するトラヒック統計ファイル（FLOW・SUBPORT）を TimescaleDB に定期取り込みし、時系列で蓄積するシステムの要求仕様を定義する。本仕様を満たすシステムを設計・実装すること。</p>
+
+      <h3>1.2 適用範囲</h3>
+      <ul style="margin: 12px 0; padding-left: 24px; font-size: 13px;">
+        <li>FLOW ファイル（CSV/GZ）の取り込み処理</li>
+        <li>SUBPORT ファイル（CSV/GZ）の取り込み処理</li>
+        <li>TimescaleDB へのデータ蓄積・保持・圧縮</li>
+        <li>処理スケジュール（cron）・冪等性制御・エラーハンドリング</li>
+        <li>監視・ログ出力</li>
+      </ul>
+
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 02. 用語定義                                                         -->
+    <!-- ================================================================= -->
+    <section id="terms">
+      <h2><span class="sec-num">02</span>用語定義</h2>
+
+      <table>
+        <thead>
+          <tr><th>用語</th><th>定義</th><th>例</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>FLOW ファイル</code></td>
+            <td>帯域制御デバイスが5分ごとに送信するトラヒック統計ファイル。命名: FLOW-&lt;hostname&gt;-&lt;YYYYMMDDHHmmss&gt;.csv.gz</td>
+            <td><code>FLOW-router01-20260515140000.csv.gz</code></td>
+          </tr>
+          <tr>
+            <td><code>SUBPORT ファイル</code></td>
+            <td>サービス（subport）単位のトラヒック統計ファイル。命名: SUBPORT-&lt;hostname&gt;-&lt;YYYYMMDDHHmmss&gt;.csv.gz</td>
+            <td><code>SUBPORT-router01-20260515140000.csv.gz</code></td>
+          </tr>
+          <tr>
+            <td><code>flow_id</code></td>
+            <td>回線識別子。フォーマット: &lt;回線番号&gt;@&lt;IPv6プリフィックス&gt;@&lt;subport&gt;</td>
+            <td><code>0123456789@2001:db8::/32@AB12-03-0456</code></td>
+          </tr>
+          <tr>
+            <td><code>subport</code></td>
+            <td>サービス識別子。フォーマット: XX00-00-0000（ISP コード-サービスコード-地域コード）</td>
+            <td><code>AB12-03-0456</code></td>
+          </tr>
+          <tr>
+            <td><code>service_id</code></td>
+            <td>subport から地域コード（末尾4桁）を除いた部分。別名：帯域制御グループ</td>
+            <td><code>AB12-03</code>（= <code>AB12-03-0456</code> から <code>-0456</code> を除いた部分）</td>
+          </tr>
+          <tr>
+            <td><code>flow_id_hash</code></td>
+            <td>flow_id を BIGINT にハッシュ化した値。PRIMARY KEY として使用</td>
+            <td><code>hashtext('0123456789@2001:db8::/32@AB12-03-0456')</code></td>
+          </tr>
+          <tr>
+            <td><code>バケット</code></td>
+            <td>時刻を切り捨てた集計単位。flow_stats: 1時間、subport_stats: 5分</td>
+            <td><code>2026-05-15 14:00:00</code>（1時間バケット）</td>
+          </tr>
+          <tr>
+            <td><code>stable_sec</code></td>
+            <td>ファイル転送完了判定の待機秒数</td>
+            <td><code>60</code>（秒）</td>
+          </tr>
+          <tr>
+            <td><code>冪等性</code></td>
+            <td>同一ファイルを複数回処理しても結果が変わらない性質</td>
+            <td>同一ファイル再実行時に import_log でスキップ</td>
+          </tr>
+          <tr>
+            <td><code>import_log</code></td>
+            <td>処理済みファイルを記録し冪等性を確保するテーブル</td>
+            <td><code>filename = 'FLOW-router01-20260515140000.csv.gz'</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 03. flow_id フォーマット定義                                          -->
+    <!-- ================================================================= -->
+    <section id="flow-id-format">
+      <h2><span class="sec-num">03</span>flow_id フォーマット定義</h2>
+
+      <p>flow_id は FLOW ファイルの各行に含まれる回線識別子です。以下の 3 要素を <code>@</code> 区切りで連結した文字列です。</p>
+
+      <div class="flow-row">
+        <div class="flow-box">
+          <div class="flow-box-label">回線番号</div>
+          <strong>0123456789</strong>
+        </div>
+        <div class="flow-arrow">@</div>
+        <div class="flow-box">
+          <div class="flow-box-label">IPv6 プレフィックス</div>
+          <strong>2001:db8::/32</strong>
+        </div>
+        <div class="flow-arrow">@</div>
+        <div class="flow-box flow-box--main">
+          <div class="flow-box-label">subport（地域コードを含む）</div>
+          <strong>AB12-03-0456</strong>
+          <div class="flow-box-sub">第3セグメント = 地域コード</div>
+        </div>
+      </div>
+
+      <h3>フィールド仕様</h3>
+      <table>
+        <thead>
+          <tr><th>フィールド名</th><th>位置</th><th>説明</th><th>例</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>回線番号</code></td>
+            <td><code>@</code> 区切り 第1フィールド</td>
+            <td>加入者回線を識別する数字列</td>
+            <td><code>0123456789</code></td>
+          </tr>
+          <tr>
+            <td><code>IPv6 プレフィックス</code></td>
+            <td><code>@</code> 区切り 第2フィールド</td>
+            <td>CIDR 表記の IPv6 プレフィックス</td>
+            <td><code>2001:db8::/32</code></td>
+          </tr>
+          <tr>
+            <td><code>subport</code></td>
+            <td><code>@</code> 区切り 第3フィールド</td>
+            <td>帯域制御ルール名。ETL は flow_id をこのフィールドで分割して subport を抽出する</td>
+            <td><code>AB12-03-0456</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        ETL は <code>flow_id</code> を <code>@</code> で分割し、第3フィールドを <code>subport</code> として抽出します。さらに <code>subport</code> の末尾セグメント（<code>-</code> 区切り）を除いた部分を <code>service_id</code> として導出します。詳細は「<a href="#subport-format">04 subport フォーマット定義</a>」を参照。
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 03. subport フォーマット定義                                          -->
+    <!-- ================================================================= -->
+    <section id="subport-format">
+      <h2><span class="sec-num">04</span>subport フォーマット定義</h2>
+
+      <p>subport は帯域制御ルール名です。ISP コード・サービスコード・地域コードの 3 要素をハイフンで連結した文字列です。</p>
+
+      <div class="flow-row">
+        <div class="flow-box">
+          <div class="flow-box-label">ISP コード</div>
+          <strong>AB12</strong>
+          <div class="flow-box-sub">英大2桁 + 数字2桁</div>
+        </div>
+        <div class="flow-arrow">-</div>
+        <div class="flow-box">
+          <div class="flow-box-label">サービスコード</div>
+          <strong>03</strong>
+          <div class="flow-box-sub">数字2桁</div>
+        </div>
+        <div class="flow-arrow">-</div>
+        <div class="flow-box flow-box--main">
+          <div class="flow-box-label">地域コード</div>
+          <strong>0456</strong>
+          <div class="flow-box-sub">数字4桁</div>
+        </div>
+      </div>
+
+      <h3>フィールド仕様</h3>
+      <table>
+        <thead>
+          <tr><th>セグメント</th><th>フォーマット</th><th>説明</th><th>例</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>第1セグメント</td>
+            <td><code>XX00</code>（英大文字2桁+数字2桁）</td>
+            <td>ISP コード。ISP を識別する固定値。</td>
+            <td><code>AB12</code></td>
+          </tr>
+          <tr>
+            <td>第2セグメント</td>
+            <td><code>00</code>（数字2桁）</td>
+            <td>サービスコード。プランや契約種別を識別する。</td>
+            <td><code>03</code></td>
+          </tr>
+          <tr>
+            <td>第3セグメント</td>
+            <td><code>0000</code>（数字4桁）</td>
+            <td>地域コード。FX2 装置の設置エリアを識別する。</td>
+            <td><code>0456</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        <strong>service_id との関係：</strong> subport から第3セグメント（<code>-0456</code>）を除いた部分が <code>service_id</code>（例: <code>AB12-03</code>）です。service_id は SUBPORT ファイルおよび flow_stats の集計キーとして使用されます。
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 05. システム概要                                                     -->
+    <!-- ================================================================= -->
+    <section id="system">
+      <h2><span class="sec-num">05</span>システム概要</h2>
+
+      <p>traffic-stats ETL は FITELnet FX2 が定期送信するトラヒック統計ファイルを受信し、TimescaleDB へ集計・蓄積するバッチ ETL サービスです。TimescaleDB はカスタマーコントローラーに対して統計情報の参照インターフェースも提供します。</p>
+
+      <h4>書き込みパス（ETL）</h4>
+      <div class="flow-row">
+        <div class="flow-box">
+          <div class="flow-box-label">データ送信元</div>
+          <strong>FITELnet FX2</strong>
+          <div class="flow-box-sub">帯域制御装置</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box flow-box--main">
+          <div class="flow-box-label">実装対象</div>
+          <strong>traffic-stats ETL</strong>
+          <div class="flow-box-sub">Python / cron</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box flow-box--main">
+          <div class="flow-box-label">実装対象</div>
+          <strong>TimescaleDB</strong>
+          <div class="flow-box-sub">PostgreSQL 16 ベース</div>
+        </div>
+      </div>
+
+      <h4>読み取りパス（統計参照）</h4>
+      <div class="flow-row">
+        <div class="flow-box">
+          <div class="flow-box-label">データ参照元</div>
+          <strong>カスタマーコントローラー</strong>
+          <div class="flow-box-sub">統計情報クライアント</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box flow-box--main">
+          <div class="flow-box-label">実装対象</div>
+          <strong>TimescaleDB</strong>
+          <div class="flow-box-sub">PostgreSQL 16 ベース</div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>通信区間</th><th>形式・プロトコル</th><th>主なファイル / テーブル</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>FITELnet FX2 → ホスト OS</td>
+            <td>ファイル転送（SFTP 等）</td>
+            <td><code>FLOW-*.csv.gz</code>、<code>SUBPORT-*.csv.gz</code></td>
+          </tr>
+          <tr>
+            <td>ETL コンテナ → TimescaleDB</td>
+            <td>TCP 5432（psycopg2）</td>
+            <td><code>flow_stats</code>、<code>subport_stats</code>、<code>import_log</code></td>
+          </tr>
+          <tr>
+            <td>カスタマーコントローラー → TimescaleDB</td>
+            <td>TCP 5432（SQL / SELECT）</td>
+            <td><code>flow_stats</code>、<code>subport_stats</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>5.1 主要コンポーネント</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>コンポーネント</th>
+            <th>説明</th>
+            <th>技術スタック</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>ETL コンテナ</strong></td>
+            <td>Python ETL プロセス。cron から起動</td>
+            <td>Python 3.12, polars-lts-cpu 1.33.1, psycopg2-binary 2.9.12</td>
+          </tr>
+          <tr>
+            <td><strong>TimescaleDB コンテナ</strong></td>
+            <td>時系列データベース。ETL からの書き込みとカスタマーコントローラーからの SELECT クエリを受け付ける</td>
+            <td>TimescaleDB 2.26.3（PostgreSQL 16 ベース）。イメージ: timescale/timescaledb:2.26.3-pg16</td>
+          </tr>
+          <tr>
+            <td><strong>cron スケジューラ</strong></td>
+            <td>ETL ジョブの定期実行</td>
+            <td>Linux cron + flock（多重起動防止）</td>
+          </tr>
+          <tr>
+            <td><strong>ホスト OS</strong></td>
+            <td>ファイル受信・ログ収集</td>
+            <td>Linux。/var/log/traffic-stats/ にログ出力</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 06. スケール仕様                                                     -->
+    <!-- ================================================================= -->
+    <section id="scale">
+      <h2><span class="sec-num">06</span>スケール仕様</h2>
+
+      <table>
+        <thead>
+          <tr><th>項目</th><th>上限値</th><th>備考</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>FLOW ファイル数</td>
+            <td><strong>1,200 / 時間</strong></td>
+            <td>ファイルサイズ約 37 MB（圧縮後）</td>
+          </tr>
+          <tr>
+            <td>FLOW 最大行数</td>
+            <td><strong>100 万行</strong></td>
+            <td>平均 60 万行</td>
+          </tr>
+          <tr>
+            <td>FLOW ユニーク flow_id 数</td>
+            <td><strong>600 万</strong></td>
+            <td>1 バッチあたりのユニーク flow_id 最大数</td>
+          </tr>
+          <tr>
+            <td>SUBPORT ファイル数</td>
+            <td><strong>100 / 時間</strong></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>SUBPORT 最大行数</td>
+            <td><strong>600 行</strong></td>
+            <td>平均 320 行</td>
+          </tr>
+          <tr>
+            <td>SUBPORT ユニーク subport 数</td>
+            <td><strong>600</strong></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>データ保存期間</td>
+            <td><strong>93 日</strong></td>
+            <td>TimescaleDB 保持ポリシー。超過分は自動削除</td>
+          </tr>
+          <tr>
+            <td>スケーラビリティ</td>
+            <td><strong>最大 600 万 flow_id</strong></td>
+            <td>ホスト数増加時は並列処理ワーカー数で線形スケールすること</td>
+          </tr>
+          <tr>
+            <td>FITELnet FX2 台数</td>
+            <td>最大 <strong>100 台</strong></td>
+            <td>ETL がファイル受信元として想定する帯域制御装置の総数</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        <strong>構成注記：</strong> 東日本・西日本でサーバを分離して構成する。メインサイトは各2台、バックアップサイトは各1台設置する。
+        サーバは KCPS3 を利用予定（vCPU 12・メモリ 64 GB・ディスク 1.0 TB）。
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 06. 入力ファイル仕様                                                 -->
+    <!-- ================================================================= -->
+    <section id="input">
+      <h2><span class="sec-num">07</span>入力ファイル仕様</h2>
+
+      <h3>7.1 FLOW ファイル</h3>
+
+      <h4>ファイル命名規則</h4>
+      <p><code>FLOW-&lt;hostname&gt;-&lt;YYYYMMDDHHmmss&gt;.csv.gz</code></p>
+      <ul style="margin: 12px 0; padding-left: 24px; font-size: 13px;">
+        <li><code>hostname</code>: デバイスのホスト名（例: router01）</li>
+        <li><code>YYYYMMDDHHmmss</code>: 計測開始時刻（JST）（例: 20260515140000）</li>
+      </ul>
+
+      <h4>ファイル特性</h4>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">ファイル数</div>
+          <div class="stat-value">1,200</div>
+          <div class="stat-sub">/ 時間</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">ファイルサイズ</div>
+          <div class="stat-value">37 MB</div>
+          <div class="stat-sub">圧縮後</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最大行数</div>
+          <div class="stat-value">100万</div>
+          <div class="stat-sub">平均 60万行</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最大 flow_id</div>
+          <div class="stat-value">600万</div>
+          <div class="stat-sub">ユニーク数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">保存期間</div>
+          <div class="stat-value">93日</div>
+          <div class="stat-sub">TimescaleDB 保持ポリシー</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">取り込み先</div>
+          <div class="stat-value">flow_stats</div>
+          <div class="stat-sub">1時間バケット</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">圧縮形式</div>
+          <div class="stat-value">gzip</div>
+          <div class="stat-sub">標準 gzip</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">文字コード</div>
+          <div class="stat-value">UTF-8</div>
+          <div class="stat-sub">統一</div>
+        </div>
+      </div>
+
+      <h4>CSV カラム仕様（6カラム）</h4>
+      <table>
+        <thead>
+          <tr><th>カラム名</th><th>型</th><th>説明</th><th>例</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>time_stamp</code></td>
+            <td>文字列</td>
+            <td>計測時刻（JST）</td>
+            <td><code>20260515 14:00:00</code></td>
+          </tr>
+          <tr>
+            <td><code>flow_id</code></td>
+            <td>文字列</td>
+            <td>回線識別子</td>
+            <td><code>0123456789@2001:db8::/32@AB12-03-0456</code></td>
+          </tr>
+          <tr>
+            <td><code>volume_in</code></td>
+            <td>整数</td>
+            <td>受信バイト数</td>
+            <td><code>1000000</code></td>
+          </tr>
+          <tr>
+            <td><code>volume_out</code></td>
+            <td>整数</td>
+            <td>送信バイト数</td>
+            <td><code>500000</code></td>
+          </tr>
+          <tr>
+            <td><code>dropped_packets_in</code></td>
+            <td>整数</td>
+            <td>受信方向ドロップパケット数</td>
+            <td><code>100</code></td>
+          </tr>
+          <tr>
+            <td><code>dropped_bytes_in</code></td>
+            <td>整数</td>
+            <td>受信方向ドロップバイト数</td>
+            <td><code>50000</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        <strong>flow_id フォーマット</strong><br>
+        フォーマット: <code>&lt;回線番号&gt;@&lt;IPv6プリフィックス&gt;@&lt;subport&gt;</code><br>
+        例: <code>0123456789@2001:db8::/32@AB12-03-0456</code><br>
+        ETL は flow_id を <code>@</code> で分割し、3番目のフィールドを subport として抽出します。
+      </div>
+
+      <h3>7.2 SUBPORT ファイル</h3>
+
+      <h4>ファイル命名規則</h4>
+      <p><code>SUBPORT-&lt;hostname&gt;-&lt;YYYYMMDDHHmmss&gt;.csv.gz</code></p>
+
+      <h4>ファイル特性</h4>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">ファイル数</div>
+          <div class="stat-value">100</div>
+          <div class="stat-sub">/ 時間</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最大行数</div>
+          <div class="stat-value">600</div>
+          <div class="stat-sub">平均 320行</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最大 subport 数</div>
+          <div class="stat-value">600</div>
+          <div class="stat-sub">ユニーク数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">保存期間</div>
+          <div class="stat-value">93日</div>
+          <div class="stat-sub">TimescaleDB 保持ポリシー</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">取り込み先</div>
+          <div class="stat-value">subport_stats</div>
+          <div class="stat-sub">5分バケット</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">圧縮形式</div>
+          <div class="stat-value">gzip</div>
+          <div class="stat-sub">標準 gzip</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">文字コード</div>
+          <div class="stat-value">UTF-8</div>
+          <div class="stat-sub">統一</div>
+        </div>
+      </div>
+
+      <h4>CSV カラム仕様（6カラム）</h4>
+      <table>
+        <thead>
+          <tr><th>カラム名</th><th>型</th><th>説明</th><th>例</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>time_stamp</code></td>
+            <td>文字列</td>
+            <td>計測時刻（JST）</td>
+            <td><code>20260515 14:00:00</code></td>
+          </tr>
+          <tr>
+            <td><code>subport</code></td>
+            <td>文字列</td>
+            <td>サービス識別子</td>
+            <td><code>AB12-03-0456</code></td>
+          </tr>
+          <tr>
+            <td><code>volume_in</code></td>
+            <td>整数</td>
+            <td>受信バイト数</td>
+            <td><code>1000000</code></td>
+          </tr>
+          <tr>
+            <td><code>volume_out</code></td>
+            <td>整数</td>
+            <td>送信バイト数</td>
+            <td><code>500000</code></td>
+          </tr>
+          <tr>
+            <td><code>dropped_packets_in</code></td>
+            <td>整数</td>
+            <td>受信方向ドロップパケット数</td>
+            <td><code>100</code></td>
+          </tr>
+          <tr>
+            <td><code>dropped_bytes_in</code></td>
+            <td>整数</td>
+            <td>受信方向ドロップバイト数</td>
+            <td><code>50000</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        <strong>subport フォーマット</strong><br>
+        フォーマット: <code>XX00-00-0000</code>
+        <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 13px;">
+          <li>第1セグメント（英大文字2桁+数字2桁）: ISP コード（例: <code>AB12</code>）</li>
+          <li>第2セグメント（数字2桁）: サービスコード（例: <code>03</code>）</li>
+          <li>第3セグメント（数字4桁）: 地域コード（例: <code>0456</code>）</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 05. 処理要件                                                         -->
+    <!-- ================================================================= -->
+    <section id="process">
+      <h2><span class="sec-num">08</span>処理要件</h2>
+      <div class="warning-box">
+        ⚠ 本章の処理要件は<strong>参考イメージ</strong>です。実装方式は<strong>要相談</strong>。
+      </div>
+
+      <p>ETL は FLOW ファイルと SUBPORT ファイルを独立したパイプラインで処理します。</p>
+
+      <h4>FLOW 処理ライン</h4>
+      <div class="flow-row">
+        <div class="flow-box">
+          <div class="flow-box-label">入力ファイル</div>
+          <strong>FLOW-*.csv.gz</strong>
+          <div class="flow-box-sub">1,200 ファイル / 時間</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box flow-box--main">
+          <div class="flow-box-label">ETL 処理</div>
+          <strong>1時間バケット集計</strong>
+          <div class="flow-box-sub">毎5分バッチ → 毎時:05 確定</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">
+          <div class="flow-box-label">TimescaleDB</div>
+          <strong>flow_stats</strong>
+          <div class="flow-box-sub">93日保持</div>
+        </div>
+      </div>
+
+      <h4>SUBPORT 処理ライン</h4>
+      <div class="flow-row">
+        <div class="flow-box">
+          <div class="flow-box-label">入力ファイル</div>
+          <strong>SUBPORT-*.csv.gz</strong>
+          <div class="flow-box-sub">100 ファイル / 時間</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box flow-box--main">
+          <div class="flow-box-label">ETL 処理</div>
+          <strong>5分バケット集計</strong>
+          <div class="flow-box-sub">毎5分バッチ upsert</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">
+          <div class="flow-box-label">TimescaleDB</div>
+          <strong>subport_stats</strong>
+          <div class="flow-box-sub">93日保持</div>
+        </div>
+      </div>
+
+      <h3>8.1 ファイル転送完了検知</h3>
+      <p>ファイルの最終更新時刻が 60秒（stable_sec）以上経過したものを転送完了と判定します。WAN での転送を想定し、余裕を持たせています。</p>
+
+      <h3>8.2 冪等性設計</h3>
+      <ul style="margin: 12px 0; padding-left: 24px; font-size: 13px; line-height: 1.8;">
+        <li><code>import_log</code> テーブルにファイル名を記録し、再実行時の二重取り込みを防止すること</li>
+        <li><code>status</code> に関わらずファイル名だけで二重処理チェックを行うこと</li>
+        <li>処理完了ファイルは <code>import_log</code> 記録後に削除すること（再処理防止）</li>
+      </ul>
+
+      <h3>8.3 FLOW 処理要件</h3>
+
+      <h4>インプット</h4>
+      <ul style="margin: 8px 0 16px; padding-left: 24px; font-size: 13px; line-height: 1.8;">
+        <li>ファイル配置場所: <code>data/incoming/</code>（FLOW-*.csv.gz）<span class="badge badge-clay">イメージ</span></li>
+        <li>転送完了判定: ファイルの最終更新から 60秒以上経過したものを処理対象とする</li>
+        <li>ファイル形式: 第6章「入力ファイル仕様」参照</li>
+      </ul>
+
+      <h4>処理要件</h4>
+      <div class="scope-steps">
+        <div class="scope-step">
+          <div class="scope-step-num">1</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">import_log による重複処理防止</div>
+            処理済みファイルは <code>import_log</code> テーブルで管理し、重複処理を防止すること。
+          </div>
+        </div>
+        <div class="scope-step-arrow">↓</div>
+        <div class="scope-step">
+          <div class="scope-step-num">2</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">遅延ファイル検出・隔離</div>
+            <code>flow_stats</code> に既存バケットが存在するファイル（遅延ファイル）を検出し、隔離ディレクトリ（別途要相談）へ退避の上 WARNING ログを出力すること。
+          </div>
+        </div>
+        <div class="scope-step-arrow">↓</div>
+        <div class="scope-step">
+          <div class="scope-step-num">3</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">gzip 展開・1時間バケット集計</div>
+            各ファイルを gzip 展開・CSV 読込し、<code>flow_id</code> と 1時間バケットで集計すること（volume_in・volume_out・dropped_packets_in・dropped_bytes_in を合算）。
+          </div>
+        </div>
+        <div class="scope-step-arrow">↓</div>
+        <div class="scope-step">
+          <div class="scope-step-num">4</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">subport 抽出</div>
+            <code>flow_id</code> から <code>subport</code> を抽出すること（<code>@</code> 区切りの第3フィールド）。
+          </div>
+        </div>
+        <div class="scope-step-arrow">↓</div>
+        <div class="scope-step">
+          <div class="scope-step-num">5</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">import_log 記録・ファイル削除</div>
+            処理済みファイルを <code>import_log</code> に記録後、削除すること。
+          </div>
+        </div>
+        <div class="scope-step-arrow">↓</div>
+        <div class="scope-step">
+          <div class="scope-step-num">6</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">flow_stats 確定書き込み（毎時 :05）</div>
+            毎時 :05 に、確定済みバケット（現在時刻の1時間バケット未満）のデータを <code>flow_stats</code> へ書き込むこと（冪等性: 既存データを削除してから INSERT）。
+          </div>
+        </div>
+      </div>
+
+      <h4>アウトプット</h4>
+      <ul style="margin: 8px 0 16px; padding-left: 24px; font-size: 13px; line-height: 1.8;">
+        <li>書き込み先: <code>flow_stats</code>（PRIMARY KEY: <code>flow_id_hash, bucket</code>）</li>
+        <li>集計キー: <code>flow_id_hash</code>（flow_id の BIGINT ハッシュ値）+ 1時間バケット</li>
+        <li>導出カラム: subport（flow_id の @ 区切り第3フィールド）</li>
+        <li>現在時バケットは毎時 :05 時点でスキップし、翌時 :05 に確定すること</li>
+      </ul>
+
+      <h4>SLA</h4>
+      <ul style="margin: 8px 0 16px; padding-left: 24px; font-size: 13px; line-height: 1.8;">
+        <li>毎5分バッチ受信処理: SLA 5分以内（警告閾値 3分超）</li>
+        <li>毎時:05 flow_stats 確定書き込み: SLA 10分以内（警告閾値 5分超）</li>
+      </ul>
+
+      <h3>8.4 SUBPORT 処理要件</h3>
+
+      <h4>インプット</h4>
+      <ul style="margin: 8px 0 16px; padding-left: 24px; font-size: 13px; line-height: 1.8;">
+        <li>ファイル配置場所: <code>data/incoming/</code>（SUBPORT-*.csv.gz）<span class="badge badge-clay">イメージ</span></li>
+        <li>転送完了判定: ファイルの最終更新から 60秒以上経過したものを処理対象とする</li>
+        <li>ファイル形式: 第6章「入力ファイル仕様」参照</li>
+      </ul>
+
+      <h4>処理要件</h4>
+      <div class="scope-steps">
+        <div class="scope-step">
+          <div class="scope-step-num">1</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">import_log による重複処理防止</div>
+            処理済みファイルは <code>import_log</code> テーブルで管理し、重複処理を防止すること。
+          </div>
+        </div>
+        <div class="scope-step-arrow">↓</div>
+        <div class="scope-step">
+          <div class="scope-step-num">2</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">hostname 抽出</div>
+            ファイル名から <code>hostname</code> を抽出すること。
+          </div>
+        </div>
+        <div class="scope-step-arrow">↓</div>
+        <div class="scope-step">
+          <div class="scope-step-num">3</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">gzip 展開・5分バケット集計</div>
+            各ファイルを gzip 展開・CSV 読込し、<code>hostname</code>・<code>subport</code>・5分バケットで集計すること（volume_in・volume_out・dropped_packets_in・dropped_bytes_in を合算）。
+          </div>
+        </div>
+        <div class="scope-step-arrow">↓</div>
+        <div class="scope-step">
+          <div class="scope-step-num">4</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">subport_stats へ upsert</div>
+            集計結果を <code>subport_stats</code> へ upsert すること。
+          </div>
+        </div>
+        <div class="scope-step-arrow">↓</div>
+        <div class="scope-step">
+          <div class="scope-step-num">5</div>
+          <div class="scope-step-body">
+            <div class="scope-step-title">import_log 記録・ファイル削除</div>
+            処理済みファイルを <code>import_log</code> に記録後、削除すること。
+          </div>
+        </div>
+      </div>
+
+      <h4>アウトプット</h4>
+      <ul style="margin: 8px 0 16px; padding-left: 24px; font-size: 13px; line-height: 1.8;">
+        <li>書き込み先: <code>subport_stats</code>（PRIMARY KEY: <code>hostname, subport, bucket</code>）</li>
+        <li>集計キー: <code>hostname</code> + <code>subport</code> + 5分バケット</li>
+        <li>導出カラム: service_id（subport から末尾セグメントを除いた部分）</li>
+      </ul>
+
+      <h4>SLA</h4>
+      <ul style="margin: 8px 0 16px; padding-left: 24px; font-size: 13px; line-height: 1.8;">
+        <li>毎5分バッチ処理: SLA 5分以内（警告閾値 3分超）</li>
+      </ul>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 06. DB スキーマ                                                      -->
+    <!-- ================================================================= -->
+    <section id="schema">
+      <h2><span class="sec-num">09</span>DB スキーマ</h2>
+
+      <h3>9.1 テーブル一覧</h3>
+      <table>
+        <thead>
+          <tr><th>テーブル</th><th>用途</th><th>バケット</th><th>保持期間</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>flow_stats</code></td>
+            <td>FLOW 統計（確定済み）</td>
+            <td>1時間</td>
+            <td>93日</td>
+          </tr>
+          <tr>
+            <td><code>subport_stats</code></td>
+            <td>SUBPORT 統計</td>
+            <td>5分</td>
+            <td>93日</td>
+          </tr>
+          <tr>
+            <td><code>import_log</code></td>
+            <td>処理済みファイル管理</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>9.2 flow_stats</h3>
+      <pre><code>CREATE TABLE flow_stats (
+    bucket              TIMESTAMPTZ      NOT NULL,
+    flow_id_hash        BIGINT           NOT NULL,
+    flow_id             TEXT             NOT NULL,
+    volume_in           BIGINT           NOT NULL,
+    volume_out          BIGINT           NOT NULL,
+    dropped_packets_in  BIGINT           NOT NULL,
+    dropped_bytes_in    BIGINT           NOT NULL,
+    subport             TEXT             NOT NULL DEFAULT '',
+    service_id          TEXT             NOT NULL DEFAULT '',
+    PRIMARY KEY (flow_id_hash, bucket)
+);
+
+SELECT create_hypertable('flow_stats', 'bucket');
+SELECT add_retention_policy('flow_stats', INTERVAL '93 days');
+
+CREATE INDEX ix_flow_stats_subport_bucket    ON flow_stats (subport,    bucket DESC);
+CREATE INDEX ix_flow_stats_service_id_bucket ON flow_stats (service_id, bucket DESC);</code></pre>
+
+      <h4>カラム説明</h4>
+      <table>
+        <thead>
+          <tr><th>カラム</th><th>型</th><th>説明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>bucket</code></td><td>TIMESTAMPTZ</td><td>集計バケット（1時間単位）。PRIMARY KEY の一部</td></tr>
+          <tr><td><code>flow_id_hash</code></td><td>BIGINT</td><td>flow_id の <code>hashtext()</code> 値。B-tree 比較を高速化。PRIMARY KEY の一部（INSERT 性能 12.9倍向上、衝突率 0.000000027%）</td></tr>
+          <tr><td><code>flow_id</code></td><td>TEXT</td><td>元の flow_id 文字列（<code>&lt;回線番号&gt;@&lt;IPv6&gt;@&lt;subport&gt;</code>）</td></tr>
+          <tr><td><code>volume_in</code></td><td>BIGINT</td><td>計測期間中の受信バイト合計</td></tr>
+          <tr><td><code>volume_out</code></td><td>BIGINT</td><td>計測期間中の送信バイト合計</td></tr>
+          <tr><td><code>dropped_packets_in</code></td><td>BIGINT</td><td>受信方向ドロップパケット数合計</td></tr>
+          <tr><td><code>dropped_bytes_in</code></td><td>BIGINT</td><td>受信方向ドロップバイト数合計</td></tr>
+          <tr><td><code>subport</code></td><td>TEXT</td><td>flow_id の <code>@</code> 区切り第3フィールド（デフォルト空文字）</td></tr>
+          <tr><td><code>service_id</code></td><td>TEXT</td><td>subport から末尾セグメントを除いた部分（デフォルト空文字）</td></tr>
+        </tbody>
+      </table>
+
+      <h3>9.4 subport_stats</h3>
+      <pre><code>CREATE TABLE subport_stats (
+    bucket              TIMESTAMPTZ      NOT NULL,
+    hostname            TEXT             NOT NULL,
+    subport             TEXT             NOT NULL,
+    volume_in           BIGINT           NOT NULL,
+    volume_out          BIGINT           NOT NULL,
+    dropped_packets_in  BIGINT           NOT NULL,
+    dropped_bytes_in    BIGINT           NOT NULL,
+    service_id          TEXT             NOT NULL DEFAULT '',
+    PRIMARY KEY (hostname, subport, bucket)
+);
+
+SELECT create_hypertable('subport_stats', 'bucket');
+SELECT add_retention_policy('subport_stats', INTERVAL '93 days');
+
+CREATE INDEX ix_subport_stats_hostname_bucket   ON subport_stats (hostname,   bucket DESC);
+CREATE INDEX ix_subport_stats_subport_bucket    ON subport_stats (subport,    bucket DESC);
+CREATE INDEX ix_subport_stats_service_id_bucket ON subport_stats (service_id, bucket DESC);</code></pre>
+
+      <h4>カラム説明</h4>
+      <table>
+        <thead>
+          <tr><th>カラム</th><th>型</th><th>説明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>bucket</code></td><td>TIMESTAMPTZ</td><td>集計バケット（5分単位）。PRIMARY KEY の一部</td></tr>
+          <tr><td><code>hostname</code></td><td>TEXT</td><td>ファイル送信元の FX2 ホスト名。PRIMARY KEY の一部</td></tr>
+          <tr><td><code>subport</code></td><td>TEXT</td><td>サービス識別子（<code>XX00-00-0000</code>）。PRIMARY KEY の一部</td></tr>
+          <tr><td><code>volume_in</code></td><td>BIGINT</td><td>計測期間中の受信バイト合計</td></tr>
+          <tr><td><code>volume_out</code></td><td>BIGINT</td><td>計測期間中の送信バイト合計</td></tr>
+          <tr><td><code>dropped_packets_in</code></td><td>BIGINT</td><td>受信方向ドロップパケット数合計</td></tr>
+          <tr><td><code>dropped_bytes_in</code></td><td>BIGINT</td><td>受信方向ドロップバイト数合計</td></tr>
+          <tr><td><code>service_id</code></td><td>TEXT</td><td>subport から末尾セグメントを除いた部分（デフォルト空文字）</td></tr>
+        </tbody>
+      </table>
+
+      <h3>9.5 import_log</h3>
+      <pre><code>CREATE TABLE import_log (
+    filename     TEXT        PRIMARY KEY,
+    imported_at  TIMESTAMPTZ DEFAULT now(),
+    duration_sec FLOAT,
+    row_count    BIGINT,
+    file_size_mb FLOAT,
+    status       TEXT        DEFAULT 'success'
+);</code></pre>
+
+      <h4>カラム説明</h4>
+      <table>
+        <thead>
+          <tr><th>カラム</th><th>説明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>filename</code></td><td>ファイル名（パスなし）。PRIMARY KEY</td></tr>
+          <tr><td><code>imported_at</code></td><td>処理完了時刻</td></tr>
+          <tr><td><code>duration_sec</code></td><td>ETL 実行の経過秒数</td></tr>
+          <tr><td><code>row_count</code></td><td>集計後の行数</td></tr>
+          <tr><td><code>file_size_mb</code></td><td>元ファイルサイズ（MB）</td></tr>
+          <tr><td><code>status</code></td><td>'success' または 'failed'</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 10. 想定 SELECT クエリ                                               -->
+    <!-- ================================================================= -->
+    <section id="select-queries">
+      <h2><span class="sec-num">10</span>想定 SELECT クエリ</h2>
+
+      <p>カスタマーコントローラーが TimescaleDB に対して発行する代表的な SELECT クエリを示します。パラメータは <code>:subport</code> 等のプレースホルダーで表記しています。</p>
+
+      <h3>10.1 flow_stats クエリ例</h3>
+
+      <table>
+        <thead>
+          <tr><th>#</th><th>フィルタ</th><th>粒度</th><th>取得カラム</th><th>使用インデックス</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Q1</td><td>subport 指定</td><td>1時間バケット（生値）</td><td>flow_id ごとの volume_in / volume_out</td><td>ix_flow_stats_subport_bucket</td></tr>
+          <tr><td>Q2</td><td>service_id 指定</td><td>1時間バケット（生値）</td><td>flow_id ごとの volume_in / volume_out</td><td>ix_flow_stats_service_id_bucket</td></tr>
+          <tr><td>Q3</td><td>subport 指定</td><td>1日集計（time_bucket）</td><td>flow_id ごとの dropped_packets_in 合計</td><td>ix_flow_stats_subport_bucket</td></tr>
+          <tr><td>Q4</td><td>service_id 指定</td><td>1日集計（time_bucket）</td><td>flow_id ごとの dropped_packets_in 合計</td><td>ix_flow_stats_service_id_bucket</td></tr>
+        </tbody>
+      </table>
+
+      <pre><code>-- Q1: subport ごとに各 flow_id の 1時間バケット volume_in / volume_out
+SELECT bucket, flow_id, volume_in, volume_out
+FROM   flow_stats
+WHERE  subport = :subport
+  AND  bucket >= now() - INTERVAL '7 days'
+ORDER BY bucket DESC, flow_id;
+
+-- Q2: service_id ごとに各 flow_id の 1時間バケット volume_in / volume_out
+SELECT bucket, flow_id, volume_in, volume_out
+FROM   flow_stats
+WHERE  service_id = :service_id
+  AND  bucket >= now() - INTERVAL '7 days'
+ORDER BY bucket DESC, flow_id;
+
+-- Q3: subport ごとに各 flow_id の 1日単位 dropped_packets_in 合計
+SELECT time_bucket('1 day', bucket) AS day,
+       flow_id,
+       SUM(dropped_packets_in) AS dropped_packets_in
+FROM   flow_stats
+WHERE  subport = :subport
+  AND  bucket >= now() - INTERVAL '30 days'
+GROUP BY day, flow_id
+ORDER BY day DESC, flow_id;
+
+-- Q4: service_id ごとに各 flow_id の 1日単位 dropped_packets_in 合計
+SELECT time_bucket('1 day', bucket) AS day,
+       flow_id,
+       SUM(dropped_packets_in) AS dropped_packets_in
+FROM   flow_stats
+WHERE  service_id = :service_id
+  AND  bucket >= now() - INTERVAL '30 days'
+GROUP BY day, flow_id
+ORDER BY day DESC, flow_id;</code></pre>
+
+      <h3>10.2 subport_stats クエリ例</h3>
+
+      <table>
+        <thead>
+          <tr><th>#</th><th>粒度</th><th>取得カラム</th><th>使用インデックス</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Q5</td><td>5分バケット（全ホスト合算）</td><td>各 subport の volume_in / volume_out</td><td>ix_subport_stats_subport_bucket</td></tr>
+          <tr><td>Q6</td><td>1時間集計（time_bucket）</td><td>各 subport の dropped_packets_in 合計</td><td>ix_subport_stats_subport_bucket</td></tr>
+        </tbody>
+      </table>
+
+      <pre><code>-- Q5: 各 subport の 5分バケット volume_in / volume_out（全ホスト合算）
+SELECT bucket,
+       subport,
+       SUM(volume_in)  AS volume_in,
+       SUM(volume_out) AS volume_out
+FROM   subport_stats
+WHERE  subport = :subport
+  AND  bucket >= now() - INTERVAL '1 hour'
+GROUP BY bucket, subport
+ORDER BY bucket DESC;
+
+-- Q6: 各 subport の 1時間単位 dropped_packets_in 合計
+SELECT time_bucket('1 hour', bucket) AS hour,
+       subport,
+       SUM(dropped_packets_in) AS dropped_packets_in
+FROM   subport_stats
+WHERE  subport = :subport
+  AND  bucket >= now() - INTERVAL '24 hours'
+GROUP BY hour, subport
+ORDER BY hour DESC;</code></pre>
+
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 11. SLA・非機能要件                                                  -->
+    <!-- ================================================================= -->
+    <section id="nonfunc">
+      <h2><span class="sec-num">11</span>SLA・非機能要件</h2>
+
+      <h3>11.1 SLA 定義</h3>
+      <table>
+        <thead>
+          <tr><th>処理</th><th>SLA（最大）</th><th>警告閾値</th><th>違反時対応</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>FLOW バッチ受信処理（毎5分）<span class="badge badge-clay">CRITICAL</span></td>
+            <td>5分（300秒）</td>
+            <td>3分超（180秒）</td>
+            <td>即座に確認</td>
+          </tr>
+          <tr>
+            <td>FLOW flow_stats 確定書き込み（毎時:05）<span class="badge badge-rust">CRITICAL</span></td>
+            <td>10分（600秒）</td>
+            <td>5分超（300秒）</td>
+            <td>即座に確認</td>
+          </tr>
+          <tr>
+            <td>SUBPORT<span class="badge badge-olive">NORMAL</span></td>
+            <td>5分（300秒）</td>
+            <td>3分超（180秒）</td>
+            <td>即座に確認</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>11.2 非機能要件</h3>
+      <table>
+        <thead>
+          <tr><th>要件</th><th>説明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>可用性</strong></td>
+            <td>ETL 障害時の手動リカバリ手段を用意（import_log 削除 → ファイル移動 → 再実行）</td>
+          </tr>
+          <tr>
+            <td><strong>耐久性</strong></td>
+            <td>93日間のデータ保持（TimescaleDB 保持ポリシー）。それ以前は自動削除</td>
+          </tr>
+          <tr>
+            <td><strong>スケーラビリティ</strong></td>
+            <td>最大 600万 flow_id に対応。ホスト数増加時は並列処理ワーカー数で線形スケールすること</td>
+          </tr>
+          <tr>
+            <td><strong>監視</strong></td>
+            <td>すべてのログを Syslog メッセージとして送信可能なこと。WARNING・ERROR を分離</td>
+          </tr>
+          <tr>
+            <td><strong>冪等性</strong></td>
+            <td>同一ファイル再実行は安全（import_log チェック）。データは DELETE + INSERT で上書き</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>11.3 ログ出力要件</h3>
+      <table>
+        <thead>
+          <tr><th>条件</th><th>レベル</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>処理失敗</td>
+            <td><span class="badge badge-rust">ERROR</span></td>
+          </tr>
+          <tr>
+            <td>FLOW バッチ受信処理 3分超 / FLOW flow_stats 確定 5分超 / SUBPORT 3分超</td>
+            <td><span class="badge badge-clay">WARNING</span></td>
+          </tr>
+          <tr>
+            <td>FLOW バッチ受信処理 5分超 / FLOW flow_stats 確定 10分超 / SUBPORT 5分超（SLA 超過）</td>
+            <td><span class="badge badge-clay">WARNING</span></td>
+          </tr>
+          <tr>
+            <td>DB 接続失敗</td>
+            <td><span class="badge badge-rust">ERROR</span></td>
+          </tr>
+          <tr>
+            <td>遅延ファイル検出（既存バケット）</td>
+            <td><span class="badge badge-clay">WARNING</span></td>
+          </tr>
+          <tr>
+            <td>正常完了</td>
+            <td><span class="badge badge-olive">INFO</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 10. システムのポイント                                                 -->
+    <!-- ================================================================= -->
+    <section id="acceptance">
+      <h2><span class="sec-num">12</span>システムのポイント</h2>
+
+      <ul class="checklist">
+        <li>
+          <span class="check-id">A-01</span>
+          <div class="check-content">
+            <div class="check-text">FLOW ファイル 1,200ファイル/時間を5分 SLA で処理できること</div>
+            <div class="check-method">判定: 性能テスト実行、処理時間 ≦ 300秒を確認</div>
+          </div>
+        </li>
+        <li>
+          <span class="check-id">A-02</span>
+          <div class="check-content">
+            <div class="check-text">SUBPORT ファイル 100ファイル/時間を5分 SLA で処理できること</div>
+            <div class="check-method">判定: 性能テスト実行、処理時間 ≦ 300秒を確認</div>
+          </div>
+        </li>
+        <li>
+          <span class="check-id">A-03</span>
+          <div class="check-content">
+            <div class="check-text">import_log で冪等性確保（同一ファイル再実行が安全にスキップ）</div>
+            <div class="check-method">判定: 同一ファイルを2回実行し、2回目がスキップされることを確認</div>
+          </div>
+        </li>
+        <li>
+          <span class="check-id">A-04</span>
+          <div class="check-content">
+            <div class="check-text">flow_stats: 1時間バケット、93日保持</div>
+            <div class="check-method">判定: TimescaleDB ハイパーテーブル・保持ポリシー設定を DDL で確認</div>
+          </div>
+        </li>
+        <li>
+          <span class="check-id">A-05</span>
+          <div class="check-content">
+            <div class="check-text">subport_stats: 5分バケット、93日保持</div>
+            <div class="check-method">判定: TimescaleDB ハイパーテーブル・保持ポリシー設定を DDL で確認</div>
+          </div>
+        </li>
+        <li>
+          <span class="check-id">A-06</span>
+          <div class="check-content">
+            <div class="check-text">ログ出力: WARNING・ERROR を区別し、SLA 違反時に WARNING ログが出力される</div>
+            <div class="check-method">判定: SLA 超過条件を再現し、ログで WARNING を確認</div>
+          </div>
+        </li>
+        <li>
+          <span class="check-id">A-07</span>
+          <div class="check-content">
+            <div class="check-text">遅延ファイル検出: 既存バケットのファイルを隔離ディレクトリへ退避し WARNING ログを出力</div>
+            <div class="check-method">判定: 既存バケットのファイルを投入し、隔離ディレクトリへの退避と WARNING ログを確認</div>
+          </div>
+        </li>
+        <li>
+          <span class="check-id">A-08</span>
+          <div class="check-content">
+            <div class="check-text">カスタマーコントローラーが SELECT 文で flow_stats・subport_stats から統計情報を取得できること</div>
+            <div class="check-method">判定: SQL クライアントで flow_stats・subport_stats をクエリし、期待するデータが返ることを確認</div>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+  </div>
+</body>
+</html>
