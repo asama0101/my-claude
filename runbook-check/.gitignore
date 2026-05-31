@@ -1,0 +1,10 @@
+# Python / Jupyter のキャッシュ・チェックポイント
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# スキル直下に置く venv（環境固有・同期しない）
+.venv/
+
+# レビュー1回ごとの作業ディレクトリ（中間JSON・生成HTML）
+review-work/

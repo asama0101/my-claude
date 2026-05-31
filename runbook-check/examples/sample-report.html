@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作業手順書レビュー結果 - 設定変更手順書（sample_runbook.xlsx, STEP分割型）</title>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --line:#e2e2e2; --card:#fff; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+         color:var(--fg); margin:0; background:#f5f6f8; line-height:1.7; }
+  .wrap { max-width:920px; margin:0 auto; padding:32px 20px 80px; }
+  header { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px 28px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .target { color:var(--muted); font-size:14px; margin-bottom:16px; }
+  .verdict { display:inline-block; font-weight:700; font-size:15px; color:#fff;
+             padding:6px 14px; border-radius:6px; background:#c0392b; margin-bottom:14px; }
+  .overall { margin:8px 0 18px; }
+  .badges { display:flex; gap:10px; flex-wrap:wrap; }
+  .badge { font-size:13px; font-weight:600; padding:5px 11px; border-radius:20px; border:1px solid; }
+  .badge.small { font-size:11px; padding:2px 8px; }
+  .badge.ok { background:#eaf7ee; color:#1e8449; border-color:#1e8449; }
+  .wtypes { margin:8px 0 14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .wtypes-label { font-size:12px; color:var(--muted); }
+  .wtype { font-size:12px; font-weight:600; background:#eef3ff; color:#2f5fbf; border:1px solid #bcd0f5; border-radius:14px; padding:3px 11px; }
+  .approver { background:#fff; border:1px solid var(--line); border-left:5px solid #2f5fbf; border-radius:10px; padding:18px 22px; margin-top:18px; }
+  .approver h2 { margin:0 0 12px; border:none; padding:0; font-size:16px; }
+  .appr-grid { display:flex; flex-direction:column; gap:8px; }
+  .appr-row { display:flex; gap:12px; align-items:baseline; }
+  .appr-k { flex:0 0 150px; font-weight:600; font-size:13px; color:#445; }
+  .appr-v { flex:1; font-size:14px; }
+  h2 { font-size:16px; margin:34px 0 14px; padding-bottom:8px; border-bottom:2px solid var(--line); }
+  .sheet-block { background:#fafbfc; border:1px solid var(--line); border-radius:10px;
+                 padding:14px 18px; margin-bottom:18px; }
+  .sheet-block h3 { font-size:15px; margin:4px 0 12px; display:flex; align-items:center;
+                    gap:10px; flex-wrap:wrap; }
+  .sheet-badges { display:inline-flex; gap:6px; flex-wrap:wrap; }
+  .sheet-block h4 { font-size:13px; color:var(--muted); margin:14px 0 8px; }
+  .finding { background:var(--card); border:1px solid var(--line); border-left:5px solid;
+             border-radius:8px; padding:14px 16px; margin-bottom:12px; }
+  .finding-head { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:9px; }
+  .sev { color:#fff; font-weight:700; font-size:12px; padding:3px 9px; border-radius:5px; }
+  .dim { font-weight:600; font-size:14px; }
+  .loc { color:var(--muted); font-size:13px; font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .problem, .suggestion { font-size:14px; margin:6px 0; }
+  .suggestion { background:#f7fbf7; border-radius:6px; padding:8px 10px; }
+  .revs { font-size:12px; color:var(--muted); margin-top:8px; }
+  .rev { display:inline-block; background:#eef1f5; color:#445; border-radius:4px; padding:1px 7px; margin-left:5px; font-size:11px; }
+  .cfg-line { background:#1e2127; border:1px solid #2c313a; border-left:4px solid #3fa45b;
+              border-radius:6px; padding:8px 12px; margin-bottom:8px; }
+  .cfg-line.cfg-hard { border-left-color:#d35400; }
+  .cfg-meta { font-size:12px; color:#9aa4b2; margin-bottom:4px; display:flex; justify-content:space-between; gap:10px; }
+  .cfg-step { display:inline-block; background:#3a3f4b; color:#cdd3dc; border-radius:4px; padding:0 7px; margin-right:6px; }
+  .cfg-loc { font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .cfg-line code { color:#e6edf3; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; white-space:pre-wrap; word-break:break-all; }
+  .cfg-refs { font-size:11px; color:#9aa4b2; margin-top:6px; }
+  .ref { display:inline-block; background:#2c313a; color:#aeb6c2; border-radius:4px; padding:1px 7px; margin:0 4px 2px 0; font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .ref.cross { background:#4a3a22; color:#e2b97f; }
+  .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; }
+  .ptab { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; font-size:14px; }
+  .ptab th, .ptab td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); }
+  .ptab th { background:#f0f2f5; font-size:13px; }
+  .ptab tr.unfilled td { background:#fef0e6; color:#d35400; }
+  .ptab tr.invalid td { background:#fdecea; color:#c0392b; }
+  ul { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 18px 14px 36px; }
+  .empty { color:var(--muted); }
+  .exp-config { background:#1e2127; border:1px solid #2c313a; border-radius:8px; padding:12px 14px; }
+  .ec-line { display:flex; gap:10px; align-items:baseline; padding:2px 0; }
+  .ec-src { flex:0 0 auto; min-width:110px; color:#9aa4b2; font-size:11px; font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .ec-line code { color:#e6edf3; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; white-space:pre-wrap; word-break:break-all; }
+  .topo-wrap { margin-bottom:16px; }
+  .topo { width:100%; max-width:580px; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+  footer { color:var(--muted); font-size:12px; margin-top:40px; text-align:center; }
+  @media print { body { background:#fff; } .finding, header, ul, .sheet-block { break-inside:avoid; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>作業手順書レビュー結果</h1>
+    <div class="target">対象: 設定変更手順書（sample_runbook.xlsx, STEP分割型）</div>
+    <div class="wtypes"><span class="wtypes-label">作業タイプ:</span><span class="wtype">設定変更</span><span class="wtype">切り替え</span><span class="wtype">トラヒック迂回</span></div>
+    <div class="verdict">実施非推奨</div>
+    <div class="overall">関数エラー1件・空参照1件・誤参照1件・パラメータ値不正2件・改版履歴未更新・影響範囲/切り戻しの欠落があり実施不可。関数の参照先まで含めて検証した結果を反映。</div>
+    <div class="badges"><span class="badge" style="background:#fdecea;color:#c0392b;border-color:#c0392b">🔴 Blocker 2</span><span class="badge" style="background:#fef0e6;color:#d35400;border-color:#d35400">🟠 重要 6</span><span class="badge" style="background:#fdf6e3;color:#b7950b;border-color:#b7950b">🟡 推奨 0</span><span class="badge" style="background:#eaf2f8;color:#2471a3;border-color:#2471a3">🔵 軽微 0</span></div>
+  </header>
+  
+  <section class="approver">
+    <h2>作業承認者向け説明</h2>
+    <div class="appr-grid"><div class="appr-row"><span class="appr-k">作業内容</span><span class="appr-v">帯域制御装置GTE-01のインタフェースge-0/0/3にVLAN・IPを設定し、対向への経路を切り替える。</span></div><div class="appr-row"><span class="appr-k">目的・背景</span><span class="appr-v">対向ルータ更改に伴う収容変更。新経路へトラヒックを迂回させる。</span></div><div class="appr-row"><span class="appr-k">対象機器・範囲</span><span class="appr-v">GTE-01（帯域制御装置）1台。管理IP 192.0.2.10。</span></div><div class="appr-row"><span class="appr-k">影響（断時間・対象通信）</span><span class="appr-v">ge-0/0/3配下の通信が切り替え時に瞬断。想定断時間は数秒〜十数秒。</span></div><div class="appr-row"><span class="appr-k">切り戻し</span><span class="appr-v">切り戻し手順は現状#REFで生成不可（要修正）。修正前は実施不可。</span></div></div>
+  </section>
+
+  <h2>シート別チェック結果</h2>
+  
+  <div class="sheet-block">
+    <h3>シート: 改版履歴 <span class="sheet-badges"><span class="badge small" style="background:#fef0e6;color:#d35400;border-color:#d35400">🟠 重要 1</span></span></h3>
+    
+    <div class="finding" style="border-left-color:#d35400">
+      <div class="finding-head">
+        <span class="sev" style="background:#d35400">🟠 重要</span>
+        <span class="dim">13. 改版履歴</span>
+        <span class="loc">改版履歴!A4</span>
+      </div>
+      <div class="problem"><b>問題:</b> 改版履歴の最新版数がv1.1のまま。今回作業分の追記がなく版数・日付・内容が未更新。</div>
+      <div class="suggestion"><b>改善案:</b> 今回変更分の行を追記し表紙/ファイル名の版数と一致させる。</div>
+      <div class="revs">検出: <span class="rev">security_ops</span></div>
+    </div>
+    
+  </div>
+
+  <div class="sheet-block">
+    <h3>シート: パラメータ <span class="sheet-badges"><span class="badge small" style="background:#fef0e6;color:#d35400;border-color:#d35400">🟠 重要 2</span></span></h3>
+    
+    <div class="finding" style="border-left-color:#d35400">
+      <div class="finding-head">
+        <span class="sev" style="background:#d35400">🟠 重要</span>
+        <span class="dim">11. 関数・パラメータ整合</span>
+        <span class="loc">パラメータ!B5</span>
+      </div>
+      <div class="problem"><b>問題:</b> パラメータ「VLAN-ID」の値が不正: VLAN-IDが範囲外（5000）。1〜4094で指定する。</div>
+      <div class="suggestion"><b>改善案:</b> 正しい値に修正する。誤値のまま関数解決すると機器で拒否/誤適用される。</div>
+      <div class="revs">検出: <span class="rev">value_check</span></div>
+    </div>
+    <div class="finding" style="border-left-color:#d35400">
+      <div class="finding-head">
+        <span class="sev" style="background:#d35400">🟠 重要</span>
+        <span class="dim">11. 関数・パラメータ整合</span>
+        <span class="loc">パラメータ!B7</span>
+      </div>
+      <div class="problem"><b>問題:</b> パラメータ「対向IP」の値が不正: 許容ネットワーク 192.0.2.0/24 の外のIP（198.51.100.5）。</div>
+      <div class="suggestion"><b>改善案:</b> 正しい値に修正する。誤値のまま関数解決すると機器で拒否/誤適用される。</div>
+      <div class="revs">検出: <span class="rev">value_check</span></div>
+    </div>
+    
+  </div>
+
+  <div class="sheet-block">
+    <h3>シート: STEP1 <span class="sheet-badges"><span class="badge small" style="background:#fef0e6;color:#d35400;border-color:#d35400">🟠 重要 1</span></span></h3>
+    
+    <div class="finding" style="border-left-color:#d35400">
+      <div class="finding-head">
+        <span class="sev" style="background:#d35400">🟠 重要</span>
+        <span class="dim">関数チェック</span>
+        <span class="loc">STEP1!C4</span>
+      </div>
+      <div class="problem"><b>問題:</b> 誤参照の疑い: パラメータ!A5 は名前列で解決値が項目名&#x27;VLAN-ID&#x27;。値列(例: B5)の誤りでは。</div>
+      <div class="suggestion"><b>改善案:</b> 参照先を値セルに修正する。</div>
+      <div class="revs">検出: <span class="rev">formula_check</span></div>
+    </div>
+    <h4>投入Config（関数解決後）</h4><div class="cfg-line"><div class="cfg-meta"><span class="cfg-step">1</span> ホスト名設定<span class="cfg-loc">STEP1!C2</span></div><code>set system host-name GTE-01</code><div class="cfg-refs">参照: <span class="ref cross">パラメータ!B2（他シート）</span></div></div><div class="cfg-line"><div class="cfg-meta"><span class="cfg-step">2</span> IF/VLAN設定<span class="cfg-loc">STEP1!C3</span></div><code>set interfaces ge-0/0/3 unit 0 family ethernet-switching vlan members 5000</code><div class="cfg-refs">参照: <span class="ref cross">パラメータ!B6（他シート）</span><span class="ref cross">パラメータ!B5（他シート）</span></div></div><div class="cfg-line"><div class="cfg-meta"><span class="cfg-step">3</span> VLAN誤参照例<span class="cfg-loc">STEP1!C4</span></div><code>set vlans vVLAN-ID</code><div class="cfg-refs">参照: <span class="ref cross">パラメータ!A5（他シート）</span></div></div>
+  </div>
+
+  <div class="sheet-block">
+    <h3>シート: STEP2 <span class="sheet-badges"><span class="badge small" style="background:#fdecea;color:#c0392b;border-color:#c0392b">🔴 Blocker 1</span><span class="badge small" style="background:#fef0e6;color:#d35400;border-color:#d35400">🟠 重要 1</span></span></h3>
+    
+    <div class="finding" style="border-left-color:#c0392b">
+      <div class="finding-head">
+        <span class="sev" style="background:#c0392b">🔴 Blocker</span>
+        <span class="dim">関数チェック</span>
+        <span class="loc">STEP2!C4</span>
+      </div>
+      <div class="problem"><b>問題:</b> 関数がエラー値(#REF!)。実行時にコマンドが生成されない。</div>
+      <div class="suggestion"><b>改善案:</b> 参照先セルを修正し再計算でエラー解消を確認。</div>
+      <div class="revs">検出: <span class="rev">formula_check</span></div>
+    </div>
+    <div class="finding" style="border-left-color:#d35400">
+      <div class="finding-head">
+        <span class="sev" style="background:#d35400">🟠 重要</span>
+        <span class="dim">関数チェック</span>
+        <span class="loc">STEP2!C2</span>
+      </div>
+      <div class="problem"><b>問題:</b> 参照先が空: パラメータ!B8 を参照しコマンドが欠損生成（解決値: &#x27;set interfaces ge-0/0/3 description &#x27;）。</div>
+      <div class="suggestion"><b>改善案:</b> 参照先に値を入力、または任意項目なら空許容の設計か確認。</div>
+      <div class="revs">検出: <span class="rev">formula_check</span></div>
+    </div>
+    <h4>投入Config（関数解決後）</h4><div class="cfg-line"><div class="cfg-meta"><span class="cfg-step">1</span> 説明設定<span class="cfg-loc">STEP2!C2</span></div><code>set interfaces ge-0/0/3 description</code><div class="cfg-refs">参照: <span class="ref cross">パラメータ!B6（他シート）</span><span class="ref cross">パラメータ!B8（他シート）</span></div></div><div class="cfg-line"><div class="cfg-meta"><span class="cfg-step">2</span> 前手順確認<span class="cfg-loc">STEP2!C3</span></div><code># 確認: set system host-name GTE-01</code><div class="cfg-refs">参照: <span class="ref cross">STEP1!C2（他シート）</span></div></div>
+  </div>
+
+  <div class="sheet-block">
+    <h3>シート: 全体・横断 <span class="sheet-badges"><span class="badge small" style="background:#fdecea;color:#c0392b;border-color:#c0392b">🔴 Blocker 1</span><span class="badge small" style="background:#fef0e6;color:#d35400;border-color:#d35400">🟠 重要 1</span></span></h3>
+    
+    <div class="finding" style="border-left-color:#c0392b">
+      <div class="finding-head">
+        <span class="sev" style="background:#c0392b">🔴 Blocker</span>
+        <span class="dim">1. 影響範囲</span>
+        <span class="loc">全体</span>
+      </div>
+      <div class="problem"><b>問題:</b> 影響範囲（断時間・対象通信）の記載がない。</div>
+      <div class="suggestion"><b>改善案:</b> 冒頭に影響範囲と断時間見込みを明記。</div>
+      <div class="revs">検出: <span class="rev">safety</span></div>
+    </div>
+    <div class="finding" style="border-left-color:#d35400">
+      <div class="finding-head">
+        <span class="sev" style="background:#d35400">🟠 重要</span>
+        <span class="dim">4. 切り戻し</span>
+        <span class="loc">STEP2!C4 周辺</span>
+      </div>
+      <div class="problem"><b>問題:</b> 切り戻し(delete)手順が#REFで生成されず切り戻し後確認もない。</div>
+      <div class="suggestion"><b>改善案:</b> delete手順の関数を修正し切り戻し後確認を追加。</div>
+      <div class="revs">検出: <span class="rev">recoverability</span><span class="rev">safety</span></div>
+    </div>
+    
+  </div>
+  
+  <h2>パラメータ（入力値の検証結果）</h2>
+  <table class="ptab">
+    <thead><tr><th>パラメータ名</th><th>セル</th><th>値</th><th>型</th><th>許容範囲</th><th>状態</th></tr></thead>
+    <tbody><tr class=""><td>ホスト名</td><td class="mono">パラメータ!B2</td><td class="mono">GTE-01</td><td>hostname</td><td class="mono"></td><td>OK</td></tr><tr class=""><td>管理IP</td><td class="mono">パラメータ!B3</td><td class="mono">192.0.2.10</td><td>ip</td><td class="mono">192.0.2.0/24</td><td>OK</td></tr><tr class=""><td>サブネット</td><td class="mono">パラメータ!B4</td><td class="mono">255.255.255.0</td><td>mask</td><td class="mono"></td><td>OK</td></tr><tr class="invalid"><td>VLAN-ID</td><td class="mono">パラメータ!B5</td><td class="mono">5000</td><td>vlan</td><td class="mono">1-4094</td><td>⚠ VLAN-IDが範囲外（5000）。1〜4094で指定する。</td></tr><tr class=""><td>インタフェース</td><td class="mono">パラメータ!B6</td><td class="mono">ge-0/0/3</td><td>interface</td><td class="mono"></td><td>OK</td></tr><tr class="invalid"><td>対向IP</td><td class="mono">パラメータ!B7</td><td class="mono">198.51.100.5</td><td>ip</td><td class="mono">192.0.2.0/24</td><td>⚠ 許容ネットワーク 192.0.2.0/24 の外のIP（198.51.100.5）。</td></tr><tr class="unfilled"><td>説明</td><td class="mono">パラメータ!B8</td><td class="mono">（未入力）</td><td>text</td><td class="mono"></td><td>（未入力）</td></tr></tbody>
+  </table>
+
+  <h2>良い点</h2>
+  <ul><li>可変値がパラメータ参照で生成されている</li><li>STEP2が前手順をシート参照し連続性を担保</li></ul>
+
+  <h2>確認が必要な事項</h2>
+  <ul><li>STEP1!C4の誤参照疑いは設計意図の確認が必要</li><li>改版履歴の正版は構成管理側と突合が必要</li></ul>
+  
+  <h2>参考情報</h2>
+  <h3>作業後の想定Config（全STEP統合・関数解決後）</h3>
+  <p class="note">各STEPで投入されるコマンドを順に統合した、作業完了後に適用されている想定の設定。現行Configとの差分確認の参考に。</p>
+  <div class="exp-config"><div class="ec-line"><span class="ec-src">STEP1!C2</span><code>set system host-name GTE-01</code></div><div class="ec-line"><span class="ec-src">STEP1!C3</span><code>set interfaces ge-0/0/3 unit 0 family ethernet-switching vlan members 5000</code></div><div class="ec-line"><span class="ec-src">STEP1!C4</span><code>set vlans vVLAN-ID</code></div><div class="ec-line"><span class="ec-src">STEP2!C2</span><code>set interfaces ge-0/0/3 description</code></div><div class="ec-line"><span class="ec-src">STEP2!C3</span><code># 確認: set system host-name GTE-01</code></div></div>
+  <h3>参照されていない記入済みパラメータ</h3>
+  <p class="note">値が入力されているが、どの関数（コマンド生成）からも参照されていないセル。本来使うはずのコマンドの参照漏れ、不要な記入、別用途のいずれか。要確認。</p>
+  <table class="ptab">
+    <thead><tr><th>パラメータ名</th><th>セル</th><th>記入値</th></tr></thead>
+    <tbody><tr><td>管理IP</td><td class="mono">パラメータ!B3</td><td class="mono">192.0.2.10</td></tr><tr><td>サブネット</td><td class="mono">パラメータ!B4</td><td class="mono">255.255.255.0</td></tr><tr><td>対向IP</td><td class="mono">パラメータ!B7</td><td class="mono">198.51.100.5</td></tr></tbody>
+  </table><p class="note">手順書のパラメータ・コマンドから自動生成した参考用の構成イメージ。物理配線・論理設計の全体は手順書外の情報も要するため、確認用のサンプルとして扱う。</p><h3>物理構成図（サンプル）</h3><div class="topo-wrap"><svg viewBox="0 0 580 420" xmlns="http://www.w3.org/2000/svg" class="topo"><line x1="290" y1="210" x2="290" y2="60" stroke="#b3bac4" stroke-width="1.5"/><rect x="257" y="126" width="66" height="16" rx="3" fill="#ffffff" stroke="#e2e2e2"/><text x="290" y="138" text-anchor="middle" font-size="10" fill="#555">ge-0/0/3</text><line x1="290" y1="210" x2="290" y2="360" stroke="#b3bac4" stroke-width="1.5"/><rect x="229" y="276" width="122" height="16" rx="3" fill="#ffffff" stroke="#e2e2e2"/><text x="290" y="288" text-anchor="middle" font-size="10" fill="#555">me0 / 192.0.2.10</text><rect x="234" y="183" width="112" height="54" rx="7" fill="#dbe7ff" stroke="#2f5fbf" stroke-width="1.5"/><text x="290" y="199" text-anchor="middle" font-size="11" fill="#1a1a1a">GTE-01</text><text x="290" y="215" text-anchor="middle" font-size="11" fill="#1a1a1a">(帯域制御装置)</text><rect x="235" y="41" width="110" height="38" rx="7" fill="#dbe7ff" stroke="#2f5fbf" stroke-width="1.5"/><text x="290" y="57" text-anchor="middle" font-size="11" fill="#1a1a1a">対向ルータ</text><rect x="235" y="341" width="110" height="38" rx="7" fill="#eceff3" stroke="#7a8699" stroke-width="1.5"/><text x="290" y="357" text-anchor="middle" font-size="11" fill="#1a1a1a">管理NW</text></svg></div><h3>論理構成図（サンプル）</h3><div class="topo-wrap"><svg viewBox="0 0 580 420" xmlns="http://www.w3.org/2000/svg" class="topo"><line x1="290" y1="210" x2="290" y2="60" stroke="#b3bac4" stroke-width="1.5"/><rect x="232" y="126" width="115" height="16" rx="3" fill="#ffffff" stroke="#e2e2e2"/><text x="290" y="138" text-anchor="middle" font-size="10" fill="#555">ge-0/0/3 access</text><line x1="290" y1="210" x2="420" y2="285" stroke="#b3bac4" stroke-width="1.5"/><rect x="301" y="238" width="108" height="16" rx="3" fill="#ffffff" stroke="#e2e2e2"/><text x="355" y="250" text-anchor="middle" font-size="10" fill="#555">me0 192.0.2.10</text><line x1="290" y1="210" x2="160" y2="285" stroke="#b3bac4" stroke-width="1.5"/><rect x="213" y="239" width="24" height="16" rx="3" fill="#ffffff" stroke="#e2e2e2"/><text x="225" y="251" text-anchor="middle" font-size="10" fill="#555">L3</text><rect x="235" y="191" width="110" height="38" rx="7" fill="#dbe7ff" stroke="#2f5fbf" stroke-width="1.5"/><text x="290" y="207" text-anchor="middle" font-size="11" fill="#1a1a1a">GTE-01</text><rect x="228" y="41" width="124" height="38" rx="7" fill="#e3f4e7" stroke="#2f9e54" stroke-width="1.5"/><text x="290" y="57" text-anchor="middle" font-size="11" fill="#1a1a1a">VLAN 5000</text><rect x="340" y="266" width="160" height="38" rx="7" fill="#eceff3" stroke="#7a8699" stroke-width="1.5"/><text x="420" y="282" text-anchor="middle" font-size="11" fill="#1a1a1a">192.0.2.0/24</text><rect x="62" y="266" width="196" height="38" rx="7" fill="#fdeede" stroke="#cf7a1f" stroke-width="1.5"/><text x="160" y="282" text-anchor="middle" font-size="11" fill="#1a1a1a">対向 198.51.100.5</text></svg></div>
+
+  <footer>generated 2026-05-31 10:01 / network-runbook-review</footer>
+</div>
+</body>
+</html>
