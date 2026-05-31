@@ -18,7 +18,7 @@ model: sonnet
 
 ## レビュープロセス
 
-1. JSON を読む（必要なら Bash で `~/notebook/OpsReviewer/.venv/bin/python ~/.claude/skills/anzen/scripts/excel_reader.py <file>` を実行）。
+1. JSON を読む（必要なら Bash で `~/notebook/OpsReviewer/.venv/bin/python .claude/skills/anzen/scripts/excel_reader.py <file>` を実行）。
 2. `data_type` と `value`/`cached` を使って以下を検査する。
 
 ## チェックリスト

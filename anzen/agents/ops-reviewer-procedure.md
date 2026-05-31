@@ -14,7 +14,7 @@ model: sonnet
 ## 入力
 
 - 手順書を `excel_reader.py` で JSON 化したファイルのパス（または JSON 内容）。
-- 対象ベンダーが判明していれば、`~/.claude/agents/prompts/rules_{cisco,juniper}.md` の「推奨手順」節を Read して参照する。
+- 対象ベンダーが判明していれば、`.claude/agents/prompts/rules_{cisco,juniper}.md` の「推奨手順」節を Read して参照する。
 
 ## チェックリスト
 

@@ -29,7 +29,7 @@ model: sonnet
    - 確信が持てない対応は記入せず `unfilled` に記録する。
 4. マッピングを一時 JSON ファイルに Write し、Bash で実行:
    ```bash
-   ~/notebook/OpsReviewer/.venv/bin/python ~/.claude/skills/anzen/scripts/excel_writer.py \
+   ~/notebook/OpsReviewer/.venv/bin/python .claude/skills/anzen/scripts/excel_writer.py \
      --input <対象.xlsx> --map <マッピング.json> --output <対象>_filled_<日時>.xlsx
    ```
    - `--output` は必ず入力と別パス（`_filled_YYYYMMDD_HHMM.xlsx`）。

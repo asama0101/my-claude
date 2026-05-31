@@ -21,8 +21,8 @@ model: sonnet
 
 1. 渡された JSON（または `excel_reader.py <file>` を Bash 実行）からセル値を読み、コマンド文字列を抽出する。
 2. ベンダーに応じて参照ルールを Read する:
-   - Cisco: `~/.claude/agents/prompts/rules_cisco.md`
-   - Juniper: `~/.claude/agents/prompts/rules_juniper.md`
+   - Cisco: `.claude/agents/prompts/rules_cisco.md`
+   - Juniper: `.claude/agents/prompts/rules_juniper.md`
    - 不明/混在: 両方
 3. 以下のチェックリストを適用する。
 

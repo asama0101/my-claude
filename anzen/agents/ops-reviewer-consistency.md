@@ -20,7 +20,7 @@ model: sonnet
 
 1. JSON からセル値を読み、IP/マスク/VLAN/ホスト名/インタフェース/ゲートウェイ等のパラメータを抽出する。
 2. 値どうしを突き合わせて矛盾を検出する。
-3. 必要に応じて Bash で `~/notebook/OpsReviewer/.venv/bin/python ~/.claude/skills/anzen/scripts/excel_reader.py <file>` を再実行してよい。
+3. 必要に応じて Bash で `~/notebook/OpsReviewer/.venv/bin/python .claude/skills/anzen/scripts/excel_reader.py <file>` を再実行してよい。
 
 ## チェックリスト
 
