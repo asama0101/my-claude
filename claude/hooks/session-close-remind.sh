@@ -17,7 +17,7 @@ INPUT=$(cat)
 [ "$(echo "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null)" = "true" ] && exit 0
 
 # ② 本日スキップ指定（ユーザーが明示スキップした場合の手動エスケープ）
-DAY_MARKER="/home/asama/.claude/logs/session-close-done-$(date '+%Y%m%d')"
+DAY_MARKER="$HOME/.claude/logs/session-close-done-$(date '+%Y%m%d')"
 [ -f "$DAY_MARKER" ] && exit 0
 
 # ③ transcript を取得（無ければ判定不能 → スキップ）

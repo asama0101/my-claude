@@ -65,11 +65,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/asama/.claude/hooks/bash-guard.sh"
+            "command": "__CLAUDE_HOME__/hooks/bash-guard.sh"
           },
           {
             "type": "command",
-            "command": "/home/asama/.claude/hooks/venv-guard.sh"
+            "command": "__CLAUDE_HOME__/hooks/venv-guard.sh"
           }
         ]
       },
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/asama/.claude/hooks/context7-plan-remind.sh"
+            "command": "__CLAUDE_HOME__/hooks/context7-plan-remind.sh"
           }
         ]
       }
@@ -89,7 +89,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/asama/.claude/hooks/tdd-guard.sh"
+            "command": "__CLAUDE_HOME__/hooks/tdd-guard.sh"
           }
         ]
       }
@@ -99,11 +99,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/asama/.claude/hooks/session-close-remind.sh"
+            "command": "__CLAUDE_HOME__/hooks/session-close-remind.sh"
           },
           {
             "type": "command",
-            "command": "/home/asama/.claude/hooks/session-retrospective.sh"
+            "command": "__CLAUDE_HOME__/hooks/session-retrospective.sh"
           }
         ]
       }
@@ -111,7 +111,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /home/asama/.claude/statusline-command.sh"
+    "command": "bash __CLAUDE_HOME__/statusline-command.sh"
   },
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": true,
@@ -119,8 +119,9 @@
     "context7@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true
   },
-  "model": "claude-sonnet-4-6",
   "effortLevel": "high",
   "remoteControlAtStartup": true,
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true
 }

@@ -5,7 +5,7 @@
 #            対象を transcript パスから導出した「本プロジェクトの memory/」に限定（全プロジェクト横断をやめる）。
 
 INPUT=$(cat)
-MARKER="/home/asama/.claude/logs/last-retrospective"
+MARKER="$HOME/.claude/logs/last-retrospective"
 
 # 本プロジェクトの memory ディレクトリを transcript パスから導出
 # transcript: ~/.claude/projects/<sanitized-cwd>/<session>.jsonl → 同階層の memory/
