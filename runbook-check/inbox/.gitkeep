@@ -1,0 +1,9 @@
+# inbox/ — このスキルへの入力をここに置く（gitignore対象・中身は追跡されない）
+#
+# 置くもの:
+#   - 作業手順書         例: メンテ手順_v1.2.xlsx
+#   - 設計値の正解ソース  例: ip_list.csv / 設計書.txt（validate_values.py --reference に渡る）
+#   - 作成時バックアップ  例: CORE-01_running.conf（現行Config照合用・任意）
+#
+# 実行すると runbook-check/runs/<日時>_<手順書名>/ に結果がアーカイブされ、
+# 使った入力は runs/.../inputs/ にコピーされる（このフォルダの中身は消えない）。

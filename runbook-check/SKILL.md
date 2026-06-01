@@ -37,6 +37,8 @@ runbook-check/
 │   ├── review-dimensions.md      # 14観点の判断基準
 │   └── cross-reviewer.md         # HTML成果物の突合クロスレビュー（Phase 6.5）
 ├── examples/                     # バンドルのサンプル（sample_runbook.xlsx / sample-facts.json / sample-report.html）
+├── inbox/                        # ★利用者が今回の入力を置く場所（手順書.xlsx / 設計値.csv / 現行config）。gitignore（ローカルのみ）
+├── runs/                         # ★実行ごとのアーカイブ（runs/<日時>_<手順書名>/）。上書きせず残す。gitignore（ローカルのみ）
 └── scripts/
     ├── list_workbooks.py         # 【候補列挙】ディレクトリ走査→Excel候補をJSON（Phase 0の選択用）
     ├── extract_facts.py          # 【事実抽出】全セル・関数・解決値・エラー・参照 → facts.json（レイアウト非依存）
@@ -46,12 +48,19 @@ runbook-check/
     └── render_topology.py        # topology.json → 構成図HTML（SVG図＋機器ごとカード縦積み・JS描画・物理＋論理1枚・追加色分け）
 ```
 
-### 実行時に生成される作業ディレクトリ（`review-work/`）
+### 入力の置き場とアーカイブ（`inbox/` → `runs/<日時>_<名前>/`）
 
-レビュー1回ごとに作業ディレクトリ `review-work/` を作り、各Phaseの成果物を置く。どのファイルがどのPhaseの産物かは次のとおり：
+繰り返し使うため、**入力**と**実行アーカイブ**を分けてクリーンに保つ：
+- **入力**: 利用者は今回の入力（手順書 `.xlsx`／設計値ファイル＝`--reference`／現行Config）を **`inbox/`** に置く（またはフルパスで指定してもよい）。
+- **実行アーカイブ**: レビュー1回ごとに **実行ディレクトリ `runs/<YYYY-MM-DD_HHMM>_<手順書名>/`** を新規作成し、各Phaseの成果物を置く（**上書きせず毎回新しい枠に残す**）。本ガイドでは以降この実行ディレクトリを **`$RUN`** と表記する。例: `RUN="runs/$(date +%Y-%m-%d_%H%M)_${手順書名}"; mkdir -p "$RUN/inputs"`。
+- 実行開始時に、使った入力を **`$RUN/inputs/` へコピー**してスナップショット化する（後から「どの入力でこの結果が出たか」を辿れる）。
+- `inbox/` と `runs/` はともに **gitignore（ローカルのみ）**。手順書や設計値・現行Configには機密情報（IP・認証情報等）が含まれうるため repo には載せない。
+
+各ファイルがどのPhaseの産物かは次のとおり（`$RUN` 配下）：
 
 ```
-review-work/
+$RUN/                       # = runs/2026-06-01_1530_<手順書名>/
+├── inputs/                 # 実行開始時にコピーした入力のスナップショット（手順書.xlsx / 設計値 / 現行config）
 ├── facts.json              # Phase 1: 事実抽出（全セル・関数・解決値・エラー・参照・ref_issues）
 ├── interpreted.json        # Phase 2: 構造解釈（parameters / config_preview / シート役割）
 ├── interpreted-params.json # Phase 2: 上記 parameters 配列のみ（値検証への入力）
@@ -78,7 +87,7 @@ review-work/
 
 **(0-1) 対象ファイルの選択（ディレクトリ参照→選択→自由入力）**
 対象 .xlsx が添付や明示で確定していない場合：
-1. 走査ディレクトリを決める（既定: カレント。不明なら「どのフォルダの手順書か」を尋ねる。※claude.ai のアップロード運用時は `/mnt/user-data/uploads`）。
+1. 走査ディレクトリを決める（**既定: `inbox/`**。利用者はここに手順書を置く運用。空ならカレントや指定フォルダを尋ねる。※claude.ai のアップロード運用時は `/mnt/user-data/uploads`）。
 2. 候補を列挙する：
    ```bash
    python3 {skillパス}/scripts/list_workbooks.py {ディレクトリ} [--recursive]
@@ -94,13 +103,13 @@ review-work/
 - **今回の想定版数**（改版履歴チェックの突合用。例: v1.2）。
 - **レビューの重点**（特になし / 切り戻し重視 / セキュリティ重視 等）。重点があれば該当視点を厚めにする。
 - **作成時バックアップ（現行Config）の有無**（任意・テキスト/.conf のパス。`show configuration` / `running-config` 等）。あれば Phase 3.5 で投入Configと照合し、削除対象の実在・IP/VLAN-IDの重複競合・既存IFの所属VLAN変更（端末断の恐れ）・整合度を機械チェックできる。無ければ照合はスキップする（degrade gracefully）。
-- **出力先とブラウザ表示**（既定: `review-work/report.html`、可能なら自動で開く）。
+- **出力先とブラウザ表示**（既定: `$RUN/report.html`、可能なら自動で開く）。
 
-確認後 `review-work/` を作成し、得た情報（対象パス・ベンダー・正解ソース・想定版数・重点・**バックアップのパス**）を後続フェーズ／各サブエージェントのプロンプトに引き継ぐ。
+確認後、**実行ディレクトリ `$RUN`（=`runs/<日時>_<手順書名>/`）を作成**（`mkdir -p "$RUN/inputs"`）し、**今回使う入力（手順書・設計値ファイル・現行Config）を `$RUN/inputs/` にコピー**してスナップショット化する。得た情報（対象パス・ベンダー・正解ソース・想定版数・重点・**バックアップのパス**）を後続フェーズ／各サブエージェントのプロンプトに引き継ぐ。以降のコマンド例の `$RUN/` は同じ実行ディレクトリを指す。
 
 ### Phase 1: 事実抽出（機械処理・構造解釈なし）
 ```bash
-python3 {skillパス}/scripts/extract_facts.py {手順書パス} -o review-work/facts.json
+python3 {skillパス}/scripts/extract_facts.py {手順書パス} -o $RUN/facts.json
 ```
 `facts.json` の内容（レイアウトを仮定しない事実のみ）：
 - `sheets[].cells[]`: 全非空セル（`addr` / `value`(解決値) / `formula` / `refs`(参照先) / `error`）
@@ -140,15 +149,15 @@ python3 {skillパス}/scripts/extract_facts.py {手順書パス} -o review-work/
      }]
      ```
      `cells` は `columns` と同数。`status`（existing/added）で行を色分け。図と連動させたい行は `node`（対応IFのid）や `flow`（対応フローid）を付ける（不要なら省略＝表のみ）。型付きの `interfaces/bgp/static_routes` は描画（IP帰属・対向アンカー・物理経路）を駆動するので**従来どおりトップレベルに置く**。迷ったら「図にエッジとして描きたい＝型付き／表に並べたいだけ＝sections」で振り分ける。
-   - 結果を `review-work/topology.json` に保存する。
-6. 解釈結果を `review-work/interpreted.json`（`devices` / `parameters` / `config_preview` / 各シートの役割メモ）に、`parameters` 配列のみを `review-work/interpreted-params.json` に保存する（構成図は `topology.json` 側）。
+   - 結果を `$RUN/topology.json` に保存する。
+6. 解釈結果を `$RUN/interpreted.json`（`devices` / `parameters` / `config_preview` / 各シートの役割メモ）に、`parameters` 配列のみを `$RUN/interpreted-params.json` に保存する（構成図は `topology.json` 側）。
 
 迷う構造（パラメータ表が複数ある、コマンドが複数シートに散る等）は無理に断定せず、判断を `open_questions` に残す。
 
 ### Phase 3: パラメータ値検証（機械処理）
 Phase 2で特定した `parameters` を値検証ヘルパーに渡す：
 ```bash
-python3 {skillパス}/scripts/validate_values.py review-work/interpreted-params.json -o review-work/validation.json [--reference {インプット情報のパス}]
+python3 {skillパス}/scripts/validate_values.py $RUN/interpreted-params.json -o $RUN/validation.json [--reference {インプット情報のパス}]
 # --reference に IP一覧/設計値ファイルを渡すと各値を設計値と照合。未指定だと設計値未照合=NG（形式は検証）。
 # interpreted-params.json は interpreted.json の parameters 配列のみを書き出したもの
 ```
@@ -158,7 +167,7 @@ python3 {skillパス}/scripts/validate_values.py review-work/interpreted-params.
 ### Phase 3.5: 現行Config照合（機械処理・バックアップ指定時のみ）
 Phase 0 で**作成時バックアップ（現行Config）**のパスが得られた場合のみ実行する。無ければスキップ（後続は影響なし）。
 ```bash
-python3 {skillパス}/scripts/compare_backup.py --backup {現行Configパス} --config review-work/interpreted.json -o review-work/backup_compare.json
+python3 {skillパス}/scripts/compare_backup.py --backup {現行Configパス} --config $RUN/interpreted.json -o $RUN/backup_compare.json
 # --config は interpreted.json（config_preview を持つ）/ コマンド文字列のJSON配列 / 1行1コマンドのテキスト のいずれでも可
 ```
 スクリプトは「現行Configと突き合わせれば機械的に分かる事実」を出す（意味的判断はレビュアーが上乗せ）：
@@ -192,13 +201,13 @@ python3 {skillパス}/scripts/compare_backup.py --backup {現行Configパス} --
    - `approver_summary`：**作業承認者が技術詳細を読まずに承認判断できる**平易な説明。`what`(何をする) / `purpose`(目的・背景) / `targets`(対象機器・範囲。**複数台なら全機器を列挙**) / `impact`(影響・断時間・対象通信) / `rollback`(切り戻し可否) を埋める。専門用語は避け、影響と可否が一読で分かるように。
 9. `verdict` と `overall` を決める（Blockerが1件でもあれば「実施非推奨」または「修正後可」）。`good_points`・`open_questions` を集約。
 
-結果を `review-work/findings.json` に下記スキーマで書き出す。
+結果を `$RUN/findings.json` に下記スキーマで書き出す。
 
 ### Phase 6: HTML生成と提示
 ```bash
-python3 {skillパス}/scripts/render_report.py   review-work/findings.json -o review-work/report.html
+python3 {skillパス}/scripts/render_report.py   $RUN/findings.json -o $RUN/report.html
 # topology.json を生成していれば、構成図HTML（別ファイル）も生成する
-python3 {skillパス}/scripts/render_topology.py review-work/topology.json -o review-work/topology.html
+python3 {skillパス}/scripts/render_topology.py $RUN/topology.json -o $RUN/topology.html
 ```
 `render_report.py`: 重大度順ソート・色分け・パラメータ検証表・印刷対応に加え、**冒頭に「確認が必要な事項（作業前サマリ）」**、作業承認者向け説明の直下に **「チェック観点」パネル**（観点14はバックアップ照合時のみ）、参考情報に **「作業の投入Config」（実機の設定コマンドのみ）・構成図(topology.html)へのリンク・未参照パラメータ** を自動描画する。
 `render_topology.py`: `topology.json` から描画データへ変換し、**インタラクティブな単体HTML＋JS**（`topology.flows.json` も併出力。HTMLは fetch→失敗時は埋め込みJSONにフォールバックし `file://` でも動く）を生成する。上段に物理（機器・IF・FDF・TIE）＋論理（IP・AS・BGP・static）を1枚に重ねたSVG図、**下段に機器ごとのカードを縦積み**で並べ、各カードにその機器の IF / BGP / static ／ `devices[].sections` の拡張項目を表示する（表の行クリックで図へ移動、フロー選択で表もマーク連動）。**フロー（物理経路・eBGP往復・static）選択で5層フォーカス**、**作業で追加となる要素（status:"added"）を緑・太線**で強調する（IPはIFに帰属、BGPは neighbor_ip→対向IFにアンカー）。
@@ -206,7 +215,7 @@ HTMLは手書きしない。
 
 ### Phase 6.5: HTML突合クロスレビュー（成果物提示の最終関門）
 生成した `report.html` / `topology.html` を**元データと突合する専任サブエージェント（cross-reviewer）を1体起動**する。レビュー内容の良し悪しではなく、**「描画が元データと食い違っていないか」だけ**を敵対的に突合する（欠落・件数不一致・status:added の取り違え・リンク切れ・転記ミス・投入Config行の混入/欠落・BGPアンカー誤り）。topology.html はJSが実行時にDOM生成するため、突合対象は埋め込み `<script id="workflow-data">` の JSON（`tables`/`flows`/`nodes`）と `topology.flows.json`。指示と項目は `agents/cross-reviewer.md`。
-結果は `review-work/cross_review.json`。**blocker/important の不一致が残ったまま成果物を提示しない**——`findings.json`/`topology.json` を修正、または `render_report.py`/`render_topology.py` を再実行して潰してから提示する。サブエージェントが使えない環境ではオーケストレータが同じ突合を自分で行う。
+結果は `$RUN/cross_review.json`。**blocker/important の不一致が残ったまま成果物を提示しない**——`findings.json`/`topology.json` を修正、または `render_report.py`/`render_topology.py` を再実行して潰してから提示する。サブエージェントが使えない環境ではオーケストレータが同じ突合を自分で行う。
 
 最終提示: `report.html` と `topology.html` のパスを伝え、開ける環境なら開く。チャットには総評・件数・Blocker/重要・関数エラー有無を要約し、詳細はHTMLに委ねる。
 
