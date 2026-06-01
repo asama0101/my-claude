@@ -1,0 +1,12 @@
+# 入力（機器Config）と実行アーカイブは環境固有・機微情報を含むため追跡しない
+inbox/*
+!inbox/.gitkeep
+runs/*
+!runs/.gitkeep
+
+# Python キャッシュ・テスト生成物
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/

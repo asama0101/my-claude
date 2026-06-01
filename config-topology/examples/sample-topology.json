@@ -1,0 +1,33 @@
+{
+  "title": "Network Topology (config-derived)",
+  "generated_from": ["sample-ios-r1.cfg", "sample-junos-r2.conf"],
+  "devices": [
+    {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+    {"id": "r2", "hostname": "R2", "vendor": "juniper_junos", "as": 65002, "sections": []}
+  ],
+  "interfaces": [
+    {"id": "r1::GigabitEthernet0/0", "device": "r1", "name": "GigabitEthernet0/0", "ip": "10.0.0.1/30", "vlan": null, "description": "to-R2", "shutdown": false},
+    {"id": "r1::GigabitEthernet0/1", "device": "r1", "name": "GigabitEthernet0/1", "ip": "192.168.1.1/24", "vlan": null, "description": "LAN", "shutdown": false},
+    {"id": "r1::Loopback0", "device": "r1", "name": "Loopback0", "ip": "1.1.1.1/32", "vlan": null, "description": null, "shutdown": false},
+    {"id": "r2::ge-0/0/0", "device": "r2", "name": "ge-0/0/0", "ip": "10.0.0.2/30", "vlan": null, "description": "to-R1", "shutdown": false},
+    {"id": "r2::ge-0/0/1", "device": "r2", "name": "ge-0/0/1", "ip": "192.168.2.1/24", "vlan": null, "description": "LAN2", "shutdown": false},
+    {"id": "r2::lo0", "device": "r2", "name": "lo0", "ip": "2.2.2.2/32", "vlan": null, "description": null, "shutdown": false}
+  ],
+  "links": [
+    {"a_device": "r1", "a_if": "GigabitEthernet0/0", "b_device": "r2", "b_if": "ge-0/0/0", "subnet": "10.0.0.0/30", "kind": "inferred-subnet"}
+  ],
+  "segments": [],
+  "routing": {
+    "bgp": [
+      {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1", "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+      {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2", "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"}
+    ],
+    "ospf": [
+      {"device": "r1", "process": 1, "network": "192.168.1.0/24", "area": "0"}
+    ],
+    "static": [
+      {"device": "r1", "prefix": "0.0.0.0/0", "next_hop": "10.0.0.2"},
+      {"device": "r2", "prefix": "0.0.0.0/0", "next_hop": "10.0.0.1"}
+    ]
+  }
+}
