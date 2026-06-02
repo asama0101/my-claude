@@ -22,7 +22,7 @@ import pytest
 # プロジェクトルートを sys.path に追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from scripts.parsers.base import (
+from scripts.lib.parsers.base import (
     BgpNeighbor,
     Device,
     Interface,
@@ -74,14 +74,14 @@ class TestGoldenOutput:
     @pytest.fixture(scope="class")
     def expected(self):
         """examples/topology/ の層別 YAML を load_topology() で読み込む（Stage2 正本）。"""
-        from scripts.topology_io import load_topology
+        from scripts.lib.topology_io import load_topology
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
         return load_topology(os.path.join(examples_dir, "topology"))
 
     @pytest.fixture(scope="class")
     def actual(self):
-        from scripts.parse_configs import parse_paths
-        from scripts.build_topology import build
+        from scripts.cli.parse_configs import parse_paths
+        from scripts.cli.build_topology import build
 
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
         paths = [
@@ -138,7 +138,7 @@ class TestDeviceIdAssignment:
     """device id 採番規則の単体テスト。"""
 
     def _build_minimal(self, devices):
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build(devices, generated_from=[])
         return [d["id"] for d in result["devices"]]
 
@@ -190,7 +190,7 @@ class TestDeviceIdAssignment:
         """interface id が '<device_id>::<name>' 形式になる。"""
         iface = make_iface("GigabitEthernet0/0", ip="10.0.0.1/30")
         d = make_device("R1", interfaces=[iface])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         if_ids = [i["id"] for i in result["interfaces"]]
         assert if_ids == ["r1::GigabitEthernet0/0"]
@@ -200,7 +200,7 @@ class TestDeviceIdAssignment:
         """interface.device フィールドが device id と一致する。"""
         iface = make_iface("eth0", ip="10.0.0.1/30")
         d = make_device("R1", interfaces=[iface])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["interfaces"][0]["device"] == "r1"
 
@@ -217,7 +217,7 @@ class TestLinkInference:
         """別機器 2 IF が同一サブネット → links に 1 本。"""
         d1 = make_device("R1", interfaces=[make_iface("eth0", ip="10.0.0.1/30")])
         d2 = make_device("R2", interfaces=[make_iface("eth0", ip="10.0.0.2/30")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         assert len(result["links"]) == 1
         assert result["segments"] == []
@@ -227,7 +227,7 @@ class TestLinkInference:
         """link の a_device, b_device, a_if, b_if, subnet, kind が正しい。"""
         d1 = make_device("R1", interfaces=[make_iface("GigabitEthernet0/0", ip="10.0.0.1/30")])
         d2 = make_device("R2", interfaces=[make_iface("ge-0/0/0", ip="10.0.0.2/30")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         link = result["links"][0]
         assert link["a_device"] == "r1"
@@ -243,7 +243,7 @@ class TestLinkInference:
         # device_id が 'r2' < 'r1' でなく 'r1' < 'r2' になるよう
         d1 = make_device("Z1", interfaces=[make_iface("eth0", ip="10.0.0.1/30")])
         d2 = make_device("A1", interfaces=[make_iface("eth0", ip="10.0.0.2/30")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         link = result["links"][0]
         assert link["a_device"] <= link["b_device"]
@@ -254,7 +254,7 @@ class TestLinkInference:
         d1 = make_device("SW1", interfaces=[make_iface("eth0", ip="192.168.1.1/24")])
         d2 = make_device("SW2", interfaces=[make_iface("eth0", ip="192.168.1.2/24")])
         d3 = make_device("SW3", interfaces=[make_iface("eth0", ip="192.168.1.3/24")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2, d3], generated_from=[])
         assert len(result["links"]) == 0
         assert len(result["segments"]) == 1
@@ -265,7 +265,7 @@ class TestLinkInference:
         d1 = make_device("SW1", interfaces=[make_iface("eth0", ip="192.168.1.1/24")])
         d2 = make_device("SW2", interfaces=[make_iface("eth0", ip="192.168.1.2/24")])
         d3 = make_device("SW3", interfaces=[make_iface("eth0", ip="192.168.1.3/24")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2, d3], generated_from=[])
         seg = result["segments"][0]
         assert seg["id"] == "seg-192_168_1_0_24"
@@ -282,7 +282,7 @@ class TestLinkInference:
         d = make_device("R1", interfaces=[
             make_iface("Loopback0", ip="1.1.1.1/32"),
         ])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["links"] == []
         assert result["segments"] == []
@@ -292,7 +292,7 @@ class TestLinkInference:
         """shutdown=True の IF はリンク推論から除外される。"""
         d1 = make_device("R1", interfaces=[make_iface("eth0", ip="10.0.0.1/30", shutdown=True)])
         d2 = make_device("R2", interfaces=[make_iface("eth0", ip="10.0.0.2/30")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         assert result["links"] == []
 
@@ -301,7 +301,7 @@ class TestLinkInference:
         """ip=None の IF はリンク推論から除外される。"""
         d1 = make_device("R1", interfaces=[make_iface("eth0", ip=None)])
         d2 = make_device("R2", interfaces=[make_iface("eth0", ip=None)])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         assert result["links"] == []
 
@@ -313,7 +313,7 @@ class TestLinkInference:
             make_iface("eth0", ip="10.0.0.1/30"),
             make_iface("eth1", ip="10.0.0.2/30"),
         ])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         # 自己ループは作らない
         for link in result["links"]:
@@ -323,7 +323,7 @@ class TestLinkInference:
     def test_loopback_32_is_stub(self):
         """Loopback /32 は単独メンバー → スタブ。"""
         d = make_device("R1", interfaces=[make_iface("lo0", ip="2.2.2.2/32")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["links"] == []
         assert result["segments"] == []
@@ -334,7 +334,7 @@ class TestLinkInference:
         d1 = make_device("A", interfaces=[make_iface("eth0", ip="10.1.2.1/24")])
         d2 = make_device("B", interfaces=[make_iface("eth0", ip="10.1.2.2/24")])
         d3 = make_device("C", interfaces=[make_iface("eth0", ip="10.1.2.3/24")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2, d3], generated_from=[])
         seg_id = result["segments"][0]["id"]
         assert "/" not in seg_id
@@ -357,7 +357,7 @@ class TestBgpResolution:
                           bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65002)])
         d2 = make_device("R2", asn=65002,
                           interfaces=[make_iface("eth0", ip="10.0.0.2/30")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         bgp_entries = [b for b in result["routing"]["bgp"] if b["device"] == "r1"]
         assert bgp_entries[0]["type"] == "ebgp"
@@ -370,7 +370,7 @@ class TestBgpResolution:
                           bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65001)])
         d2 = make_device("R2", asn=65001,
                           interfaces=[make_iface("eth0", ip="10.0.0.2/30")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         bgp_entries = [b for b in result["routing"]["bgp"] if b["device"] == "r1"]
         assert bgp_entries[0]["type"] == "ibgp"
@@ -381,7 +381,7 @@ class TestBgpResolution:
         d = make_device("R1", asn=65001,
                          interfaces=[make_iface("eth0", ip="10.0.0.1/30")],
                          bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=None)])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["routing"]["bgp"][0]["type"] == "unknown"
 
@@ -391,7 +391,7 @@ class TestBgpResolution:
         d1 = make_device("R1", asn=65001,
                           interfaces=[make_iface("eth0", ip="10.0.0.1/30")],
                           bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65002)])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1], generated_from=[])
         assert result["routing"]["bgp"][0]["local_ip"] == "10.0.0.1"
 
@@ -401,7 +401,7 @@ class TestBgpResolution:
         d = make_device("R1", asn=65001,
                          interfaces=[make_iface("eth0", ip="192.168.1.1/24")],
                          bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65002)])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["routing"]["bgp"][0]["local_ip"] is None
 
@@ -411,7 +411,7 @@ class TestBgpResolution:
         d = make_device("R1", asn=65001,
                          interfaces=[make_iface("eth0", ip="10.0.0.1/30")],
                          bgp=[BgpNeighbor(neighbor_ip="203.0.113.1", peer_as=64512)])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert len(result["routing"]["bgp"]) == 1
         assert result["routing"]["bgp"][0]["neighbor_ip"] == "203.0.113.1"
@@ -421,7 +421,7 @@ class TestBgpResolution:
         """bgp エントリの local_as は device.asn の値。"""
         d = make_device("R1", asn=65001,
                          bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65002)])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["routing"]["bgp"][0]["local_as"] == 65001
 
@@ -430,7 +430,7 @@ class TestBgpResolution:
         """bgp エントリに neighbor_ip が正しく含まれる。"""
         d = make_device("R1", asn=65001,
                          bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65002)])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["routing"]["bgp"][0]["neighbor_ip"] == "10.0.0.2"
 
@@ -441,7 +441,7 @@ class TestBgpResolution:
                           bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65002)])
         d2 = make_device("R2", asn=65002,
                           bgp=[BgpNeighbor(neighbor_ip="10.0.0.1", peer_as=65001)])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         device_order = [b["device"] for b in result["routing"]["bgp"]]
         # r1 が先に来る
@@ -460,7 +460,7 @@ class TestOspfAndStatic:
         """OSPF エントリに device / process / network / area が含まれる。"""
         d = make_device("R1",
                          ospf=[OspfNetwork(process=1, network="192.168.1.0/24", area="0")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert len(result["routing"]["ospf"]) == 1
         entry = result["routing"]["ospf"][0]
@@ -474,7 +474,7 @@ class TestOspfAndStatic:
         """static エントリに device / prefix / next_hop が含まれる。"""
         d = make_device("R1",
                          static=[StaticRoute(prefix="0.0.0.0/0", next_hop="10.0.0.2")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert len(result["routing"]["static"]) == 1
         entry = result["routing"]["static"][0]
@@ -487,7 +487,7 @@ class TestOspfAndStatic:
         """OSPF エントリは device 順。"""
         d1 = make_device("R1", ospf=[OspfNetwork(process=1, network="10.0.0.0/30", area="0")])
         d2 = make_device("R2", ospf=[OspfNetwork(process=1, network="10.0.0.4/30", area="0")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         devices = [e["device"] for e in result["routing"]["ospf"]]
         assert devices.index("r1") < devices.index("r2")
@@ -497,7 +497,7 @@ class TestOspfAndStatic:
         """static エントリは device 順。"""
         d1 = make_device("R1", static=[StaticRoute(prefix="0.0.0.0/0", next_hop="1.1.1.1")])
         d2 = make_device("R2", static=[StaticRoute(prefix="0.0.0.0/0", next_hop="2.2.2.2")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         devices = [e["device"] for e in result["routing"]["static"]]
         assert devices.index("r1") < devices.index("r2")
@@ -512,7 +512,7 @@ class TestEmptyInput:
 
     @pytest.fixture
     def empty_result(self):
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         return build([], generated_from=[])
 
     @pytest.mark.unit
@@ -554,13 +554,13 @@ class TestEmptyInput:
 
     @pytest.mark.unit
     def test_custom_title(self):
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([], generated_from=[], title="My Network")
         assert result["title"] == "My Network"
 
     @pytest.mark.unit
     def test_generated_from_preserved(self):
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([], generated_from=["a.cfg", "b.conf"])
         assert result["generated_from"] == ["a.cfg", "b.conf"]
 
@@ -574,13 +574,13 @@ class TestBuildOutputStructure:
 
     @pytest.mark.unit
     def test_build_returns_dict(self):
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([], generated_from=[])
         assert isinstance(result, dict)
 
     @pytest.mark.unit
     def test_build_has_required_top_level_keys(self):
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([], generated_from=[])
         required_keys = {"title", "generated_from", "devices", "interfaces",
                          "links", "segments", "routing"}
@@ -588,7 +588,7 @@ class TestBuildOutputStructure:
 
     @pytest.mark.unit
     def test_routing_has_required_keys(self):
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([], generated_from=[])
         assert set(result["routing"].keys()) == {"bgp", "ospf", "static"}
 
@@ -596,7 +596,7 @@ class TestBuildOutputStructure:
     def test_device_entry_has_required_fields(self):
         """device エントリに id/hostname/vendor/as/sections が含まれる。"""
         d = make_device("R1", vendor="cisco_ios", asn=65001)
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         dev = result["devices"][0]
         for key in ("id", "hostname", "vendor", "as", "sections"):
@@ -606,7 +606,7 @@ class TestBuildOutputStructure:
     def test_device_sections_is_empty_list(self):
         """sections は空リストで初期化される。"""
         d = make_device("R1")
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["devices"][0]["sections"] == []
 
@@ -614,14 +614,14 @@ class TestBuildOutputStructure:
     def test_device_as_field_maps_to_asn(self):
         """device の 'as' フィールドが device.asn の値。"""
         d = make_device("R1", asn=65001)
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["devices"][0]["as"] == 65001
 
     @pytest.mark.unit
     def test_device_as_field_null_when_no_asn(self):
         d = make_device("R1", asn=None)
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["devices"][0]["as"] is None
 
@@ -630,7 +630,7 @@ class TestBuildOutputStructure:
         """interface エントリに id/device/name/ip/vlan/description/shutdown が含まれる。"""
         iface = make_iface("eth0", ip="10.0.0.1/30", description="uplink")
         d = make_device("R1", interfaces=[iface])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         if_entry = result["interfaces"][0]
         for key in ("id", "device", "name", "ip", "vlan", "description", "shutdown"):
@@ -640,7 +640,7 @@ class TestBuildOutputStructure:
     def test_interface_vlan_null_by_default(self):
         iface = make_iface("eth0")
         d = make_device("R1", interfaces=[iface])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d], generated_from=[])
         assert result["interfaces"][0]["vlan"] is None
 
@@ -654,7 +654,7 @@ class TestBuildOutputStructure:
         d2 = make_device("R2", interfaces=[
             make_iface("eth0"),
         ])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([d1, d2], generated_from=[])
         ids = [i["id"] for i in result["interfaces"]]
         # r1 の IF が r2 より前
@@ -678,7 +678,7 @@ class TestDeterminism:
                           bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65002)])
         d2 = make_device("R2", asn=65002,
                           interfaces=[make_iface("eth0", ip="10.0.0.2/30")])
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         r1 = build([d1, d2], generated_from=["a.cfg"])
         r2 = build([d1, d2], generated_from=["a.cfg"])
         assert r1 == r2
@@ -696,7 +696,7 @@ class TestCLI:
         """CLI 実行で層別 YAML ディレクトリが生成される（Stage2）。"""
         import subprocess
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
-        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "build_topology.py")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "cli", "build_topology.py")
         out_dir = str(tmp_path / "out_topo")
         result = subprocess.run(
             [sys.executable, script_path,
@@ -716,12 +716,12 @@ class TestCLI:
     def test_cli_yaml_load_matches_build(self, tmp_path):
         """CLI 出力を load_topology() で読み込むと build() と dict 一致する（Stage2）。"""
         import subprocess
-        from scripts.topology_io import load_topology
-        from scripts.parse_configs import parse_paths
-        from scripts.build_topology import build
+        from scripts.lib.topology_io import load_topology
+        from scripts.cli.parse_configs import parse_paths
+        from scripts.cli.build_topology import build
 
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
-        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "build_topology.py")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "cli", "build_topology.py")
         out_dir = str(tmp_path / "yaml_out")
         paths = [
             os.path.join(examples_dir, "configs", "sample-ios-r1.cfg"),
@@ -743,7 +743,7 @@ class TestCLI:
         """CLI で -o 省略時、カレントディレクトリに topology/ が生成される（Stage2）。"""
         import subprocess
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
-        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "build_topology.py")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "cli", "build_topology.py")
         result = subprocess.run(
             [sys.executable, script_path,
              os.path.join(examples_dir, "configs", "sample-ios-r1.cfg"),
@@ -760,7 +760,7 @@ class TestCLI:
         """CLI 実行時に [INFO] Written: <dir> が stderr に出力される（Stage2）。"""
         import subprocess
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
-        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "build_topology.py")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "cli", "build_topology.py")
         out_dir = str(tmp_path / "info_test")
         result = subprocess.run(
             [sys.executable, script_path,
@@ -782,7 +782,7 @@ class TestDeviceIdCollisionFix:
     """別 hostname が正規化後に既存 ID と衝突するケースの採番テスト。"""
 
     def _ids(self, hostnames: list[str]) -> list[str]:
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         devices = [make_device(h) for h in hostnames]
         result = build(devices, generated_from=[])
         return [d["id"] for d in result["devices"]]
@@ -826,7 +826,7 @@ class TestDeviceIdCollisionFix:
     @pytest.mark.unit
     def test_ids_collision_interface_ids_also_unique(self):
         """ID 衝突が修正された場合、interface id も一意になる。"""
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         iface = make_iface("eth0", ip="10.0.0.1/30")
         devices = [make_device(h, interfaces=[iface]) for h in ["R1", "R1-2", "R1"]]
         result = build(devices, generated_from=[])
@@ -844,43 +844,43 @@ class TestBgpTypeLocalAsNone:
     @pytest.mark.unit
     def test_local_as_none_with_valid_peer_as_returns_unknown(self):
         """local_as=None かつ peer_as 有効 → unknown（現状は ebgp の誤判定）。"""
-        from scripts.build_topology import _determine_bgp_type
+        from scripts.cli.build_topology import _determine_bgp_type
         result = _determine_bgp_type(local_as=None, peer_as=65001)
         assert result == "unknown", f"Expected 'unknown', got '{result}'"
 
     @pytest.mark.unit
     def test_local_as_none_peer_as_none_returns_unknown(self):
         """local_as=None かつ peer_as=None → unknown。"""
-        from scripts.build_topology import _determine_bgp_type
+        from scripts.cli.build_topology import _determine_bgp_type
         result = _determine_bgp_type(local_as=None, peer_as=None)
         assert result == "unknown"
 
     @pytest.mark.unit
     def test_peer_as_none_returns_unknown(self):
         """peer_as=None（local_as 有効）→ unknown（既存動作の維持確認）。"""
-        from scripts.build_topology import _determine_bgp_type
+        from scripts.cli.build_topology import _determine_bgp_type
         result = _determine_bgp_type(local_as=65001, peer_as=None)
         assert result == "unknown"
 
     @pytest.mark.unit
     def test_ibgp_unchanged(self):
         """local_as == peer_as → ibgp（既存動作の維持確認）。"""
-        from scripts.build_topology import _determine_bgp_type
+        from scripts.cli.build_topology import _determine_bgp_type
         result = _determine_bgp_type(local_as=65001, peer_as=65001)
         assert result == "ibgp"
 
     @pytest.mark.unit
     def test_ebgp_unchanged(self):
         """local_as != peer_as（両方 int）→ ebgp（既存動作の維持確認）。"""
-        from scripts.build_topology import _determine_bgp_type
+        from scripts.cli.build_topology import _determine_bgp_type
         result = _determine_bgp_type(local_as=65001, peer_as=65002)
         assert result == "ebgp"
 
     @pytest.mark.unit
     def test_build_local_as_none_gives_unknown_type(self):
         """build() 経由でも local_as=None デバイスの BGP type が unknown。"""
-        from scripts.build_topology import build
-        from scripts.parsers.base import BgpNeighbor
+        from scripts.cli.build_topology import build
+        from scripts.lib.parsers.base import BgpNeighbor
         d = make_device("R1", asn=None,
                          interfaces=[make_iface("eth0", ip="10.0.0.1/30")],
                          bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65002)])
@@ -898,7 +898,7 @@ class TestDeadCodeRemoval:
     @pytest.mark.unit
     def test_build_still_works_after_dead_code_removal(self):
         """build() が例外なく動作し、interfaces セクションが正しく生成される。"""
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         iface = make_iface("eth0", ip="10.0.0.1/30")
         d = make_device("R1", interfaces=[iface])
         result = build([d], generated_from=[])
@@ -908,8 +908,8 @@ class TestDeadCodeRemoval:
     @pytest.mark.unit
     def test_bgp_resolution_works_without_dev_id_to_interfaces(self):
         """デッドコード削除後も BGP local_ip 解決が正常に動作する。"""
-        from scripts.build_topology import build
-        from scripts.parsers.base import BgpNeighbor
+        from scripts.cli.build_topology import build
+        from scripts.lib.parsers.base import BgpNeighbor
         iface = make_iface("eth0", ip="10.0.0.1/30")
         d = make_device("R1", asn=65001, interfaces=[iface],
                          bgp=[BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=65002)])
@@ -927,14 +927,14 @@ class TestGeneratedFromBasename:
     @pytest.mark.unit
     def test_full_path_becomes_basename(self):
         """フルパスを渡すと generated_from がファイル名のみになる。"""
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([], generated_from=["/home/user/configs/router.cfg"])
         assert result["generated_from"] == ["router.cfg"]
 
     @pytest.mark.unit
     def test_multiple_full_paths_become_basenames(self):
         """複数フルパスが全て basename に変換される。"""
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([], generated_from=[
             "/home/user/configs/r1.cfg",
             "/var/data/r2.conf",
@@ -944,14 +944,14 @@ class TestGeneratedFromBasename:
     @pytest.mark.unit
     def test_basename_only_input_unchanged(self):
         """既に basename のみの入力は変化しない（ゴールデンテスト互換性確認）。"""
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([], generated_from=["sample-ios-r1.cfg", "sample-junos-r2.conf"])
         assert result["generated_from"] == ["sample-ios-r1.cfg", "sample-junos-r2.conf"]
 
     @pytest.mark.unit
     def test_empty_generated_from_unchanged(self):
         """空リストは空リストのまま。"""
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         result = build([], generated_from=[])
         assert result["generated_from"] == []
 
@@ -967,7 +967,7 @@ class TestSelfLoopAndDuplicateIp:
     def test_same_device_same_subnet_no_link_and_no_segment(self):
         """同一機器の2つの IF が同一サブネット（メンバー数2）のとき、
         links も segments も空であること（自己ループ排除の完全検証）。"""
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         d = make_device("R1", interfaces=[
             make_iface("eth0", ip="10.0.0.1/30"),
             make_iface("eth1", ip="10.0.0.2/30"),
@@ -980,7 +980,7 @@ class TestSelfLoopAndDuplicateIp:
     def test_duplicate_ip_two_devices_no_extra_links(self):
         """同一サブネットに同一 IP を持つ 2 機器で、links が 2 本以上に増殖しない。
         link-inference.md の方針: v1 はクラッシュしない。"""
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         # 両機器が同一 IP 10.0.0.1/30 を持つ（重複 IP 異常設定）
         d1 = make_device("R1", interfaces=[make_iface("eth0", ip="10.0.0.1/30")])
         d2 = make_device("R2", interfaces=[make_iface("eth0", ip="10.0.0.1/30")])
@@ -993,7 +993,7 @@ class TestSelfLoopAndDuplicateIp:
     @pytest.mark.unit
     def test_duplicate_ip_does_not_crash(self):
         """重複 IP 設定でも build() が例外なく完了する。"""
-        from scripts.build_topology import build
+        from scripts.cli.build_topology import build
         d1 = make_device("R1", interfaces=[make_iface("eth0", ip="10.0.0.1/30")])
         d2 = make_device("R2", interfaces=[make_iface("eth0", ip="10.0.0.1/30")])
         try:

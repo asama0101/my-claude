@@ -3,14 +3,14 @@ rendering/views.py — ビュー別 SVG 生成モジュール
 """
 from __future__ import annotations
 
-from scripts.rendering.layout import (
+from scripts.lib.rendering.layout import (
     _adaptive_iter,
     _canvas_size_for_nodes,
     _compute_layout,
     _layout_force_directed,
     _make_bbox_str,
 )
-from scripts.rendering.svg import (
+from scripts.lib.rendering.svg import (
     _esc,
     _svg_bgp_edges,
     _svg_l3_edges,

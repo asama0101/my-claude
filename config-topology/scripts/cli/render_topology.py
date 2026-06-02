@@ -6,13 +6,13 @@ render_topology.py — 層別 YAML topology を自己完結 HTML (SVG + vanilla 
     main()                          # CLI エントリーポイント
 
 CLI:
-    python scripts/render_topology.py <topology_dir> [-o out.html]
+    python scripts/cli/render_topology.py <topology_dir> [-o out.html]
     topology_dir: 層別 YAML ディレクトリ（topology_io.load_topology() で読み込む）
     -o: 出力 HTML ファイルパス（省略時は topology_dir/topology.html）
 
 設計原則:
 - レンダリングロジック（render）は決定論的: Math.random() や時刻に依存しない
-  （CLI/IO は topology_io 経由で PyYAML に依存。render 単体は scripts.rendering で完結）
+  （CLI/IO は topology_io 経由で PyYAML に依存。render 単体は scripts.lib.rendering で完結）
 - self-contained HTML: file:// で直接開ける（外部 CDN 不使用）
 - HTML エスケープ: hostname / description 等のユーザーデータは必ずエスケープ
 - 堅牢性: 空 topology でもクラッシュしない
@@ -27,37 +27,15 @@ import sys
 import yaml
 
 # ---------------------------------------------------------------------------
-# sys.path セットアップ（scripts/ を直接実行したときも import できるよう）
+# sys.path セットアップ（scripts/cli/ を直接実行したときも import できるよう）
 # ---------------------------------------------------------------------------
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(_HERE)
+_ROOT = os.path.dirname(os.path.dirname(_HERE))  # config-topology/（scripts/cli の2階層上）
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-# ---------------------------------------------------------------------------
-# 公開 API（render）の再エクスポート。
-# 加えて、テストが旧パス `from render_topology import <helper>` で参照する
-# 内部ヘルパーのみ後方互換のため再エクスポートする（正本は scripts/rendering/*）。
-# 全量公開はしない（YAGNI）。テストが実際に使うシンボルだけに絞っている。
-# ---------------------------------------------------------------------------
-from scripts.rendering import render  # noqa: E402
-from scripts.rendering.layout import (  # noqa: E402
-    _NODE_WIDTH,
-    _MIN_CANVAS_W,
-    _MIN_CANVAS_H,
-    _adaptive_iter,
-    _canvas_size_for_nodes,
-    _layout_force_directed,
-)
-from scripts.rendering.views import _build_physical_layout  # noqa: E402
-
-__all__ = [
-    "render",
-    # テスト後方互換のため再エクスポートする内部ヘルパー（正本は scripts/rendering/*）
-    "_NODE_WIDTH", "_MIN_CANVAS_W", "_MIN_CANVAS_H",
-    "_adaptive_iter", "_canvas_size_for_nodes", "_layout_force_directed",
-    "_build_physical_layout",
-]
+# render はライブラリ（scripts.lib.rendering）が正本。main() から使う。
+from scripts.lib.rendering import render  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +44,7 @@ __all__ = [
 
 def main() -> None:
     """CLI エントリーポイント"""
-    from scripts.topology_io import load_topology
+    from scripts.lib.topology_io import load_topology
 
     parser = argparse.ArgumentParser(
         description="Render layer-split YAML topology to a self-contained HTML file."

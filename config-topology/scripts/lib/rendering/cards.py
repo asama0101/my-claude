@@ -3,7 +3,7 @@ rendering/cards.py — 機器カード HTML 生成モジュール
 """
 from __future__ import annotations
 
-from scripts.rendering.svg import _esc
+from scripts.lib.rendering.svg import _esc
 
 
 def _device_cards(

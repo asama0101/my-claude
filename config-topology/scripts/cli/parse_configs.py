@@ -7,11 +7,11 @@
         未知ベンダー・空ファイル・パースエラーはスキップ（None を含まない）。
 
     collect_inputs(arg: str | None = None) -> list[str]
-        引数パス（ファイル/ディレクトリ/glob）が無ければ inbox/ 配下の
+        引数パス（ファイル/ディレクトリ/glob）が無ければ workspace/inbox/ 配下の
         *.txt *.cfg *.conf を名前順で返す。
 
 CLI:
-    python scripts/parse_configs.py [paths...]
+    python scripts/cli/parse_configs.py [paths...]
     → 正規化 devices を JSON として stdout に出力（デバッグ用）
 """
 
@@ -25,14 +25,15 @@ import sys
 
 # スクリプトから直接実行された場合もインポートできるようにパスを追加
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.dirname(_HERE)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(_HERE))  # config-topology/（scripts/cli の2階層上）
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from scripts.parsers import parse_text
-from scripts.parsers.base import Device
+from scripts.lib.parsers import parse_text
+from scripts.lib.parsers.base import Device
 
-# inbox ディレクトリは実行時カレントディレクトリ基準（移植性を保つ）
+# inbox ディレクトリは実行時カレントディレクトリ基準（移植性を保つ）。
+# ランタイムデータは workspace/ 配下に集約しているため workspace/inbox/ を見る。
 _INBOX_EXTENSIONS = ("*.txt", "*.cfg", "*.conf")
 
 
@@ -40,13 +41,13 @@ def collect_inputs(arg: str | None = None) -> list[str]:
     """
     引数に応じてパースするファイルのパスリストを返す。
 
-    - None        : カレントディレクトリ直下の inbox/ 配下を名前順で収集
+    - None        : カレントディレクトリ直下の workspace/inbox/ 配下を名前順で収集
     - ディレクトリ : そのディレクトリ配下の *.txt *.cfg *.conf を名前順で収集
     - glob パターン: glob 展開した結果を名前順で返す
     - ファイルパス  : そのまま [path] を返す
     """
     if arg is None:
-        inbox_dir = os.path.join(os.getcwd(), "inbox")
+        inbox_dir = os.path.join(os.getcwd(), "workspace", "inbox")
         return _collect_from_dir(inbox_dir)
 
     if os.path.isdir(arg):

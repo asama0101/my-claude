@@ -1,8 +1,9 @@
 # 入力（機器Config）と実行アーカイブは環境固有・機微情報を含むため追跡しない
-inbox/*
-!inbox/.gitkeep
-runs/*
-!runs/.gitkeep
+# （ランタイムデータは workspace/ 配下に集約）
+workspace/inbox/*
+!workspace/inbox/.gitkeep
+workspace/runs/*
+!workspace/runs/.gitkeep
 
 # Python キャッシュ・テスト生成物
 __pycache__/

@@ -8,8 +8,8 @@ build_topology.py — 結線推論層
           title: str = "Network Topology (config-derived)") -> dict
 
 CLI:
-    python scripts/build_topology.py [paths...] [-o <出力ディレクトリ>]
-        - paths 省略時は parse_configs.collect_inputs() で inbox/ から収集
+    python scripts/cli/build_topology.py [paths...] [-o <出力ディレクトリ>]
+        - paths 省略時は parse_configs.collect_inputs() で workspace/inbox/ から収集
         - parse_configs.parse_paths() で Device 群を得て build() し、
           topology_io.dump_topology() で -o（既定 topology/）へ層別 YAML 書き出し
 
@@ -29,11 +29,11 @@ from collections import defaultdict
 
 # スクリプトから直接実行された場合もインポートできるようにパスを追加
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.dirname(_HERE)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(_HERE))  # config-topology/（scripts/cli の2階層上）
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from scripts.parsers.base import Device
+from scripts.lib.parsers.base import Device
 
 
 # ================================================================
@@ -341,7 +341,7 @@ def main() -> None:
     parser.add_argument(
         "paths",
         nargs="*",
-        help="Config file paths. If omitted, collects from inbox/.",
+        help="Config file paths. If omitted, collects from workspace/inbox/.",
     )
     parser.add_argument(
         "-o",
@@ -351,8 +351,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    from scripts.parse_configs import collect_inputs, parse_paths
-    from scripts.topology_io import dump_topology
+    from scripts.cli.parse_configs import collect_inputs, parse_paths
+    from scripts.lib.topology_io import dump_topology
 
     if args.paths:
         paths: list[str] = []

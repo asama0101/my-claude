@@ -1,12 +1,12 @@
 # topology スキーマ仕様（レイヤー別 YAML 正本）
 
 `config-topology` の中間表現。**ベンダー中立**で、パーサ層の出力（正規化モデル）を `build_topology.py` が結線推論して
-組み立てる。正本は **レイヤー別 YAML**（後述）で、`scripts/topology_io.py` が **topology dict ⇄ 層別 YAML** を相互変換する。
+組み立てる。正本は **レイヤー別 YAML**（後述）で、`scripts/lib/topology_io.py` が **topology dict ⇄ 層別 YAML** を相互変換する。
 レンダラー（`render_topology.py`）と将来の別出力（Mermaid 等）は、この dict（＝層別 YAML を `load_topology` で読んだもの）を入力とする。
 **以下のフィールド定義は「メモリ上の topology dict」の構造**であり、それを下記レイアウトで YAML に分割して保存する。
 
 ## ファイルレイアウト（層別 YAML 正本）
-出力ディレクトリ（既定 `topology/`）に層別ファイルを置く。`scripts/topology_io.py` の `dump_topology`/`load_topology` が読み書きする。
+出力ディレクトリ（既定 `topology/`）に層別ファイルを置く。`scripts/lib/topology_io.py` の `dump_topology`/`load_topology` が読み書きする。
 ```
 topology/
   _meta.yaml            # schema_version: "1.0", title, generated_from

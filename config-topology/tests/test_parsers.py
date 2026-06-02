@@ -72,37 +72,37 @@ class TestBaseModels:
     """dataclass の構造が契約通りかを検証する。"""
 
     def test_import_dataclasses(self):
-        from scripts.parsers.base import Device, Interface, BgpNeighbor, OspfNetwork, StaticRoute
+        from scripts.lib.parsers.base import Device, Interface, BgpNeighbor, OspfNetwork, StaticRoute
         assert Device is not None
 
     def test_interface_defaults(self):
-        from scripts.parsers.base import Interface
+        from scripts.lib.parsers.base import Interface
         iface = Interface(name="Gi0/0", ip="10.0.0.1/30", description="test")
         assert iface.shutdown is False
         assert iface.vlan is None
 
     def test_interface_shutdown_true(self):
-        from scripts.parsers.base import Interface
+        from scripts.lib.parsers.base import Interface
         iface = Interface(name="Gi0/1", ip=None, description=None, shutdown=True)
         assert iface.shutdown is True
 
     def test_bgp_neighbor_none_as(self):
-        from scripts.parsers.base import BgpNeighbor
+        from scripts.lib.parsers.base import BgpNeighbor
         n = BgpNeighbor(neighbor_ip="10.0.0.2", peer_as=None)
         assert n.peer_as is None
 
     def test_ospf_network_fields(self):
-        from scripts.parsers.base import OspfNetwork
+        from scripts.lib.parsers.base import OspfNetwork
         o = OspfNetwork(process=1, network="192.168.1.0/24", area="0")
         assert o.area == "0"
 
     def test_static_route_fields(self):
-        from scripts.parsers.base import StaticRoute
+        from scripts.lib.parsers.base import StaticRoute
         s = StaticRoute(prefix="0.0.0.0/0", next_hop="10.0.0.2")
         assert s.prefix == "0.0.0.0/0"
 
     def test_device_fields(self):
-        from scripts.parsers.base import Device
+        from scripts.lib.parsers.base import Device
         d = Device(hostname="R1", vendor="cisco_ios", asn=65001,
                    interfaces=[], bgp=[], ospf=[], static=[])
         assert d.hostname == "R1"
@@ -110,7 +110,7 @@ class TestBaseModels:
         assert d.asn == 65001
 
     def test_device_asn_none(self):
-        from scripts.parsers.base import Device
+        from scripts.lib.parsers.base import Device
         d = Device(hostname="R1", vendor="cisco_ios", asn=None,
                    interfaces=[], bgp=[], ospf=[], static=[])
         assert d.asn is None
@@ -118,7 +118,7 @@ class TestBaseModels:
     def test_device_to_dict(self):
         """to_dict() もしくは dataclasses.asdict が使えること。"""
         import dataclasses
-        from scripts.parsers.base import Device, Interface
+        from scripts.lib.parsers.base import Device, Interface
         d = Device(
             hostname="R1", vendor="cisco_ios", asn=65001,
             interfaces=[Interface(name="Gi0/0", ip="10.0.0.1/30", description=None)],
@@ -137,24 +137,24 @@ class TestCiscoIosDetect:
     """detect は IOS テキストで True、JunOS テキストで False。"""
 
     def test_detect_ios_sample(self):
-        from scripts.parsers.cisco_ios import detect
+        from scripts.lib.parsers.cisco_ios import detect
         assert detect(IOS_SAMPLE) is True
 
     def test_detect_junos_sample_is_false(self):
-        from scripts.parsers.cisco_ios import detect
+        from scripts.lib.parsers.cisco_ios import detect
         assert detect(JUNOS_SAMPLE) is False
 
     def test_detect_empty_string(self):
-        from scripts.parsers.cisco_ios import detect
+        from scripts.lib.parsers.cisco_ios import detect
         assert detect("") is False
 
     def test_detect_minimal_ios(self):
-        from scripts.parsers.cisco_ios import detect
+        from scripts.lib.parsers.cisco_ios import detect
         text = "hostname SW1\ninterface GigabitEthernet0/0\n!\n"
         assert detect(text) is True
 
     def test_detect_random_text(self):
-        from scripts.parsers.cisco_ios import detect
+        from scripts.lib.parsers.cisco_ios import detect
         assert detect("hello world\nfoo bar") is False
 
 
@@ -166,24 +166,24 @@ class TestJuniperJunosDetect:
     """detect は JunOS テキストで True、IOS テキストで False。"""
 
     def test_detect_junos_sample(self):
-        from scripts.parsers.juniper_junos import detect
+        from scripts.lib.parsers.juniper_junos import detect
         assert detect(JUNOS_SAMPLE) is True
 
     def test_detect_ios_sample_is_false(self):
-        from scripts.parsers.juniper_junos import detect
+        from scripts.lib.parsers.juniper_junos import detect
         assert detect(IOS_SAMPLE) is False
 
     def test_detect_empty_string(self):
-        from scripts.parsers.juniper_junos import detect
+        from scripts.lib.parsers.juniper_junos import detect
         assert detect("") is False
 
     def test_detect_minimal_junos(self):
-        from scripts.parsers.juniper_junos import detect
+        from scripts.lib.parsers.juniper_junos import detect
         text = "set system host-name X\nset interfaces ge-0/0/0 disable\n"
         assert detect(text) is True
 
     def test_detect_random_text(self):
-        from scripts.parsers.juniper_junos import detect
+        from scripts.lib.parsers.juniper_junos import detect
         assert detect("hello world\nfoo bar") is False
 
 
@@ -196,7 +196,7 @@ class TestCiscoIosParse:
 
     @pytest.fixture(autouse=True)
     def parsed(self):
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         self.device = parse(IOS_SAMPLE)
 
     # --- Device 全体 ---
@@ -277,7 +277,7 @@ class TestCiscoIosIpConversion:
 
     def test_mask_to_prefixlen_30(self):
         """255.255.255.252 → /30"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         device = parse(IOS_SAMPLE)
         gi0 = next(i for i in device.interfaces if i.name == "GigabitEthernet0/0")
         net = ipaddress.ip_interface(gi0.ip)
@@ -285,13 +285,13 @@ class TestCiscoIosIpConversion:
 
     def test_ospf_wildcard_to_cidr(self):
         """0.0.0.255 wildcard → /24"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         device = parse(IOS_SAMPLE)
         assert device.ospf[0].network == "192.168.1.0/24"
 
     def test_static_default_route(self):
         """0.0.0.0 0.0.0.0 → 0.0.0.0/0"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         device = parse(IOS_SAMPLE)
         assert device.static[0].prefix == "0.0.0.0/0"
 
@@ -305,7 +305,7 @@ class TestCiscoIosShutdown:
 
     def test_shutdown_interface(self):
         """shutdown 文があれば True。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = "hostname R1\n!\ninterface FastEthernet0/0\n shutdown\n!\n"
         device = parse(text)
         iface = device.interfaces[0]
@@ -313,7 +313,7 @@ class TestCiscoIosShutdown:
 
     def test_no_shutdown_is_false(self):
         """no shutdown があれば False。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = "hostname R1\n!\ninterface FastEthernet0/0\n no shutdown\n!\n"
         device = parse(text)
         iface = device.interfaces[0]
@@ -321,7 +321,7 @@ class TestCiscoIosShutdown:
 
     def test_default_is_not_shutdown(self):
         """shutdown も no shutdown もなければ False（デフォルト）。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = "hostname R1\n!\ninterface Loopback0\n ip address 1.1.1.1 255.255.255.255\n!\n"
         device = parse(text)
         assert device.interfaces[0].shutdown is False
@@ -335,7 +335,7 @@ class TestCiscoIosNoIp:
     """IP アドレスが設定されていない IF は ip=None。"""
 
     def test_interface_without_ip(self):
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = "hostname R1\n!\ninterface GigabitEthernet0/2\n description no-ip\n!\n"
         device = parse(text)
         iface = device.interfaces[0]
@@ -352,7 +352,7 @@ class TestJuniperJunosParse:
 
     @pytest.fixture(autouse=True)
     def parsed(self):
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         self.device = parse(JUNOS_SAMPLE)
 
     def test_hostname(self):
@@ -418,7 +418,7 @@ class TestJuniperJunosShutdown:
     """set interfaces <if> disable → shutdown=True。"""
 
     def test_disable_sets_shutdown(self):
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             "set system host-name X\n"
             "set interfaces ge-0/0/9 disable\n"
@@ -429,7 +429,7 @@ class TestJuniperJunosShutdown:
         assert iface.shutdown is True
 
     def test_no_disable_is_false(self):
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             "set system host-name X\n"
             "set interfaces ge-0/0/0 unit 0 family inet address 10.0.0.1/30\n"
@@ -447,7 +447,7 @@ class TestJuniperJunosDescription:
     """description のクォートが除去されること。"""
 
     def test_quoted_description_stripped(self):
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             'set system host-name X\n'
             'set interfaces ge-0/0/0 description "uplink to core"\n'
@@ -458,7 +458,7 @@ class TestJuniperJunosDescription:
         assert iface.description == "uplink to core"
 
     def test_unquoted_description_kept(self):
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             'set system host-name X\n'
             'set interfaces ge-0/0/0 description to-R1\n'
@@ -477,13 +477,13 @@ class TestParsersRegistry:
     """parse_text はベンダーを自動判別して正しいパーサを呼ぶ。"""
 
     def test_parse_text_ios(self):
-        from scripts.parsers import parse_text
+        from scripts.lib.parsers import parse_text
         device = parse_text(IOS_SAMPLE)
         assert device.vendor == "cisco_ios"
         assert device.hostname == "R1"
 
     def test_parse_text_junos(self):
-        from scripts.parsers import parse_text
+        from scripts.lib.parsers import parse_text
         device = parse_text(JUNOS_SAMPLE)
         assert device.vendor == "juniper_junos"
         assert device.hostname == "R2"
@@ -493,20 +493,20 @@ class TestParsersRegistry:
         未知ベンダー時は None を返す（または ValueError を上げる）。
         どちらの設計を選んでも、クラッシュでなく制御された結果が返ること。
         """
-        from scripts.parsers import parse_text
+        from scripts.lib.parsers import parse_text
         result = parse_text("random text without vendor signatures")
         # None を返す設計（ValueError も許容するが、ここでは None を想定）
         assert result is None
 
     def test_ios_not_detected_as_junos(self):
         """IOS テキストで JunOS パーサが選ばれないこと（二重チェック）。"""
-        from scripts.parsers import parse_text
+        from scripts.lib.parsers import parse_text
         device = parse_text(IOS_SAMPLE)
         assert device.vendor != "juniper_junos"
 
     def test_junos_not_detected_as_ios(self):
         """JunOS テキストで IOS パーサが選ばれないこと。"""
-        from scripts.parsers import parse_text
+        from scripts.lib.parsers import parse_text
         device = parse_text(JUNOS_SAMPLE)
         assert device.vendor != "cisco_ios"
 
@@ -528,7 +528,7 @@ class TestParseConfigs:
         return str(ios_file), str(junos_file), str(tmp_path)
 
     def test_parse_paths_returns_list(self, sample_files):
-        from scripts.parse_configs import parse_paths
+        from scripts.cli.parse_configs import parse_paths
         ios_path, junos_path, _ = sample_files
         devices = parse_paths([ios_path, junos_path])
         assert isinstance(devices, list)
@@ -536,7 +536,7 @@ class TestParseConfigs:
 
     def test_parse_paths_order_preserved(self, sample_files):
         """ファイル順が保持されること。"""
-        from scripts.parse_configs import parse_paths
+        from scripts.cli.parse_configs import parse_paths
         ios_path, junos_path, _ = sample_files
         devices = parse_paths([ios_path, junos_path])
         assert devices[0].vendor == "cisco_ios"
@@ -544,7 +544,7 @@ class TestParseConfigs:
 
     def test_parse_paths_unknown_vendor_skipped(self, tmp_path):
         """未知ベンダーのファイルはスキップ（None が入らない）。"""
-        from scripts.parse_configs import parse_paths
+        from scripts.cli.parse_configs import parse_paths
         unknown = tmp_path / "unknown.cfg"
         unknown.write_text("random content without vendor")
         devices = parse_paths([str(unknown)])
@@ -554,7 +554,7 @@ class TestParseConfigs:
 
     def test_parse_paths_empty_file_skipped(self, tmp_path):
         """空ファイルはスキップされる。"""
-        from scripts.parse_configs import parse_paths
+        from scripts.cli.parse_configs import parse_paths
         empty = tmp_path / "empty.cfg"
         empty.write_text("")
         devices = parse_paths([str(empty)])
@@ -563,7 +563,7 @@ class TestParseConfigs:
 
     def test_collect_inputs_from_directory(self, sample_files):
         """ディレクトリを渡すと .cfg .conf .txt を収集する。"""
-        from scripts.parse_configs import collect_inputs
+        from scripts.cli.parse_configs import collect_inputs
         ios_path, junos_path, dir_path = sample_files
         paths = collect_inputs(dir_path)
         assert len(paths) == 2
@@ -571,7 +571,7 @@ class TestParseConfigs:
 
     def test_collect_inputs_sorts_by_name(self, sample_files):
         """ファイルは名前順で返ること。"""
-        from scripts.parse_configs import collect_inputs
+        from scripts.cli.parse_configs import collect_inputs
         ios_path, junos_path, dir_path = sample_files
         paths = collect_inputs(dir_path)
         basenames = [os.path.basename(p) for p in paths]
@@ -579,30 +579,30 @@ class TestParseConfigs:
 
     def test_collect_inputs_single_file(self, sample_files):
         """単一ファイルパスを渡すとそのまま返す。"""
-        from scripts.parse_configs import collect_inputs
+        from scripts.cli.parse_configs import collect_inputs
         ios_path, _, _ = sample_files
         paths = collect_inputs(ios_path)
         assert paths == [ios_path]
 
     def test_collect_inputs_no_arg_uses_inbox(self, tmp_path, monkeypatch):
-        """引数なし時は inbox/ 配下を返す。"""
-        inbox = tmp_path / "inbox"
-        inbox.mkdir()
+        """引数なし時は workspace/inbox/ 配下を返す。"""
+        inbox = tmp_path / "workspace" / "inbox"
+        inbox.mkdir(parents=True)
         (inbox / "r1.cfg").write_text(IOS_SAMPLE)
         (inbox / "r2.conf").write_text(JUNOS_SAMPLE)
         # カレントディレクトリを tmp_path に偽装
         monkeypatch.chdir(tmp_path)
-        from scripts import parse_configs
+        from scripts.cli import parse_configs
         import importlib
         importlib.reload(parse_configs)
-        from scripts.parse_configs import collect_inputs
+        from scripts.cli.parse_configs import collect_inputs
         paths = collect_inputs()
         assert len(paths) == 2
 
     def test_collect_inputs_glob_pattern(self, sample_files):
         """glob パターンが使える。"""
         import glob as glob_module
-        from scripts.parse_configs import collect_inputs
+        from scripts.cli.parse_configs import collect_inputs
         ios_path, junos_path, dir_path = sample_files
         pattern = os.path.join(dir_path, "*.cfg")
         paths = collect_inputs(pattern)
@@ -619,28 +619,28 @@ class TestEdgeCases:
 
     def test_ios_parse_empty_returns_device(self):
         """空文字列でも Device が返る（hostname=空・リスト空）。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         device = parse("")
         assert device.hostname == ""
         assert device.interfaces == []
         assert device.bgp == []
 
     def test_junos_parse_empty_returns_device(self):
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         device = parse("")
         assert device.hostname == ""
         assert device.interfaces == []
 
     def test_ios_interface_only_no_ip(self):
         """IF ブロックに IP がなければ ip=None。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = "hostname X\n!\ninterface Serial0/0\n description WAN\n!\n"
         device = parse(text)
         assert device.interfaces[0].ip is None
 
     def test_ios_multiple_bgp_neighbors(self):
         """複数の BGP ネイバー。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = (
             "hostname R1\n"
             "!\n"
@@ -657,14 +657,14 @@ class TestEdgeCases:
 
     def test_junos_no_hostname(self):
         """host-name 行がなければ hostname=空。"""
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = "set interfaces ge-0/0/0 unit 0 family inet address 10.0.0.1/30\n"
         device = parse(text)
         assert device.hostname == ""
 
     def test_junos_multiple_static_routes(self):
         """複数の static route を正しく取得。"""
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             "set system host-name X\n"
             "set routing-options static route 10.0.0.0/8 next-hop 1.1.1.1\n"
@@ -675,7 +675,7 @@ class TestEdgeCases:
 
     def test_ios_ospf_multiple_networks(self):
         """複数の OSPF ネットワーク文。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = (
             "hostname R1\n"
             "!\n"
@@ -692,7 +692,7 @@ class TestEdgeCases:
 
     def test_ios_secondary_address_ignored(self):
         """secondary アドレスは v1 で無視。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = (
             "hostname R1\n"
             "!\n"
@@ -708,13 +708,13 @@ class TestEdgeCases:
 
     def test_ios_detect_only_bang_lines(self):
         """! 行だけでも IOS として detect する。"""
-        from scripts.parsers.cisco_ios import detect
+        from scripts.lib.parsers.cisco_ios import detect
         text = "!\n!\nend\n"
         assert detect(text) is True
 
     def test_ios_interface_only_detects(self):
         """interface 行があれば IOS として detect する。"""
-        from scripts.parsers.cisco_ios import detect
+        from scripts.lib.parsers.cisco_ios import detect
         text = "interface FastEthernet0/0\n"
         assert detect(text) is True
 
@@ -728,20 +728,20 @@ class TestParseConfigsErrorPaths:
 
     def test_parse_paths_file_not_found_skipped(self):
         """存在しないファイルはスキップされる（クラッシュしない）。"""
-        from scripts.parse_configs import parse_paths
+        from scripts.cli.parse_configs import parse_paths
         devices = parse_paths(["/nonexistent/path/to/file.cfg"])
         assert devices == []
 
     def test_parse_paths_warns_on_os_error(self, capsys):
         """OSError 時に stderr に警告が出る。"""
-        from scripts.parse_configs import parse_paths
+        from scripts.cli.parse_configs import parse_paths
         parse_paths(["/nonexistent/path/to/file.cfg"])
         captured = capsys.readouterr()
         assert "WARN" in captured.err
 
     def test_parse_paths_warns_on_unknown_vendor(self, tmp_path, capsys):
         """未知ベンダーで stderr に警告が出る。"""
-        from scripts.parse_configs import parse_paths
+        from scripts.cli.parse_configs import parse_paths
         f = tmp_path / "unknown.txt"
         f.write_text("random text without vendor signatures\n")
         devices = parse_paths([str(f)])
@@ -752,13 +752,13 @@ class TestParseConfigsErrorPaths:
     def test_cli_main_with_files(self, tmp_path, capsys, monkeypatch):
         """CLI main() が JSON を stdout に出力する。"""
         import sys
-        from scripts import parse_configs
+        from scripts.cli import parse_configs
         import importlib
         ios_file = tmp_path / "r1.cfg"
         ios_file.write_text(IOS_SAMPLE)
         monkeypatch.setattr(sys, "argv", ["parse_configs.py", str(ios_file)])
         importlib.reload(parse_configs)
-        from scripts.parse_configs import main
+        from scripts.cli.parse_configs import main
         main()
         captured = capsys.readouterr()
         import json
@@ -767,17 +767,17 @@ class TestParseConfigsErrorPaths:
         assert data[0]["hostname"] == "R1"
 
     def test_cli_main_no_args_uses_inbox(self, tmp_path, capsys, monkeypatch):
-        """CLI 引数なし時は inbox/ を使う。"""
+        """CLI 引数なし時は workspace/inbox/ を使う。"""
         import sys
-        from scripts import parse_configs
+        from scripts.cli import parse_configs
         import importlib
-        inbox = tmp_path / "inbox"
-        inbox.mkdir()
+        inbox = tmp_path / "workspace" / "inbox"
+        inbox.mkdir(parents=True)
         (inbox / "r1.cfg").write_text(IOS_SAMPLE)
         monkeypatch.setattr(sys, "argv", ["parse_configs.py"])
         monkeypatch.chdir(tmp_path)
         importlib.reload(parse_configs)
-        from scripts.parse_configs import main
+        from scripts.cli.parse_configs import main
         main()
         captured = capsys.readouterr()
         import json
@@ -786,7 +786,7 @@ class TestParseConfigsErrorPaths:
 
     def test_parse_paths_warns_on_os_error_actually_warns(self, capsys):
         """[修正版] OSError 時に実際に stderr へ警告が出ること（or True を除去）。"""
-        from scripts.parse_configs import parse_paths
+        from scripts.cli.parse_configs import parse_paths
         parse_paths(["/nonexistent/path/to/file.cfg"])
         captured = capsys.readouterr()
         assert "WARN" in captured.err  # or True を使わず実際の警告を検証
@@ -804,7 +804,7 @@ class TestJuniperJunosMultiUnitIp:
         [RED→GREEN] ge-0/0/0 unit 0 (10.0.0.1/30) の後に unit 1 (192.168.1.1/24) が
         来ても、最初の IP (10.0.0.1/30) が保持されること。
         """
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             "set system host-name X\n"
             "set interfaces ge-0/0/0 unit 0 family inet address 10.0.0.1/30\n"
@@ -818,7 +818,7 @@ class TestJuniperJunosMultiUnitIp:
 
     def test_single_unit_ip_still_set(self):
         """unit が1つだけの場合は従来通り IP が設定される（回帰テスト）。"""
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             "set system host-name X\n"
             "set interfaces ge-0/0/0 unit 0 family inet address 10.0.0.2/30\n"
@@ -829,7 +829,7 @@ class TestJuniperJunosMultiUnitIp:
 
     def test_different_ifs_each_get_own_ip(self):
         """別々の IF は互いに影響しない（回帰テスト）。"""
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             "set system host-name X\n"
             "set interfaces ge-0/0/0 unit 0 family inet address 10.0.0.1/30\n"
@@ -854,7 +854,7 @@ class TestCiscoIosOspfWildcardAllOnes:
         [RED→GREEN] network 10.0.0.0 255.255.255.255 area 0 は prefixlen=0 となり
         不正なので OspfNetwork を生成しない。
         """
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = (
             "hostname R1\n"
             "!\n"
@@ -869,7 +869,7 @@ class TestCiscoIosOspfWildcardAllOnes:
 
     def test_wildcard_all_ones_in_mixed_config_skips_only_invalid(self):
         """valid な wildcard は通常通り生成され、全1 wildcard だけスキップ。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = (
             "hostname R1\n"
             "!\n"
@@ -884,7 +884,7 @@ class TestCiscoIosOspfWildcardAllOnes:
 
     def test_normal_wildcard_still_works(self):
         """通常の wildcard は引き続き正常にパースされる（回帰テスト）。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = (
             "hostname R1\n"
             "!\n"
@@ -913,7 +913,7 @@ class TestCollectFromDirDeduplication:
         （例: *.cfg と *.conf の両方にマッチする拡張子は通常ないが、
         _collect_from_dir の重複排除実装を検証する）
         """
-        from scripts.parse_configs import _collect_from_dir
+        from scripts.cli.parse_configs import _collect_from_dir
         (tmp_path / "r1.cfg").write_text(IOS_SAMPLE)
         (tmp_path / "r2.conf").write_text(JUNOS_SAMPLE)
         (tmp_path / "r3.txt").write_text(IOS_SAMPLE)
@@ -927,7 +927,7 @@ class TestCollectFromDirDeduplication:
         """
         [RED→GREEN] 返り値が名前順（安定ソート）であること。
         """
-        from scripts.parse_configs import _collect_from_dir
+        from scripts.cli.parse_configs import _collect_from_dir
         (tmp_path / "b.cfg").write_text(IOS_SAMPLE)
         (tmp_path / "a.conf").write_text(JUNOS_SAMPLE)
         (tmp_path / "c.txt").write_text(IOS_SAMPLE)
@@ -940,7 +940,7 @@ class TestCollectFromDirDeduplication:
         """
         [追加] 空ディレクトリを渡すと空リストを返す。
         """
-        from scripts.parse_configs import _collect_from_dir
+        from scripts.cli.parse_configs import _collect_from_dir
         results = _collect_from_dir(str(tmp_path))
         assert results == []
 
@@ -948,7 +948,7 @@ class TestCollectFromDirDeduplication:
         """
         [追加] collect_inputs に空ディレクトリを渡すと空リストを返す。
         """
-        from scripts.parse_configs import collect_inputs
+        from scripts.cli.parse_configs import collect_inputs
         results = collect_inputs(str(tmp_path))
         assert results == []
 
@@ -964,7 +964,7 @@ class TestCiscoIosMask31:
         """
         [追加] ip address 10.0.0.0 255.255.255.254 → 10.0.0.0/31。
         """
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         text = (
             "hostname R1\n"
             "!\n"
@@ -980,7 +980,7 @@ class TestCiscoIosMask31:
 
     def test_mask_31_is_valid_ip_interface(self):
         """/31 は ipaddress で有効なインターフェースアドレスとして扱えること。"""
-        from scripts.parsers.cisco_ios import parse
+        from scripts.lib.parsers.cisco_ios import parse
         import ipaddress
         text = (
             "hostname R1\n"
@@ -1012,7 +1012,7 @@ class TestJuniperJunosOspf:
         set protocols ospf area 0 interface ge-0/0/0.0 が OspfNetwork として
         収集されること。process=None、network=IF名、area="0" の仕様を検証。
         """
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             "set system host-name R2\n"
             "set protocols ospf area 0 interface ge-0/0/0.0\n"
@@ -1026,7 +1026,7 @@ class TestJuniperJunosOspf:
 
     def test_ospf_multiple_areas(self):
         """複数 area/interface が正しく収集される。"""
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             "set system host-name R2\n"
             "set protocols ospf area 0 interface ge-0/0/0.0\n"
@@ -1043,7 +1043,7 @@ class TestJuniperJunosOspf:
         v1 仕様: OspfNetwork.network は CIDR ではなく IF 名（best-effort）。
         この仕様が変わった場合にテストが壊れることで検出できる（回帰保護）。
         """
-        from scripts.parsers.juniper_junos import parse
+        from scripts.lib.parsers.juniper_junos import parse
         text = (
             "set system host-name R2\n"
             "set protocols ospf area 0.0.0.0 interface lo0.0\n"

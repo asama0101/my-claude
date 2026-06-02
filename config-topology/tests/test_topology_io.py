@@ -37,7 +37,7 @@ import yaml
 # プロジェクトルートを sys.path に追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from scripts.topology_io import dump_topology, load_topology
+from scripts.lib.topology_io import dump_topology, load_topology
 
 # ================================================================
 # フィクスチャ
