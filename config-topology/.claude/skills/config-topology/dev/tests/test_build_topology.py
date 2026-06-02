@@ -693,7 +693,7 @@ class TestCLI:
         """CLI 実行で層別 YAML ディレクトリが生成される（Stage2）。"""
         import subprocess
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
-        script_path = os.path.join(os.path.dirname(__file__), "..", "..", ".claude", "skills", "config-topology", "scripts", "build_topology.py")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "build_topology.py")
         out_dir = str(tmp_path / "out_topo")
         result = subprocess.run(
             [sys.executable, script_path,
@@ -718,7 +718,7 @@ class TestCLI:
         from scripts.build_topology import build
 
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
-        script_path = os.path.join(os.path.dirname(__file__), "..", "..", ".claude", "skills", "config-topology", "scripts", "build_topology.py")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "build_topology.py")
         out_dir = str(tmp_path / "yaml_out")
         paths = [
             os.path.join(examples_dir, "configs", "sample-ios-r1.cfg"),
@@ -740,7 +740,7 @@ class TestCLI:
         """CLI で -o 省略時、カレントディレクトリに topology/ が生成される（Stage2）。"""
         import subprocess
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
-        script_path = os.path.join(os.path.dirname(__file__), "..", "..", ".claude", "skills", "config-topology", "scripts", "build_topology.py")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "build_topology.py")
         result = subprocess.run(
             [sys.executable, script_path,
              os.path.join(examples_dir, "configs", "sample-ios-r1.cfg"),
@@ -757,7 +757,7 @@ class TestCLI:
         """CLI 実行時に [INFO] Written: <dir> が stderr に出力される（Stage2）。"""
         import subprocess
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
-        script_path = os.path.join(os.path.dirname(__file__), "..", "..", ".claude", "skills", "config-topology", "scripts", "build_topology.py")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "build_topology.py")
         out_dir = str(tmp_path / "info_test")
         result = subprocess.run(
             [sys.executable, script_path,

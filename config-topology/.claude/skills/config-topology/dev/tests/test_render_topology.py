@@ -438,7 +438,7 @@ def test_cli_generates_html_file(tmp_path, sample_topology):
     dump_topology(sample_topology, yaml_dir)
 
     out_path = tmp_path / "output.html"
-    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "..", ".claude", "skills", "config-topology", "scripts")
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "..", "scripts")
     script_path = os.path.join(scripts_dir, "render_topology.py")
 
     result = subprocess.run(
@@ -463,7 +463,7 @@ def test_cli_default_output_path(tmp_path, sample_topology):
     dump_topology(sample_topology, yaml_dir)
 
     out_path = tmp_path / "topology.html"
-    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "..", ".claude", "skills", "config-topology", "scripts")
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "..", "scripts")
     script_path = os.path.join(scripts_dir, "render_topology.py")
 
     result = subprocess.run(
