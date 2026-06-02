@@ -10,3 +10,6 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Jupyter 自動保存の残骸（ソースではない）
+.ipynb_checkpoints/

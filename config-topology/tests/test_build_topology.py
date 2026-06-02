@@ -2,7 +2,7 @@
 TDD テスト: build_topology.build()
 
 テスト方針:
-  1. ゴールデンテスト: サンプル2ファイルをパース → build() → sample-topology.json と完全一致
+  1. ゴールデンテスト: サンプル2ファイルをパース → build() → examples/topology/（層別 YAML）と完全一致
   2. ID 採番ユニットテスト (device id: 重複/空/記号)
   3. リンク推論ユニットテスト (2メンバー→link / 3メンバー→segment / 1メンバー→なし /
      shutdown除外 / ip なし除外 / 自己ループ除外)
@@ -69,14 +69,14 @@ def make_iface(
 # ================================================================
 
 class TestGoldenOutput:
-    """サンプル2ファイルからの build() 結果が sample-topology.json と完全一致する。"""
+    """サンプル2ファイルからの build() 結果が examples/topology/ と完全一致する。"""
 
     @pytest.fixture(scope="class")
     def expected(self):
+        """examples/topology/ の層別 YAML を load_topology() で読み込む（Stage2 正本）。"""
+        from scripts.topology_io import load_topology
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
-        path = os.path.join(examples_dir, "sample-topology.json")
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
+        return load_topology(os.path.join(examples_dir, "topology"))
 
     @pytest.fixture(scope="class")
     def actual(self):
@@ -85,8 +85,8 @@ class TestGoldenOutput:
 
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
         paths = [
-            os.path.join(examples_dir, "sample-ios-r1.cfg"),
-            os.path.join(examples_dir, "sample-junos-r2.conf"),
+            os.path.join(examples_dir, "configs", "sample-ios-r1.cfg"),
+            os.path.join(examples_dir, "configs", "sample-junos-r2.conf"),
         ]
         devices = parse_paths(paths)
         return build(
@@ -96,7 +96,7 @@ class TestGoldenOutput:
         )
 
     def test_golden_exact_match(self, expected, actual):
-        """build() 出力が sample-topology.json と完全一致する。"""
+        """build() 出力が examples/topology/（層別 YAML 正本）と完全一致する。"""
         assert actual == expected, (
             f"\n--- Expected ---\n{json.dumps(expected, ensure_ascii=False, indent=2)}"
             f"\n--- Actual ---\n{json.dumps(actual, ensure_ascii=False, indent=2)}"
@@ -689,61 +689,89 @@ class TestDeterminism:
 # ================================================================
 
 class TestCLI:
-    """build_topology.py の CLI 動作テスト。"""
+    """build_topology.py の CLI 動作テスト（Stage2: -o はディレクトリ出力）。"""
 
     @pytest.mark.integration
-    def test_cli_generates_topology_json(self, tmp_path):
-        """CLI 実行で topology.json が生成される。"""
+    def test_cli_generates_yaml_dir(self, tmp_path):
+        """CLI 実行で層別 YAML ディレクトリが生成される（Stage2）。"""
         import subprocess
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
         script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "build_topology.py")
-        out_path = str(tmp_path / "out.json")
+        out_dir = str(tmp_path / "out_topo")
         result = subprocess.run(
             [sys.executable, script_path,
-             os.path.join(examples_dir, "sample-ios-r1.cfg"),
-             os.path.join(examples_dir, "sample-junos-r2.conf"),
-             "-o", out_path],
+             os.path.join(examples_dir, "configs", "sample-ios-r1.cfg"),
+             os.path.join(examples_dir, "configs", "sample-junos-r2.conf"),
+             "-o", out_dir],
             capture_output=True, text=True,
         )
         assert result.returncode == 0, f"CLI が失敗: {result.stderr}"
-        assert os.path.exists(out_path), "出力 JSON が生成されていない"
-        with open(out_path, encoding="utf-8") as f:
-            data = json.load(f)
-        assert "devices" in data
+        assert os.path.isdir(out_dir), "出力ディレクトリが生成されていない"
+        # 層別 YAML の必須ファイルが存在する
+        for fname in ["_meta.yaml", "devices.yaml", "physical.yaml"]:
+            assert os.path.exists(os.path.join(out_dir, fname)), \
+                f"必須ファイル {fname} が存在しない"
 
     @pytest.mark.integration
-    def test_cli_default_output_path(self, tmp_path):
-        """CLI で -o 省略時、カレントディレクトリに topology.json が生成される。"""
+    def test_cli_yaml_load_matches_build(self, tmp_path):
+        """CLI 出力を load_topology() で読み込むと build() と dict 一致する（Stage2）。"""
+        import subprocess
+        from scripts.topology_io import load_topology
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+
+        examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "build_topology.py")
+        out_dir = str(tmp_path / "yaml_out")
+        paths = [
+            os.path.join(examples_dir, "configs", "sample-ios-r1.cfg"),
+            os.path.join(examples_dir, "configs", "sample-junos-r2.conf"),
+        ]
+        result = subprocess.run(
+            [sys.executable, script_path] + paths + ["-o", out_dir],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, f"CLI が失敗: {result.stderr}"
+        # load_topology で読んだ dict が build() と一致する
+        loaded = load_topology(out_dir)
+        devices = parse_paths(paths)
+        expected = build(devices, generated_from=["sample-ios-r1.cfg", "sample-junos-r2.conf"])
+        assert loaded == expected
+
+    @pytest.mark.integration
+    def test_cli_default_output_dir(self, tmp_path):
+        """CLI で -o 省略時、カレントディレクトリに topology/ が生成される（Stage2）。"""
         import subprocess
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
         script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "build_topology.py")
         result = subprocess.run(
             [sys.executable, script_path,
-             os.path.join(examples_dir, "sample-ios-r1.cfg"),
-             os.path.join(examples_dir, "sample-junos-r2.conf")],
+             os.path.join(examples_dir, "configs", "sample-ios-r1.cfg"),
+             os.path.join(examples_dir, "configs", "sample-junos-r2.conf")],
             capture_output=True, text=True,
             cwd=str(tmp_path),
         )
         assert result.returncode == 0, f"CLI が失敗: {result.stderr}"
-        assert os.path.exists(str(tmp_path / "topology.json"))
+        assert os.path.isdir(str(tmp_path / "topology")), \
+            "デフォルト出力ディレクトリ topology/ が生成されていない"
 
     @pytest.mark.integration
-    def test_cli_output_is_valid_json(self, tmp_path):
-        """CLI 出力ファイルが valid JSON。"""
+    def test_cli_info_written_to_stderr(self, tmp_path):
+        """CLI 実行時に [INFO] Written: <dir> が stderr に出力される（Stage2）。"""
         import subprocess
         examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
         script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "build_topology.py")
-        out_path = str(tmp_path / "out.json")
-        subprocess.run(
+        out_dir = str(tmp_path / "info_test")
+        result = subprocess.run(
             [sys.executable, script_path,
-             os.path.join(examples_dir, "sample-ios-r1.cfg"),
-             os.path.join(examples_dir, "sample-junos-r2.conf"),
-             "-o", out_path],
+             os.path.join(examples_dir, "configs", "sample-ios-r1.cfg"),
+             os.path.join(examples_dir, "configs", "sample-junos-r2.conf"),
+             "-o", out_dir],
             capture_output=True, text=True,
         )
-        with open(out_path, encoding="utf-8") as f:
-            data = json.load(f)
-        assert isinstance(data, dict)
+        assert result.returncode == 0, f"CLI が失敗: {result.stderr}"
+        assert "[INFO] Written:" in result.stderr, \
+            f"stderr に [INFO] Written: がない: {result.stderr}"
 
 
 # ================================================================

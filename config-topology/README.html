@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>config-topology — NW機器Configからネットワーク構成図を生成</title>
+<style>
+  :root{
+    --bg:#f3f4f6; --fg:#111827; --muted:#6b7280;
+    --card:#ffffff; --border:#e5e7eb;
+    --accent:#2563eb; --accent2:#1e3a5f;
+    --code-bg:#0f172a; --code-fg:#e2e8f0;
+    --seg:#d97706; --ok:#16a34a;
+    --font:'Segoe UI',system-ui,-apple-system,'Hiragino Kaku Gothic ProN','Noto Sans JP',Arial,sans-serif;
+    --mono:'SFMono-Regular',Consolas,'Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--fg);line-height:1.7}
+  .wrap{max-width:900px;margin:0 auto;padding:0 20px 80px}
+  header{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:48px 20px 40px;margin-bottom:32px}
+  header .wrap{padding-bottom:0}
+  h1{font-size:2.1rem;letter-spacing:.01em}
+  .tag{font-size:1.05rem;opacity:.92;margin-top:10px;max-width:680px}
+  .badges{margin-top:18px;display:flex;gap:8px;flex-wrap:wrap}
+  .badge{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:3px 12px;font-size:.82rem}
+  h2{font-size:1.4rem;margin:38px 0 14px;padding-bottom:6px;border-bottom:2px solid var(--accent);color:var(--accent2)}
+  h3{font-size:1.05rem;margin:22px 0 8px;color:var(--accent2)}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0 10px 24px}
+  li{margin:5px 0}
+  code{font-family:var(--mono);background:#eef2ff;color:#1e3a5f;padding:1px 6px;border-radius:4px;font-size:.9em}
+  pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:8px;overflow-x:auto;margin:12px 0;font-size:.86rem;line-height:1.55}
+  pre code{background:none;color:inherit;padding:0}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin:14px 0}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:.92rem}
+  th,td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#eff6ff;color:var(--accent2)}
+  .pipe{font-family:var(--mono);font-size:.84rem;background:#0f172a;color:#cbd5e1;padding:18px;border-radius:8px;white-space:pre;overflow-x:auto}
+  .note{border-left:4px solid var(--seg);background:#fffbeb;padding:10px 14px;border-radius:0 6px 6px 0;margin:14px 0;font-size:.93rem}
+  .ok{color:var(--ok);font-weight:600}
+  .muted{color:var(--muted)}
+  .filetree{font-family:var(--mono);font-size:.85rem;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:14px 16px;white-space:pre;overflow-x:auto}
+  footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--border);color:var(--muted);font-size:.85rem}
+  a{color:var(--accent)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>config-topology</h1>
+    <p class="tag">ネットワーク機器の running-config（テキスト）から、機器間の接続関係を自動推論し、
+      <strong>レイヤー別 YAML（正本）</strong>を経て<strong>インタラクティブな HTML 構成図</strong>を生成する Claude Code スキル。</p>
+    <div class="badges">
+      <span class="badge">Cisco IOS / IOS-XE</span>
+      <span class="badge">Juniper JunOS (set)</span>
+      <span class="badge">Python 3 + PyYAML</span>
+      <span class="badge">自己完結 HTML 出力</span>
+      <span class="badge">決定的・再現可能</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <h2>概要</h2>
+  <p>複数機器の Config を束ねて読み込み、<strong>IP / サブネット一致</strong>で機器間リンクを自動推論します。
+  中間表現は<strong>人手で編集・補正できるレイヤー別 YAML</strong>で、編集して再描画する round-trip が可能です。
+  最終成果物は外部依存ゼロ・<code>file://</code> で開ける単一 HTML の構成図で、レイヤー別ビューの切替・検索・ズーム/パンに対応します。</p>
+  <p class="muted">Excel 手順書のレビューやパラメータ入力ではなく、<strong>Config（テキスト）からのネットワーク図化</strong>が対象です。</p>
+
+  <h2>パイプライン</h2>
+  <div class="pipe">inbox/*.{cfg,conf,txt}
+   │  scripts/parse_configs.py     ベンダー自動判定 → 正規化モデル(Device)
+   ▼
+   │  scripts/build_topology.py    IP/サブネット一致でリンク・セグメント推論、BGP対向解決
+   ▼
+topology/ (レイヤー別YAML正本)        ← 中間表現（正確・人手編集可・round-trip）
+   │  scripts/topology_io.py        dump/load（YAML ⇄ topology dict・参照整合検証）
+   │  scripts/render_topology.py
+   ▼
+topology.html                       SVG + バニラJS（レイヤー別ビュー / 検索 / ズーム・パン）</div>
+  <p class="muted">メモリ上の topology dict と層別 YAML を <code>topology_io.py</code> が相互変換します。
+  パース・結線推論・描画の各層は単一責務で、境界は層別 YAML です。</p>
+
+  <h2>主な機能</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>マルチベンダー・パース</h3>
+      <p>Cisco IOS/IOS-XE running-config と Juniper JunOS（set 形式）を自動判定。複数機器を一括処理。
+      ベンダーはプラグイン方式で追加可能。</p>
+    </div>
+    <div class="card">
+      <h3>結線の自動推論</h3>
+      <p>各 IF の IP/サブネットから結線を推論。2 機器=リンク、3 機器以上=共有セグメント、単独=スタブ。
+      BGP は <code>neighbor_ip</code> で対向解決し ebgp/ibgp を判定。</p>
+    </div>
+    <div class="card">
+      <h3>レイヤー別ビュー</h3>
+      <p>HTML 上部タブで <strong>Physical（L1）/ L3（サブネットでグルーピング）/ プロトコル別（BGP・OSPF …）</strong>を切替。
+      ビューごとに配置が変わり、機器数が多くても読みやすい。決定的 force-directed レイアウト＋動的キャンバス（〜150 台目安）。</p>
+    </div>
+    <div class="card">
+      <h3>編集可能な YAML 正本</h3>
+      <p>中間表現はレイヤー別 YAML。人手で補正・注記して再描画できる。読込時に <strong>ID 参照整合を検証</strong>し、
+      壊れた参照はファイル・フィールド・値を示してエラー。</p>
+    </div>
+  </div>
+
+  <h2>使い方（Claude スキルとして起動）</h2>
+  <p>本ツールは <strong>Claude Code のスキル</strong>です。Claude が <code>SKILL.md</code> に従って各スクリプトを実行します。
+  <strong>人が手動で CLI を叩く前提ではありません</strong>——Claude に自然言語で依頼して起動します。</p>
+
+  <h3>起動の合図（トリガー）</h3>
+  <p><code>inbox/</code> に Config（<code>.cfg / .conf / .txt</code>）を置く、または次のように Claude に依頼します：</p>
+  <div class="card" style="font-style:italic;color:var(--accent2)">
+    「このconfigから構成図を作って」／「トポロジー図を描いて」／「ネットワーク図にして」／
+    「configから結線を起こして」／「機器の接続関係を図にして」
+  </div>
+
+  <h3>Claude が行う手順（スキル内部のフロー）</h3>
+  <ol>
+    <li><strong>収集・判定</strong>：<code>inbox/</code> または指定パスの Config を集め、ベンダーを自動判定。</li>
+    <li><strong>build</strong>：結線推論してレイヤー別 YAML 正本を生成。</li>
+    <li><strong>確認</strong>：YAML を目視し（人手補正も可）、参照整合を検証。</li>
+    <li><strong>render</strong>：YAML から自己完結 HTML 構成図を生成。</li>
+    <li><strong>クロスレビュー</strong>：成果物を点検してから提示。</li>
+  </ol>
+  <p class="muted">上記 2・4 で実行されるコマンド（Claude が内部で実行する）：</p>
+  <pre><code># build: Config → レイヤー別YAML（-o は出力ディレクトリ、既定 topology/）
+python3 scripts/build_topology.py &lt;configs...&gt; -o topology/
+
+# render: 層別YAMLディレクトリ → 自己完結HTML（参照整合を検証して dict 復元）
+python3 scripts/render_topology.py topology/ -o topology.html</code></pre>
+  <p>生成 HTML：ビュー切替タブ・検索ボックス・ホイールズーム・ドラッグパン・<code>F</code>=全体表示・<code>Esc</code>=リセット。</p>
+
+  <h2>実行環境（依存）</h2>
+  <p>Claude の実行環境に Python 3 と <strong>PyYAML</strong> が必要です（Claude は <code>python3</code> でスクリプトを実行）。
+  多くの環境では PyYAML は既に利用可能です。未導入の環境のみ、一度だけ次を実行します：</p>
+  <pre><code>pip install -r requirements.txt
+# 隔離したい場合: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt</code></pre>
+
+  <h2>レイヤー別 YAML レイアウト（正本）</h2>
+  <p>出力ディレクトリ（既定 <code>topology/</code>）に層別ファイルを配置します。</p>
+  <div class="filetree">topology/
+  _meta.yaml            # schema_version: "1.0", title, generated_from
+  devices.yaml          # devices[] + interfaces[]   ← 全層が ID 参照する基盤
+  physical.yaml         # links[] + segments[]
+  routing.bgp.yaml      # bgp[]      （空プロトコルは書き出さない）
+  routing.ospf.yaml     # ospf[]
+  routing.static.yaml   # static[]</div>
+  <ul>
+    <li><strong>devices と interfaces は同居</strong>：links / routing が ID を外部キー参照するため基盤に集約。</li>
+    <li><strong>routing はプロトコルごとに 1 ファイル</strong>。新プロトコルを足すと <code>routing.&lt;proto&gt;.yaml</code> が自動で増える。</li>
+    <li>直列化は <code>yaml.safe_dump(sort_keys=True)</code> で<strong>決定的</strong>。読込は <code>yaml.safe_load</code> のみ（任意オブジェクト復元を禁止）。</li>
+  </ul>
+  <div class="note"><strong>機密情報の注意</strong>：config の <code>interface description</code> 等に誤って community 文字列やパスワードが
+  書かれている場合、その値はそのまま YAML・HTML に出力されます（パーサは <code>password</code>/<code>secret</code>/<code>snmp community</code> 行自体は読みません）。生成物の共有・保存時は取り扱いに注意してください。</div>
+
+  <h2>拡張ポイント</h2>
+  <table>
+    <tr><th>追加したいもの</th><th>方法</th></tr>
+    <tr><td>新ベンダー（NX-OS / Arista 等）</td><td><code>scripts/parsers/&lt;vendor&gt;.py</code> に <code>detect</code>/<code>parse</code> を実装し registry に登録。build / render は変更不要。</td></tr>
+    <tr><td>新プロトコル / レイヤー</td><td>topology の <code>routing</code> に新キー（→ <code>routing.&lt;proto&gt;.yaml</code> 層が増え、ビュー/トグルも自動生成）、または <code>devices[].sections</code> に汎用テーブル。</td></tr>
+    <tr><td>新しい結線の由来</td><td><code>links[].kind</code> に新値（例 CDP/LLDP 由来）。</td></tr>
+  </table>
+
+  <h2>スコープ（v1）</h2>
+  <p><strong>対象</strong>：機器・IF・IP・サブネット結線（コア）＋ ルーティング（BGP / OSPF / static）。</p>
+  <p class="muted"><strong>スコープ外（将来拡張）</strong>：VLAN/L2・SVI、冗長（HSRP/VRRP・LAG）、CDP/LLDP 由来リンク、
+  NX-OS/Arista 等の追加ベンダー、Mermaid/Graphviz 併出力、経路シミュレーション等の下流ツール
+  （ロードマップ <code>docs/plans/2026-06-02-config-topology-roadmap.md</code> 参照）。</p>
+
+  <h2>テスト</h2>
+  <pre><code>cd config-topology && python3 -m pytest tests/ -q   # ユニットテスト（パーサ/推論/I/O/描画）
+# E2E:
+python3 scripts/build_topology.py examples/configs/sample-ios-r1.cfg examples/configs/sample-junos-r2.conf -o /tmp/topo
+python3 scripts/render_topology.py /tmp/topo -o /tmp/t.html   # /tmp/t.html を file:// で開く</code></pre>
+  <p><code>examples/topology/</code>（層別 YAML）は 2 つのサンプル config から生成される期待出力（ゴールデン）です。</p>
+
+  <h2>ドキュメント</h2>
+  <ul>
+    <li><code>SKILL.md</code> — スキル仕様・実行フロー（Phase 1〜5）</li>
+    <li><code>references/schema.md</code> — レイヤー別 YAML レイアウト・topology スキーマ・ID 採番規則</li>
+    <li><code>references/link-inference.md</code> — サブネット結線推論・BGP 対向解決のルール</li>
+    <li><code>references/vendor-parsing.md</code> — ベンダー別パース要点・新ベンダー追加手順</li>
+  </ul>
+
+  <footer>
+    config-topology — Config からネットワーク構成図を生成する Claude Code スキル。
+    自己完結・決定的・人手編集可能なレイヤー別 YAML 正本。
+  </footer>
+
+</div>
+</body>
+</html>

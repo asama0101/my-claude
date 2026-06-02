@@ -1,6 +1,27 @@
-# `topology.json` スキーマ仕様
+# topology スキーマ仕様（レイヤー別 YAML 正本）
 
-`config-topology` の中間表現。**ベンダー中立**で、パーサ層の出力（正規化モデル）を `build_topology.py` が結線推論して組み立てる。レンダラー（`render_topology.py`）と将来の別出力（Mermaid 等）はこの JSON だけを入力とする。
+`config-topology` の中間表現。**ベンダー中立**で、パーサ層の出力（正規化モデル）を `build_topology.py` が結線推論して
+組み立てる。正本は **レイヤー別 YAML**（後述）で、`scripts/topology_io.py` が **topology dict ⇄ 層別 YAML** を相互変換する。
+レンダラー（`render_topology.py`）と将来の別出力（Mermaid 等）は、この dict（＝層別 YAML を `load_topology` で読んだもの）を入力とする。
+**以下のフィールド定義は「メモリ上の topology dict」の構造**であり、それを下記レイアウトで YAML に分割して保存する。
+
+## ファイルレイアウト（層別 YAML 正本）
+出力ディレクトリ（既定 `topology/`）に層別ファイルを置く。`scripts/topology_io.py` の `dump_topology`/`load_topology` が読み書きする。
+```
+topology/
+  _meta.yaml            # schema_version: "1.0", title, generated_from
+  devices.yaml          # devices: [...]  /  interfaces: [...]   ← 全層が ID 参照する基盤
+  physical.yaml         # links: [...]    /  segments: [...]
+  routing.bgp.yaml      # bgp: [...]      （空プロトコルはファイルを書き出さない）
+  routing.ospf.yaml     # ospf: [...]
+  routing.static.yaml   # static: [...]
+```
+- **devices と interfaces は同居**（links / routing が interface・device の ID を外部キー参照するため、基盤として 1 ファイルに集約）。
+- **空の routing.\*** は書き出さない／読込時は欠落＝空リスト扱い。
+- **`_meta.yaml` の `schema_version`**（現行 `"1.0"`）。未知メジャーは読込時に警告（前方互換）。
+- **直列化**: `yaml.safe_dump(sort_keys=True, default_flow_style=False, allow_unicode=True)` で決定的。読込は `yaml.safe_load` のみ（任意オブジェクト復元を禁止）。
+- **参照整合の検証**（`load_topology`）: `interfaces[].device`・`links[].{a,b}_device`/`{a,b}_if`・`segments[].members`・`routing[*][].device` が
+  devices / interface-ID 集合に存在するか検査し、不正（人手編集での dangling 参照等）は **ファイル名・フィールド・値を示す `ValueError`** を送出する。
 
 ## 目次
 - [設計原則](#設計原則)
@@ -107,6 +128,6 @@ network 文 1 件につき 1 エントリ。
 | 追加したいもの | 方法 | スキーマ影響 |
 |--------------|------|------------|
 | 新ベンダー | パーサを足す（正規化モデルに合わせる） | なし |
-| 新プロトコル（VRRP 等） | `routing` に新キー | なし（加算） |
+| 新プロトコル（VRRP 等） | `routing` に新キー（→ `routing.<proto>.yaml` 層が増える） | なし（加算） |
 | 機器固有の追加情報 | `devices[].sections` に append | なし（加算） |
 | CDP/LLDP 由来リンク | `links[].kind` に新値 | なし（加算） |

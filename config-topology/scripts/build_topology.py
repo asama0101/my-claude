@@ -1,17 +1,17 @@
 """
 build_topology.py — 結線推論層
 
-正規化済みの Device リストを受け取り、topology.json スキーマに準拠した dict を返す。
+正規化済みの Device リストを受け取り、topology dict を返す。
 
 公開 API:
     build(devices: list[Device], generated_from: list[str],
           title: str = "Network Topology (config-derived)") -> dict
 
 CLI:
-    python scripts/build_topology.py [paths...] [-o out.json]
+    python scripts/build_topology.py [paths...] [-o <出力ディレクトリ>]
         - paths 省略時は parse_configs.collect_inputs() で inbox/ から収集
         - parse_configs.parse_paths() で Device 群を得て build() し、
-          -o（既定 topology.json）へ JSON 書き出し（ensure_ascii=False, indent=2）
+          topology_io.dump_topology() で -o（既定 topology/）へ層別 YAML 書き出し
 
 設計判断:
     - ipaddress 標準モジュールのみ使用（外部依存なし）
@@ -22,7 +22,6 @@ CLI:
 from __future__ import annotations
 
 import ipaddress
-import json
 import os
 import re
 import sys
@@ -96,7 +95,7 @@ def build(
     generated_from: list[str],
     title: str = "Network Topology (config-derived)",
 ) -> dict:
-    """Device リストから topology.json スキーマに準拠した dict を組み立てる。
+    """Device リストから topology dict（schema.md 準拠・レイヤー別 YAML 正本）を組み立てる。
 
     Args:
         devices: 正規化済み Device のリスト（パーサ層出力）
@@ -104,7 +103,7 @@ def build(
         title: 図のタイトル
 
     Returns:
-        topology.json スキーマに準拠した dict
+        topology dict（schema.md 準拠・レイヤー別 YAML 正本と互換）
     """
     # --- generated_from を basename に正規化（フルパスが渡されても情報漏洩しない） ---
     generated_from = [os.path.basename(p) for p in generated_from]
@@ -337,7 +336,7 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Build topology.json from network config files."
+        description="Build layer-split YAML topology from network config files."
     )
     parser.add_argument(
         "paths",
@@ -347,12 +346,13 @@ def main() -> None:
     parser.add_argument(
         "-o",
         "--output",
-        default="topology.json",
-        help="Output JSON path (default: topology.json)",
+        default="topology",
+        help="Output directory for layer-split YAML files (default: topology)",
     )
     args = parser.parse_args()
 
     from scripts.parse_configs import collect_inputs, parse_paths
+    from scripts.topology_io import dump_topology
 
     if args.paths:
         paths: list[str] = []
@@ -365,8 +365,7 @@ def main() -> None:
     generated_from = [os.path.basename(p) for p in paths]
     topology = build(devices, generated_from=generated_from)
 
-    with open(args.output, "w", encoding="utf-8") as f:
-        json.dump(topology, f, ensure_ascii=False, indent=2)
+    dump_topology(topology, args.output)
 
     print(f"[INFO] Written: {args.output}", file=sys.stderr)
 

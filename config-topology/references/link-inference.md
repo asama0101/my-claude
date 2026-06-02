@@ -1,6 +1,6 @@
 # 結線推論ルール（build_topology.py）
 
-正規化済みの全機器・全 IF から、`topology.json` の `links` / `segments` / `routing` を組み立てる。Config 以外の入力（CDP/LLDP 等）は v1 では使わず、**IP/サブネット一致のみ**で推論する。
+正規化済みの全機器・全 IF から、topology dict（→ レイヤー別 YAML 正本）の `links` / `segments` / `routing` を組み立てる。Config 以外の入力（CDP/LLDP 等）は v1 では使わず、**IP/サブネット一致のみ**で推論する。
 
 ## 1. サブネットによる結線
 1. 全 IF を走査し、`ip` を持ち `shutdown=False` のものだけを対象にする。
@@ -28,7 +28,7 @@
 
 ## 3. 出力の安定性（決定性）
 - すべてのリスト（devices / interfaces / links / segments / routing.*）は**決定的順序**で出力する（device id 昇順、IF は config 出現順、links は (a_device, a_if) 昇順 等）。
-- 乱数・時刻に依存しない。同じ入力からは毎回同一の `topology.json` が出る（テスト・diff・eval の前提）。
+- 乱数・時刻に依存しない。同じ入力からは毎回同一の層別 YAML（topology dict）が出る（テスト・diff・eval の前提）。
 
 ## 4. レンダラーが使う前提
 - `links` と `segments` が物理層、`routing` が論理オーバーレイ。
