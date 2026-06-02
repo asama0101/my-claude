@@ -2,6 +2,9 @@
 /topology.html
 /topology/
 /history/
+# eval 成果物（評価ワークスペース・レビューHTML）
+/eval-workspace/
+/eval-review.html
 # 入力（機密を含みうる）
 /workspace/*
 !/workspace/.gitkeep
