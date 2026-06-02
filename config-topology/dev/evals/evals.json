@@ -4,24 +4,24 @@
     {
       "id": 0,
       "name": "ebgp-p2p",
-      "prompt": "添付した2台のCiscoルータのconfig（rA.cfg, rB.cfg）から、ネットワーク構成図を作ってほしい。中間の topology.json と、ブラウザで見られるインタラクティブな HTML 構成図の両方が欲しい。機器間のリンクやBGPの対向関係が分かるようにして。",
-      "expected_output": "topology.json と topology.html。devices=2(RTR-A/RTR-B, AS 65010/65020)。10.1.0.0/30 で1本のlink。bgp は両機器 ebgp、local_ip/neighbor_ip 解決済み。loopback/LAN はスタブ。static デフォルトルートあり。HTMLは自己完結でズーム/パン可。",
+      "prompt": "添付した2台のCiscoルータのconfig（rA.cfg, rB.cfg）から、ネットワーク構成図を作ってほしい。中間の層別YAML（./topology/ 配下の _meta/devices/physical/routing.*）と、ブラウザで見られるインタラクティブな HTML 構成図の両方が欲しい。機器間のリンクやBGPの対向関係が分かるようにして。",
+      "expected_output": "層別YAML（./topology/ 配下の _meta/devices/physical/routing.*）と ./topology.html。devices=2(RTR-A/RTR-B, AS 65010/65020)。10.1.0.0/30 で1本のlink。bgp は両機器 ebgp、local_ip/neighbor_ip 解決済み。loopback/LAN はスタブ。static デフォルトルートあり。HTMLは自己完結でズーム/パン可。",
       "files": ["evals/inputs/ebgp-p2p/rA.cfg", "evals/inputs/ebgp-p2p/rB.cfg"],
       "assertions": []
     },
     {
       "id": 1,
       "name": "cross-vendor-ospf",
-      "prompt": "Cisco の config（iosC.cfg）と Juniper の config（junosD.conf、set形式）が混在しています。この2台のネットワーク構成図を1枚にまとめて作成してください。OSPFで繋がっているはずなので、機器間のリンクが見えるようにお願いします。topology.json と HTML 図をください。",
-      "expected_output": "topology.json と topology.html。devices=2(CORE-IOS=cisco_ios, EDGE-JUNOS=juniper_junos)。10.2.0.0/30 でクロスベンダーのlink 1本。ospf オーバーレイあり。HTMLは自己完結。",
+      "prompt": "Cisco の config（iosC.cfg）と Juniper の config（junosD.conf、set形式）が混在しています。この2台のネットワーク構成図を1枚にまとめて作成してください。OSPFで繋がっているはずなので、機器間のリンクが見えるようにお願いします。層別YAML（./topology/）と HTML 図をください。",
+      "expected_output": "層別YAML（./topology/ 配下の _meta/devices/physical/routing.*）と ./topology.html。devices=2(CORE-IOS=cisco_ios, EDGE-JUNOS=juniper_junos)。10.2.0.0/30 でクロスベンダーのlink 1本。ospf オーバーレイあり。HTMLは自己完結。",
       "files": ["evals/inputs/cross-vendor-ospf/iosC.cfg", "evals/inputs/cross-vendor-ospf/junosD.conf"],
       "assertions": []
     },
     {
       "id": 2,
       "name": "segment-static",
-      "prompt": "同じ L2 セグメント（192.168.100.0/24）に3台のルータがぶら下がっている構成です（sw-r1/sw-r2/sw-r3）。configから構成図を起こしてください。3台が共有メディアで繋がっていることと、互いのループバック宛 static ルートが分かるようにしたいです。topology.json と インタラクティブHTMLをお願いします。",
-      "expected_output": "topology.json と topology.html。devices=3。192.168.100.0/24 を共有する segment ノードが1つ生成され、3台のIFが接続。各機器に loopback宛の static ルート2本ずつ。point-to-point link ではなく segment になっていること。HTMLは自己完結。",
+      "prompt": "同じ L2 セグメント（192.168.100.0/24）に3台のルータがぶら下がっている構成です（sw-r1/sw-r2/sw-r3）。configから構成図を起こしてください。3台が共有メディアで繋がっていることと、互いのループバック宛 static ルートが分かるようにしたいです。層別YAML（./topology/）と インタラクティブHTMLをお願いします。",
+      "expected_output": "層別YAML（./topology/ 配下の _meta/devices/physical/routing.*）と ./topology.html。devices=3。192.168.100.0/24 を共有する segment ノードが1つ生成され、3台のIFが接続。各機器に loopback宛の static ルート2本ずつ。point-to-point link ではなく segment になっていること。HTMLは自己完結。",
       "files": ["evals/inputs/segment-static/sw-r1.cfg", "evals/inputs/segment-static/sw-r2.cfg", "evals/inputs/segment-static/sw-r3.cfg"],
       "assertions": []
     }
