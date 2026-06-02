@@ -12,3 +12,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .coverage
+# Jupyter 自動保存の残骸
+.ipynb_checkpoints/
