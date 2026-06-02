@@ -16,9 +16,7 @@ import re
 
 import pytest
 
-# リポジトリルートを sys.path に追加（scripts パッケージを import するため）
-PROJECT_ROOT = os.path.join(os.path.dirname(__file__), "..")
-sys.path.insert(0, os.path.abspath(PROJECT_ROOT))
+# sys.path は conftest.py がバンドルルートを追加するため、ここでの設定は不要。
 
 
 # ---- フィクスチャ -------------------------------------------------------
@@ -26,9 +24,7 @@ sys.path.insert(0, os.path.abspath(PROJECT_ROOT))
 @pytest.fixture(scope="module")
 def sample_topology():
     """examples/topology/ の層別 YAML を load_topology() で読み込む（Stage2 正本）。"""
-    import sys as _sys
-    _sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-    from scripts.lib.topology_io import load_topology
+    from lib.topology_io import load_topology
     examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
     return load_topology(os.path.join(examples_dir, "topology"))
 
@@ -36,7 +32,7 @@ def sample_topology():
 @pytest.fixture(scope="module")
 def rendered_html(sample_topology):
     """examples/topology/ を render() した HTML（モジュールスコープで1回のみ）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     return render(sample_topology)
 
 
@@ -63,7 +59,7 @@ def empty_topology():
 @pytest.mark.unit
 def test_render_returns_string(sample_topology):
     """render() が文字列を返す"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     result = render(sample_topology)
     assert isinstance(result, str)
 
@@ -233,7 +229,7 @@ def test_render_has_keyboard_handler(rendered_html):
 @pytest.mark.unit
 def test_render_escapes_html_in_description():
     """description に <script> が含まれても生の <script> タグが本文に出ない"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
 
     malicious_topology = {
         "title": "XSS Test",
@@ -289,7 +285,7 @@ def test_render_escapes_html_in_description():
 @pytest.mark.unit
 def test_render_empty_topology_no_exception(empty_topology):
     """空 topology でも例外を投げずに HTML を返す"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     try:
         result = render(empty_topology)
     except Exception as e:
@@ -301,7 +297,7 @@ def test_render_empty_topology_no_exception(empty_topology):
 @pytest.mark.unit
 def test_render_empty_topology_returns_html(empty_topology):
     """空 topology でも HTML 構造が返る"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     result = render(empty_topology)
     lower = result.lower()
     assert "<html" in lower or "<!doctype html" in lower
@@ -310,7 +306,7 @@ def test_render_empty_topology_returns_html(empty_topology):
 @pytest.mark.unit
 def test_render_empty_topology_has_svg(empty_topology):
     """空 topology でも SVG 要素が含まれる（空でも描画エリアあり）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     result = render(empty_topology)
     assert "<svg" in result.lower()
 
@@ -320,7 +316,7 @@ def test_render_empty_topology_has_svg(empty_topology):
 @pytest.mark.unit
 def test_render_deterministic(sample_topology):
     """同一入力で2回 render した結果が完全一致"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     # deep copy して独立した呼び出し
     t1 = copy.deepcopy(sample_topology)
     t2 = copy.deepcopy(sample_topology)
@@ -359,7 +355,7 @@ def test_render_as_number_in_card(rendered_html):
 @pytest.mark.unit
 def test_render_segment_node_rendered():
     """segments が存在するとき楕円等のセグメントノードが描画される"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
 
     topo_with_segment = {
         "title": "Segment Test",
@@ -398,7 +394,7 @@ def test_render_segment_node_rendered():
 @pytest.mark.unit
 def test_render_device_sections_rendered():
     """devices[].sections がある場合、汎用テーブルとして描画される"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
 
     topo_with_sections = {
         "title": "Sections Test",
@@ -435,14 +431,14 @@ def test_render_device_sections_rendered():
 def test_cli_generates_html_file(tmp_path, sample_topology):
     """CLI 実行で topology.html が生成される（Stage2: YAML ディレクトリを入力）"""
     import subprocess
-    from scripts.lib.topology_io import dump_topology
+    from lib.topology_io import dump_topology
 
     # 一時ディレクトリに層別 YAML を書き出す
     yaml_dir = str(tmp_path / "topology_yaml")
     dump_topology(sample_topology, yaml_dir)
 
     out_path = tmp_path / "output.html"
-    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "cli")
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "..", ".claude", "skills", "config-topology", "scripts")
     script_path = os.path.join(scripts_dir, "render_topology.py")
 
     result = subprocess.run(
@@ -460,14 +456,14 @@ def test_cli_generates_html_file(tmp_path, sample_topology):
 def test_cli_default_output_path(tmp_path, sample_topology):
     """CLI で -o 省略時、topology.html が生成される（Stage2: YAML ディレクトリ入力）"""
     import subprocess
-    from scripts.lib.topology_io import dump_topology
+    from lib.topology_io import dump_topology
 
     # 一時ディレクトリに層別 YAML を書き出す
     yaml_dir = str(tmp_path / "topology_yaml")
     dump_topology(sample_topology, yaml_dir)
 
     out_path = tmp_path / "topology.html"
-    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "cli")
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "..", ".claude", "skills", "config-topology", "scripts")
     script_path = os.path.join(scripts_dir, "render_topology.py")
 
     result = subprocess.run(
@@ -484,7 +480,7 @@ def test_cli_default_output_path(tmp_path, sample_topology):
 @pytest.mark.integration
 def test_render_output_can_be_written_and_read(tmp_path, sample_topology):
     """render() の出力をファイルに書いて再読込できる"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
 
     html = render(sample_topology)
     out_file = tmp_path / "test_output.html"
@@ -533,7 +529,7 @@ def _make_vrrp_topology():
 @pytest.mark.unit
 def test_vrrp_toggle_generated():
     """routing に vrrp キーを足すと vrrp 用チェックボックスが生成される"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_vrrp_topology())
     lower = html.lower()
     # data-layer="vrrp" または id="toggle-vrrp" が存在すること
@@ -544,7 +540,7 @@ def test_vrrp_toggle_generated():
 @pytest.mark.unit
 def test_vrrp_css_hide_rule_generated():
     """routing に vrrp キーを足すと body.hide-vrrp .layer-vrrp { display:none } 相当のCSSルールが出力される"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_vrrp_topology())
     # CSS ルール: body.hide-vrrp .layer-vrrp（display:none を含む）
     assert "hide-vrrp" in html, "body.hide-vrrp CSS ルールが生成されていない"
@@ -554,7 +550,7 @@ def test_vrrp_css_hide_rule_generated():
 @pytest.mark.unit
 def test_existing_protocols_css_still_generated_dynamically(sample_topology):
     """bgp/ospf/static の hide CSS ルールが sample topology でも動的生成で出力される"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(sample_topology)
     for proto in ("bgp", "ospf", "static"):
         assert f"hide-{proto}" in html, f"body.hide-{proto} CSS ルールが見当たらない"
@@ -571,7 +567,7 @@ def test_vrrp_elements_have_layer_vrrp_class():
     現状 render はvrrp 要素を描画しないが、CSS ルールが生成されること自体を検証する。
     将来 vrrp 描画を追加したとき layer-vrrp クラス付与が必要になる。
     """
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_vrrp_topology())
     # CSS ルール body.hide-vrrp .layer-vrrp が存在することを確認（描画要素とは別に）
     assert "hide-vrrp" in html
@@ -607,7 +603,7 @@ def _make_comment_topology():
 def test_embedded_json_no_raw_html_comment():
     """description に <!-- が含まれても埋め込みJSONブロックに生の <!-- が現れない"""
     import re
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_comment_topology())
 
     # <script type="application/json"> ブロックを抽出
@@ -624,7 +620,7 @@ def test_embedded_json_no_raw_html_comment():
 def test_embedded_json_still_parseable_after_comment_escape():
     """<!-- エスケープ後も埋め込み JSON が valid JSON としてパース可能"""
     import re
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_comment_topology())
 
     pattern = r'<script[^>]+type=["\']application/json["\'][^>]*>(.*?)</script>'
@@ -678,7 +674,7 @@ def _make_xss_topology():
 @pytest.mark.unit
 def test_xss_ampersand_escaped_in_html():
     """hostname/description の & が HTML エスケープされる（&amp; に変換）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_xss_topology())
     # SVG/カード部分の本文に生の & が hostname として出ていないこと
     # （埋め込みJSONブロックと script タグを除く）
@@ -698,7 +694,7 @@ def test_xss_ampersand_escaped_in_html():
 @pytest.mark.unit
 def test_xss_double_quote_escaped_in_attributes():
     """hostname に " が含まれても属性値を壊さない（&quot; にエスケープ）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_xss_topology())
     import re
     cleaned = re.sub(
@@ -720,7 +716,7 @@ def test_xss_double_quote_escaped_in_attributes():
 @pytest.mark.unit
 def test_xss_single_quote_escaped_in_attributes():
     """hostname に ' が含まれても html.escape(quote=True) でエスケープされる"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_xss_topology())
     # _esc は quote=True なので ' -> &#x27; または &apos; になる
     # html.escape のデフォルトは ' をエスケープしないが quote=True でもエスケープしない
@@ -779,7 +775,7 @@ def _make_bidirectional_bgp_topology():
 def test_bgp_bidirectional_dedup_single_edge():
     """R1→R2 と R2→R1 の双方向 BGP エントリがあっても Physical ビュー内のエッジは1本のみ"""
     import re
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_bidirectional_bgp_topology())
 
     # Stage2 では複数ビューに bgp-session が分散するため Physical ビュー内のみを検査する
@@ -803,7 +799,7 @@ def test_bgp_bidirectional_dedup_single_edge():
 def test_bgp_single_direction_still_rendered():
     """片方向 BGP エントリのみのとき、Physical ビュー内に1本のエッジが描画される"""
     import re
-    from scripts.lib.rendering import render
+    from lib.rendering import render
 
     topo = _make_bidirectional_bgp_topology()
     # r2 側エントリを削除（片方向）
@@ -860,7 +856,7 @@ def _make_large_topology(n: int):
 @pytest.mark.unit
 def test_layout_force_directed_deterministic():
     """_layout_force_directed: 同一入力を2回呼んだとき完全に同じ座標を返す"""
-    from scripts.lib.rendering import _layout_force_directed
+    from lib.rendering import _layout_force_directed
     node_ids = [f"r{i}" for i in range(20)]
     edges = [(f"r{i}", f"r{i+1}") for i in range(19)]
     pos1 = _layout_force_directed(node_ids, edges, width=1000.0, height=800.0)
@@ -871,7 +867,7 @@ def test_layout_force_directed_deterministic():
 @pytest.mark.unit
 def test_layout_force_directed_zero_nodes():
     """_layout_force_directed: ノード0件で例外が起きない"""
-    from scripts.lib.rendering import _layout_force_directed
+    from lib.rendering import _layout_force_directed
     pos = _layout_force_directed([], [], width=800.0, height=600.0)
     assert pos == {}
 
@@ -879,7 +875,7 @@ def test_layout_force_directed_zero_nodes():
 @pytest.mark.unit
 def test_layout_force_directed_one_node():
     """_layout_force_directed: ノード1件で例外が起きず座標が返る"""
-    from scripts.lib.rendering import _layout_force_directed
+    from lib.rendering import _layout_force_directed
     pos = _layout_force_directed(["r1"], [], width=800.0, height=600.0)
     assert "r1" in pos
     x, y = pos["r1"]
@@ -890,7 +886,7 @@ def test_layout_force_directed_one_node():
 @pytest.mark.unit
 def test_layout_force_directed_two_nodes():
     """_layout_force_directed: ノード2件で例外が起きず座標が返る"""
-    from scripts.lib.rendering import _layout_force_directed
+    from lib.rendering import _layout_force_directed
     pos = _layout_force_directed(["r1", "r2"], [("r1", "r2")], width=800.0, height=600.0)
     assert "r1" in pos
     assert "r2" in pos
@@ -899,7 +895,7 @@ def test_layout_force_directed_two_nodes():
 @pytest.mark.unit
 def test_layout_force_directed_all_nodes_in_bbox():
     """全ノードが width x height の矩形内に収まる"""
-    from scripts.lib.rendering import _layout_force_directed
+    from lib.rendering import _layout_force_directed
     W, H = 1000.0, 800.0
     node_ids = [f"r{i}" for i in range(20)]
     edges = [(f"r{i}", f"r{i+1}") for i in range(19)]
@@ -912,7 +908,7 @@ def test_layout_force_directed_all_nodes_in_bbox():
 @pytest.mark.unit
 def test_layout_force_directed_no_overlap():
     """任意2ノードの中心間距離が最小距離以上（ノード重なりなし）"""
-    from scripts.lib.rendering import _layout_force_directed, _NODE_WIDTH
+    from lib.rendering import _layout_force_directed, _NODE_WIDTH
     node_ids = [f"r{i}" for i in range(20)]
     edges = [(f"r{i}", f"r{i+1}") for i in range(19)]
     pos = _layout_force_directed(node_ids, edges, width=1200.0, height=1000.0)
@@ -932,7 +928,7 @@ def test_layout_force_directed_no_overlap():
 @pytest.mark.unit
 def test_dynamic_canvas_grows_with_node_count():
     """ノード数が増えると viewBox の幅か高さが増大する（固定キャンバスでない）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     import re
 
     html_small = render(_make_large_topology(3))
@@ -964,7 +960,7 @@ def test_dynamic_canvas_grows_with_node_count():
 @pytest.mark.unit
 def test_dynamic_canvas_viewbox_contains_all_nodes():
     """render した HTML の Physical ビューの data-bbox が全ノード座標をカバーしている"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     import re
 
     topo = _make_large_topology(20)
@@ -1017,7 +1013,7 @@ def test_dynamic_canvas_viewbox_contains_all_nodes():
 @pytest.mark.unit
 def test_render_sample_topology_still_passes(sample_topology):
     """examples/topology/ が引き続き render() で全コンテンツを含む HTML を返す"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(sample_topology)
     assert "R1" in html
     assert "R2" in html
@@ -1169,7 +1165,7 @@ def test_stage2_search_box_exists(rendered_html):
 @pytest.mark.unit
 def test_stage2_protocol_view_dynamic_bgp_only():
     """bgp のみの topology では BGP ビューが生成され、OSPF ビューは生成されない"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = {
         "title": "BGP Only",
         "generated_from": [],
@@ -1203,7 +1199,7 @@ def test_stage2_protocol_view_dynamic_bgp_only():
 @pytest.mark.unit
 def test_stage2_protocol_view_dynamic_ospf_only():
     """ospf のみの topology では OSPF ビューが生成され、BGP ビューは生成されない"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = {
         "title": "OSPF Only",
         "generated_from": [],
@@ -1237,7 +1233,7 @@ def test_stage2_protocol_view_dynamic_ospf_only():
 @pytest.mark.unit
 def test_stage2_protocol_view_tabs_match_generated_views():
     """生成されたビューのタブ数 = 実際に生成された view-{id} <g> 数と一致または以上"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     import re
     topo = {
         "title": "BGP+OSPF",
@@ -1299,7 +1295,7 @@ def test_stage2_toggle_ospf_id_still_generated(rendered_html):
 @pytest.mark.unit
 def test_stage2_render_deterministic(sample_topology):
     """Stage2 実装後も同一入力で2回 render した結果が完全一致"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     t1 = copy.deepcopy(sample_topology)
     t2 = copy.deepcopy(sample_topology)
     html1 = render(t1)
@@ -1312,7 +1308,7 @@ def test_stage2_render_deterministic(sample_topology):
 @pytest.mark.unit
 def test_stage2_empty_topology_no_exception(empty_topology):
     """Stage2 後も空 topology で例外なし"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     result = render(empty_topology)
     assert isinstance(result, str)
     assert len(result) > 0
@@ -1321,7 +1317,7 @@ def test_stage2_empty_topology_no_exception(empty_topology):
 @pytest.mark.unit
 def test_stage2_empty_topology_has_physical_view(empty_topology):
     """空 topology でも view-physical <g> が存在する"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     result = render(empty_topology)
     assert 'class="view view-physical"' in result
 
@@ -1329,7 +1325,7 @@ def test_stage2_empty_topology_has_physical_view(empty_topology):
 @pytest.mark.unit
 def test_stage2_empty_topology_has_l3_view(empty_topology):
     """空 topology でも view-l3 <g> が存在する"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     result = render(empty_topology)
     assert 'class="view view-l3"' in result
 
@@ -1355,7 +1351,7 @@ def test_stage2_self_contained_no_external_cdn(rendered_html):
 @pytest.mark.unit
 def test_stage2_l3_view_contains_subnet_nodes():
     """L3 ビューにサブネットノードが描画される（有効なリンクがある場合）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = {
         "title": "L3 Test",
         "generated_from": [],
@@ -1418,7 +1414,7 @@ def test_stage2_bgp_view_edge_class_preserved(rendered_html):
 @pytest.mark.unit
 def test_stage2_future_protocol_view_generated():
     """未知のプロトコルキー（例: isis）も routing にあればビューが生成される"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = {
         "title": "ISIS Test",
         "generated_from": [],
@@ -1593,7 +1589,7 @@ def _make_ospf_two_devices_topology():
 @pytest.mark.unit
 def test_gating_static_only_no_view():
     """static のみの topology では view-static <g> もタブも生成されない（辺なし）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_static_only_topology())
     assert 'class="view view-static"' not in html, \
         "static ビューが（辺なしなのに）生成されている"
@@ -1604,7 +1600,7 @@ def test_gating_static_only_no_view():
 @pytest.mark.unit
 def test_gating_bgp_no_resolved_neighbors_no_view():
     """neighbor_ip が解決できない BGP のみの topology では view-bgp が生成されない"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_bgp_no_resolved_neighbors_topology())
     assert 'class="view view-bgp"' not in html, \
         "BGP ビューが（解決可能な隣接なしなのに）生成されている"
@@ -1615,7 +1611,7 @@ def test_gating_bgp_no_resolved_neighbors_no_view():
 @pytest.mark.unit
 def test_gating_ospf_single_participant_no_view():
     """OSPF 参加が1台のみ（隣接リンクなし）の topology では view-ospf が生成されない"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_ospf_single_device_topology())
     assert 'class="view view-ospf"' not in html, \
         "OSPF ビューが（参加1台なのに）生成されている"
@@ -1626,7 +1622,7 @@ def test_gating_ospf_single_participant_no_view():
 @pytest.mark.unit
 def test_gating_bgp_with_real_neighbors_generates_view():
     """解決可能な BGP 隣接がある場合は view-bgp が生成される"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_bgp_with_real_neighbors_topology())
     assert 'class="view view-bgp"' in html, "BGP ビューが生成されていない"
     assert 'data-view="bgp"' in html, "BGP タブが生成されていない"
@@ -1635,7 +1631,7 @@ def test_gating_bgp_with_real_neighbors_generates_view():
 @pytest.mark.unit
 def test_gating_ospf_two_devices_generates_view():
     """OSPF 参加2台・共有リンクあり → view-ospf が生成される"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_ospf_two_devices_topology())
     assert 'class="view view-ospf"' in html, "OSPF ビューが生成されていない"
     assert 'data-view="ospf"' in html, "OSPF タブが生成されていない"
@@ -1644,7 +1640,7 @@ def test_gating_ospf_two_devices_generates_view():
 @pytest.mark.unit
 def test_gating_tab_count_equals_view_count():
     """タブ数 == ビュー <g> 数（== で検証）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     # bgp + ospf で両方エッジありの topology
     html = render(_make_bgp_with_real_neighbors_topology())
     view_groups = re.findall(r'class="view view-([a-z0-9_-]+)"', html)
@@ -1657,7 +1653,7 @@ def test_gating_tab_count_equals_view_count():
 @pytest.mark.unit
 def test_gating_physical_and_l3_always_generated():
     """physical と l3 ビューは常に生成される（routing が空でも）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = {
         "title": "No Routing",
         "generated_from": [],
@@ -1712,7 +1708,7 @@ def _make_shared_subnet_topology():
 @pytest.mark.unit
 def test_l3_edge_dedup_unique_dev_subnet_pairs():
     """同一サブネット3リンクでも L3 ビューのデバイス↔サブネットエッジは重複しない"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_shared_subnet_topology())
 
     # view-l3 グループを抽出
@@ -1738,7 +1734,7 @@ def test_l3_edge_dedup_unique_dev_subnet_pairs():
 @pytest.mark.unit
 def test_l3_edge_dedup_no_duplicate_lines():
     """L3 ビューのデバイス↔サブネット線に完全一致の重複行がない"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     html = render(_make_shared_subnet_topology())
 
     m = re.search(
@@ -1762,7 +1758,7 @@ def test_l3_edge_dedup_no_duplicate_lines():
 @pytest.mark.unit
 def test_adaptive_iter_decreases_with_large_n():
     """_adaptive_iter: n が大きくなると iterations が 300 未満になる"""
-    from scripts.lib.rendering import _adaptive_iter
+    from lib.rendering import _adaptive_iter
     iters_small = _adaptive_iter(5)
     iters_large = _adaptive_iter(50)
     assert iters_large < 300, f"n=50 で iterations が {iters_large}（期待: <300）"
@@ -1773,7 +1769,7 @@ def test_adaptive_iter_decreases_with_large_n():
 @pytest.mark.unit
 def test_adaptive_iter_minimum_is_100():
     """_adaptive_iter: 非常に大きい n でも最低 100 反復"""
-    from scripts.lib.rendering import _adaptive_iter
+    from lib.rendering import _adaptive_iter
     iters = _adaptive_iter(10000)
     assert iters >= 100, f"最低保証の 100 を下回っている: {iters}"
 
@@ -1781,7 +1777,7 @@ def test_adaptive_iter_minimum_is_100():
 @pytest.mark.unit
 def test_adaptive_iter_small_n_near_300():
     """_adaptive_iter: n が小さい（n=1）のとき上限に近い反復数を返す"""
-    from scripts.lib.rendering import _adaptive_iter
+    from lib.rendering import _adaptive_iter
     # max(100, 300 - n) の実装では n=1 → 299, n=0 → 300
     assert _adaptive_iter(1) >= 295, f"n=1 で {_adaptive_iter(1)} 反復（期待: >=295）"
     assert _adaptive_iter(5) >= 290, f"n=5 で {_adaptive_iter(5)} 反復（期待: >=290）"
@@ -1790,7 +1786,7 @@ def test_adaptive_iter_small_n_near_300():
 @pytest.mark.unit
 def test_render_deterministic_with_adaptive_iter(sample_topology):
     """適応反復を使っても同一入力で2回 render した結果が完全一致（決定性維持）"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     t1 = copy.deepcopy(sample_topology)
     t2 = copy.deepcopy(sample_topology)
     html1 = render(t1)
@@ -1805,14 +1801,14 @@ def test_render_deterministic_with_adaptive_iter(sample_topology):
 @pytest.mark.unit
 def test_canvas_size_for_nodes_exists():
     """_canvas_size_for_nodes ヘルパー関数が存在する"""
-    from scripts.lib.rendering import _canvas_size_for_nodes
+    from lib.rendering import _canvas_size_for_nodes
     assert callable(_canvas_size_for_nodes)
 
 
 @pytest.mark.unit
 def test_canvas_size_for_nodes_returns_tuple():
     """_canvas_size_for_nodes(n) が (w, h) タプルを返す"""
-    from scripts.lib.rendering import _canvas_size_for_nodes
+    from lib.rendering import _canvas_size_for_nodes
     result = _canvas_size_for_nodes(10)
     assert isinstance(result, tuple) and len(result) == 2, \
         f"(w, h) タプルでない: {result}"
@@ -1821,7 +1817,7 @@ def test_canvas_size_for_nodes_returns_tuple():
 @pytest.mark.unit
 def test_canvas_size_for_nodes_minimum():
     """_canvas_size_for_nodes(0) または (1) が最小キャンバスサイズ以上を返す"""
-    from scripts.lib.rendering import _canvas_size_for_nodes, _MIN_CANVAS_W, _MIN_CANVAS_H
+    from lib.rendering import _canvas_size_for_nodes, _MIN_CANVAS_W, _MIN_CANVAS_H
     w, h = _canvas_size_for_nodes(0)
     assert w >= _MIN_CANVAS_W
     assert h >= _MIN_CANVAS_H
@@ -1830,7 +1826,7 @@ def test_canvas_size_for_nodes_minimum():
 @pytest.mark.unit
 def test_canvas_size_grows_with_n():
     """_canvas_size_for_nodes: n が増えるとキャンバスが大きくなる"""
-    from scripts.lib.rendering import _canvas_size_for_nodes
+    from lib.rendering import _canvas_size_for_nodes
     w5, h5 = _canvas_size_for_nodes(5)
     w50, h50 = _canvas_size_for_nodes(50)
     assert w50 > w5 or h50 > h5, \
@@ -1840,14 +1836,14 @@ def test_canvas_size_grows_with_n():
 @pytest.mark.unit
 def test_build_physical_layout_exists():
     """_build_physical_layout 関数が存在する"""
-    from scripts.lib.rendering import _build_physical_layout
+    from lib.rendering import _build_physical_layout
     assert callable(_build_physical_layout)
 
 
 @pytest.mark.unit
 def test_build_physical_layout_returns_dict():
     """_build_physical_layout が {node_id: (x, y)} 辞書を返す"""
-    from scripts.lib.rendering import _build_physical_layout
+    from lib.rendering import _build_physical_layout
     devices = [
         {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
         {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
@@ -1874,7 +1870,7 @@ def test_build_physical_layout_returns_dict():
 @pytest.mark.unit
 def test_l3_edges_have_l3_edge_class():
     """L3 ビューのデバイス↔サブネット線が l3-edge クラスを持つ"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = {
         "title": "L3 Edge Class Test",
         "generated_from": [],
@@ -1911,7 +1907,7 @@ def test_l3_edges_have_l3_edge_class():
 @pytest.mark.unit
 def test_l3_edges_not_layer_physical():
     """L3 ビューのデバイス↔サブネット線が layer-physical クラスを持たない"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = {
         "title": "L3 Edge Class Test",
         "generated_from": [],
@@ -1953,7 +1949,7 @@ def test_l3_edges_not_layer_physical():
 @pytest.mark.unit
 def test_selectview_uses_dataset_view():
     """selectView JS で this.dataset.view または data-view 経由でビュー切替している"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = {
         "title": "Test",
         "generated_from": [],
@@ -2012,7 +2008,7 @@ def test_ospf_view_contains_device_nodes_inside_view():
     sample topology は r1 のみ OSPF 参加のためゲーティングでビュー未生成となる。
     恒久スキップを解消するため、2台が OSPF 参加する人工 topology を使って検証する。
     """
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = _make_ospf_two_devices_topology()
     html = render(topo)
     m = re.search(
@@ -2106,7 +2102,7 @@ def test_css_injection_invalid_routing_key_not_in_css():
     load_topology 側でキー検証済みのため二重防御。
     render に人工的に不正キーを渡した場合も CSS が注入されないことを確認する。
     """
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     # 不正キー: '{display:block}' を含む（CSS インジェクション試み）
     topo = {
         "title": "CSS Injection Test",
@@ -2141,7 +2137,7 @@ def test_css_injection_invalid_routing_key_not_in_css():
 @pytest.mark.unit
 def test_css_layer_ids_are_safe():
     """vrrp/isis などの正規表現適合キーは CSS ルールに安全に展開される。"""
-    from scripts.lib.rendering import render
+    from lib.rendering import render
     topo = _make_vrrp_topology()
     html = render(topo)
     # body.hide-vrrp / .layer-vrrp が存在し、特殊文字がないこと

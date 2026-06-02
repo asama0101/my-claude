@@ -6,7 +6,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from scripts.lib.rendering.layout import (
+from lib.rendering.layout import (
     _NODE_WIDTH,
     _NODE_HEIGHT,
     _SEG_RX,

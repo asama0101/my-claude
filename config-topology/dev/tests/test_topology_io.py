@@ -28,16 +28,12 @@ from __future__ import annotations
 
 import io
 import os
-import sys
 import warnings
 
 import pytest
 import yaml
 
-# プロジェクトルートを sys.path に追加
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-from scripts.lib.topology_io import dump_topology, load_topology
+from lib.topology_io import dump_topology, load_topology
 
 # ================================================================
 # フィクスチャ

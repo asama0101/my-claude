@@ -11,7 +11,7 @@
         *.txt *.cfg *.conf を名前順で返す。
 
 CLI:
-    python scripts/cli/parse_configs.py [paths...]
+    python scripts/parse_configs.py [paths...]
     → 正規化 devices を JSON として stdout に出力（デバッグ用）
 """
 
@@ -25,12 +25,12 @@ import sys
 
 # スクリプトから直接実行された場合もインポートできるようにパスを追加
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(_HERE))  # config-topology/（scripts/cli の2階層上）
+_PROJECT_ROOT = os.path.dirname(_HERE)  # バンドルルート（scripts/ の1階層上）
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from scripts.lib.parsers import parse_text
-from scripts.lib.parsers.base import Device
+from lib.parsers import parse_text
+from lib.parsers.base import Device
 
 # inbox ディレクトリは実行時カレントディレクトリ基準（移植性を保つ）。
 # ランタイムデータは workspace/ 配下に集約しているため workspace/inbox/ を見る。

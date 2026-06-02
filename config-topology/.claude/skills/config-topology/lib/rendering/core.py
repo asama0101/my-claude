@@ -6,11 +6,11 @@ from __future__ import annotations
 import json
 import math
 
-from scripts.lib.rendering.cards import _device_cards
-from scripts.lib.rendering.layout import _compute_canvas
-from scripts.lib.rendering.svg import _esc, _make_iface_by_device
-from scripts.lib.rendering.template import _layer_toggles, build_html
-from scripts.lib.rendering.views import (
+from lib.rendering.cards import _device_cards
+from lib.rendering.layout import _compute_canvas
+from lib.rendering.svg import _esc, _make_iface_by_device
+from lib.rendering.template import _layer_toggles, build_html
+from lib.rendering.views import (
     _bgp_has_resolved_edges,
     _build_physical_layout,
     _build_view_bgp,

@@ -1,4 +1,4 @@
-# 結線推論ルール（scripts/cli/build_topology.py）
+# 結線推論ルール（scripts/build_topology.py）
 
 正規化済みの全機器・全 IF から、topology dict（→ レイヤー別 YAML 正本）の `links` / `segments` / `routing` を組み立てる。Config 以外の入力（CDP/LLDP 等）は v1 では使わず、**IP/サブネット一致のみ**で推論する。
 

@@ -3,7 +3,7 @@ rendering/template.py — HTML テンプレート（静的 CSS/JS 定数 + build
 """
 from __future__ import annotations
 
-from scripts.lib.rendering.svg import _esc
+from lib.rendering.svg import _esc
 
 # ---------------------------------------------------------------------------
 # 静的 CSS 定数（f-string 内では {{ }} でエスケープされていた箇所を { } に戻す）

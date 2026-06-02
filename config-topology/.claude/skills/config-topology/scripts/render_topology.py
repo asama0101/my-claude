@@ -6,13 +6,13 @@ render_topology.py — 層別 YAML topology を自己完結 HTML (SVG + vanilla 
     main()                          # CLI エントリーポイント
 
 CLI:
-    python scripts/cli/render_topology.py <topology_dir> [-o out.html]
+    python scripts/render_topology.py <topology_dir> [-o out.html]
     topology_dir: 層別 YAML ディレクトリ（topology_io.load_topology() で読み込む）
     -o: 出力 HTML ファイルパス（省略時は topology_dir/topology.html）
 
 設計原則:
 - レンダリングロジック（render）は決定論的: Math.random() や時刻に依存しない
-  （CLI/IO は topology_io 経由で PyYAML に依存。render 単体は scripts.lib.rendering で完結）
+  （CLI/IO は topology_io 経由で PyYAML に依存。render 単体は lib.rendering で完結）
 - self-contained HTML: file:// で直接開ける（外部 CDN 不使用）
 - HTML エスケープ: hostname / description 等のユーザーデータは必ずエスケープ
 - 堅牢性: 空 topology でもクラッシュしない
@@ -27,15 +27,15 @@ import sys
 import yaml
 
 # ---------------------------------------------------------------------------
-# sys.path セットアップ（scripts/cli/ を直接実行したときも import できるよう）
+# sys.path セットアップ（scripts/ を直接実行したときも import できるよう）
 # ---------------------------------------------------------------------------
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(os.path.dirname(_HERE))  # config-topology/（scripts/cli の2階層上）
+_ROOT = os.path.dirname(_HERE)  # バンドルルート（scripts/ の1階層上）
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-# render はライブラリ（scripts.lib.rendering）が正本。main() から使う。
-from scripts.lib.rendering import render  # noqa: E402
+# render はライブラリ（lib.rendering）が正本。main() から使う。
+from lib.rendering import render  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -44,7 +44,7 @@ from scripts.lib.rendering import render  # noqa: E402
 
 def main() -> None:
     """CLI エントリーポイント"""
-    from scripts.lib.topology_io import load_topology
+    from lib.topology_io import load_topology
 
     parser = argparse.ArgumentParser(
         description="Render layer-split YAML topology to a self-contained HTML file."

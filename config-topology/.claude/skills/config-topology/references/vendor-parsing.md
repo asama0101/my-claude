@@ -1,6 +1,6 @@
 # ベンダー別パース要点と新ベンダー追加手順
 
-各パーサは config テキストを受け取り、ベンダー中立な**正規化モデル**（`scripts/lib/parsers/base.py` の `Device`）を返す。`build_topology.py` はこのモデルだけを見るので、パーサが差異を吸収する。
+各パーサは config テキストを受け取り、ベンダー中立な**正規化モデル**（`lib/parsers/base.py` の `Device`）を返す。`build_topology.py` はこのモデルだけを見るので、パーサが差異を吸収する。
 
 ## 正規化モデル（base.py）
 ```python
@@ -40,7 +40,7 @@ class Device:
 ```
 
 ## パーサ共通インターフェース
-各ベンダーモジュールは 2 つの関数を公開する（`scripts/lib/parsers/__init__.py` の registry が利用）:
+各ベンダーモジュールは 2 つの関数を公開する（`lib/parsers/__init__.py` の registry が利用）:
 - `detect(text: str) -> bool` — その config が当該ベンダーか判定
 - `parse(text: str) -> Device` — 正規化モデルを返す
 
@@ -70,7 +70,7 @@ class Device:
 - **detect**: 非空行の **過半数（50% 超）** が `^set ` で始まる。
 
 ## 新ベンダー追加手順（例: Cisco NX-OS）
-1. `scripts/lib/parsers/nxos.py` を作り `detect` / `parse` を実装（`Device` を返す）。
-2. `scripts/lib/parsers/__init__.py` の registry リストに追加（detect の特異度が高い順に並べる）。
+1. `lib/parsers/nxos.py` を作り `detect` / `parse` を実装（`Device` を返す）。
+2. `lib/parsers/__init__.py` の registry リストに追加（detect の特異度が高い順に並べる）。
 3. `tests/test_parsers.py` にサンプル config とアサーションを追加。
 4. スキーマ・build_topology・renderer は**変更不要**（正規化モデルに合わせるだけ）。
