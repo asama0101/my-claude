@@ -7,7 +7,7 @@
         未知ベンダー・空ファイル・パースエラーはスキップ（None を含まない）。
 
     collect_inputs(arg: str | None = None) -> list[str]
-        引数パス（ファイル/ディレクトリ/glob）が無ければ workspace/inbox/ 配下の
+        引数パス（ファイル/ディレクトリ/glob）が無ければ workspace/ 配下の
         *.txt *.cfg *.conf を名前順で返す。
 
 CLI:
@@ -32,8 +32,8 @@ if _PROJECT_ROOT not in sys.path:
 from lib.parsers import parse_text
 from lib.parsers.base import Device
 
-# inbox ディレクトリは実行時カレントディレクトリ基準（移植性を保つ）。
-# ランタイムデータは workspace/ 配下に集約しているため workspace/inbox/ を見る。
+# ドロップ先ディレクトリは実行時カレントディレクトリ基準（移植性を保つ）。
+# ランタイムデータは workspace/ 配下に集約しているため workspace/ を直接見る。
 _INBOX_EXTENSIONS = ("*.txt", "*.cfg", "*.conf")
 
 
@@ -41,14 +41,14 @@ def collect_inputs(arg: str | None = None) -> list[str]:
     """
     引数に応じてパースするファイルのパスリストを返す。
 
-    - None        : カレントディレクトリ直下の workspace/inbox/ 配下を名前順で収集
+    - None        : カレントディレクトリ直下の workspace/ 配下を名前順で収集
     - ディレクトリ : そのディレクトリ配下の *.txt *.cfg *.conf を名前順で収集
     - glob パターン: glob 展開した結果を名前順で返す
     - ファイルパス  : そのまま [path] を返す
     """
     if arg is None:
-        inbox_dir = os.path.join(os.getcwd(), "workspace", "inbox")
-        return _collect_from_dir(inbox_dir)
+        drop_dir = os.path.join(os.getcwd(), "workspace")
+        return _collect_from_dir(drop_dir)
 
     if os.path.isdir(arg):
         return _collect_from_dir(arg)

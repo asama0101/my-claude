@@ -580,12 +580,12 @@ class TestParseConfigs:
         paths = collect_inputs(ios_path)
         assert paths == [ios_path]
 
-    def test_collect_inputs_no_arg_uses_inbox(self, tmp_path, monkeypatch):
-        """引数なし時は workspace/inbox/ 配下を返す。"""
-        inbox = tmp_path / "workspace" / "inbox"
-        inbox.mkdir(parents=True)
-        (inbox / "r1.cfg").write_text(IOS_SAMPLE)
-        (inbox / "r2.conf").write_text(JUNOS_SAMPLE)
+    def test_collect_inputs_no_arg_uses_workspace(self, tmp_path, monkeypatch):
+        """引数なし時は workspace/ 配下を返す。"""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir(parents=True)
+        (workspace / "r1.cfg").write_text(IOS_SAMPLE)
+        (workspace / "r2.conf").write_text(JUNOS_SAMPLE)
         # カレントディレクトリを tmp_path に偽装
         monkeypatch.chdir(tmp_path)
         from scripts import parse_configs
@@ -762,14 +762,14 @@ class TestParseConfigsErrorPaths:
         assert len(data) == 1
         assert data[0]["hostname"] == "R1"
 
-    def test_cli_main_no_args_uses_inbox(self, tmp_path, capsys, monkeypatch):
-        """CLI 引数なし時は workspace/inbox/ を使う。"""
+    def test_cli_main_no_args_uses_workspace(self, tmp_path, capsys, monkeypatch):
+        """CLI 引数なし時は workspace/ を使う。"""
         import sys
         from scripts import parse_configs
         import importlib
-        inbox = tmp_path / "workspace" / "inbox"
-        inbox.mkdir(parents=True)
-        (inbox / "r1.cfg").write_text(IOS_SAMPLE)
+        workspace = tmp_path / "workspace"
+        workspace.mkdir(parents=True)
+        (workspace / "r1.cfg").write_text(IOS_SAMPLE)
         monkeypatch.setattr(sys, "argv", ["parse_configs.py"])
         monkeypatch.chdir(tmp_path)
         importlib.reload(parse_configs)

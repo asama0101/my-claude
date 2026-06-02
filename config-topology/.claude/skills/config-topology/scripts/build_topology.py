@@ -9,7 +9,7 @@ build_topology.py — 結線推論層
 
 CLI:
     python scripts/build_topology.py [paths...] [-o <出力ディレクトリ>]
-        - paths 省略時は parse_configs.collect_inputs() で workspace/inbox/ から収集
+        - paths 省略時は parse_configs.collect_inputs() で workspace/ から収集
         - parse_configs.parse_paths() で Device 群を得て build() し、
           topology_io.dump_topology() で -o（既定 topology/）へ層別 YAML 書き出し
 
@@ -341,7 +341,7 @@ def main() -> None:
     parser.add_argument(
         "paths",
         nargs="*",
-        help="Config file paths. If omitted, collects from workspace/inbox/.",
+        help="Config file paths. If omitted, collects from workspace/.",
     )
     parser.add_argument(
         "-o",
