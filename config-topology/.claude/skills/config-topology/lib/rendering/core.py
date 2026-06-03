@@ -91,24 +91,31 @@ def render(topology: dict) -> str:
     for proto_key in sorted(routing.keys()):
         proto_entries = routing.get(proto_key, [])
         # エントリが空、または device フィールドを持つものが1つもない場合はスキップ
+        # ただし ospf は routing.ospf=[] でも ospf_area 付きセグメントがあれば描画する
         active_entries = _active_entries(proto_entries)
-        if not active_entries:
+        if proto_key != "ospf" and not active_entries:
             continue
         # ゲーティング: プロトコル種別に応じてエッジ有無を判定
         # static はセッション/隣接を表さないため常にビュー化しない
         if proto_key == "static":
             continue
         if proto_key == "bgp":
+            if not active_entries:
+                continue
             if not _bgp_has_resolved_edges(active_entries, interfaces):
                 continue
             view_svg = _build_view_bgp(
                 devices, interfaces, proto_entries, links, iface_by_device
             )
         elif proto_key == "ospf":
-            if not _ospf_has_edges(active_entries, links):
+            # OSPF 参加 p2p リンク または OSPF 参加セグメントが存在すれば描画
+            # H2: routing.ospf が空でも ospf_area 付きセグメントがあればビューを生成する
+            ospf_segs = [s for s in segments if s.get("ospf_area") is not None]
+            if not _ospf_has_edges(active_entries, links) and not ospf_segs:
                 continue
             view_svg = _build_view_ospf(
-                devices, proto_entries, links, iface_by_device
+                devices, proto_entries, links, iface_by_device,
+                segments=segments, interfaces=interfaces,
             )
         else:
             if not _generic_has_edges(active_entries, links):

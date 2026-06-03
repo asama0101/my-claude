@@ -880,7 +880,7 @@ def test_link_ospf_area_mismatch_roundtrip(sample_topology, tmp_path):
 
 @pytest.mark.unit
 def test_link_ospf_area_does_not_break_reference_integrity(sample_topology, tmp_path):
-    """ospf_area フィールド追加後も参照整合チェックが通る（壊さない）。"""
+    """ospf_area フィールド追加後も参照整合チェックが通る（T-refint: ospf_area 値も検証）。"""
     import copy
     topo = copy.deepcopy(sample_topology)
     assert topo["links"], "前提: sample_topology に links が存在すること（vacuous 防止）"
@@ -890,5 +890,133 @@ def test_link_ospf_area_does_not_break_reference_integrity(sample_topology, tmp_
     out_dir = str(tmp_path / "ospf_integrity")
     dump_topology(topo, out_dir)
     # 例外なく load できること（参照整合が壊れていない）
+    loaded = load_topology(out_dir)
+    assert loaded is not None
+    # ospf_area フィールドが実際に round-trip 後も '0' として保持されること
+    assert loaded["links"][0].get("ospf_area") == "0", \
+        f"ospf_area='0' が round-trip 後に変化した: {loaded['links'][0]}"
+    assert loaded["links"][0].get("ospf_network") == topo["links"][0]["subnet"], \
+        f"ospf_network が round-trip 後に変化した: {loaded['links'][0]}"
+
+
+# ================================================================
+# #7: segment ospf_area round-trip テスト
+# ================================================================
+
+def _make_segment_topology_with_ospf():
+    """segment に ospf_area が付いた人工 topology を返す。"""
+    return {
+        "title": "Segment OSPF Area Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "core1", "hostname": "CORE1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "acc1", "hostname": "ACC1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "acc2", "hostname": "ACC2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "core1::GigabitEthernet0/2", "device": "core1",
+             "name": "GigabitEthernet0/2", "ip": "192.168.50.1/24",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "acc1::GigabitEthernet0/0", "device": "acc1",
+             "name": "GigabitEthernet0/0", "ip": "192.168.50.2/24",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "acc2::GigabitEthernet0/0", "device": "acc2",
+             "name": "GigabitEthernet0/0", "ip": "192.168.50.3/24",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [
+            {
+                "id": "seg-192_168_50_0_24",
+                "subnet": "192.168.50.0/24",
+                "members": [
+                    "acc1::GigabitEthernet0/0",
+                    "acc2::GigabitEthernet0/0",
+                    "core1::GigabitEthernet0/2",
+                ],
+                "ospf_area": "1",
+                "ospf_network": "192.168.50.0/24",
+            }
+        ],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                {"device": "core1", "process": 1, "network": "192.168.50.0/24", "area": "1"},
+                {"device": "acc1", "process": 1, "network": "192.168.50.0/24", "area": "1"},
+                {"device": "acc2", "process": 1, "network": "192.168.50.0/24", "area": "1"},
+            ],
+            "static": [],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_segment_ospf_area_roundtrip(tmp_path):
+    """segments[].ospf_area が dump → load で保持される（round-trip）。"""
+    topo = _make_segment_topology_with_ospf()
+
+    out_dir = str(tmp_path / "seg_ospf_rt")
+    dump_topology(topo, out_dir)
+    loaded = load_topology(out_dir)
+
+    assert loaded["segments"] == topo["segments"], \
+        f"segments の round-trip が一致しない:\n期待: {topo['segments']}\n実際: {loaded['segments']}"
+
+
+@pytest.mark.unit
+def test_segment_ospf_area_field_preserved(tmp_path):
+    """segments[].ospf_area の値 '1' が round-trip 後も '1' のまま。"""
+    topo = _make_segment_topology_with_ospf()
+
+    out_dir = str(tmp_path / "seg_ospf_val")
+    dump_topology(topo, out_dir)
+    loaded = load_topology(out_dir)
+
+    seg = loaded["segments"][0]
+    assert seg.get("ospf_area") == "1", \
+        f"ospf_area='1' が round-trip 後に変化した: {seg}"
+
+
+@pytest.mark.unit
+def test_segment_ospf_network_field_preserved(tmp_path):
+    """segments[].ospf_network の値が round-trip 後も保持される。"""
+    topo = _make_segment_topology_with_ospf()
+
+    out_dir = str(tmp_path / "seg_ospf_net")
+    dump_topology(topo, out_dir)
+    loaded = load_topology(out_dir)
+
+    seg = loaded["segments"][0]
+    assert seg.get("ospf_network") == "192.168.50.0/24", \
+        f"ospf_network が round-trip 後に変化した: {seg}"
+
+
+@pytest.mark.unit
+def test_segment_without_ospf_area_roundtrip(tmp_path):
+    """ospf_area なしのセグメントは round-trip 後も ospf_area を持たない（後方互換）。"""
+    import copy
+    topo = _make_segment_topology_with_ospf()
+    # ospf_area を除去
+    topo = copy.deepcopy(topo)
+    del topo["segments"][0]["ospf_area"]
+    del topo["segments"][0]["ospf_network"]
+
+    out_dir = str(tmp_path / "seg_no_ospf")
+    dump_topology(topo, out_dir)
+    loaded = load_topology(out_dir)
+
+    seg = loaded["segments"][0]
+    assert "ospf_area" not in seg, \
+        f"ospf_area がないセグメントに round-trip 後 ospf_area が付いた: {seg}"
+
+
+@pytest.mark.unit
+def test_segment_ospf_area_reference_integrity_preserved(tmp_path):
+    """ospf_area 付きセグメントの dump → load で参照整合チェックが通る（壊さない）。"""
+    topo = _make_segment_topology_with_ospf()
+
+    out_dir = str(tmp_path / "seg_ospf_integrity")
+    dump_topology(topo, out_dir)
+    # 例外なく load できること
     loaded = load_topology(out_dir)
     assert loaded is not None

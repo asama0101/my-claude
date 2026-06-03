@@ -19,6 +19,8 @@ from lib.rendering.svg import (
     _svg_bgp_edges,
     _svg_links,
     _svg_nodes,
+    _svg_ospf_segment_edges,
+    _svg_ospf_segments,
     _svg_segment_edges,
     _svg_segments,
 )
@@ -80,31 +82,67 @@ def _build_ospf_layout(
     devices: list[dict],
     ospf_entries: list[dict],
     links: list[dict],
-) -> tuple[dict[str, tuple[float, float]], list[dict]]:
-    """OSPF ビュー用レイアウト計算（OSPF 参加 device のみ）"""
+    segments: list[dict] | None = None,
+    interfaces: list[dict] | None = None,
+) -> tuple[dict[str, tuple[float, float]], list[dict], list[dict]]:
+    """OSPF ビュー用レイアウト計算（OSPF 参加 device + OSPF 参加 segment）
+
+    Returns:
+        positions: ノード ID → (x, y) 座標の辞書（device + segment）
+        ospf_devices: OSPF 参加 device リスト
+        ospf_segments: OSPF 参加セグメント（ospf_area 付き）リスト
+    """
+    if segments is None:
+        segments = []
+    if interfaces is None:
+        interfaces = []
+
     ospf_device_ids: set[str] = set(entry["device"] for entry in ospf_entries)
+
+    # OSPF 参加セグメント（ospf_area が付いているもの）
+    ospf_segments = [s for s in segments if s.get("ospf_area") is not None]
+
+    # interface id → device id のマップ（segment メンバー解決用）
+    iface_to_device: dict[str, str] = {iface["id"]: iface["device"] for iface in interfaces}
+
+    # H2: ospf_area 付きセグメントのメンバー device を ospf_device_ids に追加
+    # routing.ospf が空でも ospf_area 付きセグメントがあればメンバーが孤立しない
+    for seg in ospf_segments:
+        for member_iface_id in seg.get("members", []):
+            dev_id = iface_to_device.get(member_iface_id)
+            if dev_id:
+                ospf_device_ids.add(dev_id)
+
     ospf_devices = [d for d in devices if d["id"] in ospf_device_ids]
 
-    # エッジ: 同一リンクの両端が共に OSPF 参加
+    # エッジリスト: p2p リンク（両端が OSPF 参加）
     edge_list: list[tuple[str, str]] = []
     for lk in links:
         if lk["a_device"] in ospf_device_ids and lk["b_device"] in ospf_device_ids:
             edge_list.append((lk["a_device"], lk["b_device"]))
 
-    node_ids = [d["id"] for d in ospf_devices]
-    est_n = max(1, len(node_ids))
-    est_w, est_h = _canvas_size_for_nodes(est_n)
+    # セグメントノード → メンバー機器 のエッジ（OSPF 参加機器のみ）
+    for seg in ospf_segments:
+        for member_iface_id in seg.get("members", []):
+            dev_id = iface_to_device.get(member_iface_id)
+            if dev_id and dev_id in ospf_device_ids:
+                edge_list.append((seg["id"], dev_id))
 
+    # セグメント ID も node_ids に含める
+    node_ids = [d["id"] for d in ospf_devices] + [s["id"] for s in ospf_segments]
+    est_n = len(node_ids)
     if not node_ids:
-        return {}, ospf_devices
-    if est_n <= 1:
-        return _compute_layout(ospf_devices, []), ospf_devices
+        return {}, ospf_devices, ospf_segments
+    if est_n == 1:
+        return _compute_layout(ospf_devices, ospf_segments), ospf_devices, ospf_segments
+    # ここに到達する時点で est_n >= 2 が保証される
+    est_w, est_h = _canvas_size_for_nodes(est_n)
 
     positions = _layout_force_directed(
         node_ids, edge_list, width=est_w, height=est_h,
         iterations=_adaptive_iter(est_n)
     )
-    return positions, ospf_devices
+    return positions, ospf_devices, ospf_segments
 
 
 def _build_generic_proto_layout(
@@ -273,6 +311,8 @@ def _build_view_ospf(
     ospf_entries: list[dict],
     links: list[dict],
     iface_by_device: dict[str, list[dict]],
+    segments: list[dict] | None = None,
+    interfaces: list[dict] | None = None,
 ) -> str:
     """OSPF ビュー SVG コンテンツを生成する。
 
@@ -280,8 +320,18 @@ def _build_view_ospf(
     ospf_area が付いているリンクは area ラベルを表示。
     ospf_area が欠如しているリンクはサブネットのみ表示（後方互換）。
     両端で area が異なる場合（例 "0/1"）はそのまま表示。
+
+    OSPF 参加セグメント（ospf_area 付き）を楕円ノードとして描画し、
+    メンバー機器へ seg-edge を引き「area {area} · {subnet}」ラベルを表示する。
     """
-    positions_ospf, ospf_devices = _build_ospf_layout(devices, ospf_entries, links)
+    if segments is None:
+        segments = []
+    if interfaces is None:
+        interfaces = []
+
+    positions_ospf, ospf_devices, ospf_segments = _build_ospf_layout(
+        devices, ospf_entries, links, segments, interfaces
+    )
 
     # OSPF エッジ（同一リンクの両端が OSPF 参加）
     ospf_device_ids: set[str] = set(d["id"] for d in ospf_devices)
@@ -320,9 +370,18 @@ def _build_view_ospf(
                 f'</g>'
             )
     edges_str = "\n".join(parts)
+
+    # OSPF 参加セグメント描画
+    ospf_seg_edges_str = _svg_ospf_segment_edges(
+        ospf_segments, interfaces, positions_ospf
+    )
+    ospf_segs_str = _svg_ospf_segments(ospf_segments, positions_ospf)
+
     nodes_str = _svg_nodes(ospf_devices, positions_ospf, iface_by_device)
     bbox = _make_bbox_str(positions_ospf)
-    inner = "\n".join(filter(None, [edges_str, nodes_str]))
+    inner = "\n".join(filter(None, [
+        ospf_seg_edges_str, edges_str, ospf_segs_str, nodes_str
+    ]))
     return (
         f'<g class="view view-ospf" data-bbox="{bbox}" style="display:none">\n'
         f'{inner}\n'

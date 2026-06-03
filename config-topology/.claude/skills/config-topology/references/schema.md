@@ -91,6 +91,8 @@ topology/
 | `id` | string | `"seg-<subnet>"`（`/` と `.` は `_` に置換。例 `seg-192_168_1_0_24`） |
 | `subnet` | string | サブネット CIDR |
 | `members` | string[] | 接続する interface ID の配列（安定ソート） |
+| `ospf_area` | string \| null | **任意**。OSPF 参加セグメントの area 番号。メンバー機器が同一 area なら単一値（例 `"1"`）。異なる場合は昇順スラッシュ区切り（例 `"0/1"`）。OSPF 非参加セグメントには付かない（フィールド欠如）。 |
+| `ospf_network` | string \| null | **任意**。`ospf_area` が付くセグメントの subnet CIDR（`subnet` フィールドと同値）。OSPF 非参加セグメントには付かない（フィールド欠如）。 |
 
 ## routing
 プロトコル名をキーにした dict。**新プロトコルはキーを足すだけ**でスキーマを壊さない。

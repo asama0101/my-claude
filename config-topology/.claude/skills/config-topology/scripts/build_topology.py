@@ -142,6 +142,9 @@ def build(
     # --- OSPF area 逆引き: links に ospf_area / ospf_network を付与 ---
     _annotate_links_with_ospf_area(links_out, devices, device_ids)
 
+    # --- OSPF area 逆引き: segments に ospf_area / ospf_network を付与 ---
+    _annotate_segments_with_ospf_area(segments_out, devices, device_ids)
+
     # --- BGP 解決 ---
     bgp_out = _build_bgp(devices, device_ids)
 
@@ -396,6 +399,76 @@ def _annotate_links_with_ospf_area(
 
         link["ospf_area"] = ospf_area_val
         link["ospf_network"] = link["subnet"]
+
+
+def _annotate_segments_with_ospf_area(
+    segments: list[dict],
+    devices: list[Device],
+    device_ids: list[str],
+) -> None:
+    """segments リストを in-place で更新し、各 segment に ospf_area / ospf_network を付与する。
+
+    付与条件:
+    - 少なくとも1機器が OSPF で subnet をカバーしている場合
+    - 参加機器全員の area が同一 → ospf_area = 単一 area 文字列（例 "1"）
+    - 参加機器間で area が異なる → ospf_area = 昇順スラッシュ区切り（例 "0/1"）
+    - OSPF 非参加セグメントには ospf_area / ospf_network を付けない
+
+    _annotate_links_with_ospf_area と同一ロジック（segments 版）。
+
+    Args:
+        segments: _infer_links_and_segments() が生成した segments リスト（in-place 更新）
+        devices: Device リスト
+        device_ids: devices に対応する device id リスト
+    """
+    # device_id → Device の逆引き
+    id_to_device = _make_id_to_device(devices, device_ids)
+    # interface id → device id の逆引き（segment members 解決用）
+    iface_id_to_device_id: dict[str, str] = {}
+    for dev, dev_id in zip(devices, device_ids):
+        for iface in dev.interfaces:
+            iface_id = f"{dev_id}::{iface.name}"
+            iface_id_to_device_id[iface_id] = dev_id
+
+    for seg in segments:
+        try:
+            subnet_network = ipaddress.ip_network(seg["subnet"], strict=False)
+        except ValueError:
+            continue
+
+        # メンバー interface id からユニークな device id を収集
+        member_device_ids: set[str] = set()
+        for member_iface_id in seg.get("members", []):
+            dev_id = iface_id_to_device_id.get(member_iface_id)
+            if dev_id:
+                member_device_ids.add(dev_id)
+
+        # 各メンバー機器の OSPF area を解決
+        areas_set: set[str] = set()
+        for dev_id in sorted(member_device_ids):  # 決定的処理のためソート
+            device = id_to_device.get(dev_id)
+            if device is not None:
+                area = _resolve_ospf_area_for_device(device, subnet_network)
+                if area is not None:
+                    areas_set.add(area)
+
+        # OSPF 非参加セグメントには付けない
+        if not areas_set:
+            continue
+
+        # area を集約（決定的: 数値ソート → 数値でない混在なら lex ソート）
+        if all(a.isdigit() for a in areas_set):
+            areas = sorted(areas_set, key=int)
+        else:
+            areas = sorted(areas_set)
+
+        if len(areas) == 1:
+            ospf_area_val = areas[0]
+        else:
+            ospf_area_val = "/".join(areas)
+
+        seg["ospf_area"] = ospf_area_val
+        seg["ospf_network"] = seg["subnet"]
 
 
 # ================================================================

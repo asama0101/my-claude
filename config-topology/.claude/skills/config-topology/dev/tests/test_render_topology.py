@@ -3346,6 +3346,20 @@ def test_t4_multiple_links_generate_multiple_labels():
 # Phase C #7: OSPF ビュー 常時ラベル表示テスト (TDD RED フェーズ)
 # ================================================================
 
+
+def _extract_ospf_view(html: str) -> str:
+    """OSPF ビュー <g class="view view-ospf"> の内容を返す（T-dup: 唯一の定義）。
+
+    後方の #7 セクションの定義と統合。パターンは view view-ospf を厳密にマッチし、
+    次の view <g> または </svg> で終端する堅牢パターン。
+    """
+    m = re.search(
+        r'<g[^>]+class="view view-ospf"[^>]*>(.*?)(?=<g[^>]+class="view view-|</svg>)',
+        html, re.DOTALL
+    )
+    return m.group(1) if m else ""
+
+
 def _make_ospf_topology_with_area():
     """OSPF area=0 が付いた 2 デバイス topology（IOS–IOS 同 area）を返す。"""
     return {
@@ -3412,15 +3426,6 @@ def _make_ospf_topology_area_mismatch():
     }
 
 
-def _extract_ospf_view(html: str) -> str:
-    """HTML から OSPF ビューの SVG コンテンツを抽出する（_extract_bgp_view_full と同パターン）。"""
-    m = re.search(
-        r'<g[^>]+class="[^"]*view-ospf[^"]*"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
-        html, re.DOTALL
-    )
-    return m.group(1) if m else ""
-
-
 @pytest.mark.unit
 def test_ospf_view_edge_has_visible_text_label():
     """OSPF ビューのリンクエッジに可視 <text> ラベルが存在する。"""
@@ -3460,22 +3465,26 @@ def test_ospf_view_label_contains_subnet():
 
 @pytest.mark.unit
 def test_ospf_view_label_area_mismatch_shows_both():
-    """OSPF area 不一致 (0/1) のとき両方の area がラベルに出る（T2: split による厳密検証）。"""
+    """OSPF area 不一致 (0/1) のとき両方の area がラベルに出る（C2: 実際の ospf_view から厳密検証）。"""
     from lib.rendering import render
     topo = _make_ospf_topology_area_mismatch()
     html = render(topo)
     ospf_view = _extract_ospf_view(html)
-    # "0/1" が直接含まれること（split で要素として '0' と '1' が存在することを厳密検証）
+    assert ospf_view, f"OSPF ビューが見つからない"
+    # "0/1" が直接 ospf_view に含まれること
     assert "0/1" in ospf_view, \
         f"area 不一致のとき '0/1' がラベルに出ない: {ospf_view[:500]}"
-    # split("/") で要素として確認（'10/2' などで '0' が誤判定されないよう）
-    area_parts = "0/1".split("/")
-    assert "0" in area_parts and "1" in area_parts
+    # ospf_view から "0/1" を抽出して split("/") で '0' と '1' を両方確認
+    # （'10/2' などで '0' が誤判定されないよう要素ベースで検証）
+    import re as _re
+    area_values = _re.findall(r'(\d+/\d+)', ospf_view)
+    assert any("0" in v.split("/") and "1" in v.split("/") for v in area_values), \
+        f"ospf_view の area 値に '0' と '1' を両方含むものがない: area_values={area_values}"
 
 
 @pytest.mark.unit
 def test_ospf_view_label_no_area_when_ospf_area_absent():
-    """ospf_area が欠如しているリンクはサブネットのみ（area 表示なし）か省略。"""
+    """ospf_area が欠如しているリンクは area ラベルなし（C4: _extract_ospf_view で本題検証）。"""
     from lib.rendering import render
     topo = _make_ospf_topology_with_area()
     # ospf_area を削除
@@ -3485,6 +3494,12 @@ def test_ospf_view_label_no_area_when_ospf_area_absent():
     html = render(topo)
     # 例外が発生しないこと（後方互換）
     assert "<svg" in html.lower(), "ospf_area 欠如でレンダリングが失敗"
+    # OSPF ビューが存在する場合（2台参加 → エッジあり → ビュー生成）、area ラベルが出ないこと
+    ospf_view = _extract_ospf_view(html)
+    if ospf_view:
+        # ospf_area 欠如のとき "area " というラベルが現れないこと
+        assert "area " not in ospf_view.lower(), \
+            f"ospf_area 欠如なのに 'area' ラベルが OSPF ビューに出ている: {ospf_view[:300]}"
 
 
 @pytest.mark.unit
@@ -4916,3 +4931,351 @@ def test_seg_edge_has_data_device():
     for edge in seg_edges:
         assert 'data-device="' in edge, \
             f"seg-edge に data-device がない: {edge}"
+
+
+# ===========================================================================
+# #7: OSPF ビューに OSPF 参加セグメントが描画される
+# ===========================================================================
+
+def _make_ospf_segment_topology():
+    """OSPF 参加セグメント（192.168.50.0/24, area1）を含む topology を返す。
+
+    core1/acc1/acc2 が 192.168.50.0/24 共有セグメントで接続（area 1）。
+    core1 は p2p リンクでも接続（area 0）。
+    """
+    return {
+        "title": "OSPF Segment Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "core1", "hostname": "CORE1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "core2", "hostname": "CORE2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "acc1", "hostname": "ACC1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "acc2", "hostname": "ACC2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            # core1 - core2 p2p link (area 0)
+            {"id": "core1::GigabitEthernet0/0", "device": "core1",
+             "name": "GigabitEthernet0/0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "core2::GigabitEthernet0/0", "device": "core2",
+             "name": "GigabitEthernet0/0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False},
+            # shared segment members (area 1)
+            {"id": "core1::GigabitEthernet0/2", "device": "core1",
+             "name": "GigabitEthernet0/2", "ip": "192.168.50.1/24",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "acc1::GigabitEthernet0/0", "device": "acc1",
+             "name": "GigabitEthernet0/0", "ip": "192.168.50.2/24",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "acc2::GigabitEthernet0/0", "device": "acc2",
+             "name": "GigabitEthernet0/0", "ip": "192.168.50.3/24",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {
+                "a_device": "core1", "a_if": "GigabitEthernet0/0",
+                "b_device": "core2", "b_if": "GigabitEthernet0/0",
+                "subnet": "10.0.0.0/30", "kind": "inferred-subnet",
+                "ospf_area": "0", "ospf_network": "10.0.0.0/30",
+            }
+        ],
+        "segments": [
+            {
+                "id": "seg-192_168_50_0_24",
+                "subnet": "192.168.50.0/24",
+                "members": [
+                    "acc1::GigabitEthernet0/0",
+                    "acc2::GigabitEthernet0/0",
+                    "core1::GigabitEthernet0/2",
+                ],
+                "ospf_area": "1",
+                "ospf_network": "192.168.50.0/24",
+            }
+        ],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                {"device": "core1", "process": 1, "network": "10.0.0.0/30", "area": "0"},
+                {"device": "core1", "process": 1, "network": "192.168.50.0/24", "area": "1"},
+                {"device": "core2", "process": 1, "network": "10.0.0.0/30", "area": "0"},
+                {"device": "acc1", "process": 1, "network": "192.168.50.0/24", "area": "1"},
+                {"device": "acc2", "process": 1, "network": "192.168.50.0/24", "area": "1"},
+            ],
+            "static": [],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_ospf_view_segment_only_no_links_generates_ospf_view():
+    """T-gating: links=[] かつ ospf_area 付きセグメントのみでも class='view view-ospf' が生成される。"""
+    from lib.rendering import render
+    # p2p リンクなし、OSPF 参加セグメントのみ
+    topo = {
+        "title": "Segment Only OSPF",
+        "generated_from": [],
+        "devices": [
+            {"id": "core1", "hostname": "CORE1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "acc1", "hostname": "ACC1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "acc2", "hostname": "ACC2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "core1::GigabitEthernet0/2", "device": "core1",
+             "name": "GigabitEthernet0/2", "ip": "192.168.50.1/24",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "acc1::GigabitEthernet0/0", "device": "acc1",
+             "name": "GigabitEthernet0/0", "ip": "192.168.50.2/24",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "acc2::GigabitEthernet0/0", "device": "acc2",
+             "name": "GigabitEthernet0/0", "ip": "192.168.50.3/24",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],  # p2p リンクなし
+        "segments": [
+            {
+                "id": "seg-192_168_50_0_24",
+                "subnet": "192.168.50.0/24",
+                "members": [
+                    "acc1::GigabitEthernet0/0",
+                    "acc2::GigabitEthernet0/0",
+                    "core1::GigabitEthernet0/2",
+                ],
+                "ospf_area": "1",
+                "ospf_network": "192.168.50.0/24",
+            }
+        ],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                {"device": "core1", "process": 1, "network": "192.168.50.0/24", "area": "1"},
+                {"device": "acc1", "process": 1, "network": "192.168.50.0/24", "area": "1"},
+                {"device": "acc2", "process": 1, "network": "192.168.50.0/24", "area": "1"},
+            ],
+            "static": [],
+        },
+    }
+    html = render(topo)
+    assert 'class="view view-ospf"' in html, \
+        "links=[] かつ ospf_area 付きセグメントのみの topology で OSPF ビューが生成されない"
+
+
+@pytest.mark.unit
+def test_ospf_view_contains_segment_ellipse():
+    """#7: OSPF ビューに OSPF 参加セグメントの楕円ノードが描画される。"""
+    from lib.rendering import render
+    html = render(_make_ospf_segment_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert "<ellipse" in ospf_view, \
+        "OSPF ビューにセグメント楕円（<ellipse>）が描画されていない"
+
+
+@pytest.mark.unit
+def test_ospf_view_segment_has_area_label():
+    """#7: OSPF ビューのセグメントノードに「area 1 · 192.168.50.0/24」ラベルが出る。"""
+    from lib.rendering import render
+    html = render(_make_ospf_segment_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert "area 1" in ospf_view, \
+        "OSPF ビューのセグメントに 'area 1' ラベルがない"
+    assert "192.168.50.0/24" in ospf_view, \
+        "OSPF ビューのセグメントに '192.168.50.0/24' が表示されていない"
+
+
+@pytest.mark.unit
+def test_ospf_view_segment_area_label_format():
+    """#7: セグメントラベルが「area {area} · {subnet}」形式（OSPF_AREA_LABEL_FORMAT 準拠）。"""
+    from lib.rendering import render
+    html = render(_make_ospf_segment_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    # OSPF_AREA_LABEL_FORMAT = "area {area} · {subnet}"
+    assert "area 1 · 192.168.50.0/24" in ospf_view, \
+        f"OSPF セグメントラベルが 'area 1 · 192.168.50.0/24' 形式でない"
+
+
+@pytest.mark.unit
+def test_ospf_view_segment_edges_connect_members():
+    """#7: OSPF ビューのセグメントからメンバー機器（acc1/acc2/core1）への seg-edge が描画される。"""
+    from lib.rendering import render
+    html = render(_make_ospf_segment_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    # seg-edge クラスの line が存在すること
+    seg_edges = re.findall(r'<line[^>]+class="seg-edge[^"]*"[^>]*>', ospf_view)
+    # メンバー数 3（acc1/acc2/core1）に応じた >= 3 で検証（T-segedges 強化）
+    assert len(seg_edges) >= 3, \
+        f"OSPF ビューに seg-edge が不足している（{len(seg_edges)}本, 期待: >=3本 for 3メンバー）"
+
+
+@pytest.mark.unit
+def test_ospf_view_acc1_acc2_not_isolated():
+    """#7: acc1/acc2 が OSPF ビューに描画され孤立しない（segment edge が接続される）。"""
+    from lib.rendering import render
+    html = render(_make_ospf_segment_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    # acc1/acc2 の device-node が存在すること
+    assert 'data-device="acc1"' in ospf_view, \
+        "OSPF ビューに acc1 ノードが存在しない"
+    assert 'data-device="acc2"' in ospf_view, \
+        "OSPF ビューに acc2 ノードが存在しない"
+    # acc1/acc2 に接続する seg-edge が存在すること（data-device で確認）
+    acc_edges = re.findall(
+        r'<line[^>]+class="seg-edge[^"]*"[^>]*data-device="(acc1|acc2)"[^>]*>',
+        ospf_view
+    )
+    # または data-device が後ろに来るパターン
+    acc_edges2 = re.findall(
+        r'<line[^>]+data-device="(acc1|acc2)"[^>]*class="seg-edge[^"]*"[^>]*>',
+        ospf_view
+    )
+    total_acc_edges = acc_edges + acc_edges2
+    assert len(total_acc_edges) >= 2, \
+        f"acc1/acc2 への seg-edge が不足している（{len(total_acc_edges)}本, 期待: >=2本）"
+
+
+@pytest.mark.unit
+def test_ospf_view_p2p_link_area0_label_preserved():
+    """#7: OSPF ビューの p2p リンク（area 0）の area ラベルが従来通り表示される。"""
+    from lib.rendering import render
+    html = render(_make_ospf_segment_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert "area 0" in ospf_view, \
+        "OSPF ビューの p2p リンク area 0 ラベルが消えている（後退テスト）"
+
+
+@pytest.mark.unit
+def test_ospf_view_p2p_link_area_label_strict():
+    """T-strict: p2p OSPF ラベルが 'area 0 · 10.2.0.0/30' 形式（subnetの0で偽陽性しない）。"""
+    from lib.rendering import render
+    # _make_ospf_topology_with_area() は 10.2.0.0/30 area 0 のリンクを持つ
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    # 厳密検証: "area 0 · 10.2.0.0/30" が含まれること（"0" の分割検証は subnet の 0 に偽陽性）
+    assert "area 0 · 10.2.0.0/30" in ospf_view, \
+        f"p2p OSPF ラベルが 'area 0 · 10.2.0.0/30' 形式でない: {ospf_view[:500]}"
+
+
+@pytest.mark.unit
+def test_ospf_view_segment_has_ospf_layer_class():
+    """#7: OSPF ビューのセグメント要素に layer-ospf クラスが付く（レイヤートグル対応）。"""
+    from lib.rendering import render
+    html = render(_make_ospf_segment_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert "layer-ospf" in ospf_view, \
+        "OSPF セグメントに layer-ospf クラスがない"
+
+
+@pytest.mark.unit
+def test_ospf_view_segment_deterministic():
+    """#7: OSPF セグメント描画が決定的（2回 render した結果が一致）。"""
+    from lib.rendering import render
+    import copy
+    topo = _make_ospf_segment_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    ospf1 = _extract_ospf_view(html1)
+    ospf2 = _extract_ospf_view(html2)
+    assert ospf1 == ospf2, "OSPF ビューの出力が非決定的"
+
+
+@pytest.mark.unit
+def test_ospf_view_non_ospf_segment_not_rendered():
+    """#7: OSPF 非参加セグメントは OSPF ビューに楕円を描画しない（後方互換）。"""
+    from lib.rendering import render
+    topo = {
+        "title": "Non-OSPF Segment",
+        "generated_from": [],
+        "devices": [
+            {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "sw2", "hostname": "SW2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "sw3", "hostname": "SW3", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "sw1::eth0", "device": "sw1", "name": "eth0",
+             "ip": "192.168.10.1/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw2::eth0", "device": "sw2", "name": "eth0",
+             "ip": "192.168.10.2/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw3::eth0", "device": "sw3", "name": "eth0",
+             "ip": "192.168.10.3/24", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [
+            {
+                "id": "seg-192_168_10_0_24",
+                "subnet": "192.168.10.0/24",
+                "members": ["sw1::eth0", "sw2::eth0", "sw3::eth0"],
+                # ospf_area なし（OSPF 非参加）
+            }
+        ],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    # OSPF 参加機器も OSPF 参加セグメントもないので OSPF ビューは生成されないこと
+    assert not ospf_view, \
+        f"非 OSPF セグメントのみの topology で OSPF ビューが生成された: ospf_view={ospf_view[:200]}"
+
+
+# ===========================================================================
+# H2: routing.ospf=[] でも ospf_area 付きセグメントメンバーが OSPF ビューに描画
+# ===========================================================================
+
+@pytest.mark.unit
+def test_ospf_view_segment_member_rendered_when_ospf_entries_empty():
+    """H2: routing.ospf=[] かつ ospf_area 付きセグメントのみの topology で
+    メンバー機器ノードと seg-edge が OSPF ビューに描画される（孤立しない）。"""
+    from lib.rendering import render
+    # routing.ospf は空 (直接OSPFエントリなし)、ospf_area付きセグメントのみ
+    topo = {
+        "title": "H2 Segment Only OSPF",
+        "generated_from": [],
+        "devices": [
+            {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "sw2", "hostname": "SW2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "sw3", "hostname": "SW3", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "sw1::eth0", "device": "sw1", "name": "eth0",
+             "ip": "10.100.0.1/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw2::eth0", "device": "sw2", "name": "eth0",
+             "ip": "10.100.0.2/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw3::eth0", "device": "sw3", "name": "eth0",
+             "ip": "10.100.0.3/24", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [
+            {
+                "id": "seg-10_100_0_0_24",
+                "subnet": "10.100.0.0/24",
+                "members": ["sw1::eth0", "sw2::eth0", "sw3::eth0"],
+                "ospf_area": "0",
+                "ospf_network": "10.100.0.0/24",
+            }
+        ],
+        "routing": {
+            "bgp": [],
+            "ospf": [],  # 空 — routing.ospf は全て空
+            "static": [],
+        },
+    }
+    html = render(topo)
+    # まず OSPF ビューが生成されること（ゲーティング: ospf_area付きセグメントあり）
+    assert 'class="view view-ospf"' in html, \
+        "routing.ospf=[] かつ ospf_area 付きセグメントで OSPF ビューが生成されない"
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューの内容が空"
+    # メンバー機器ノードが描画されること（孤立しない）
+    assert 'data-device="sw1"' in ospf_view, "sw1 ノードが OSPF ビューに存在しない"
+    assert 'data-device="sw2"' in ospf_view, "sw2 ノードが OSPF ビューに存在しない"
+    assert 'data-device="sw3"' in ospf_view, "sw3 ノードが OSPF ビューに存在しない"
+    # seg-edge が描画されること
+    seg_edges = re.findall(r'<line[^>]+class="seg-edge[^"]*"[^>]*>', ospf_view)
+    assert len(seg_edges) >= 1, \
+        f"routing.ospf=[] でも seg-edge が描画されるべき: {len(seg_edges)}本"

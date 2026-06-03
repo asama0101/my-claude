@@ -1306,10 +1306,13 @@ class TestOspfAreaOnLinks:
                           interfaces=[make_iface("ge-0/0/0", ip="2001:db8::2/64")],
                           ospf=[OspfNetwork(process=None, network="ge-0/0/0", area="0")])
         from scripts.build_topology import build
-        try:
-            result = build([d1, d2], generated_from=[])
-        except Exception as e:
-            pytest.fail(f"IPv6 JunOS IF で例外が発生: {e}")
+        result = build([d1, d2], generated_from=[])
+        # IPv4 リンクには area が付かないこと（d1 は IPv4 OSPF だが d2 の IF が IPv6 なので link なし）
+        # d1 と d2 は異なるサブネットなので links はできないが、例外も出ないこと
+        # リンクがある場合は ospf_area が None であること
+        for link in result.get("links", []):
+            assert link.get("ospf_area") is None, \
+                f"IPv6 JunOS IF なのに IPv4 link に ospf_area が付いた: {link}"
 
     # ---- T3: 誤マッチ回避テスト ----
 
@@ -1340,3 +1343,149 @@ class TestOspfAreaOnLinks:
         link = result["links"][0]
         assert link.get("ospf_area") is None, \
             f"無関係サブネット OSPF が 10.2.0.0/30 link に area を付けてしまった: {link}"
+
+
+# ================================================================
+# #7: _annotate_segments_with_ospf_area テスト
+# ================================================================
+
+class TestAnnotateSegmentsWithOspfArea:
+    """共有セグメントへの ospf_area 付与の単体テスト。"""
+
+    def _build(self, devices):
+        from scripts.build_topology import build
+        return build(devices, generated_from=[])
+
+    @pytest.mark.unit
+    def test_ospf_segment_gets_area(self):
+        """共有セグメント（192.168.50.0/24）に OSPF 参加機器がいれば ospf_area が付く。"""
+        d1 = make_device("CORE1", vendor="cisco_ios",
+                          interfaces=[make_iface("GigabitEthernet0/2", ip="192.168.50.1/24")],
+                          ospf=[OspfNetwork(process=1, network="192.168.50.0/24", area="1")])
+        d2 = make_device("ACC1", vendor="cisco_ios",
+                          interfaces=[make_iface("GigabitEthernet0/0", ip="192.168.50.2/24")],
+                          ospf=[OspfNetwork(process=1, network="192.168.50.0/24", area="1")])
+        d3 = make_device("ACC2", vendor="cisco_ios",
+                          interfaces=[make_iface("GigabitEthernet0/0", ip="192.168.50.3/24")],
+                          ospf=[OspfNetwork(process=1, network="192.168.50.0/24", area="1")])
+        result = self._build([d1, d2, d3])
+        assert len(result["segments"]) == 1
+        seg = result["segments"][0]
+        assert seg.get("ospf_area") == "1", \
+            f"共有セグメントに ospf_area='1' が付かない: {seg}"
+
+    @pytest.mark.unit
+    def test_ospf_segment_gets_ospf_network(self):
+        """共有セグメントに ospf_network（= subnet）が付く。"""
+        d1 = make_device("CORE1", vendor="cisco_ios",
+                          interfaces=[make_iface("GigabitEthernet0/2", ip="192.168.50.1/24")],
+                          ospf=[OspfNetwork(process=1, network="192.168.50.0/24", area="1")])
+        d2 = make_device("ACC1", vendor="cisco_ios",
+                          interfaces=[make_iface("GigabitEthernet0/0", ip="192.168.50.2/24")],
+                          ospf=[OspfNetwork(process=1, network="192.168.50.0/24", area="1")])
+        d3 = make_device("ACC2", vendor="cisco_ios",
+                          interfaces=[make_iface("GigabitEthernet0/0", ip="192.168.50.3/24")],
+                          ospf=[OspfNetwork(process=1, network="192.168.50.0/24", area="1")])
+        result = self._build([d1, d2, d3])
+        seg = result["segments"][0]
+        assert seg.get("ospf_network") == "192.168.50.0/24", \
+            f"共有セグメントに ospf_network が付かない: {seg}"
+
+    @pytest.mark.unit
+    def test_non_ospf_segment_no_area(self):
+        """OSPF 非参加の共有セグメントには ospf_area を付けない。"""
+        d1 = make_device("SW1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="192.168.10.1/24")])
+        d2 = make_device("SW2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="192.168.10.2/24")])
+        d3 = make_device("SW3", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="192.168.10.3/24")])
+        result = self._build([d1, d2, d3])
+        assert len(result["segments"]) == 1
+        seg = result["segments"][0]
+        assert "ospf_area" not in seg, \
+            f"非 OSPF セグメントに ospf_area が付いてしまった: {seg}"
+        assert "ospf_network" not in seg, \
+            f"非 OSPF セグメントに ospf_network が付いてしまった: {seg}"
+
+    @pytest.mark.unit
+    def test_segment_area_mismatch_concatenated(self):
+        """メンバー機器間で area 不一致の場合、昇順スラッシュ区切りになる。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.0.0.1/24")],
+                          ospf=[OspfNetwork(process=1, network="10.0.0.0/24", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.0.0.2/24")],
+                          ospf=[OspfNetwork(process=1, network="10.0.0.0/24", area="1")])
+        d3 = make_device("R3", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.0.0.3/24")])
+        result = self._build([d1, d2, d3])
+        seg = result["segments"][0]
+        ospf_area = seg.get("ospf_area")
+        assert ospf_area is not None, "area 不一致でも ospf_area が付かない"
+        assert ospf_area == "0/1", \
+            f"area 不一致の昇順スラッシュ区切りが正しくない: {ospf_area}"
+
+    @pytest.mark.unit
+    def test_multi_as_area_segment_area1(self):
+        """multi-as-area の共有セグメント（192.168.50.0/24）に ospf_area='1' が付く。"""
+        from scripts.parse_configs import parse_paths
+        import os
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "multi-as-area"
+        )
+        paths = [
+            os.path.join(eval_dir, "core1.cfg"),
+            os.path.join(eval_dir, "acc1.cfg"),
+            os.path.join(eval_dir, "acc2.cfg"),
+        ]
+        from scripts.build_topology import build
+        devices = parse_paths(paths)
+        result = build(devices, generated_from=[])
+        # 192.168.50.0/24 のセグメントを探す
+        ospf_segs = [s for s in result["segments"] if "50" in s.get("subnet", "")]
+        assert len(ospf_segs) == 1, f"192.168.50.0/24 セグメントが見つからない: {result['segments']}"
+        seg = ospf_segs[0]
+        assert seg.get("ospf_area") == "1", \
+            f"multi-as-area 共有セグメントに ospf_area='1' が付かない: {seg}"
+
+    @pytest.mark.unit
+    def test_single_member_ospf_segment_gets_area(self):
+        """T-extra: セグメントの1メンバーのみ OSPF 参加でも ospf_area が付く。"""
+        # 3台が同一サブネット、1台のみ OSPF 参加
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.20.0.1/24")],
+                          ospf=[OspfNetwork(process=1, network="10.20.0.0/24", area="2")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.20.0.2/24")])
+        d3 = make_device("R3", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.20.0.3/24")])
+        from scripts.build_topology import build
+        result = build([d1, d2, d3], generated_from=[])
+        assert len(result["segments"]) == 1, "共有セグメントが生成されない"
+        seg = result["segments"][0]
+        # 1メンバーのみ OSPF 参加でも ospf_area が付くこと
+        assert seg.get("ospf_area") == "2", \
+            f"1メンバーのみ OSPF 参加でも ospf_area が付かない: {seg}"
+
+    @pytest.mark.unit
+    def test_junos_member_area_resolved_for_segment(self):
+        """T-extra: JunOS メンバーの area がセグメントに解決される。"""
+        # JunOS が IF 名ベースで OSPF を宣言し、そのメンバーを含むセグメントに area が付く
+        d1 = make_device("IOS1", vendor="cisco_ios",
+                          interfaces=[make_iface("GigabitEthernet0/0", ip="10.30.0.1/24")],
+                          ospf=[OspfNetwork(process=1, network="10.30.0.0/24", area="0")])
+        d2 = make_device("JUN1", vendor="juniper_junos",
+                          interfaces=[make_iface("ge-0/0/0", ip="10.30.0.2/24")],
+                          ospf=[OspfNetwork(process=None, network="ge-0/0/0.0", area="0")])
+        d3 = make_device("SW1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.30.0.3/24")])
+        from scripts.build_topology import build
+        result = build([d1, d2, d3], generated_from=[])
+        assert len(result["segments"]) == 1, "共有セグメントが生成されない"
+        seg = result["segments"][0]
+        # JunOS メンバーの area が解決されてセグメントに付くこと
+        assert seg.get("ospf_area") is not None, \
+            f"JunOS メンバーの area がセグメントに解決されない: {seg}"
+        assert "0" in str(seg.get("ospf_area", "")), \
+            f"JunOS メンバーの area '0' がセグメントに付かない: {seg}"

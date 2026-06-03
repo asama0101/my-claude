@@ -20,6 +20,7 @@ from lib.rendering.layout import (
     _AS_GROUP_LABEL_OFFSET,
     _AS_GROUP_RX,
     _AS_GROUP_RY,
+    OSPF_AREA_LABEL_FORMAT,
 )
 
 
@@ -245,6 +246,66 @@ def _svg_segment_edges(
                 parts.append(
                     f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
                     f'class="seg-edge layer-physical" data-seg="{seg_id}" '
+                    f'data-device="{_esc(dev_id)}"/>'
+                )
+    return "\n".join(parts)
+
+
+def _svg_ospf_segments(segments: list[dict], positions: dict) -> str:
+    """OSPF 参加セグメントノード（楕円）の SVG 要素を生成する。
+
+    Physical ビューの _svg_segments と同様だが、ラベルに「area {area} · {subnet}」を
+    表示し、layer-ospf クラスを付与する。
+    ospf_area が付いているセグメントのみを対象とする。
+    """
+    parts = []
+    for seg in sorted(segments, key=lambda s: s["id"]):
+        ospf_area = seg.get("ospf_area")
+        if ospf_area is None:
+            continue
+        x, y = positions.get(seg["id"], (0, 0))
+        seg_id = _esc(seg["id"])
+        subnet = _esc(seg["subnet"])
+        area_label = OSPF_AREA_LABEL_FORMAT.format(
+            area=_esc(ospf_area), subnet=subnet
+        )
+        parts.append(
+            f'<g class="segment-node layer-ospf" data-segment="{seg_id}">'
+            f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{_SEG_RX}" ry="{_SEG_RY}" '
+            f'class="seg-ellipse layer-ospf"/>'
+            f'<text x="{x:.1f}" y="{y + 5:.1f}" text-anchor="middle" '
+            f'class="seg-label layer-ospf">'
+            f'{area_label}</text>'
+            f'</g>'
+        )
+    return "\n".join(parts)
+
+
+def _svg_ospf_segment_edges(
+    segments: list[dict],
+    interfaces: list[dict],
+    positions: dict,
+) -> str:
+    """OSPF 参加セグメントからメンバー機器への接続エッジを生成する。
+
+    Physical ビューの _svg_segment_edges と同様だが、layer-ospf クラスを付与する。
+    ospf_area が付いているセグメントのみを対象とする。
+    """
+    iface_map = {iface["id"]: iface["device"] for iface in interfaces}
+
+    parts = []
+    for seg in sorted(segments, key=lambda s: s["id"]):
+        if seg.get("ospf_area") is None:
+            continue
+        sx, sy = positions.get(seg["id"], (0, 0))
+        seg_id = _esc(seg["id"])
+        for member_iface_id in sorted(seg.get("members", [])):
+            dev_id = iface_map.get(member_iface_id)
+            if dev_id and dev_id in positions:
+                dx, dy = positions[dev_id]
+                parts.append(
+                    f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
+                    f'class="seg-edge layer-ospf" data-seg="{seg_id}" '
                     f'data-device="{_esc(dev_id)}"/>'
                 )
     return "\n".join(parts)
