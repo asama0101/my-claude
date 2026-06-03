@@ -172,7 +172,11 @@ def _svg_if_chip(
     """単一 IF チップ要素を生成する（_svg_nodes の内部ヘルパー、iteration-3 #2）。
 
     チップは小さな circle で表現し、<title> に「IF名 IP（desc）」を持つ。
-    shutdown の場合は if-chip-shutdown クラスを追加。
+    CSS クラス付与ルール:
+    - 常に ``if-chip`` を付与（ベースクラス）
+    - Loopback IF の場合は ``if-chip-loopback`` を追加（_is_loopback() で判定）
+    - shutdown の場合は ``if-chip-shutdown`` を追加
+    - Loopback かつ shutdown の場合は両クラスが共存（複合色は CSS で管理）
     iteration-4 #6: data-iface-id 属性を付与（チップアンカー・将来連動用）。
 
     Args:
@@ -198,7 +202,13 @@ def _svg_if_chip(
         title_parts.append(f"（{desc}）")
     title_text = _esc(" ".join(title_parts))
 
-    css_cls = "if-chip if-chip-shutdown" if iface.get("shutdown") else "if-chip"
+    # CSS クラスを決定: loopback / shutdown の組み合わせを処理
+    extra_classes = []
+    if _is_loopback(if_name):
+        extra_classes.append("if-chip-loopback")
+    if iface.get("shutdown"):
+        extra_classes.append("if-chip-shutdown")
+    css_cls = "if-chip" + ("".join(f" {c}" for c in extra_classes))
 
     return (
         f'<g class="{css_cls}" data-if="{_esc(if_name)}" data-iface-id="{_esc(if_id)}">'
@@ -701,9 +711,17 @@ def _svg_bgp_as_groups(
         chip_x = min_x + 8
         chip_y = min_y - 9   # 枠上端より少し上にはみ出してチップを置く
         chip_text = f"AS {_esc(asn)}"
-        # チップ背景矩形のサイズ（文字数に応じた概算幅: 1文字 ≒ 7px）
-        chip_w = len(f"AS {asn}") * 7 + 10
-        chip_h = 16
+        # チップ背景矩形のサイズ算出（#8: font-size 15px 対応）:
+        #   chip_w = len(label) * 9 + 12
+        #     - 9: 拡大フォント（15px）における1文字あたりの概算幅（px）
+        #     - 12: 左右パディング合計（各6px）
+        #     - 例: "AS 65001"(8文字) → 8*9+12 = 84px
+        #   chip_h = 20: 拡大フォント（15px）を余裕を持って収める高さ
+        #   text_y = chip_y + chip_h * 0.7: ベースラインをボックス上端から70%に設定
+        chip_w = len(f"AS {asn}") * 9 + 12
+        chip_h = 20
+        # テキスト y: 背景矩形の垂直中央（chip_h の約 70% をベースラインとして使用）
+        text_y = chip_y + chip_h * 0.7
         parts.append(
             f'<g class="as-group-container" data-as="{_esc(asn)}">'
             f'<rect x="{min_x:.1f}" y="{min_y:.1f}" '
@@ -712,7 +730,7 @@ def _svg_bgp_as_groups(
             f'<rect x="{chip_x:.1f}" y="{chip_y:.1f}" '
             f'width="{chip_w:.1f}" height="{chip_h:.1f}" '
             f'rx="4" ry="4" class="as-group-label-bg"/>'
-            f'<text x="{chip_x + 5:.1f}" y="{chip_y + 11:.1f}" '
+            f'<text x="{chip_x + 5:.1f}" y="{text_y:.1f}" '
             f'text-anchor="start" class="as-group-label">'
             f'{chip_text}</text>'
             f'</g>'

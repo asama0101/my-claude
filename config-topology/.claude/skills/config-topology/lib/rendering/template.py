@@ -302,8 +302,8 @@ _CSS = """\
     }
 
     .cards-grid {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 16px;
     }
 
@@ -312,9 +312,6 @@ _CSS = """\
       border: 1px solid var(--color-card-border);
       border-radius: 8px;
       padding: 16px;
-      min-width: 280px;
-      max-width: 480px;
-      flex: 1;
     }
 
     .device-card h3 {
@@ -460,6 +457,43 @@ _CSS = """\
       opacity: 0.5;
     }
 
+    /* #7: Loopback チップ識別（緑系: 通常チップの青と区別）*/
+    .if-chip-loopback circle {
+      fill: #bbf7d0;
+      stroke: #16a34a;
+      stroke-width: 1.5;
+    }
+
+    .if-chip-loopback:hover circle {
+      fill: #86efac;
+    }
+
+    /* #7: Loopback かつ shutdown の複合状態（緑系薄表示） */
+    .if-chip-loopback.if-chip-shutdown circle {
+      fill: #d1fae5;
+      stroke: #6b7280;
+      opacity: 0.5;
+    }
+
+    /* #7: IF チップ凡例（左下固定オーバーレイ）。全ビュー常時表示。
+       チップが無いビューでも表示されるが意図的（凡例は常に視認できる）。 */
+    #chip-legend {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      background: rgba(255,255,255,0.88);
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: #374151;
+      pointer-events: none;
+    }
+
     /* HC2: static 経路 next-hop ノードのハイライト（手動選択 .selected と独立） */
     .device-node.route-target .node-rect {
       fill: #d1fae5;
@@ -509,7 +543,7 @@ _CSS = """\
     }
 
     .as-group-label {
-      font-size: 11px;
+      font-size: 15px;
       font-weight: 700;
       fill: #1e3a5f;
       pointer-events: none;
@@ -1647,6 +1681,11 @@ def build_html(
         <button id="zoom-in" class="zoom-btn" title="拡大">+</button>
         <button id="zoom-out" class="zoom-btn" title="縮小">−</button>
         <button id="zoom-reset" class="zoom-btn" title="等倍リセット">1:1</button>
+      </div>
+      <!-- #7: IF チップ凡例（左下固定オーバーレイ）。スタイルは CSS #chip-legend で管理 -->
+      <div id="chip-legend">
+        <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip"><circle cx="6" cy="6" r="5"/></g></svg><span>接続IF</span>
+        <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip if-chip-loopback"><circle cx="6" cy="6" r="5"/></g></svg><span>Loopback</span>
       </div>
     </div>
 

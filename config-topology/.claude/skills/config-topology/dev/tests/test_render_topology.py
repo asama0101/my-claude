@@ -9094,3 +9094,555 @@ def test_p3_physical_chip_iface_ids_loopback():
 
     assert "r1::lo0" in chip_ids, "Loopback0 (r1::lo0) がチップ集合に含まれない"
     assert "r1::eth0" not in chip_ids, "非接続・非 Loopback の eth0 がチップ集合に含まれる"
+
+
+# ===========================================================================
+# Phase 3b — #7: Loopback チップ識別
+# ===========================================================================
+
+def _make_loopback_topology():
+    """Loopback IF を持つシンプルな topology（#7 テスト用）"""
+    return {
+        "title": "Loopback Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r1::lo0", "device": "r1", "name": "Loopback0",
+             "ip": "10.255.0.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+@pytest.mark.unit
+def test_p3b7_loopback_chip_has_loopback_class():
+    """#7: Loopback IF のチップに if-chip-loopback クラスが付与される"""
+    from lib.rendering.svg import _svg_if_chip, _is_loopback
+
+    loopback_iface = {
+        "id": "r1::lo0", "device": "r1", "name": "Loopback0",
+        "ip": "10.255.0.1/32", "shutdown": False, "description": None,
+    }
+    # shutdown=False の Loopback チップを生成
+    svg = _svg_if_chip(50.0, 80.0, 0, loopback_iface)
+    assert "if-chip-loopback" in svg, \
+        f"Loopback チップに if-chip-loopback クラスが付いていない: {svg}"
+
+
+@pytest.mark.unit
+def test_p3b7_normal_chip_no_loopback_class():
+    """#7: 通常 IF チップに if-chip-loopback クラスが付かない"""
+    from lib.rendering.svg import _svg_if_chip
+
+    normal_iface = {
+        "id": "r1::eth0", "device": "r1", "name": "eth0",
+        "ip": "10.0.0.1/30", "shutdown": False, "description": None,
+    }
+    svg = _svg_if_chip(50.0, 80.0, 0, normal_iface)
+    assert "if-chip-loopback" not in svg, \
+        f"通常 IF チップに if-chip-loopback クラスが付いている（誤付与）: {svg}"
+
+
+@pytest.mark.unit
+def test_p3b7_loopback_chip_coexists_with_shutdown():
+    """#7: Loopback かつ shutdown=True の場合、if-chip-loopback と if-chip-shutdown が共存する"""
+    from lib.rendering.svg import _svg_if_chip
+
+    lo_shutdown_iface = {
+        "id": "r1::lo0", "device": "r1", "name": "Loopback0",
+        "ip": "10.255.0.1/32", "shutdown": True, "description": None,
+    }
+    svg = _svg_if_chip(50.0, 80.0, 0, lo_shutdown_iface)
+    assert "if-chip-loopback" in svg, "Loopback+shutdown チップに if-chip-loopback がない"
+    assert "if-chip-shutdown" in svg, "Loopback+shutdown チップに if-chip-shutdown がない"
+
+
+@pytest.mark.unit
+def test_p3b7_css_loopback_rule_exists(rendered_html):
+    """#7: CSS に .if-chip-loopback circle のルールが存在する"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    assert ".if-chip-loopback" in combined, \
+        "CSS に .if-chip-loopback ルールが存在しない"
+
+
+@pytest.mark.unit
+def test_p3b7_css_loopback_fill_differs_from_normal(rendered_html):
+    """#7: .if-chip-loopback circle の fill が通常チップ（青系）と異なる（緑系など）"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    # .if-chip-loopback circle ブロックを抽出
+    m = re.search(r'\.if-chip-loopback\s+circle\s*\{([^}]+)\}', combined, re.DOTALL)
+    assert m is not None, "CSS に .if-chip-loopback circle ブロックが存在しない"
+    loopback_rule = m.group(1)
+    # fill が定義されていること
+    assert "fill" in loopback_rule, ".if-chip-loopback circle に fill が定義されていない"
+    # 通常チップの fill（#bfdbfe = 青系）と同じでないこと
+    assert "#bfdbfe" not in loopback_rule, \
+        ".if-chip-loopback circle の fill が通常チップ（#bfdbfe）と同じ（区別できない）"
+
+
+@pytest.mark.unit
+def test_p3b7_legend_exists_in_html(rendered_html):
+    """#7: 図に #chip-legend 要素が存在し、loopback クラス付き circle と Loopback ラベルを含む
+
+    "Loopback" in html は CSS コメントにマッチして常時真になるため、
+    id="chip-legend" の存在、凡例内の if-chip-loopback クラス、
+    Loopback ラベルテキストの3点をそれぞれ検証する。
+    """
+    assert 'id="chip-legend"' in rendered_html, \
+        "図に id='chip-legend' 要素が存在しない"
+    # chip-legend 要素の内容部分を抽出
+    legend_start = rendered_html.find('id="chip-legend"')
+    legend_end = rendered_html.find('</div>', legend_start)
+    legend_html = rendered_html[legend_start:legend_end + 6]
+    assert "if-chip-loopback" in legend_html, \
+        "chip-legend 内に if-chip-loopback クラスの circle が存在しない"
+    assert "Loopback" in legend_html, \
+        "chip-legend 内に Loopback ラベルテキストが存在しない"
+
+
+@pytest.mark.unit
+def test_p3b7_loopback_chip_in_physical_view():
+    """#7: Physical ビューの Loopback IF チップに if-chip-loopback クラスが付与される"""
+    from lib.rendering import render
+    html = render(_make_loopback_topology())
+    phys = _extract_physical_view(html)
+    # Loopback0 のチップグループが if-chip-loopback クラスを持つこと
+    assert "if-chip-loopback" in phys, \
+        "Physical ビューの Loopback0 チップに if-chip-loopback クラスがない"
+
+
+@pytest.mark.unit
+def test_p3b7_loopback_chip_normal_chip_both_present():
+    """#7: Physical ビューに通常チップと Loopback チップが共存し、クラスが正しく区別される
+
+    - 通常チップ（r1::eth0）には if-chip-loopback クラスが付かない（否定条件）
+    - Loopback チップ（r1::lo0）には if-chip-loopback クラスが付く（肯定条件）
+    """
+    from lib.rendering import render
+    html = render(_make_loopback_topology())
+    phys = _extract_physical_view(html)
+
+    # Loopback チップが存在する（肯定条件）
+    assert "if-chip-loopback" in phys, "Loopback チップが存在しない"
+
+    # 通常チップ（data-iface-id="r1::eth0"）に if-chip-loopback が付かない（否定条件）
+    normal_chip_match = re.search(
+        r'<g class="([^"]*)"[^>]*data-iface-id="r1::eth0"', phys
+    )
+    assert normal_chip_match is not None, \
+        "通常チップ（data-iface-id='r1::eth0'）が Physical ビューに存在しない"
+    normal_chip_class = normal_chip_match.group(1)
+    assert "if-chip-loopback" not in normal_chip_class, \
+        f"通常チップ（r1::eth0）に if-chip-loopback クラスが誤付与されている: class='{normal_chip_class}'"
+
+    # Loopback チップ（data-iface-id="r1::lo0"）に if-chip-loopback が付く（肯定条件）
+    loopback_chip_match = re.search(
+        r'<g class="([^"]*)"[^>]*data-iface-id="r1::lo0"', phys
+    )
+    assert loopback_chip_match is not None, \
+        "Loopback チップ（data-iface-id='r1::lo0'）が Physical ビューに存在しない"
+    loopback_chip_class = loopback_chip_match.group(1)
+    assert "if-chip-loopback" in loopback_chip_class, \
+        f"Loopback チップ（r1::lo0）に if-chip-loopback クラスが付いていない: class='{loopback_chip_class}'"
+
+
+@pytest.mark.unit
+def test_p3b7_deterministic_with_loopback():
+    """#7: Loopback チップを含む topology で決定性が維持される"""
+    from lib.rendering import render
+    import copy
+    topo = _make_loopback_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "Loopback チップを含む topology で render() が非決定的"
+
+
+# ===========================================================================
+# Phase 3b — #8: AS 枠ラベル拡大
+# ===========================================================================
+
+@pytest.mark.unit
+def test_p3b8_as_group_label_font_size_enlarged(rendered_html):
+    """#8: CSS の .as-group-label の font-size が 11px より大きく、14px 以上"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    # .as-group-label ルールを抽出
+    m = re.search(r'\.as-group-label\s*\{([^}]+)\}', combined, re.DOTALL)
+    assert m is not None, "CSS に .as-group-label ルールが存在しない"
+    rule = m.group(1)
+    # font-size 値を取得
+    fs_match = re.search(r'font-size\s*:\s*(\d+(?:\.\d+)?)(px|rem|em)', rule)
+    assert fs_match is not None, ".as-group-label に font-size が定義されていない"
+    font_size = float(fs_match.group(1))
+    unit = fs_match.group(2)
+    # px 単位で 14px 以上（11px でない）
+    if unit == "px":
+        assert font_size >= 14, \
+            f".as-group-label の font-size が {font_size}px（期待: >=14px）"
+        assert font_size != 11, \
+            f".as-group-label の font-size がまだ 11px（変更されていない）"
+    # rem/em の場合は 0.875rem(≈14px) 以上
+    elif unit in ("rem", "em"):
+        assert font_size >= 0.875, \
+            f".as-group-label の font-size が {font_size}{unit}（期待: >=0.875rem）"
+
+
+@pytest.mark.unit
+def test_p3b8_as_group_label_font_weight_bold(rendered_html):
+    """#8: .as-group-label に font-weight: bold（または 700）が設定されている"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    m = re.search(r'\.as-group-label\s*\{([^}]+)\}', combined, re.DOTALL)
+    assert m is not None, "CSS に .as-group-label ルールが存在しない"
+    rule = m.group(1)
+    assert "font-weight" in rule, ".as-group-label に font-weight が定義されていない"
+    assert "bold" in rule or "700" in rule or "800" in rule, \
+        f".as-group-label の font-weight が bold/700 でない: {rule.strip()}"
+
+
+@pytest.mark.unit
+def test_p3b8_as_group_chip_w_fits_label():
+    """#8: AS 枠ラベルの背景 chip_w が「AS {asn}」テキストをはみ出さない幅に設定される。
+
+    BGP 図の as-group-label-bg <rect> の幅が、フォント拡大後（1文字≒9px）の
+    「AS {asn}」テキスト幅以上であること。
+    """
+    from lib.rendering import render
+    import copy
+    topo = _make_ebgp_topology()
+    html = render(copy.deepcopy(topo))
+    bgp_view = _extract_bgp_view_full(html)
+
+    # as-group-label-bg <rect> の幅を取得
+    bg_rects = re.findall(
+        r'<rect[^>]*class="as-group-label-bg"[^>]*width="([^"]+)"',
+        bgp_view
+    )
+    if not bg_rects:
+        bg_rects = re.findall(
+            r'<rect[^>]*width="([^"]+)"[^>]*class="as-group-label-bg"',
+            bgp_view
+        )
+    assert len(bg_rects) >= 1, "as-group-label-bg <rect> が見つからない"
+
+    # "AS 65001" は 8文字 → 新式 1文字≒9px+12 = 8*9+12 = 84px 以上が必要
+    # 旧式 1文字≒7px+10 = 8*7+10 = 66px では不足（レビュー指摘 M-1）
+    for w_str in bg_rects:
+        w = float(w_str)
+        # len("AS 65001")*9+12=84 前提で 80px 以上を必須とする
+        assert w >= 80.0, \
+            f"as-group-label-bg の幅 {w}px が小さすぎる（ラベルがはみ出す: 期待 >=80px, 旧式 *7+10=66 では不足）"
+
+
+@pytest.mark.unit
+def test_p3b8_as_group_chip_h_fits_label():
+    """#8: AS 枠ラベルの背景 chip_h が拡大フォントに合わせて高くなっている（16px より高い）"""
+    from lib.rendering import render
+    import copy
+    topo = _make_ebgp_topology()
+    html = render(copy.deepcopy(topo))
+    bgp_view = _extract_bgp_view_full(html)
+
+    bg_rects = re.findall(
+        r'<rect[^>]*class="as-group-label-bg"[^>]*height="([^"]+)"',
+        bgp_view
+    )
+    if not bg_rects:
+        bg_rects = re.findall(
+            r'<rect[^>]*height="([^"]+)"[^>]*class="as-group-label-bg"',
+            bgp_view
+        )
+    assert len(bg_rects) >= 1, "as-group-label-bg <rect> の height が見つからない"
+    for h_str in bg_rects:
+        h = float(h_str)
+        # 拡大前は 16px → 拡大後は 18px 以上が必要
+        assert h >= 18.0, \
+            f"as-group-label-bg の高さ {h}px が小さすぎる（拡大後フォントに対して不足: 期待 >=18px）"
+
+
+@pytest.mark.unit
+def test_p3b8_deterministic_bgp_view_with_enlarged_label():
+    """#8: AS ラベル拡大後も BGP ビューが決定的（2回レンダリングして一致）"""
+    from lib.rendering import render
+    import copy
+    topo = _make_ebgp_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "AS ラベル拡大後の BGP ビューが非決定的"
+
+
+# ===========================================================================
+# Phase 3b — #9: ノード間隔を詰める
+# ===========================================================================
+
+def _make_medium_topology(n: int = 10):
+    """n 台のデバイスをリング状に接続した topology（#9 キャンバス係数テスト用）"""
+    devices = [{"id": f"r{i}", "hostname": f"R{i}", "vendor": "cisco_ios",
+                "as": None, "sections": []}
+               for i in range(n)]
+    interfaces = [{"id": f"r{i}::eth0", "device": f"r{i}", "name": "eth0",
+                   "ip": f"10.0.{i}.1/30", "vlan": None,
+                   "description": None, "shutdown": False}
+                  for i in range(n)]
+    links = []
+    for i in range(n - 1):
+        links.append({
+            "a_device": f"r{i}", "a_if": "eth0",
+            "b_device": f"r{i+1}", "b_if": "eth0",
+            "subnet": f"10.0.{i}.0/30", "kind": "inferred-subnet",
+        })
+    return {
+        "title": f"Medium {n}-node Topology",
+        "generated_from": [],
+        "devices": devices,
+        "interfaces": interfaces,
+        "links": links,
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+@pytest.mark.unit
+def test_p3b9_canvas_factor_values():
+    """#9: _CANVAS_FACTOR_W / _CANVAS_FACTOR_H が縮小されている（旧値 15/12 より小さい）"""
+    from lib.rendering.layout import _CANVAS_FACTOR_W, _CANVAS_FACTOR_H
+    # Phase 3a 前の値は W=15, H=12。縮小後は < 15 / < 12
+    assert _CANVAS_FACTOR_W < 15, \
+        f"_CANVAS_FACTOR_W={_CANVAS_FACTOR_W} が旧値 15 以上（縮小されていない）"
+    assert _CANVAS_FACTOR_H < 12, \
+        f"_CANVAS_FACTOR_H={_CANVAS_FACTOR_H} が旧値 12 以上（縮小されていない）"
+
+
+@pytest.mark.unit
+def test_p3b9_canvas_smaller_than_old_for_medium_n():
+    """#9: 係数縮小後の _canvas_size_for_nodes(10) が旧係数での値より小さい"""
+    from lib.rendering.layout import _canvas_size_for_nodes, _CANVAS_FACTOR_W, _CANVAS_FACTOR_H, _NODE_WIDTH, _CANVAS_SCALE_EXP, _MIN_CANVAS_W, _MIN_CANVAS_H, _NODE_HEIGHT
+
+    n = 10
+    w_new, h_new = _canvas_size_for_nodes(n)
+
+    # 旧係数（15, 12）での値を手計算
+    w_old = max(_MIN_CANVAS_W, n * (_NODE_WIDTH + 20) ** _CANVAS_SCALE_EXP * 15)
+    h_old = max(_MIN_CANVAS_H, n * (_NODE_HEIGHT + 20) ** _CANVAS_SCALE_EXP * 12)
+
+    # 新値が旧値より小さいこと（幅・高さの両方が縮小されていること）
+    assert w_new < w_old and h_new < h_old, (
+        f"係数縮小後のキャンバス({w_new:.0f}x{h_new:.0f})が旧値({w_old:.0f}x{h_old:.0f})より"
+        f"幅・高さともに小さくなっていない"
+    )
+
+
+@pytest.mark.unit
+def test_p3b9_no_overlap_after_factor_reduction():
+    """#9: 係数縮小後も重なりなし保証が維持される（密集テスト: 小キャンバス固定）
+
+    _canvas_size_for_nodes による自動キャンバスは大きすぎて自明 PASS になる。
+    代わりに width=900, height=600 の小さい固定キャンバスに 10 ノードを
+    _layout_force_directed(..., node_sizes=...) で直接配置して、
+    全ペアの分離を実ノード寸法ベースで検証する。
+    """
+    from lib.rendering.layout import _layout_force_directed, _node_size_for
+    n = 10
+    node_ids = [f"r{i}" for i in range(n)]
+    edges = [(f"r{i}", f"r{i+1}") for i in range(n - 1)]
+    node_sizes = {f"r{i}": 1 for i in range(n)}  # 各ノード 1 IF
+
+    # 固定の小キャンバス（自明 PASS を防ぐ）
+    w, h = 900, 600
+    pos = _layout_force_directed(node_ids, edges, width=w, height=h,
+                                  iterations=300, node_sizes=node_sizes)
+
+    # 全ペアの中心間距離 >= 実ノード寸法の半幅+半高+マージン
+    for i, na in enumerate(node_ids):
+        for j, nb in enumerate(node_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(node_sizes[na])
+            wb, hb = _node_size_for(node_sizes[nb])
+            dx = abs(x1 - x2)
+            dy = abs(y1 - y2)
+            min_sep_x = (wa + wb) / 2 + 5
+            min_sep_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= min_sep_x or dy >= min_sep_y
+            assert no_overlap, (
+                f"密集キャンバス ({w}x{h}) でノード {na} と {nb} が重なっている "
+                f"(dx={dx:.1f} min_sep_x={min_sep_x:.1f}, dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
+            )
+
+
+@pytest.mark.unit
+def test_p3b9_min_canvas_respected():
+    """#9: _canvas_size_for_nodes(0) / (1) が _MIN_CANVAS_W/H を下回らない"""
+    from lib.rendering.layout import _canvas_size_for_nodes, _MIN_CANVAS_W, _MIN_CANVAS_H
+    for n in (0, 1):
+        w, h = _canvas_size_for_nodes(n)
+        assert w >= _MIN_CANVAS_W, f"n={n}: キャンバス幅 {w} < _MIN_CANVAS_W {_MIN_CANVAS_W}"
+        assert h >= _MIN_CANVAS_H, f"n={n}: キャンバス高 {h} < _MIN_CANVAS_H {_MIN_CANVAS_H}"
+
+
+@pytest.mark.unit
+def test_p3b9_existing_bgp_no_overlap_still_passes():
+    """#9: 係数縮小後も既存の BGP トポロジーでノード重なりゼロを維持（回帰保護）"""
+    from lib.rendering.views import _build_bgp_layout
+    from lib.rendering.layout import _node_size_for
+
+    topo = _make_p3_bgp_topology()
+
+    # シグネチャ: _build_bgp_layout(devices, bgp_entries, interfaces)
+    pos, _bgp_devices = _build_bgp_layout(
+        topo["devices"], topo["routing"].get("bgp", []), topo["interfaces"]
+    )
+
+    # デバイスごとのインターフェース数を集計してノードサイズを算出
+    iface_count: dict[str, int] = {}
+    for iface in topo["interfaces"]:
+        iface_count[iface["device"]] = iface_count.get(iface["device"], 0) + 1
+
+    dev_ids = [d["id"] for d in topo["devices"] if d["id"] in pos]
+    for i, na in enumerate(dev_ids):
+        for j, nb in enumerate(dev_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(iface_count.get(na, 0))
+            wb, hb = _node_size_for(iface_count.get(nb, 0))
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            needed_x = (wa + wb) / 2 + 5
+            needed_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= needed_x or dy >= needed_y
+            assert no_overlap, (
+                f"BGP ビューでノード {na} と {nb} が重なっている "
+                f"(dx={dx:.1f} needed_x={needed_x:.1f}, dy={dy:.1f} needed_y={needed_y:.1f})"
+            )
+
+
+@pytest.mark.unit
+def test_p3b9_deterministic_after_factor_change(sample_topology):
+    """#9: 係数縮小後も同一入力で 2 回 render した結果が完全一致（決定性維持）"""
+    from lib.rendering import render
+    import copy
+    t1 = copy.deepcopy(sample_topology)
+    t2 = copy.deepcopy(sample_topology)
+    html1 = render(t1)
+    html2 = render(t2)
+    assert html1 == html2, "係数縮小後の render() が非決定的"
+
+
+# ===========================================================================
+# Phase 3b — #10: カード幅の均一化
+# ===========================================================================
+
+@pytest.mark.unit
+def test_p3b10_cards_grid_is_display_grid(rendered_html):
+    """#10: .cards-grid が display:grid を使用する"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    # .cards-grid ルールを抽出
+    m = re.search(r'\.cards-grid\s*\{([^}]+)\}', combined, re.DOTALL)
+    assert m is not None, "CSS に .cards-grid ルールが存在しない"
+    rule = m.group(1)
+    assert "display" in rule, ".cards-grid に display プロパティが定義されていない"
+    assert "grid" in rule, \
+        f".cards-grid の display が grid でない: {rule.strip()}"
+
+
+@pytest.mark.unit
+def test_p3b10_cards_grid_has_grid_template_columns(rendered_html):
+    """#10: .cards-grid に grid-template-columns が定義されている"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    m = re.search(r'\.cards-grid\s*\{([^}]+)\}', combined, re.DOTALL)
+    assert m is not None, "CSS に .cards-grid ルールが存在しない"
+    rule = m.group(1)
+    assert "grid-template-columns" in rule, \
+        ".cards-grid に grid-template-columns が定義されていない"
+    # repeat(auto-fill, minmax(320px, 1fr)) パターン
+    assert "auto-fill" in rule or "minmax" in rule, \
+        ".cards-grid の grid-template-columns に auto-fill/minmax がない"
+
+
+@pytest.mark.unit
+def test_p3b10_cards_grid_no_flex(rendered_html):
+    """#10: .cards-grid から flex/flex-wrap が撤去されている（grid に移行済み）"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    m = re.search(r'\.cards-grid\s*\{([^}]+)\}', combined, re.DOTALL)
+    assert m is not None, "CSS に .cards-grid ルールが存在しない"
+    rule = m.group(1)
+    # display:flex が残っていないこと（display:grid に置き換え済み）
+    assert "display: flex" not in rule.replace(" ", "") and "display:flex" not in rule.replace(" ", ""), \
+        ".cards-grid に display:flex が残っている（grid 移行未完了）"
+    # flex-wrap も撤去済みであること
+    assert "flex-wrap" not in rule, \
+        ".cards-grid に flex-wrap が残っている（撤去されていない）"
+
+
+@pytest.mark.unit
+def test_p3b10_device_card_no_flex(rendered_html):
+    """#10: .device-card から flex/min-width/max-width が撤去されている（幅は grid 列で決定）"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    m = re.search(r'\.device-card\s*\{([^}]+)\}', combined, re.DOTALL)
+    assert m is not None, "CSS に .device-card ルールが存在しない"
+    rule = m.group(1)
+    # flex:1 が撤去されていること
+    assert "flex: 1" not in rule.replace(" ", "") and "flex:1" not in rule.replace(" ", ""), \
+        ".device-card に flex:1 が残っている（撤去されていない）"
+    # min-width が撤去されていること
+    assert "min-width" not in rule, \
+        ".device-card に min-width が残っている（撤去されていない）"
+    # max-width が撤去されていること
+    assert "max-width" not in rule, \
+        ".device-card に max-width が残っている（撤去されていない）"
+
+
+@pytest.mark.unit
+def test_p3b10_card_unselected_works_with_grid(rendered_html):
+    """#10: .card-unselected { display:none } が grid アイテムに適用されても問題ない。
+    CSS に .card-unselected { display:none } ルールが存在すること。"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    # .card-unselected ルールが存在すること
+    assert ".card-unselected" in combined, \
+        "CSS に .card-unselected ルールが存在しない"
+    m = re.search(r'\.card-unselected\s*\{([^}]+)\}', combined, re.DOTALL)
+    assert m is not None, ".card-unselected ルールの本体が見つからない"
+    rule = m.group(1)
+    assert "display" in rule, ".card-unselected に display が定義されていない"
+    assert "none" in rule, ".card-unselected が display:none になっていない"
+
+
+@pytest.mark.unit
+def test_p3b10_render_still_contains_cards_grid(rendered_html):
+    """#10: render() 後の HTML に cards-grid クラスが存在する（構造回帰保護）"""
+    assert 'class="cards-grid"' in rendered_html, \
+        "cards-grid クラスを持つ要素が HTML に存在しない"
+
+
+@pytest.mark.unit
+def test_p3b10_deterministic_after_grid_change(sample_topology):
+    """#10: grid 移行後も render() が決定的（2回一致）"""
+    from lib.rendering import render
+    import copy
+    t1 = copy.deepcopy(sample_topology)
+    t2 = copy.deepcopy(sample_topology)
+    html1 = render(t1)
+    html2 = render(t2)
+    assert html1 == html2, "grid 移行後の render() が非決定的"
