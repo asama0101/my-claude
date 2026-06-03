@@ -3,6 +3,7 @@ rendering/core.py — render() 統括モジュール
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import math
 
@@ -34,6 +35,166 @@ def _active_routing_keys(routing: dict) -> list[str]:
         key for key, entries in routing.items()
         if any(isinstance(e, dict) and "device" in e for e in entries)
     )
+
+
+def _build_static_route_map(
+    static_entries: list[dict],
+    links: list[dict],
+    segments: list[dict],
+    interfaces: list[dict],
+) -> dict[tuple[str, str], dict]:
+    """static ルートエントリから経路解決マップを構築する。
+
+    各エントリの next_hop が乗る直接接続リンク（p2p）またはセグメントを
+    ``ipaddress`` で検索し、解決できた場合に ``route_edge_id``（link_id または seg-id）と
+    ``nexthop_device_id`` を格納した辞書を返す。
+
+    Returns:
+        ``{(device, prefix): {"route_edge_id": str|None, "nexthop_device_id": str|None}}``
+        形式の辞書。解決できないエントリはキーを持たない。
+        順序安定（デバイス・プレフィックス昇順でソート済み）。
+    """
+    # iface_id -> {ip, device, name} マップ構築（セグメント走査用）
+    iface_info: dict[str, dict] = {}
+    # HM1: (device, name) -> ip マップ構築（p2p リンク走査を O(1) 引きに）
+    dev_name_to_ip: dict[tuple[str, str], str] = {}
+    for iface in interfaces:
+        iface_info[iface["id"]] = {
+            "ip": iface.get("ip") or "",
+            "device": iface.get("device", ""),
+            "name": iface.get("name", ""),
+        }
+        dev = iface.get("device", "")
+        name = iface.get("name", "")
+        ip_cidr = iface.get("ip") or ""
+        ip_only = ip_cidr.split("/")[0]
+        if dev and name and ip_only:
+            dev_name_to_ip[(dev, name)] = ip_only
+
+    # p2p リンクのサブネット → (link_id, {dev: ip}) マップ
+    # {subnet_str: {"link_id": str, "members": {ip: dev_id}}}
+    # MC1: ソート安定化（重複サブネットで route_edge_id が入力順依存になるのを防ぐ）
+    link_subnet_map: list[dict] = []
+    for link in sorted(links, key=lambda lk: (lk.get("a_device", ""), lk.get("b_device", ""), lk.get("subnet", ""))):
+        a_dev = link.get("a_device", "")
+        b_dev = link.get("b_device", "")
+        a_if_name = link.get("a_if") or ""
+        b_if_name = link.get("b_if") or ""
+        subnet_str = link.get("subnet") or ""
+        if not (a_dev and b_dev and subnet_str):
+            continue
+        lid = _make_link_id(a_dev, a_if_name, b_dev, b_if_name)
+        # HM1: (device,name)->ip マップ1回引きで両端 IP を収集
+        members: dict[str, str] = {}
+        a_ip = dev_name_to_ip.get((a_dev, a_if_name))
+        if a_ip:
+            members[a_ip] = a_dev
+        b_ip = dev_name_to_ip.get((b_dev, b_if_name))
+        if b_ip:
+            members[b_ip] = b_dev
+        link_subnet_map.append({
+            "link_id": lid,
+            "subnet": subnet_str,
+            "members": members,  # {ip: dev_id}
+            "a_dev": a_dev,
+            "b_dev": b_dev,
+        })
+
+    # セグメントのサブネット → {seg_id, members: {ip: dev_id}} マップ
+    seg_subnet_map: list[dict] = []
+    for seg in segments:
+        seg_id = seg.get("id", "")
+        subnet_str = seg.get("subnet") or ""
+        if not (seg_id and subnet_str):
+            continue
+        # メンバー IF から IP を収集
+        members: dict[str, str] = {}
+        for member_iface_id in seg.get("members", []):
+            info = iface_info.get(member_iface_id, {})
+            ip_cidr = info.get("ip", "")
+            dev = info.get("device", "")
+            if ip_cidr and dev:
+                ip = ip_cidr.split("/")[0]
+                if ip:
+                    members[ip] = dev
+        seg_subnet_map.append({
+            "seg_id": seg_id,
+            "subnet": subnet_str,
+            "members": members,
+        })
+
+    result: dict[tuple[str, str], dict] = {}
+
+    for entry in sorted(static_entries, key=lambda e: (e.get("device", ""), e.get("prefix", ""))):
+        device = entry.get("device", "")
+        prefix = entry.get("prefix", "")
+        next_hop = entry.get("next_hop", "")
+        if not (device and prefix and next_hop):
+            continue
+
+        route_edge_id: str | None = None
+        nexthop_device_id: str | None = None
+
+        try:
+            nh_addr = ipaddress.ip_address(next_hop)
+        except ValueError:
+            continue
+
+        # p2p リンクを検索
+        found = False
+        for link_info in link_subnet_map:
+            try:
+                net = ipaddress.ip_network(link_info["subnet"], strict=False)
+            except ValueError:
+                continue
+            if nh_addr in net:
+                route_edge_id = link_info["link_id"]
+                nexthop_device_id = link_info["members"].get(next_hop)
+                found = True
+                break
+
+        # セグメントを検索（p2p で見つからなかった場合）
+        if not found:
+            for seg_info in seg_subnet_map:
+                try:
+                    net = ipaddress.ip_network(seg_info["subnet"], strict=False)
+                except ValueError:
+                    continue
+                if nh_addr in net:
+                    route_edge_id = seg_info["seg_id"]
+                    nexthop_device_id = seg_info["members"].get(next_hop)
+                    found = True
+                    break
+
+        if found:
+            result[(device, prefix)] = {
+                "route_edge_id": route_edge_id,
+                "nexthop_device_id": nexthop_device_id,
+            }
+
+    return result
+
+
+def _build_iface_seg_id(segments: list[dict]) -> dict[str, str]:
+    """iface_id -> seg_id マップを構築する。
+
+    各セグメントの members リストを走査し、
+    ``{iface_id: seg_id}`` 形式の辞書を返す。
+
+    Args:
+        segments: topology の segments リスト
+
+    Returns:
+        ``{iface_id: seg_id}`` 辞書（安定順序）
+    """
+    result: dict[str, str] = {}
+    for seg in sorted(segments, key=lambda s: s.get("id", "")):
+        seg_id = seg.get("id", "")
+        if not seg_id:
+            continue
+        for member_iface_id in sorted(seg.get("members", [])):
+            result[member_iface_id] = seg_id
+    return result
 
 
 def render(topology: dict) -> str:
@@ -158,8 +319,28 @@ def render(topology: dict) -> str:
             if iface["name"] == b_if_name:
                 iface_link_id[iface["id"]] = lid
 
+    # ---------------------------------------------------------------------------
+    # #7: iface_id -> seg_id マップ（IF 行に data-seg-id を付与するため）
+    # ---------------------------------------------------------------------------
+    iface_seg_id = _build_iface_seg_id(segments)
+
+    # ---------------------------------------------------------------------------
+    # #6: static ルート経路解決マップ（static 行に data-route-edge 等を付与するため）
+    # ---------------------------------------------------------------------------
+    static_route_map = _build_static_route_map(
+        routing.get("static", []),
+        links,
+        segments,
+        interfaces,
+    )
+
     # 機器カード
-    cards_html = _device_cards(devices, interfaces, routing, iface_link_id=iface_link_id)
+    cards_html = _device_cards(
+        devices, interfaces, routing,
+        iface_link_id=iface_link_id,
+        iface_seg_id=iface_seg_id,
+        static_route_map=static_route_map,
+    )
 
     # データのある routing キーを一度だけ計算し、トグルと CSS 両方に使用
     active = _active_routing_keys(routing)

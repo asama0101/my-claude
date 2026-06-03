@@ -11,19 +11,29 @@ def _device_cards(
     interfaces: list[dict],
     routing: dict,
     iface_link_id: dict[str, str] | None = None,
+    iface_seg_id: dict[str, str] | None = None,
+    static_route_map: dict[tuple[str, str], dict] | None = None,
 ) -> str:
     """機器ごとのカード HTML を生成する（図の下に表示）
 
     Args:
-        devices:       デバイスリスト
-        interfaces:    インタフェースリスト
-        routing:       ルーティング dict
-        iface_link_id: ``{iface_id: link_id}`` マップ。
-                       リンク端点の IF 行 <tr> に ``data-link-id`` を付与するために使用する。
-                       None の場合は付与しない（後方互換）。
+        devices:          デバイスリスト
+        interfaces:       インタフェースリスト
+        routing:          ルーティング dict
+        iface_link_id:    ``{iface_id: link_id}`` マップ。
+                          リンク端点の IF 行 <tr> に ``data-link-id`` を付与するために使用する。
+                          None の場合は付与しない（後方互換）。
+        iface_seg_id:     ``{iface_id: seg_id}`` マップ（#7）。
+                          セグメントメンバーの IF 行 <tr> に ``data-seg-id`` を付与する。
+        static_route_map: ``{(device, prefix): {route_edge_id, nexthop_device_id}}`` マップ（#6）。
+                          static 行に ``data-route-edge`` / ``data-route-nexthop-device`` を付与する。
     """
     if iface_link_id is None:
         iface_link_id = {}
+    if iface_seg_id is None:
+        iface_seg_id = {}
+    if static_route_map is None:
+        static_route_map = {}
 
     # device_id -> interfaces マップ
     iface_by_device: dict[str, list[dict]] = {}
@@ -56,9 +66,15 @@ def _device_cards(
         if_row_parts = []
         for iface in sorted(iface_by_device.get(dev_id, []), key=lambda i: i["name"]):
             shutdown_mark = " (shutdown)" if iface.get("shutdown") else ""
-            # リンク端点の IF には data-link-id を付与する
+            # リンク端点の IF には data-link-id を付与する（Phase D）
             lid = iface_link_id.get(iface["id"], "")
-            tr_attrs = f' data-link-id="{_esc(lid)}"' if lid else ""
+            # セグメントメンバーの IF には data-seg-id を付与する（#7）
+            sid = iface_seg_id.get(iface["id"], "")
+            tr_attrs = ""
+            if lid:
+                tr_attrs += f' data-link-id="{_esc(lid)}"'
+            if sid:
+                tr_attrs += f' data-seg-id="{_esc(sid)}"'
             if_row_parts.append(
                 f"<tr{tr_attrs}>"
                 f"<td>{_esc(iface['name'])}{_esc(shutdown_mark)}</td>"
@@ -92,13 +108,23 @@ def _device_cards(
             )
         ospf_rows = "".join(ospf_row_parts)
 
-        # static サマリー
+        # static サマリー（#6: data-route-edge / data-route-nexthop-device 付与）
         static_row_parts = []
         for s in static_by_device.get(dev_id, []):
+            prefix = s.get("prefix", "")
+            next_hop = s.get("next_hop", "")
+            route_info = static_route_map.get((dev_id, prefix), {})
+            route_edge_id = route_info.get("route_edge_id") or ""
+            nexthop_device_id = route_info.get("nexthop_device_id") or ""
+            tr_attrs = ""
+            if route_edge_id:
+                tr_attrs += f' data-route-edge="{_esc(route_edge_id)}"'
+            if nexthop_device_id:
+                tr_attrs += f' data-route-nexthop-device="{_esc(nexthop_device_id)}"'
             static_row_parts.append(
-                f"<tr>"
-                f"<td>{_esc(s.get('prefix', ''))}</td>"
-                f"<td>{_esc(s.get('next_hop', ''))}</td>"
+                f"<tr{tr_attrs}>"
+                f"<td>{_esc(prefix)}</td>"
+                f"<td>{_esc(next_hop)}</td>"
                 f"</tr>"
             )
         static_rows = "".join(static_row_parts)

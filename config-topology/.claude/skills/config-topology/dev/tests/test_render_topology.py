@@ -2609,13 +2609,18 @@ def test_phaseB1a_physical_node_shows_if_ip():
 
 @pytest.mark.unit
 def test_phaseB1a_physical_node_shows_if_without_ip():
-    """Phase B #1a: IP 未設定 IF も Physical ビューのノードに表示される（IF名のみ）"""
+    """Phase B #1a (iteration-3 更新): GigabitEthernet0/2 は非接続・非Loopback のため
+    ノード SVG には表示されない（チップ対象外）。カード表には残る。"""
     from lib.rendering import render
     html = render(_make_physical_detail_topology())
     phys = _extract_physical_view(html)
-    # GigabitEthernet0/2 は IP なし → name だけでも表示される
-    assert "GigabitEthernet0/2" in phys, \
-        "IP 未設定 IF（GigabitEthernet0/2）が Physical ノードに表示されていない"
+    # iteration-3 #2 仕様: 非接続・非Loopback はノード SVG に出ない
+    # Physical ビュー SVG に GigabitEthernet0/2 が含まれないこと
+    # （ただし他のビューやカードには出てよい）
+    # Physical ビューには GigabitEthernet0/2 は存在しない（接続なし・非Loopback）
+    # 接続IF（GigabitEthernet0/0）は存在すること
+    assert "GigabitEthernet0/0" in phys, \
+        "Physical ビューに接続IF（GigabitEthernet0/0）が存在しない"
 
 
 @pytest.mark.unit
@@ -2632,13 +2637,21 @@ def test_phaseB1a_physical_node_shows_loopback():
 
 @pytest.mark.unit
 def test_phaseB1a_shutdown_if_has_dimmed_class():
-    """Phase B #1a: shutdown=True の IF 行に if-shutdown クラス（淡色）が付く"""
+    """Phase B #1a (iteration-3 更新): shutdown=True の接続IF はチップで if-chip-shutdown クラスが付く。
+    GigabitEthernet0/1 は非接続のためチップ対象外（カード表のみ）。
+    接続IFに shutdown があれば if-chip-shutdown が付く。"""
     from lib.rendering import render
-    html = render(_make_physical_detail_topology())
+    # 接続 IF が shutdown=True のケースを確認
+    topo = _make_physical_detail_topology()
+    # GigabitEthernet0/0 を shutdown にする
+    for iface in topo["interfaces"]:
+        if iface["name"] == "GigabitEthernet0/0" and iface["device"] == "r1":
+            iface["shutdown"] = True
+    html = render(topo)
     phys = _extract_physical_view(html)
-    # GigabitEthernet0/1 は shutdown=True → 淡色クラスが付く
-    assert "if-shutdown" in phys, \
-        "shutdown IF に if-shutdown クラスが付いていない"
+    # 接続IF が shutdown の場合 if-chip-shutdown が付くこと
+    assert "if-chip-shutdown" in phys, \
+        "shutdown の接続IF に if-chip-shutdown クラスが付いていない"
 
 
 @pytest.mark.unit
@@ -2675,13 +2688,13 @@ def test_phaseB1a_if_description_in_title():
 
 @pytest.mark.unit
 def test_phaseB1a_if_description_in_title_element():
-    """Phase B #1a: description は <title> 要素として表現される（hover 表示）"""
+    """Phase B #1a (iteration-3 更新): description は チップの <title> に「IF名 IP（desc）」形式で含まれる。"""
     from lib.rendering import render
     html = render(_make_physical_detail_topology())
     phys = _extract_physical_view(html)
-    # <title>CORE-LINK-to-R2</title> が存在すること（常時真の OR 後半は削除）
-    assert "<title>CORE-LINK-to-R2</title>" in phys, \
-        "CORE-LINK-to-R2 description が <title>...</title> 形式で存在しない"
+    # チップの <title> に CORE-LINK-to-R2 が含まれること（形式: "GigabitEthernet0/0 10.0.0.1/30 （CORE-LINK-to-R2）"）
+    assert "CORE-LINK-to-R2" in phys, \
+        "GigabitEthernet0/0 の description（CORE-LINK-to-R2）がチップの <title> に存在しない"
 
 
 @pytest.mark.unit
@@ -2737,42 +2750,47 @@ def test_phaseB1a_ospf_node_no_if_list():
 # ---- 物理リンクに a_if — b_if + subnet の常時テキストが出る ----------------
 
 @pytest.mark.unit
-def test_phaseB1a_link_label_shows_if_names():
-    """Phase B #1a: 物理リンクに「a_if — b_if」の常時 <text> ラベルが表示される"""
+def test_phaseB1a_link_label_text_absent_link_line_present():
+    """Phase B #1a (iteration-3 更新): 物理リンクに常時 link-label <text> は生成しない。
+    link-line は存在し、subnet は <title> hover で参照可能。"""
     from lib.rendering import render
     html = render(_make_physical_detail_topology())
     phys = _extract_physical_view(html)
-    # "GigabitEthernet0/0 — GigabitEthernet0/0" または短縮形が <text> 要素に入る
-    # セパレータは — または " - " 等を許容
-    has_link_label = (
-        ("GigabitEthernet0/0" in phys and "—" in phys) or
-        ("GigabitEthernet0/0" in phys and " - " in phys) or
-        "link-label" in phys
+    # iteration-3 #1 仕様: link-label <text> は生成されない
+    link_label_texts = re.findall(
+        r'<text[^>]+class="[^"]*link-label[^"]*"[^>]*>',
+        phys
     )
-    assert has_link_label, \
-        "物理リンクに IF 名の常時ラベルが表示されていない"
+    assert len(link_label_texts) == 0, \
+        f"Physical ビューに link-label <text> が残っている（iteration-3 #1 で撤去済み）: {len(link_label_texts)}"
+    # link-line は残ること
+    assert 'class="link-line' in phys, \
+        "Physical ビューにリンク線（link-line）が存在しない"
 
 
 @pytest.mark.unit
-def test_phaseB1a_link_label_is_text_element():
-    """Phase B #1a: リンクラベルは SVG <text> 要素で実装される（title でなく常時表示）"""
+def test_phaseB1a_link_label_class_absent_title_present():
+    """Phase B #1a (iteration-3 更新): link-label クラスの常時 <text> は不要、<title> hover は残る。"""
     from lib.rendering import render
     html = render(_make_physical_detail_topology())
     phys = _extract_physical_view(html)
-    # Physical ビューに link-label クラスの text 要素があること
-    assert 'class="link-label' in phys or \
-           (re.search(r'<text[^>]*>[^<]*(GigabitEthernet0/0)[^<]*</text>', phys) is not None), \
-        "リンクラベルが <text> 要素で実装されていない"
+    # iteration-3 #1 仕様: link-label クラスの <text> は存在しない
+    assert 'class="link-label' not in phys, \
+        "link-label クラスの <text> 要素が残っている（iteration-3 #1 で撤去済み）"
+    # link-edge 内の <title> は hover 用として残る
+    assert '<title>' in phys, \
+        "Physical ビューに <title>（hover 用）が存在しない"
 
 
 @pytest.mark.unit
 def test_phaseB1a_link_label_shows_subnet():
-    """Phase B #1a: リンクラベルに subnet（10.0.0.0/30）が表示される"""
+    """Phase B #1a (iteration-3 更新): subnet は <title> hover で参照可能。"""
     from lib.rendering import render
     html = render(_make_physical_detail_topology())
     phys = _extract_physical_view(html)
+    # subnet は <title> に含まれること（hover で確認できる）
     assert "10.0.0.0/30" in phys, \
-        "物理リンクのラベルに subnet（10.0.0.0/30）が表示されていない"
+        "物理リンクの subnet（10.0.0.0/30）が <title> にも存在しない"
 
 
 # ---- 可変高ノードのレイアウト重なりなし ------------------------------------
@@ -3215,18 +3233,23 @@ def test_m1_node_size_for_consistent_height():
 
 @pytest.mark.unit
 def test_t1_active_if_no_shutdown_class_strict():
-    """T1: active IF（GigabitEthernet0/0）の <text> 要素クラスに if-shutdown が含まれない（厳密）"""
+    """T1 (iteration-3 更新): active IF（GigabitEthernet0/0）のチップに if-chip-shutdown が含まれない。
+    チップ化後は <text> ではなく <g class="if-chip"> で表現される。"""
     from lib.rendering import render
     html = render(_make_physical_detail_topology())
     phys = _extract_physical_view(html)
 
-    # <text ... class="...">...</text> で GigabitEthernet0/0 を含む要素を全抽出
-    text_elems = re.findall(r'<text[^>]+class="([^"]+)"[^>]*>[^<]*GigabitEthernet0/0[^<]*</text>', phys)
-    assert len(text_elems) >= 1, \
-        "GigabitEthernet0/0 を含む <text> 要素が見つからない"
-    for cls in text_elems:
-        assert "if-shutdown" not in cls, \
-            f"active IF GigabitEthernet0/0 の <text> クラスに if-shutdown が含まれている: class='{cls}'"
+    # GigabitEthernet0/0 が <title> 内にあるチップを抽出
+    # if-chip グループで data-if="GigabitEthernet0/0" のものが if-chip-shutdown でないこと
+    chip_groups = re.findall(
+        r'<g class="([^"]+)" data-if="GigabitEthernet0/0"[^>]*>',
+        phys
+    )
+    assert len(chip_groups) >= 1, \
+        "GigabitEthernet0/0 のチップ要素（data-if 属性）が見つからない"
+    for cls in chip_groups:
+        assert "if-chip-shutdown" not in cls, \
+            f"active IF GigabitEthernet0/0 のチップに if-chip-shutdown が含まれている: class='{cls}'"
 
 
 # ---------------------------------------------------------------------------
@@ -3306,40 +3329,43 @@ def _make_multi_link_topology():
 
 @pytest.mark.unit
 def test_t4_link_label_text_contains_if_name():
-    """T4: <text class="link-label..."> 要素内に IF 名が入る（直接検証）"""
+    """T4 (iteration-3 更新): Physical ビューのリンクに link-label <text> は生成されない。
+    IF名は <title> hover で確認可能（link-edge 内 title に IF 名が含まれる）。"""
     from lib.rendering import render
     html = render(_make_physical_detail_topology())
     phys = _extract_physical_view(html)
-    # <text ... class="link-label...">...</text> を全抽出
+    # iteration-3 #1 仕様: link-label <text> は存在しない
     link_label_texts = re.findall(
         r'<text[^>]+class="[^"]*link-label[^"]*"[^>]*>(.*?)</text>',
         phys, re.DOTALL
     )
-    assert len(link_label_texts) >= 1, \
-        "link-label クラスの <text> 要素が見つからない"
-    combined = " ".join(link_label_texts)
-    # GigabitEthernet0/0 が含まれること
-    assert "GigabitEthernet0/0" in combined, \
-        f"link-label <text> 要素に IF 名が含まれていない: {combined[:200]}"
+    assert len(link_label_texts) == 0, \
+        f"link-label <text> が残存している（iteration-3 #1 で撤去済み）: {link_label_texts}"
+    # IF 名は <title> に存在すること
+    titles = re.findall(r'<title>([^<]+)</title>', phys)
+    combined_titles = " ".join(titles)
+    assert "GigabitEthernet0/0" in combined_titles, \
+        f"<title> に IF 名が含まれていない: titles={titles[:5]}"
 
 
 @pytest.mark.unit
 def test_t4_multiple_links_generate_multiple_labels():
-    """T4: 複数リンクを持つ topology で各リンク分のラベルが生成される"""
+    """T4 (iteration-3 更新): 複数リンクを持つ topology で link-label <text> は生成されない。
+    各リンクに <title>（hover）は存在する。"""
     from lib.rendering import render
     html = render(_make_multi_link_topology())
     phys = _extract_physical_view(html)
+    # iteration-3 #1 仕様: link-label <text> は存在しない
     link_label_texts = re.findall(
         r'<text[^>]+class="[^"]*link-label[^"]*"[^>]*>(.*?)</text>',
         phys, re.DOTALL
     )
-    # 2 リンク分のラベル（IF ペア + subnet）= 4 テキスト要素（各リンクに2行）
-    assert len(link_label_texts) >= 2, \
-        f"複数リンクでラベルが {len(link_label_texts)} 個（期待: >=2）"
-    combined = " ".join(link_label_texts)
-    # 両リンクの IF 名が含まれること
-    assert "GigabitEthernet0/0" in combined, "リンク1の IF 名がラベルにない"
-    assert "GigabitEthernet0/1" in combined, "リンク2の IF 名がラベルにない"
+    assert len(link_label_texts) == 0, \
+        f"複数リンク topology で link-label <text> が残存している: {len(link_label_texts)}"
+    # link-line が 2 本存在すること（2 リンク分）
+    link_lines = re.findall(r'class="link-line[^"]*"', phys)
+    assert len(link_lines) >= 2, \
+        f"2 リンク topology で link-line が {len(link_lines)} 本（期待: >=2）"
 
 
 # ================================================================
@@ -5279,3 +5305,1551 @@ def test_ospf_view_segment_member_rendered_when_ospf_entries_empty():
     seg_edges = re.findall(r'<line[^>]+class="seg-edge[^"]*"[^>]*>', ospf_view)
     assert len(seg_edges) >= 1, \
         f"routing.ospf=[] でも seg-edge が描画されるべき: {len(seg_edges)}本"
+
+
+# ===========================================================================
+# iteration-3 Batch1: #1 Physical リンク常時ラベル撤去、#2 IFチップ化、
+#                     #3 LAYERS トグル位置移設、#8 レイアウト改善
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# #1: Physical リンクに常時 link-label <text> が生成されない
+# ---------------------------------------------------------------------------
+
+def _make_link_topology_for_i3():
+    """iteration-3 用: リンクを持つシンプルな 2 デバイス topology"""
+    return {
+        "title": "i3 Link Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "GigabitEthernet0/0",
+             "b_device": "r2", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+@pytest.mark.unit
+def test_i3_no_link_label_text_in_physical():
+    """#1: Physical ビューのリンク線に常時 link-label <text> が生成されない。
+    hover title は残ってよいが、<text class="link-label..."> は消える。"""
+    from lib.rendering import render
+    html = render(_make_link_topology_for_i3())
+    phys = _extract_physical_view(html)
+    # <text ... class="link-label ..."> 要素が存在しないこと
+    link_label_texts = re.findall(
+        r'<text[^>]+class="[^"]*link-label[^"]*"[^>]*>',
+        phys
+    )
+    assert len(link_label_texts) == 0, \
+        f"Physical ビューに link-label <text> が {len(link_label_texts)} 個残っている（撤去済みのはず）: {link_label_texts}"
+
+
+@pytest.mark.unit
+def test_i3_link_line_remains_in_physical():
+    """#1: link-label を撤去してもリンク線（link-line）は残る。"""
+    from lib.rendering import render
+    html = render(_make_link_topology_for_i3())
+    phys = _extract_physical_view(html)
+    assert 'class="link-line' in phys, \
+        "Physical ビューにリンク線（link-line）が存在しない"
+
+
+@pytest.mark.unit
+def test_i3_link_title_remains_for_hover():
+    """#1: <title> 要素（hover 表示用）はリンクエッジに残る。"""
+    from lib.rendering import render
+    html = render(_make_link_topology_for_i3())
+    phys = _extract_physical_view(html)
+    # link-edge 内に <title> が存在すること
+    m = re.search(r'class="link-edge"[^>]*>.*?<title>', phys, re.DOTALL)
+    assert m is not None, \
+        "Physical ビューのリンクエッジに <title>（hover 用）が存在しない"
+
+
+# ---------------------------------------------------------------------------
+# #2: Physical ノードに接続IF/Loopback のみチップ要素として表示
+# ---------------------------------------------------------------------------
+
+def _make_chip_topology():
+    """接続IF・Loopback・非接続非Loopback が混在する topology（チップ化テスト用）"""
+    return {
+        "title": "IF Chip Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            # 接続IF（リンク端点）
+            {"id": "r1::Gi0/0", "device": "r1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": "to-R2", "shutdown": False},
+            # Loopback（常時チップ表示）
+            {"id": "r1::Lo0", "device": "r1", "name": "Loopback0",
+             "ip": "10.255.0.1/32", "vlan": None, "description": None, "shutdown": False},
+            # 非接続・非Loopback（ノードSVGに出ない）
+            {"id": "r1::Gi0/1", "device": "r1", "name": "GigabitEthernet0/1",
+             "ip": "192.168.1.1/24", "vlan": None, "description": "SITE-LAN", "shutdown": False},
+            {"id": "r1::Gi0/2", "device": "r1", "name": "GigabitEthernet0/2",
+             "ip": None, "vlan": None, "description": None, "shutdown": False},
+            # r2 接続IF
+            {"id": "r2::Gi0/0", "device": "r2", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": "to-R1", "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "GigabitEthernet0/0",
+             "b_device": "r2", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+@pytest.mark.unit
+def test_i3_chip_connected_if_shown_in_node():
+    """#2: 接続IF（リンク端点）はノード SVG にチップ要素（if-chip クラス）として出る。"""
+    from lib.rendering import render
+    html = render(_make_chip_topology())
+    phys = _extract_physical_view(html)
+    # r1 の device-node 内で Gi0/0 に対応するチップ要素が存在すること
+    # if-chip クラスを持つ要素（rect/circle）が存在する
+    chip_elems = re.findall(r'class="[^"]*if-chip[^"]*"', phys)
+    assert len(chip_elems) >= 1, \
+        f"Physical ビューにチップ要素（if-chip クラス）が見つからない: {len(chip_elems)}"
+
+
+@pytest.mark.unit
+def test_i3_chip_loopback_shown_in_node():
+    """#2: Loopback（Lo/Loopback で始まる）はノード SVG にチップ要素として出る。"""
+    from lib.rendering import render
+    html = render(_make_chip_topology())
+    phys = _extract_physical_view(html)
+    # Loopback0 に対応するチップが存在すること（title に Loopback0 が含まれる）
+    # <title>Loopback0 ... </title> が if-chip 近傍に存在する
+    assert "Loopback0" in phys, \
+        "Loopback0 が Physical ビューに存在しない（チップとして出るべき）"
+    chip_elems = re.findall(r'class="[^"]*if-chip[^"]*"', phys)
+    assert len(chip_elems) >= 2, \
+        f"接続IF + Loopback で if-chip が 2 個以上あるべき: {len(chip_elems)}"
+
+
+@pytest.mark.unit
+def test_i3_chip_non_connected_non_loopback_not_in_node_svg():
+    """#2: 非接続・非Loopback の IF はノード SVG に if-row/if-chip として出ない。"""
+    from lib.rendering import render
+    html = render(_make_chip_topology())
+    phys = _extract_physical_view(html)
+    # GigabitEthernet0/1（非接続・非Loopback）の if-row がノード SVG に存在しないこと
+    # ただし SITE-LAN description はカード表（SVG外）には出てよい
+    # Physical ビュー SVG 内に if-row で Gi0/1 の IP（192.168.1.1）が表示されないこと
+    # （if-chip の title には許容するが if-row としての表示はしない）
+    if_row_elems = re.findall(r'class="[^"]*if-row[^"]*"', phys)
+    assert len(if_row_elems) == 0, \
+        f"Physical ビューに if-row 要素が残っている（チップ化後は不要）: {len(if_row_elems)}"
+
+
+@pytest.mark.unit
+def test_i3_chip_has_hover_title():
+    """#2: チップ要素（if-chip）の hover <title> に IF 名/IP が含まれる。"""
+    from lib.rendering import render
+    html = render(_make_chip_topology())
+    phys = _extract_physical_view(html)
+    # if-chip 近傍に <title>GigabitEthernet0/0 ... </title> が存在すること
+    # （チップ g 内に title 要素がある）
+    chip_group_pattern = re.findall(
+        r'class="[^"]*if-chip[^"]*"[^>]*>.*?</(?:rect|circle|g)>',
+        phys, re.DOTALL
+    )
+    # 全 Physical SVG 内で GigabitEthernet0/0 が title 要素の近傍にあること
+    titles_in_phys = re.findall(r'<title>([^<]+)</title>', phys)
+    if_name_in_title = any("GigabitEthernet0/0" in t or "Loopback0" in t for t in titles_in_phys)
+    assert if_name_in_title, \
+        f"if-chip の <title> に IF 名（GigabitEthernet0/0 / Loopback0）が見つからない: titles={titles_in_phys[:5]}"
+
+
+@pytest.mark.unit
+def test_i3_chip_card_still_has_all_interfaces():
+    """#2: カード表（#cards-section 以降）には非接続IFを含む全IFが残る。"""
+    from lib.rendering import render
+    html = render(_make_chip_topology())
+    # SVG 以降の cards-section 部分を取り出す
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    assert cards_m, "cards-section が見つからない"
+    cards = cards_m.group(1)
+    # 非接続・非Loopback のGi0/1 IP（192.168.1.1）がカードには存在すること
+    assert "GigabitEthernet0/1" in cards, \
+        "カード表に非接続IF（GigabitEthernet0/1）が存在しない"
+    assert "GigabitEthernet0/0" in cards, \
+        "カード表に接続IF（GigabitEthernet0/0）が存在しない"
+    assert "Loopback0" in cards, \
+        "カード表に Loopback0 が存在しない"
+
+
+@pytest.mark.unit
+def test_i3_chip_deterministic():
+    """#2: チップ化 Physical ビューの render が決定的（2回一致）。"""
+    from lib.rendering import render
+    import copy
+    topo = _make_chip_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "チップ化後の render が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# #3: LAYERS トグルが cards-section の直前/近傍に配置される
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_i3_layers_toggle_near_cards_section(rendered_html):
+    """#3: LAYERS トグルの DOM が cards-section より前かつ cards-section 近傍にある。
+    コントロールバー（.controls）の中にある古い位置ではなく、cards-section 付近に移設される。"""
+    # cards-section の直前（最後の id/class 付き要素）に toggle が存在すること
+    # 具体的には id="cards-section" の直前の 2000 文字以内に layer-toggle が存在する
+    cards_pos = rendered_html.find('id="cards-section"')
+    assert cards_pos > 0, "cards-section が見つからない"
+    # cards-section の直前 2000 文字以内に layer-toggle が存在すること
+    pre_cards = rendered_html[max(0, cards_pos - 2000):cards_pos]
+    assert 'layer-toggle' in pre_cards or 'data-layer=' in pre_cards, \
+        "LAYERS トグルが cards-section の直前（2000文字以内）に存在しない"
+
+
+@pytest.mark.unit
+def test_i3_layers_toggle_not_only_in_controls(rendered_html):
+    """#3: LAYERS トグルがコントロールバー（.controls 内）だけに存在しない。
+    移設後は cards-section 近傍に存在し、.controls 内には置かれない（または空）。"""
+    # .controls セクション内の layer-toggle の存在を確認
+    controls_m = re.search(r'class="controls"[^>]*>(.*?)</div>', rendered_html, re.DOTALL)
+    if controls_m:
+        controls_content = controls_m.group(1)
+        # controls 内に layer-toggle が「ない」か、あっても cards-section 近傍にもある
+        # 新仕様: controls 内には layer-toggle を含まない
+        assert 'layer-toggle' not in controls_content, \
+            "移設後も .controls 内に layer-toggle が残っている（移設されていない）"
+
+
+# ---------------------------------------------------------------------------
+# #8: diagram-pane max-height / overflow, cards 折りたたみトグル
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_i3_diagram_pane_has_overflow_css(rendered_html):
+    """#8: SVG を囲む要素（#svg-container or #diagram-pane）に overflow:auto/scroll の CSS がある。"""
+    # style 属性またはスタイルブロック内に overflow が設定されていること
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined_style = "\n".join(style_blocks)
+    # SVG コンテナの CSS に overflow が含まれること
+    has_overflow = (
+        re.search(r'#svg-container\s*\{[^}]*overflow\s*:', combined_style) is not None or
+        re.search(r'#diagram-pane\s*\{[^}]*overflow\s*:', combined_style) is not None
+    )
+    assert has_overflow, \
+        "#svg-container または #diagram-pane の CSS に overflow が設定されていない"
+
+
+@pytest.mark.unit
+def test_i3_diagram_pane_has_max_height_css(rendered_html):
+    """#8: SVG コンテナ（#svg-container）に max-height CSS が設定されている。"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined_style = "\n".join(style_blocks)
+    has_max_height = (
+        re.search(r'#svg-container\s*\{[^}]*max-height\s*:', combined_style) is not None or
+        re.search(r'#diagram-pane\s*\{[^}]*max-height\s*:', combined_style) is not None
+    )
+    assert has_max_height, \
+        "#svg-container または #diagram-pane の CSS に max-height が設定されていない"
+
+
+@pytest.mark.unit
+def test_i3_cards_section_default_visible(rendered_html):
+    """#8: cards-section はデフォルト表示（display:none / hidden で隠れていない）。"""
+    # id="cards-section" の要素に display:none がついていないこと
+    # style 属性で直接隠されていないこと
+    m = re.search(r'id="cards-section"([^>]*)', rendered_html)
+    assert m, "cards-section が見つからない"
+    attrs = m.group(1)
+    assert 'display:none' not in attrs and 'display: none' not in attrs, \
+        "cards-section がデフォルトで display:none になっている（常時表示すべき）"
+
+
+@pytest.mark.unit
+def test_i3_cards_toggle_button_exists(rendered_html):
+    """#8: cards-section を折りたたむためのトグルボタンが存在する。"""
+    # 'Device Details' または 'cards' に関連するボタン/チェックボックスが存在すること
+    has_toggle = (
+        re.search(r'onclick="[^"]*card[^"]*"', rendered_html, re.IGNORECASE) is not None or
+        re.search(r'onclick="toggleCards', rendered_html) is not None or
+        re.search(r'id="toggle-cards"', rendered_html) is not None or
+        re.search(r'data-toggle="cards"', rendered_html) is not None
+    )
+    assert has_toggle, \
+        "cards-section 折りたたみトグルボタン（toggleCards 等）が存在しない"
+
+
+@pytest.mark.unit
+def test_i3_cards_toggle_js_function_exists(rendered_html):
+    """#8: JS に cards 折りたたみ関数（toggleCards 等）が定義されている。"""
+    script_blocks = re.findall(r'<script[^>]*>(.*?)</script>', rendered_html, re.DOTALL | re.IGNORECASE)
+    # application/json スクリプトを除外
+    js_blocks = [b for b in script_blocks if 'application/json' not in b[:50]]
+    combined_js = "\n".join(js_blocks)
+    has_toggle_fn = (
+        'toggleCards' in combined_js or
+        re.search(r'function\s+\w*[Cc]ard[Ss]', combined_js) is not None or
+        re.search(r'cards.*toggle|toggle.*cards', combined_js, re.IGNORECASE) is not None
+    )
+    assert has_toggle_fn, \
+        "JS に cards 折りたたみ関数が定義されていない"
+
+
+# ===========================================================================
+# iteration-3 Batch2: #4 AS枠視認性改善 / #5 BGP IP↔IP表示
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# #4: AS枠（as-group）視認性改善テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_i3b4_as_group_label_chip_has_rect_bg():
+    """#4: as-group ラベルが背景チップ（<rect class="as-group-label-bg">）を持つ"""
+    from lib.rendering.svg import _svg_bgp_as_groups
+    devs = [
+        {"id": "r1", "hostname": "R1", "as": 65001},
+        {"id": "r2", "hostname": "R2", "as": 65001},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_as_groups(devs, positions)
+    # ラベル背景チップ: class="as-group-label-bg" の <rect> が存在すること
+    assert 'as-group-label-bg' in svg, \
+        "as-group ラベルの背景チップ要素（as-group-label-bg）が存在しない"
+
+
+@pytest.mark.unit
+def test_i3b4_as_group_label_chip_before_text():
+    """#4: as-group ラベル背景チップが <text class="as-group-label"> より前に DOM 出力される（背面）"""
+    from lib.rendering.svg import _svg_bgp_as_groups
+    devs = [{"id": "r1", "hostname": "R1", "as": 65001}]
+    positions = {"r1": (300.0, 300.0)}
+    svg = _svg_bgp_as_groups(devs, positions)
+    chip_pos = svg.find('as-group-label-bg')
+    # <text ... class="as-group-label"> の位置（ダブルクォート or シングルクォート）
+    label_pos = svg.find('<text')
+    # chip rect が最初の <text> より前に現れること
+    assert chip_pos != -1, "as-group-label-bg が見つからない"
+    assert label_pos != -1, "<text> が見つからない"
+    assert chip_pos < label_pos, \
+        f"背景チップ({chip_pos}) が <text>({label_pos}) より後に出力されている"
+
+
+@pytest.mark.unit
+def test_i3b4_as_group_css_fill_defined():
+    """#4: CSS に as-group の fill（背景色）ルールが存在する"""
+    from lib.rendering.template import _CSS
+    # as-group クラスに fill プロパティが定義されていること
+    assert '.as-group' in _CSS, "CSS に .as-group ルールがない"
+    # as-group-label-bg のスタイルも定義されていること
+    assert 'as-group-label-bg' in _CSS, "CSS に as-group-label-bg ルールがない"
+
+
+@pytest.mark.unit
+def test_i3b4_as_group_css_stroke_visible():
+    """#4: CSS の .as-group に stroke（枠線）プロパティが定義されている"""
+    from lib.rendering.template import _CSS
+    import re
+    # .as-group ブロックを抽出して stroke プロパティを確認
+    m = re.search(r'\.as-group\s*\{([^}]+)\}', _CSS)
+    assert m is not None, "CSS に .as-group { ... } ブロックが見つからない"
+    block = m.group(1)
+    assert 'stroke' in block, f"CSS の .as-group に stroke プロパティがない: {block}"
+
+
+@pytest.mark.unit
+def test_i3b4_as_group_label_chip_text_correct():
+    """#4: as-group ラベルチップの <text> に「AS {asn}」が含まれる"""
+    from lib.rendering.svg import _svg_bgp_as_groups
+    devs = [
+        {"id": "r1", "hostname": "R1", "as": 65001},
+        {"id": "r2", "hostname": "R2", "as": 65002},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+    svg = _svg_bgp_as_groups(devs, positions)
+    assert "AS 65001" in svg, "AS 65001 ラベルが存在しない"
+    assert "AS 65002" in svg, "AS 65002 ラベルが存在しない"
+
+
+@pytest.mark.unit
+def test_i3b4_as_group_label_chip_at_topleft():
+    """#4: ラベルチップが枠の左上付近に配置される（x が枠左端 + 小さなオフセット）"""
+    from lib.rendering.svg import _svg_bgp_as_groups
+    devs = [{"id": "r1", "hostname": "R1", "as": 65001}]
+    positions = {"r1": (300.0, 300.0)}
+    svg = _svg_bgp_as_groups(devs, positions)
+
+    # as-group <rect>（class 完全一致）の x/width を抽出。
+    # class="as-group-label-bg" は除外するために class="as-group" のみを対象とする。
+    m_rect = re.search(r'<rect[^>]+x="([^"]+)"[^>]+width="([^"]+)"[^>]+class="as-group"[^-]', svg)
+    if not m_rect:
+        m_rect = re.search(r'<rect[^>]+class="as-group"[^-][^>]*x="([^"]+)"[^>]*width="([^"]+)"', svg)
+    if not m_rect:
+        # フォールバック: rx="10" ry="10" class="as-group" パターン（svg.py の出力順序）
+        m_rect = re.search(r'<rect x="([^"]+)" y="[^"]+" width="([^"]+)" height="[^"]+" rx="10" ry="10" class="as-group"', svg)
+    assert m_rect, f"as-group <rect> が見つからない: {svg[:300]}"
+    rect_x = float(m_rect.group(1))
+    rect_w = float(m_rect.group(2))
+
+    # ラベル（text）の x 座標を抽出
+    m_text = re.search(r'<text x="([^"]+)"[^>]+class="as-group-label"', svg)
+    if not m_text:
+        m_text = re.search(r'<text[^>]+class="as-group-label"[^>]*x="([^"]+)"', svg)
+    assert m_text, "as-group-label <text> が見つからない"
+    label_x = float(m_text.group(1))
+
+    # ラベルが枠の左半分内（左寄り）に配置されていること
+    assert label_x >= rect_x, \
+        f"ラベル x={label_x:.1f} が枠左端 {rect_x:.1f} より左"
+    assert label_x < rect_x + rect_w / 2 + 1, \
+        f"ラベル x={label_x:.1f} が枠中央 {rect_x + rect_w/2:.1f} より右（左上配置でない）"
+
+
+@pytest.mark.unit
+def test_i3b4_as_group_deterministic_with_chip():
+    """#4: チップ付き AS 枠の出力が決定的（同一入力で2回一致）"""
+    from lib.rendering.svg import _svg_bgp_as_groups
+    import copy
+    devs = [
+        {"id": "r1", "hostname": "R1", "as": 65001},
+        {"id": "r2", "hostname": "R2", "as": 65002},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+    svg1 = _svg_bgp_as_groups(copy.deepcopy(devs), copy.deepcopy(positions))
+    svg2 = _svg_bgp_as_groups(copy.deepcopy(devs), copy.deepcopy(positions))
+    assert svg1 == svg2, "AS 枠チップ付きの出力が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# #5: BGP エッジの IP↔IP 表示テスト
+# ---------------------------------------------------------------------------
+
+def _make_ebgp_p2p_topology_with_ips():
+    """eBGP p2p: r1(10.0.0.1) ↔ r2(10.0.0.2)。local_ip/neighbor_ip 両方あり。"""
+    return {
+        "title": "eBGP P2P IP Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+def _make_ibgp_loopback_topology_no_local_ip():
+    """iBGP loopback ピア: local_ip が null のケース（欠損でも壊れない）"""
+    return {
+        "title": "iBGP Loopback IP Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65001, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::lo0", "device": "r1", "name": "Loopback0",
+             "ip": "10.255.0.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::lo0", "device": "r2", "name": "Loopback0",
+             "ip": "10.255.0.2/32", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": None,
+                 "neighbor_ip": "10.255.0.2", "peer_as": 65001, "type": "ibgp"},
+                {"device": "r2", "local_as": 65001, "local_ip": None,
+                 "neighbor_ip": "10.255.0.1", "peer_as": 65001, "type": "ibgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_i3b5_ebgp_edge_shows_neighbor_ip():
+    """#5: eBGP エッジに neighbor_ip (10.0.0.2) が表示される"""
+    from lib.rendering import render
+    html = render(_make_ebgp_p2p_topology_with_ips())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    assert "10.0.0.2" in bgp_view, \
+        "eBGP エッジに neighbor_ip (10.0.0.2) が表示されていない"
+
+
+@pytest.mark.unit
+def test_i3b5_ebgp_edge_shows_local_ip():
+    """#5: eBGP エッジに local_ip (10.0.0.1) が表示される"""
+    from lib.rendering import render
+    html = render(_make_ebgp_p2p_topology_with_ips())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    assert "10.0.0.1" in bgp_view, \
+        "eBGP エッジに local_ip (10.0.0.1) が表示されていない"
+
+
+@pytest.mark.unit
+def test_i3b5_ibgp_loopback_no_local_ip_no_crash():
+    """#5: local_ip=null の iBGP loopback ピアで例外が起きない"""
+    from lib.rendering import render
+    try:
+        html = render(_make_ibgp_loopback_topology_no_local_ip())
+    except Exception as e:
+        pytest.fail(f"local_ip=null の iBGP で例外が発生: {e}")
+    assert isinstance(html, str)
+    assert "<svg" in html.lower()
+
+
+@pytest.mark.unit
+def test_i3b5_ibgp_loopback_shows_neighbor_ip():
+    """#5: local_ip=null の iBGP でも neighbor_ip が表示される"""
+    from lib.rendering import render
+    html = render(_make_ibgp_loopback_topology_no_local_ip())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    # neighbor_ip (10.255.0.2 か 10.255.0.1) のどちらかが表示されること
+    has_ip = "10.255.0.1" in bgp_view or "10.255.0.2" in bgp_view
+    assert has_ip, \
+        "local_ip=null の iBGP でも neighbor_ip のいずれかが表示されていない"
+
+
+@pytest.mark.unit
+def test_i3b5_bgp_edge_title_has_ips():
+    """#5: BGP エッジ <title> に local_ip / neighbor_ip / AS 情報が含まれる"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert "<title>" in svg, "BGP エッジに <title> 要素がない"
+    assert "10.0.0.1" in svg, "<title> に local_ip が含まれない"
+    assert "10.0.0.2" in svg, "<title> に neighbor_ip が含まれない"
+
+
+@pytest.mark.unit
+def test_i3b5_bgp_edge_null_local_ip_title_no_crash():
+    """#5: local_ip=null の BGP エッジで <title> 生成が壊れない"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
+        {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": None,
+         "neighbor_ip": "10.255.0.2", "peer_as": 65001, "type": "ibgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    try:
+        svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    except Exception as e:
+        pytest.fail(f"local_ip=null で _svg_bgp_edges が例外: {e}")
+    assert "10.255.0.2" in svg, "neighbor_ip が表示されていない"
+
+
+@pytest.mark.unit
+def test_i3b5_ebgp_edge_ip_display_format():
+    """#5: eBGP エッジの IP 表示が「local_ip↔neighbor_ip」形式を含む"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    # IP 表示: 「10.0.0.1↔10.0.0.2」または「10.0.0.1 ↔ 10.0.0.2」形式
+    has_arrow = ("10.0.0.1↔10.0.0.2" in svg or
+                 "10.0.0.1 ↔ 10.0.0.2" in svg or
+                 ("10.0.0.1" in svg and "10.0.0.2" in svg))
+    assert has_arrow, "IP ↔ IP 形式の表示が存在しない"
+
+
+@pytest.mark.unit
+def test_i3b5_ibgp_loopback_null_local_ip_shows_neighbor_only():
+    """#5: local_ip=null の iBGP エッジは neighbor_ip のみを表示（欠損側は省略）"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
+        {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": None,
+         "neighbor_ip": "10.255.0.2", "peer_as": 65001, "type": "ibgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    # neighbor_ip が表示されること
+    assert "10.255.0.2" in svg, "neighbor_ip が表示されていない"
+    # "None" という文字列が本文（badge 表示）に出ないこと
+    # title 内は許容、badge テキストには出ないこと
+    badge_texts = re.findall(r'class="bgp-badge[^"]*"[^>]*>([^<]+)', svg)
+    for badge_text in badge_texts:
+        assert "None" not in badge_text, \
+            f"BGP バッジに 'None' 文字列が含まれている: {badge_text!r}"
+
+
+@pytest.mark.unit
+def test_i3b5_ebgp_edge_deterministic():
+    """#5: IP表示付き BGP エッジが決定的（同一入力で2回一致）"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg1 = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    svg2 = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert svg1 == svg2, "BGP エッジ IP 表示が非決定的"
+
+
+# ===========================================================================
+# iteration-3 Batch3 #6: Static Routes 行の経路ハイライト
+# ===========================================================================
+
+def _make_segment_static_topology():
+    """next_hop が共有セグメント上の機器を指す static ルートを含む topology。"""
+    return {
+        "title": "Segment Static Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "sw2", "hostname": "SW2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "gw1", "hostname": "GW1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "sw1::eth0", "device": "sw1", "name": "eth0",
+             "ip": "192.168.10.1/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw2::eth0", "device": "sw2", "name": "eth0",
+             "ip": "192.168.10.2/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "gw1::eth0", "device": "gw1", "name": "eth0",
+             "ip": "192.168.10.254/24", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [
+            {
+                "id": "seg-192_168_10_0_24",
+                "subnet": "192.168.10.0/24",
+                "members": ["sw1::eth0", "sw2::eth0", "gw1::eth0"],
+            }
+        ],
+        "routing": {
+            "bgp": [],
+            "ospf": [],
+            "static": [
+                {"device": "gw1", "prefix": "0.0.0.0/0", "next_hop": "192.168.10.2"},
+                {"device": "sw1", "prefix": "10.0.0.0/8", "next_hop": "192.168.10.254"},
+                {"device": "sw2", "prefix": "10.0.0.0/8", "next_hop": "192.168.99.1"},
+            ],
+        },
+    }
+
+
+def _make_p2p_static_topology():
+    """next_hop が p2p リンク上の機器を指す static ルートを含む topology。"""
+    return {
+        "title": "P2P Static Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [],
+            "ospf": [],
+            "static": [
+                {"device": "r1", "prefix": "0.0.0.0/0", "next_hop": "10.0.0.2"},
+                {"device": "r2", "prefix": "192.168.0.0/16", "next_hop": "10.0.0.1"},
+            ],
+        },
+    }
+
+
+# ---- #6-1: _build_static_route_map のユニットテスト -----------------------
+
+@pytest.mark.unit
+def test_i3b3_6_build_static_route_map_exists():
+    """#6: _build_static_route_map 関数が core.py に存在する"""
+    from lib.rendering.core import _build_static_route_map
+    assert callable(_build_static_route_map)
+
+
+@pytest.mark.unit
+def test_i3b3_6_static_route_map_p2p_finds_link():
+    """#6: p2p リンク上の next_hop -> route_edge_id が link_id になる"""
+    from lib.rendering.core import _build_static_route_map
+    from lib.rendering.svg import _make_link_id
+    topo = _make_p2p_static_topology()
+    route_map = _build_static_route_map(
+        topo["routing"]["static"],
+        topo["links"],
+        topo["segments"],
+        topo["interfaces"],
+    )
+    key = ("r1", "0.0.0.0/0")
+    assert key in route_map, f"r1/0.0.0.0/0 がマップに存在しない: {route_map}"
+    info = route_map[key]
+    expected_lid = _make_link_id("r1", "eth0", "r2", "eth0")
+    assert info.get("route_edge_id") == expected_lid, \
+        f"route_edge_id 不一致: {info.get('route_edge_id')!r} != {expected_lid!r}"
+    assert info.get("nexthop_device_id") == "r2", \
+        f"nexthop_device_id 不一致: {info.get('nexthop_device_id')!r}"
+
+
+@pytest.mark.unit
+def test_i3b3_6_static_route_map_p2p_reverse():
+    """#6: p2p リンクの逆方向も正しく解決される"""
+    from lib.rendering.core import _build_static_route_map
+    from lib.rendering.svg import _make_link_id
+    topo = _make_p2p_static_topology()
+    route_map = _build_static_route_map(
+        topo["routing"]["static"],
+        topo["links"],
+        topo["segments"],
+        topo["interfaces"],
+    )
+    key = ("r2", "192.168.0.0/16")
+    assert key in route_map, "r2/192.168.0.0/16 がマップに存在しない"
+    info = route_map[key]
+    expected_lid = _make_link_id("r1", "eth0", "r2", "eth0")
+    assert info.get("route_edge_id") == expected_lid
+    assert info.get("nexthop_device_id") == "r1"
+
+
+@pytest.mark.unit
+def test_i3b3_6_static_route_map_segment_finds_seg():
+    """#6: セグメント上の next_hop -> route_edge_id が seg-id になる"""
+    from lib.rendering.core import _build_static_route_map
+    topo = _make_segment_static_topology()
+    route_map = _build_static_route_map(
+        topo["routing"]["static"],
+        topo["links"],
+        topo["segments"],
+        topo["interfaces"],
+    )
+    key = ("gw1", "0.0.0.0/0")
+    assert key in route_map, "gw1/0.0.0.0/0 がマップに存在しない"
+    info = route_map[key]
+    assert info.get("route_edge_id") == "seg-192_168_10_0_24", \
+        f"route_edge_id 不一致: {info.get('route_edge_id')!r}"
+    assert info.get("nexthop_device_id") == "sw2", \
+        f"nexthop_device_id 不一致: {info.get('nexthop_device_id')!r}"
+
+
+@pytest.mark.unit
+def test_i3b3_6_static_route_map_unknown_nexthop_no_entry():
+    """#6: 経路不明の next_hop はマップにないか route_edge_id=None"""
+    from lib.rendering.core import _build_static_route_map
+    topo = _make_segment_static_topology()
+    route_map = _build_static_route_map(
+        topo["routing"]["static"],
+        topo["links"],
+        topo["segments"],
+        topo["interfaces"],
+    )
+    key = ("sw2", "10.0.0.0/8")
+    if key in route_map:
+        info = route_map[key]
+        assert info.get("route_edge_id") is None, \
+            f"解決不能 next_hop に route_edge_id が設定されている: {info}"
+
+
+@pytest.mark.unit
+def test_i3b3_6_static_route_map_deterministic():
+    """#6: _build_static_route_map は決定的"""
+    from lib.rendering.core import _build_static_route_map
+    topo = _make_p2p_static_topology()
+    m1 = _build_static_route_map(
+        topo["routing"]["static"], topo["links"], topo["segments"], topo["interfaces"])
+    m2 = _build_static_route_map(
+        topo["routing"]["static"], topo["links"], topo["segments"], topo["interfaces"])
+    assert m1 == m2, "route_map が非決定的"
+
+
+# ---- #6-2: cards.py の data-route-edge / data-route-nexthop-device ---------
+
+@pytest.mark.unit
+def test_i3b3_6_static_row_has_data_route_edge_when_resolved():
+    """#6: 経路解決済み static 行に data-route-edge が付く（p2p）"""
+    from lib.rendering import render
+    html = render(_make_p2p_static_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    assert re.search(r'<tr[^>]+data-route-edge="[^"]+"', cards_html), \
+        "経路解決済み static 行に data-route-edge が付いていない"
+
+
+@pytest.mark.unit
+def test_i3b3_6_static_row_has_data_route_nexthop_device():
+    """#6: 経路解決済み static 行に data-route-nexthop-device が付く"""
+    from lib.rendering import render
+    html = render(_make_p2p_static_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    assert re.search(r'<tr[^>]+data-route-nexthop-device="[^"]+"', cards_html), \
+        "経路解決済み static 行に data-route-nexthop-device が付いていない"
+
+
+@pytest.mark.unit
+def test_i3b3_6_static_row_segment_has_data_route_edge():
+    """#6: セグメント経路 static 行に正しい data-route-edge (seg-id) が付く"""
+    from lib.rendering import render
+    html = render(_make_segment_static_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    assert 'data-route-edge="seg-192_168_10_0_24"' in cards_html, \
+        "セグメント static 行に正しい seg-id が data-route-edge に付いていない"
+
+
+@pytest.mark.unit
+def test_i3b3_6_static_row_unresolved_no_data_route_edge():
+    """#6: 経路不明の static 行には data-route-edge が付かない（または空）"""
+    from lib.rendering import render
+    html = render(_make_segment_static_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    sw2_card_m = re.search(
+        r'data-device="sw2"[^>]*>(.*?)(?=data-device="|$)',
+        cards_html, re.DOTALL
+    )
+    if sw2_card_m:
+        sw2_html = sw2_card_m.group(1)
+        route_edges = re.findall(r'data-route-edge="([^"]*)"', sw2_html)
+        for edge_id in route_edges:
+            assert edge_id == "", \
+                f"解決不能 next_hop の行に非空の data-route-edge がある: {edge_id!r}"
+
+
+# ---- #6-3: JS ハンドラの存在（構造テスト）-----------------------------------
+
+@pytest.mark.unit
+def test_i3b3_6_js_toggle_static_route_highlight_exists(rendered_html):
+    """#6: JS に toggleStaticRouteHighlight 関数が存在する"""
+    assert "toggleStaticRouteHighlight" in rendered_html, \
+        "toggleStaticRouteHighlight 関数が見つからない"
+
+
+@pytest.mark.unit
+def test_i3b3_6_js_toggle_static_uses_route_edge(rendered_html):
+    """#6: toggleStaticRouteHighlight が data-route-edge を参照する"""
+    func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
+    assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
+    assert "route-edge" in func_body or "routeEdge" in func_body, \
+        "toggleStaticRouteHighlight が route_edge を参照していない"
+
+
+@pytest.mark.unit
+def test_i3b3_6_js_toggle_static_uses_nexthop_device(rendered_html):
+    """#6: toggleStaticRouteHighlight が nexthop device を highlighted にする"""
+    func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
+    assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
+    assert "nexthop" in func_body.lower() or "nexthopdevice" in func_body.lower(), \
+        "toggleStaticRouteHighlight が nexthop_device を参照していない"
+
+
+@pytest.mark.unit
+def test_i3b3_6_js_toggle_static_uses_highlighted(rendered_html):
+    """#6: toggleStaticRouteHighlight が highlighted クラスを操作する"""
+    func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
+    assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
+    assert "highlighted" in func_body, \
+        "toggleStaticRouteHighlight が highlighted を操作していない"
+
+
+@pytest.mark.unit
+def test_i3b3_6_esc_clears_static_highlight(rendered_html):
+    """#6: clearLinkHighlight が highlighted を解除する（Esc で全解除）"""
+    clear_body = _extract_js_function(rendered_html, "clearLinkHighlight")
+    assert clear_body, "clearLinkHighlight 関数が見つからない"
+    assert "highlighted" in clear_body, \
+        "clearLinkHighlight が highlighted を除去していない"
+
+
+@pytest.mark.unit
+def test_i3b3_6_static_row_no_crash_unresolved():
+    """#6: 経路不明の static 行があっても render が例外を投げない"""
+    from lib.rendering import render
+    try:
+        html = render(_make_segment_static_topology())
+    except Exception as e:
+        pytest.fail(f"経路不明 static ルートで例外が発生: {e}")
+    assert isinstance(html, str)
+
+
+@pytest.mark.unit
+def test_i3b3_6_render_deterministic_with_static_routes():
+    """#6: static route マップ追加後も決定性が維持される"""
+    from lib.rendering import render
+    import copy
+    topo = _make_p2p_static_topology()
+    h1 = render(copy.deepcopy(topo))
+    h2 = render(copy.deepcopy(topo))
+    assert h1 == h2, "#6 追加後の render() が非決定的"
+
+
+# ===========================================================================
+# iteration-3 Batch3 #7: セグメント IF 行双方向ハイライト
+# ===========================================================================
+
+def _make_seg_highlight_topology():
+    """セグメント連動テスト用 topology（3 デバイスが 1 セグメントで接続）"""
+    return {
+        "title": "Seg Highlight Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "sw2", "hostname": "SW2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "sw3", "hostname": "SW3", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "sw1::eth0", "device": "sw1", "name": "eth0",
+             "ip": "10.10.0.1/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw2::eth0", "device": "sw2", "name": "eth0",
+             "ip": "10.10.0.2/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw3::eth0", "device": "sw3", "name": "eth0",
+             "ip": "10.10.0.3/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw1::lo0", "device": "sw1", "name": "lo0",
+             "ip": "1.1.1.1/32", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [
+            {
+                "id": "seg-10_10_0_0_24",
+                "subnet": "10.10.0.0/24",
+                "members": ["sw1::eth0", "sw2::eth0", "sw3::eth0"],
+            }
+        ],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+# ---- #7-1: iface_seg_id マップ（core.py）-----------------------------------
+
+@pytest.mark.unit
+def test_i3b3_7_iface_seg_id_map_built_in_render():
+    """#7: render() が iface_seg_id マップを正しく構築して IF 行に data-seg-id が付く"""
+    from lib.rendering import render
+    html = render(_make_seg_highlight_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    assert 'data-seg-id="seg-10_10_0_0_24"' in cards_html, \
+        "メンバー IF 行に data-seg-id が付いていない"
+
+
+# ---- #7-2: cards.py の IF 行 data-seg-id -----------------------------------
+
+@pytest.mark.unit
+def test_i3b3_7_member_if_row_has_data_seg_id():
+    """#7: セグメントメンバー IF の <tr> に data-seg-id が付く"""
+    from lib.rendering import render
+    html = render(_make_seg_highlight_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    seg_rows = re.findall(r'<tr[^>]+data-seg-id="([^"]*)"', cards_html)
+    assert len(seg_rows) >= 3, \
+        f"メンバー IF 行の data-seg-id が少ない: {len(seg_rows)} 個（期待: >=3）"
+    for seg_id in seg_rows:
+        assert seg_id == "seg-10_10_0_0_24", \
+            f"data-seg-id の値が不正: {seg_id!r}"
+
+
+@pytest.mark.unit
+def test_i3b3_7_non_member_if_row_no_data_seg_id():
+    """#7: セグメント非メンバーの IF 行には data-seg-id が付かない"""
+    from lib.rendering import render
+    html = render(_make_seg_highlight_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    lo0_rows = re.findall(
+        r'<tr[^>]*>(?:[^<]|<(?!/tr))*?lo0(?:[^<]|<(?!/tr))*?</tr>',
+        cards_html, re.DOTALL
+    )
+    for row in lo0_rows:
+        seg_ids = re.findall(r'data-seg-id="([^"]*)"', row)
+        for sid in seg_ids:
+            assert sid == "", f"非メンバー lo0 行に非空の data-seg-id がある: {sid!r}"
+
+
+@pytest.mark.unit
+def test_i3b3_7_data_seg_id_and_link_id_coexist():
+    """#7: p2p + セグメント兼用の IF 行に data-link-id と data-seg-id が共存する"""
+    topo = {
+        "title": "Coexist Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [
+            {"id": "seg-10_0_0_0_30", "subnet": "10.0.0.0/30",
+             "members": ["r1::eth0", "r2::eth0"]},
+        ],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    from lib.rendering import render
+    html = render(topo)
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    tr_with_both = re.findall(
+        r'<tr[^>]+data-link-id="[^"]*"[^>]+data-seg-id="[^"]*"[^>]*>|'
+        r'<tr[^>]+data-seg-id="[^"]*"[^>]+data-link-id="[^"]*"[^>]*>',
+        cards_html
+    )
+    assert len(tr_with_both) >= 1, \
+        "p2p + セグメント兼用 IF 行に data-link-id と data-seg-id が共存していない"
+
+
+# ---- #7-3: svg.py の data-seg-id -------------------------------------------
+
+@pytest.mark.unit
+def test_i3b3_7_seg_ellipse_has_data_seg_id():
+    """#7: segment-node グループに data-seg-id が付く"""
+    from lib.rendering import render
+    html = render(_make_seg_highlight_topology())
+    phys = _extract_physical_view(html)
+    assert 'data-seg-id="seg-10_10_0_0_24"' in phys, \
+        "セグメントノードに data-seg-id が付いていない"
+
+
+@pytest.mark.unit
+def test_i3b3_7_seg_edge_has_data_seg_id():
+    """#7: seg-edge に data-seg-id が付く"""
+    from lib.rendering import render
+    html = render(_make_seg_highlight_topology())
+    phys = _extract_physical_view(html)
+    seg_edges = re.findall(r'<line[^>]+class="seg-edge[^"]*"[^>]*>', phys)
+    assert len(seg_edges) >= 1, "seg-edge が見つからない"
+    for edge in seg_edges:
+        assert 'data-seg-id="' in edge, \
+            f"seg-edge に data-seg-id がない: {edge}"
+
+
+@pytest.mark.unit
+def test_i3b3_7_seg_edge_data_seg_id_correct_value():
+    """#7: seg-edge の data-seg-id が正しい seg-id を持つ"""
+    from lib.rendering import render
+    html = render(_make_seg_highlight_topology())
+    phys = _extract_physical_view(html)
+    edge_seg_ids = set(re.findall(
+        r'<line[^>]+class="seg-edge[^"]*"[^>]*data-seg-id="([^"]*)"', phys
+    ))
+    if not edge_seg_ids:
+        edge_seg_ids = set(re.findall(
+            r'data-seg-id="([^"]*)"[^>]*class="seg-edge[^"]*"', phys
+        ))
+    assert "seg-10_10_0_0_24" in edge_seg_ids, \
+        f"seg-edge の data-seg-id に期待値がない: {edge_seg_ids}"
+
+
+# ---- #7-4: JS ハンドラの存在（構造テスト）-----------------------------------
+
+@pytest.mark.unit
+def test_i3b3_7_js_toggle_seg_highlight_exists(rendered_html):
+    """#7: JS に toggleSegHighlight 関数が存在する"""
+    assert "toggleSegHighlight" in rendered_html, \
+        "toggleSegHighlight 関数が見つからない"
+
+
+@pytest.mark.unit
+def test_i3b3_7_js_toggle_seg_uses_data_seg_id(rendered_html):
+    """#7: toggleSegHighlight が data-seg-id を参照する"""
+    func_body = _extract_js_function(rendered_html, "toggleSegHighlight")
+    assert func_body, "toggleSegHighlight 関数が見つからない"
+    assert "seg-id" in func_body or "segId" in func_body, \
+        "toggleSegHighlight が data-seg-id を参照していない"
+
+
+@pytest.mark.unit
+def test_i3b3_7_js_toggle_seg_uses_highlighted(rendered_html):
+    """#7: toggleSegHighlight が highlighted クラスを操作する"""
+    func_body = _extract_js_function(rendered_html, "toggleSegHighlight")
+    assert func_body, "toggleSegHighlight 関数が見つからない"
+    assert "highlighted" in func_body, \
+        "toggleSegHighlight が highlighted を操作していない"
+
+
+@pytest.mark.unit
+def test_i3b3_7_js_seg_node_click_calls_toggle_seg(rendered_html):
+    """#7: JS にセグメントノードクリック -> toggleSegHighlight の呼び出しがある"""
+    assert "toggleSegHighlight" in rendered_html, "toggleSegHighlight が JS に存在しない"
+    lower = rendered_html.lower()
+    assert "segment-node" in lower or "seg-ellipse" in lower, \
+        "セグメントノードへの参照が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_i3b3_7_js_if_row_seg_click_calls_toggle_seg(rendered_html):
+    """#7: data-seg-id を持つ IF 行クリック -> toggleSegHighlight の呼び出しがある"""
+    assert "data-seg-id" in rendered_html and "toggleSegHighlight" in rendered_html, \
+        "data-seg-id IF 行クリックハンドラが存在しない"
+
+
+@pytest.mark.unit
+def test_i3b3_7_esc_clears_seg_highlight(rendered_html):
+    """#7: clearLinkHighlight が seg ハイライトも解除する（_selectedSegs 管理）"""
+    clear_body = _extract_js_function(rendered_html, "clearLinkHighlight")
+    assert clear_body, "clearLinkHighlight 関数が見つからない"
+    has_seg_clear = "_selectedSegs" in clear_body or "seg" in clear_body.lower()
+    assert has_seg_clear, "clearLinkHighlight が seg ハイライトを解除していない"
+
+
+@pytest.mark.unit
+def test_i3b3_7_render_deterministic_with_segments():
+    """#7: セグメント data-seg-id 追加後も決定性が維持される"""
+    from lib.rendering import render
+    import copy
+    topo = _make_seg_highlight_topology()
+    h1 = render(copy.deepcopy(topo))
+    h2 = render(copy.deepcopy(topo))
+    assert h1 == h2, "#7 追加後の render() が非決定的"
+
+
+# ---- golden テスト（#6/#7 総合）--------------------------------------
+
+@pytest.mark.unit
+def test_i3b3_golden_static_route_attrs_and_seg_id(sample_topology):
+    """Batch3 golden: sample topology の render 結果が #6/#7 の新規属性・JS 関数を含む"""
+    from lib.rendering import render
+    import re as re2
+    html = render(sample_topology)
+    assert 'data-link-id=' in html, "data-link-id が存在しない"
+    assert 'data-node-filter=' in html, "data-node-filter が存在しない"
+    assert "setNodeVisibility" in html
+    assert "toggleIfRowHighlight" in html
+    assert "toggleStaticRouteHighlight" in html, "#6 JS 関数がない"
+    assert "toggleSegHighlight" in html, "#7 JS 関数がない"
+    external_refs = re2.findall(
+        r'(?:src|href)\s*=\s*["\']https?://(?!www\.w3\.org)[^"\']*["\']',
+        html, re2.IGNORECASE,
+    )
+    assert len(external_refs) == 0, f"外部 CDN 参照がある: {external_refs}"
+
+
+# ===========================================================================
+# iteration-3 review fixes
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# HC3: _is_loopback 境界値テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_hc3_is_loopback_cisco_loopback0():
+    """HC3: Cisco Loopback0 は loopback と判定される"""
+    from lib.rendering.svg import _is_loopback
+    assert _is_loopback("Loopback0") is True
+
+
+@pytest.mark.unit
+def test_hc3_is_loopback_juniper_lo0():
+    """HC3: Juniper lo0 は loopback と判定される"""
+    from lib.rendering.svg import _is_loopback
+    assert _is_loopback("lo0") is True
+
+
+@pytest.mark.unit
+def test_hc3_is_loopback_juniper_lo0_dot0():
+    """HC3: Juniper lo0.0 は loopback と判定される"""
+    from lib.rendering.svg import _is_loopback
+    assert _is_loopback("lo0.0") is True
+
+
+@pytest.mark.unit
+def test_hc3_is_loopback_local0_is_false():
+    """HC3: local0 は loopback と判定されない（lo 前方一致の過広修正）"""
+    from lib.rendering.svg import _is_loopback
+    assert _is_loopback("local0") is False
+
+
+@pytest.mark.unit
+def test_hc3_is_loopback_local_bridge_is_false():
+    """HC3: local-bridge は loopback と判定されない"""
+    from lib.rendering.svg import _is_loopback
+    assert _is_loopback("local-bridge") is False
+
+
+@pytest.mark.unit
+def test_hc3_is_loopback_lo_bare_is_true():
+    """HC3: 'lo'（数字なし）は loopback と判定される"""
+    from lib.rendering.svg import _is_loopback
+    assert _is_loopback("lo") is True
+
+
+@pytest.mark.unit
+def test_hc3_is_loopback_ge0_is_false():
+    """HC3: GigabitEthernet は loopback と判定されない"""
+    from lib.rendering.svg import _is_loopback
+    assert _is_loopback("GigabitEthernet0/0") is False
+
+
+# ---------------------------------------------------------------------------
+# MC1: _build_static_route_map リンク走査のソート安定化
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_mc1_static_route_map_stable_with_duplicate_subnet():
+    """MC1: 重複サブネット候補があっても route_edge_id が決定的"""
+    from lib.rendering.core import _build_static_route_map
+    static_entries = [
+        {"device": "r1", "prefix": "0.0.0.0/0", "next_hop": "10.0.0.2"},
+    ]
+    links = [
+        {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+         "subnet": "10.0.0.0/30"},
+        {"a_device": "r1", "a_if": "eth1", "b_device": "r3", "b_if": "eth0",
+         "subnet": "10.0.0.0/30"},
+    ]
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+        {"id": "r1::eth1", "device": "r1", "name": "eth1", "ip": "10.0.0.1/30"},
+        {"id": "r3::eth0", "device": "r3", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    m1 = _build_static_route_map(static_entries, links, [], ifaces)
+    m2 = _build_static_route_map(static_entries, links, [], ifaces)
+    assert m1 == m2, "重複サブネット時に route_map が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# TC1: eBGP エッジ IP 表示の vacuous OR を排除した厳密テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_tc1_ebgp_edge_ip_display_format_strict():
+    """TC1: eBGP エッジ IP 表示が「↔」形式のみ検証（vacuous OR を排除）"""
+    from lib.rendering.svg import _svg_bgp_edges
+    ifaces_data = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, ifaces_data, positions)
+    has_bidirectional = "10.0.0.1↔10.0.0.2" in svg or "10.0.0.1 ↔ 10.0.0.2" in svg
+    assert has_bidirectional, \
+        f"IP ↔ IP 形式（↔記号）の表示が存在しない: svg={svg[:500]}"
+
+
+# ---------------------------------------------------------------------------
+# TC2: 解決不能 next_hop がマップに存在しないことを明示アサート
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_tc2_static_route_map_unknown_nexthop_strict():
+    """TC2: 解決不能な next_hop はマップに存在しない（vacuous 空通過を修正）"""
+    from lib.rendering.core import _build_static_route_map
+    topo = _make_segment_static_topology()
+    route_map = _build_static_route_map(
+        topo["routing"]["static"],
+        topo["links"],
+        topo["segments"],
+        topo["interfaces"],
+    )
+    key = ("sw2", "10.0.0.0/8")
+    assert key not in route_map, \
+        f"解決不能 next_hop がマップに存在する: {route_map.get(key)}"
+
+
+# ---------------------------------------------------------------------------
+# TC3: 経路不明 static 行はカード存在 + data-route-edge なし
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_tc3_static_row_unresolved_card_exists_no_route_edge():
+    """TC3: 経路不明 static 行はカードが存在しかつ data-route-edge が付かない"""
+    from lib.rendering import render
+    html = render(_make_segment_static_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    card_match = re.search(r'data-device="sw2"', cards_html)
+    assert card_match, "SW2 のデバイスカードが存在しない"
+    sw2_sec_m = re.search(
+        r'data-device="sw2"[^>]*>(.*?)(?=class="device-card"|$)',
+        cards_html, re.DOTALL
+    )
+    if sw2_sec_m:
+        sw2_html = sw2_sec_m.group(1)
+        route_edges = re.findall(r'data-route-edge="([^"]+)"', sw2_html)
+        assert len(route_edges) == 0, \
+            f"解決不能 next_hop の行に非空 data-route-edge がある: {route_edges}"
+
+
+# ---------------------------------------------------------------------------
+# TH1/TH2: data-route-edge の実際の link-id / device 値を検証
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_th1_static_row_data_route_edge_has_correct_link_id():
+    """TH1: data-route-edge の値が _make_link_id 算出値と一致する"""
+    from lib.rendering import render
+    from lib.rendering.svg import _make_link_id
+    html = render(_make_p2p_static_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    expected_lid = _make_link_id("r1", "eth0", "r2", "eth0")
+    assert f'data-route-edge="{expected_lid}"' in cards_html, \
+        f"data-route-edge に期待する link-id がない: {expected_lid!r}"
+
+
+@pytest.mark.unit
+def test_th2_static_row_data_route_nexthop_device_has_correct_value():
+    """TH2: data-route-nexthop-device の値が正しい機器ID"""
+    from lib.rendering import render
+    html = render(_make_p2p_static_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    assert 'data-route-nexthop-device="r2"' in cards_html, \
+        "data-route-nexthop-device に 'r2' が入っていない"
+    assert 'data-route-nexthop-device="r1"' in cards_html, \
+        "data-route-nexthop-device に 'r1' が入っていない"
+
+
+# ---------------------------------------------------------------------------
+# TH3/TH4: clearHighlight / toggleStaticRouteHighlight の保護・分離
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_th3_clear_highlight_protects_static_route_edges(rendered_html):
+    """TH3: clearHighlight が static 経路固定中のエッジを保護する"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    has_protection = "_selectedLinks" in func_body or "_selectedStaticEdges" in func_body
+    assert has_protection, \
+        "clearHighlight が _selectedLinks/_selectedStaticEdges を参照していない"
+
+
+@pytest.mark.unit
+def test_th4_toggle_static_manages_nexthop_node(rendered_html):
+    """TH4: toggleStaticRouteHighlight が nexthop ノードを集合で管理している"""
+    func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
+    assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
+    has_management = (
+        "_selectedStaticNodes" in func_body
+        or "route-target" in func_body
+        or "_selectedNodes" in func_body
+    )
+    assert has_management, \
+        "toggleStaticRouteHighlight が nexthop ノードを集合で管理していない"
+
+
+# ---------------------------------------------------------------------------
+# TH5/TH6: toggleSegHighlight の具体的な操作
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_th5_toggle_seg_add_remove_highlighted(rendered_html):
+    """TH5: toggleSegHighlight が classList.add/remove('highlighted') を持つ"""
+    func_body = _extract_js_function(rendered_html, "toggleSegHighlight")
+    assert func_body, "toggleSegHighlight 関数が見つからない"
+    assert ("classList.add('highlighted')" in func_body
+            or 'classList.add("highlighted")' in func_body), \
+        "toggleSegHighlight に classList.add('highlighted') がない"
+    assert ("classList.remove('highlighted')" in func_body
+            or 'classList.remove("highlighted")' in func_body), \
+        "toggleSegHighlight に classList.remove('highlighted') がない"
+
+
+@pytest.mark.unit
+def test_th6_toggle_seg_manages_selected_segs(rendered_html):
+    """TH6: toggleSegHighlight が _selectedSegs.add と .delete を持つ"""
+    func_body = _extract_js_function(rendered_html, "toggleSegHighlight")
+    assert func_body, "toggleSegHighlight 関数が見つからない"
+    assert "_selectedSegs" in func_body, "toggleSegHighlight が _selectedSegs を参照していない"
+    assert ".add(" in func_body, "_selectedSegs.add がない"
+    assert ".delete(" in func_body, "_selectedSegs.delete がない"
+
+
+# ---------------------------------------------------------------------------
+# TH7/TH8: IIFE 内のリスナー登録確認
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_th7_seg_node_click_calls_toggle_seg_in_iife(rendered_html):
+    """TH7: segment-node クリックリスナーが IIFE 内で toggleSegHighlight を呼ぶ"""
+    iife_start = rendered_html.find("segment-node")
+    assert iife_start != -1, "segment-node への参照が JS に存在しない"
+    nearby = rendered_html[max(0, iife_start - 200):iife_start + 500]
+    assert "toggleSegHighlight" in nearby, \
+        "segment-node クリックハンドラが toggleSegHighlight を呼んでいない"
+
+
+@pytest.mark.unit
+def test_th8_if_row_seg_click_calls_toggle_seg_in_iife(rendered_html):
+    """TH8: tr[data-seg-id] クリックリスナーが IIFE 内で toggleSegHighlight を呼ぶ"""
+    tr_seg_pos = rendered_html.find('tr[data-seg-id]')
+    assert tr_seg_pos != -1, "tr[data-seg-id] セレクタが JS に存在しない"
+    nearby = rendered_html[max(0, tr_seg_pos - 100):tr_seg_pos + 300]
+    assert "toggleSegHighlight" in nearby, \
+        "tr[data-seg-id] クリックハンドラが toggleSegHighlight を呼んでいない"
+
+
+# ---------------------------------------------------------------------------
+# HC1/HC2: JS 修正確認テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_hc1_clear_highlight_excludes_static_edges(rendered_html):
+    """HC1: clearHighlight が static 経路固定エッジを保護"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    has_protection = "_selectedLinks" in func_body or "_selectedStaticEdges" in func_body
+    assert has_protection, \
+        "clearHighlight が _selectedLinks/_selectedStaticEdges を参照していない"
+
+
+@pytest.mark.unit
+def test_hc2_toggle_static_uses_dedicated_node_set(rendered_html):
+    """HC2: toggleStaticRouteHighlight が nexthop ノードを _selectedStaticNodes/route-target で管理"""
+    func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
+    assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
+    uses_dedicated = "_selectedStaticNodes" in func_body or "route-target" in func_body
+    assert uses_dedicated, \
+        "nexthop ノードを手動選択と分離していない（_selectedStaticNodes or route-target が必要）"
+
+
+# ---------------------------------------------------------------------------
+# MM1: _svg_bgp_as_groups の label_x/label_y デッドコード除去確認
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_mm1_svg_bgp_as_groups_no_dead_label_vars():
+    """MM1: _svg_bgp_as_groups の label_x/label_y が除去されている（デッドコードなし）"""
+    import ast
+    import inspect
+    from lib.rendering.svg import _svg_bgp_as_groups
+    source = inspect.getsource(_svg_bgp_as_groups)
+    tree = ast.parse(source)
+    assigned_names: set = set()
+    used_load_names: set = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    assigned_names.add(target.id)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            used_load_names.add(node.id)
+    for var in ("label_x", "label_y"):
+        if var in assigned_names:
+            assert var in used_load_names, \
+                f"MM1: {var} が代入されているが参照されていない（デッドコード）"
+
+
+# ---------------------------------------------------------------------------
+# HM4: ハイライト共通ヘルパーまたはインライン実装の確認
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_hm4_highlight_operations_present(rendered_html):
+    """HM4: ハイライト操作が適切に実装されている（ヘルパーまたはインライン）"""
+    has_helper = "_setHighlightByAttr" in rendered_html
+    has_inline = (
+        "querySelectorAll" in rendered_html
+        and ("classList.add('highlighted')" in rendered_html
+             or 'classList.add("highlighted")' in rendered_html)
+    )
+    assert has_helper or has_inline, \
+        "ハイライト操作ヘルパーもインライン実装も見つからない"
+
+
+# ---------------------------------------------------------------------------
+# MC3: _svg_nodes の docstring と実装の一致（None は空集合扱い）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_mc3_svg_nodes_connected_none_shows_only_loopback():
+    """MC3: connected_iface_ids=None のとき Loopback のみ chip 表示（空集合扱い）"""
+    from lib.rendering.svg import _svg_nodes
+    dev_list = [{"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None}]
+    pos = {"r1": (100.0, 100.0)}
+    ibd = {
+        "r1": [
+            {"id": "r1::eth0", "device": "r1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.1/30", "shutdown": False, "description": None},
+            {"id": "r1::lo0", "device": "r1", "name": "Loopback0",
+             "ip": "10.255.0.1/32", "shutdown": False, "description": None},
+        ]
+    }
+    svg = _svg_nodes(
+        dev_list, pos, ibd,
+        show_interfaces=True, connected_iface_ids=None
+    )
+    assert "Loopback0" in svg, "connected_iface_ids=None のとき Loopback0 が表示されない"
+    assert 'data-if="GigabitEthernet0/0"' not in svg, \
+        "connected_iface_ids=None のとき非 Loopback IF が表示されている"

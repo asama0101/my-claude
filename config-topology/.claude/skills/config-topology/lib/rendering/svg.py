@@ -17,7 +17,6 @@ from lib.rendering.layout import (
     _SEG_RY,
     _node_size_for,
     _AS_GROUP_PADDING,
-    _AS_GROUP_LABEL_OFFSET,
     _AS_GROUP_RX,
     _AS_GROUP_RY,
     OSPF_AREA_LABEL_FORMAT,
@@ -83,23 +82,105 @@ def _svg_if_row(cx: float, if_start_y: float, k: int, iface: dict) -> str:
     )
 
 
+# IF チップ定数
+_IF_CHIP_R = 5       # チップ円の半径（px）
+_IF_CHIP_GAP = 14    # チップ間隔（px）
+_IF_CHIP_OFFSET_X = 8   # ノード左端からの開始 x オフセット（px）
+_IF_CHIP_OFFSET_Y = 12  # ノードヘッダー下端からの y オフセット（px）
+
+
+def _is_loopback(name: str) -> bool:
+    """IF 名が Loopback/lo インタフェースか判定する。
+
+    対応パターン（大文字小文字不問）:
+    - ``loopback``  で始まる（Cisco Loopback0 等）
+    - ``lo`` に続けて数字・ドット・終端のいずれかが来る（Juniper lo0, lo0.0 等）
+    - ``lo`` で終わる（``lo`` 単体）
+
+    local0 / local-bridge 等 ``lo`` で始まるが loopback でないものは除外する。
+    """
+    n = name.lower()
+    if n.startswith("loopback"):
+        return True
+    if n == "lo":
+        return True
+    if n.startswith("lo") and len(n) > 2 and (n[2].isdigit() or n[2] == "."):
+        return True
+    return False
+
+
+def _svg_if_chip(
+    nx: float,
+    chip_start_y: float,
+    k: int,
+    iface: dict,
+) -> str:
+    """単一 IF チップ要素を生成する（_svg_nodes の内部ヘルパー、iteration-3 #2）。
+
+    チップは小さな circle で表現し、<title> に「IF名 IP（desc）」を持つ。
+    shutdown の場合は if-chip-shutdown クラスを追加。
+
+    Args:
+        nx:           ノード矩形の左端 x 座標
+        chip_start_y: チップ列の開始 y 座標（ヘッダー領域下端）
+        k:            チップインデックス（0 始まり）
+        iface:        IF 辞書
+    """
+    # チップを横に並べる: 各チップの中心 x
+    cx = nx + _IF_CHIP_OFFSET_X + k * _IF_CHIP_GAP
+    cy = chip_start_y + _IF_CHIP_OFFSET_Y
+
+    if_name = iface.get("name", "")
+    if_ip = iface.get("ip") or ""
+    desc = iface.get("description") or ""
+
+    # title テキスト: "IF名 IP（desc）" 形式
+    title_parts = [if_name]
+    if if_ip:
+        title_parts.append(if_ip)
+    if desc:
+        title_parts.append(f"（{desc}）")
+    title_text = _esc(" ".join(title_parts))
+
+    css_cls = "if-chip if-chip-shutdown" if iface.get("shutdown") else "if-chip"
+
+    return (
+        f'<g class="{css_cls}" data-if="{_esc(if_name)}">'
+        f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{_IF_CHIP_R}"/>'
+        f'<title>{title_text}</title>'
+        f'</g>'
+    )
+
+
 def _svg_nodes(
     devices: list[dict],
     positions: dict,
     iface_by_device: dict[str, list[dict]] | None = None,
     *,
     show_interfaces: bool = False,
+    connected_iface_ids: set[str] | None = None,
 ) -> str:
     """機器ノードの SVG 要素を生成する。
 
     show_interfaces=True のとき（Physical ビュー用）、ノードを可変高カード型にして
-    配下の全 IF（name/ip）を小フォントで列挙する。shutdown は淡色クラス付与。
-    description がある IF 行には <title> でホバー表示する。
+    接続IF/Loopback のみを小さなチップ（circle）で表示する（iteration-3 #2）。
+    全 IF の詳細はカード表に残る。
 
     show_interfaces=False（デフォルト）のとき、従来通り hostname + AS/vendor のコンパクト表示。
+
+    Args:
+        devices:             デバイスリスト
+        positions:           デバイスID → (x, y) 座標辞書
+        iface_by_device:     デバイスID → IF リスト辞書
+        show_interfaces:     True のとき Physical ビュー用チップ表示
+        connected_iface_ids: リンク/セグメント端点の iface-id 集合（Physical ビュー用）。
+                             None のとき空集合扱い＝Loopback のみを chip 表示する。
+                             Physical ビューでは必ず集合を渡すこと。
     """
     if iface_by_device is None:
         iface_by_device = {}
+    if connected_iface_ids is None:
+        connected_iface_ids = set()
     parts = []
     for dev in sorted(devices, key=lambda d: d["id"]):
         x, y = positions.get(dev["id"], (0, 0))
@@ -114,28 +195,34 @@ def _svg_nodes(
 
         # ノード高さを分岐前に確定して nx/ny を共通計算
         if show_interfaces:
-            ifaces = sorted(iface_by_device.get(dev["id"], []), key=lambda i: i["name"])
-            n_if = len(ifaces)
+            all_ifaces = sorted(iface_by_device.get(dev["id"], []), key=lambda i: i["name"])
+            # 表示対象: 接続IF + Loopback のみ（iteration-3 #2）
+            chip_ifaces = [
+                iface for iface in all_ifaces
+                if iface["id"] in connected_iface_ids or _is_loopback(iface.get("name", ""))
+            ]
+            # チップは横1行に並べるため高さは固定（チップあり=1行分、なし=0行分）
+            n_chip = 1 if chip_ifaces else 0
         else:
-            ifaces = []
-            n_if = 0
+            chip_ifaces = []
+            n_chip = 0
 
-        _w, node_h = _node_size_for(n_if) if show_interfaces else (float(_NODE_WIDTH), float(_NODE_HEIGHT))
+        _w, node_h = _node_size_for(n_chip) if show_interfaces else (float(_NODE_WIDTH), float(_NODE_HEIGHT))
         nx = x - _NODE_WIDTH / 2
         ny = y - node_h / 2
 
         if show_interfaces:
-            # ----- Physical ビュー: 可変高カード型ノード -----
+            # ----- Physical ビュー: チップ型ノード（iteration-3 #2）-----
             # hostname は上部中央（太字）
             label_y = ny + 14
             sublabel_y = ny + 26
 
-            # IF 行開始 y 座標
-            if_start_y = ny + _NODE_HEADER_H + _NODE_IF_PADDING // 2
+            # チップ開始 y 座標（ヘッダー領域直下）
+            chip_start_y = ny + _NODE_HEADER_H
 
-            if_rows_str = "\n".join(
-                _svg_if_row(x, if_start_y, k, iface)
-                for k, iface in enumerate(ifaces)
+            chips_str = "\n".join(
+                _svg_if_chip(nx, chip_start_y, k, iface)
+                for k, iface in enumerate(chip_ifaces)
             )
 
             parts.append(
@@ -148,7 +235,7 @@ def _svg_nodes(
                 f'{hostname}</text>'
                 f'<text x="{x:.1f}" y="{sublabel_y:.1f}" text-anchor="middle" class="node-sublabel">'
                 f'{label2}</text>'
-                + (f'\n{if_rows_str}' if if_rows_str else '')
+                + (f'\n{chips_str}' if chips_str else '')
                 + f'\n</g>'
             )
         else:
@@ -169,16 +256,19 @@ def _svg_nodes(
 
 
 def _svg_segments(segments: list[dict], positions: dict) -> str:
-    """セグメントノード（楕円）の SVG 要素を生成する"""
+    """セグメントノード（楕円）の SVG 要素を生成する。
+
+    #7: <g class="segment-node"> と <ellipse> に ``data-seg-id`` を付与する。
+    """
     parts = []
     for seg in sorted(segments, key=lambda s: s["id"]):
         x, y = positions.get(seg["id"], (0, 0))
         seg_id = _esc(seg["id"])
         subnet = _esc(seg["subnet"])
         parts.append(
-            f'<g class="segment-node" data-segment="{seg_id}">'
+            f'<g class="segment-node" data-segment="{seg_id}" data-seg-id="{seg_id}">'
             f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{_SEG_RX}" ry="{_SEG_RY}" '
-            f'class="seg-ellipse"/>'
+            f'class="seg-ellipse" data-seg-id="{seg_id}"/>'
             f'<text x="{x:.1f}" y="{y + 5:.1f}" text-anchor="middle" class="seg-label">'
             f'{subnet}</text>'
             f'</g>'
@@ -189,8 +279,8 @@ def _svg_segments(segments: list[dict], positions: dict) -> str:
 def _svg_links(links: list[dict], positions: dict) -> str:
     """リンクエッジの SVG 要素を生成する（Physical ビュー用）。
 
-    リンク中点に「a_if — b_if」＋ subnet の常時 <text> ラベルを表示する。
-    オフセットは BGP バッジと同様の手法（中点から -15px 上）を流用する。
+    常時テキストラベルは持たない（iteration-3 #1）。
+    subnet/IF 名は hover の <title> で参照できる程度に留める。
     各 <g class="link-edge"> と <line class="link-line"> に ``data-link-id`` を付与する。
     link-id は ``_make_link_id(a_device, a_if, b_device, b_if)`` で導出（決定的・対称）。
     """
@@ -207,20 +297,12 @@ def _svg_links(links: list[dict], positions: dict) -> str:
         b_if = _esc(b_if_raw)
         # 決定的 link-id（両端点をソートして結合）
         link_id = _esc(_make_link_id(a_dev, a_if_raw, b_dev, b_if_raw))
-        # リンク中点（BGP バッジと同様の手法）
-        mx = (x1 + x2) / 2
-        my = (y1 + y2) / 2 - 15
-        label_text = f"{a_if} — {b_if}"
         parts.append(
             f'<g class="link-edge" data-subnet="{subnet}" '
             f'data-a="{_esc(a_dev)}" data-b="{_esc(b_dev)}" data-link-id="{link_id}">'
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
             f'class="link-line layer-physical" data-link-id="{link_id}"/>'
             f'<title>{subnet} ({a_if} — {b_if})</title>'
-            f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" class="link-label layer-physical">'
-            f'{label_text}</text>'
-            f'<text x="{mx:.1f}" y="{my + 12:.1f}" text-anchor="middle" class="link-label layer-physical">'
-            f'{subnet}</text>'
             f'</g>'
         )
     return "\n".join(parts)
@@ -231,7 +313,10 @@ def _svg_segment_edges(
     interfaces: list[dict],
     positions: dict,
 ) -> str:
-    """セグメントメンバーへの接続エッジを生成する"""
+    """セグメントメンバーへの接続エッジを生成する。
+
+    #7: <line class="seg-edge"> に ``data-seg-id`` を付与する。
+    """
     # interface id -> device id マップ
     iface_map = {iface["id"]: iface["device"] for iface in interfaces}
 
@@ -246,7 +331,7 @@ def _svg_segment_edges(
                 parts.append(
                     f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
                     f'class="seg-edge layer-physical" data-seg="{seg_id}" '
-                    f'data-device="{_esc(dev_id)}"/>'
+                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}"/>'
                 )
     return "\n".join(parts)
 
@@ -351,18 +436,51 @@ def _svg_bgp_edges(
         css_class = f"bgp-edge bgp-{_esc(bgp_type)} layer-bgp"
         peer_as = _esc(entry.get("peer_as", ""))
         local_as = _esc(entry.get("local_as", ""))
+        local_ip_raw = entry.get("local_ip") or ""
+        neighbor_ip_raw = entry.get("neighbor_ip") or ""
 
         # エッジを少しオフセットして重なりを防ぐ
         mx = (x1 + x2) / 2
         my = (y1 + y2) / 2 - 15
+
+        # #5: IP↔IP 表示テキストを構築
+        # local_ip が null の場合は neighbor_ip のみ表示
+        if local_ip_raw and neighbor_ip_raw:
+            ip_label = f"{_esc(local_ip_raw)}↔{_esc(neighbor_ip_raw)}"
+        elif neighbor_ip_raw:
+            ip_label = _esc(neighbor_ip_raw)
+        else:
+            ip_label = ""
+
+        # <title> に完全情報（AS + IP）を埋め込む
+        title_parts = [f"{_esc(bgp_type)} AS{local_as}↔AS{peer_as}"]
+        if ip_label:
+            title_parts.append(ip_label)
+        title_text = " | ".join(title_parts)
+
+        # バッジ: 上段に type/AS、下段に IP を2行表示
+        # SVG text は tspan で複数行化
+        if ip_label:
+            badge_svg = (
+                f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
+                f'class="bgp-badge layer-bgp">'
+                f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
+                f'<tspan x="{mx:.1f}" dy="12">{ip_label}</tspan>'
+                f'</text>'
+            )
+        else:
+            badge_svg = (
+                f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '
+                f'class="bgp-badge layer-bgp">{_esc(bgp_type)} {local_as}↔{peer_as}</text>'
+            )
 
         parts.append(
             f'<g class="bgp-session" data-type="{_esc(bgp_type)}" '
             f'data-a="{_esc(dev_id)}" data-b="{_esc(neighbor_dev)}">'
             f'<path d="M{x1:.1f},{y1:.1f} Q{mx:.1f},{my:.1f} {x2:.1f},{y2:.1f}" '
             f'class="{css_class}" fill="none"/>'
-            f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '
-            f'class="bgp-badge layer-bgp">{_esc(bgp_type)} {local_as}↔{peer_as}</text>'
+            f'<title>{title_text}</title>'
+            f'{badge_svg}'
             f'</g>'
         )
     return "\n".join(parts)
@@ -372,7 +490,6 @@ def _svg_bgp_as_groups(
     bgp_devices: list[dict],
     positions: dict[str, tuple[float, float]],
     padding: float = _AS_GROUP_PADDING,
-    label_offset_y: float = _AS_GROUP_LABEL_OFFSET,
 ) -> str:
     """BGP ビュー用 AS グルーピング枠を生成する。
 
@@ -410,18 +527,26 @@ def _svg_bgp_as_groups(
 
         rect_w = max_x - min_x
         rect_h = max_y - min_y
-        label_x = (min_x + max_x) / 2
-        label_y = min_y + label_offset_y
 
         # M5: <g class="as-group-container" data-as="{asn}"> でラップ
+        # #4: ラベルを左上チップ（背景 rect + text）として配置
+        chip_x = min_x + 8
+        chip_y = min_y - 9   # 枠上端より少し上にはみ出してチップを置く
+        chip_text = f"AS {_esc(asn)}"
+        # チップ背景矩形のサイズ（文字数に応じた概算幅: 1文字 ≒ 7px）
+        chip_w = len(f"AS {asn}") * 7 + 10
+        chip_h = 16
         parts.append(
             f'<g class="as-group-container" data-as="{_esc(asn)}">'
             f'<rect x="{min_x:.1f}" y="{min_y:.1f}" '
             f'width="{rect_w:.1f}" height="{rect_h:.1f}" '
             f'rx="{_AS_GROUP_RX}" ry="{_AS_GROUP_RY}" class="as-group"/>'
-            f'<text x="{label_x:.1f}" y="{label_y:.1f}" '
-            f'text-anchor="middle" class="as-group-label">'
-            f'AS {_esc(asn)}</text>'
+            f'<rect x="{chip_x:.1f}" y="{chip_y:.1f}" '
+            f'width="{chip_w:.1f}" height="{chip_h:.1f}" '
+            f'rx="4" ry="4" class="as-group-label-bg"/>'
+            f'<text x="{chip_x + 5:.1f}" y="{chip_y + 11:.1f}" '
+            f'text-anchor="start" class="as-group-label">'
+            f'{chip_text}</text>'
             f'</g>'
         )
     return "\n".join(parts)

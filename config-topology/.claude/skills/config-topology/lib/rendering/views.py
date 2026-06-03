@@ -256,6 +256,46 @@ def _generic_has_edges(proto_entries: list[dict], links: list[dict]) -> bool:
     return False
 
 
+def _build_connected_iface_ids(
+    links: list[dict],
+    segments: list[dict],
+    interfaces: list[dict],
+) -> set[str]:
+    """リンク/セグメントの端点になっている iface-id の集合を返す（iteration-3 #2）。
+
+    接続IF判定に使用する。IF 名から iface-id へのマップを構築して効率化する。
+    """
+    connected: set[str] = set()
+
+    # iface name → iface id マップ（device 付きで衝突回避）
+    name_to_id: dict[tuple[str, str], str] = {
+        (iface["device"], iface["name"]): iface["id"]
+        for iface in interfaces
+    }
+
+    # リンク端点の iface-id を登録
+    for link in links:
+        a_dev = link.get("a_device", "")
+        a_if = link.get("a_if") or ""
+        b_dev = link.get("b_device", "")
+        b_if = link.get("b_if") or ""
+        if a_dev and a_if:
+            iid = name_to_id.get((a_dev, a_if))
+            if iid:
+                connected.add(iid)
+        if b_dev and b_if:
+            iid = name_to_id.get((b_dev, b_if))
+            if iid:
+                connected.add(iid)
+
+    # セグメントメンバーの iface-id を登録
+    for seg in segments:
+        for member_iface_id in seg.get("members", []):
+            connected.add(member_iface_id)
+
+    return connected
+
+
 def _build_view_physical(
     devices: list[dict],
     interfaces: list[dict],
@@ -266,13 +306,21 @@ def _build_view_physical(
 ) -> str:
     """Physical ビュー SVG コンテンツを生成する（BGP オーバーレイなし）。
 
-    ノードは show_interfaces=True で可変高カード型（IF 一覧常時表示）。
+    ノードは show_interfaces=True でチップ型（接続IF/Loopback のみ）。
+    iteration-3 #2: 接続IF/Loopback のみをチップとして表示し、全 IF はカード表に残す。
     """
+    # 接続 iface-id 集合を計算（iteration-3 #2）
+    connected_iface_ids = _build_connected_iface_ids(links, segments, interfaces)
+
     seg_edges = _svg_segment_edges(segments, interfaces, positions)
     links_str = _svg_links(links, positions)
     segs_str = _svg_segments(segments, positions)
     # Physical ビューのみ show_interfaces=True（BGP/OSPF ビューはデフォルトのコンパクト）
-    nodes_str = _svg_nodes(devices, positions, iface_by_device, show_interfaces=True)
+    nodes_str = _svg_nodes(
+        devices, positions, iface_by_device,
+        show_interfaces=True,
+        connected_iface_ids=connected_iface_ids,
+    )
     bbox = _make_bbox_str(positions)
     inner = "\n".join(filter(None, [seg_edges, links_str, segs_str, nodes_str]))
     return (

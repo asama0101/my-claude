@@ -136,7 +136,8 @@ _CSS = """\
     }
 
     #svg-container {
-      overflow: hidden;
+      overflow: auto;
+      max-height: 70vh;
       background: #fff;
       border-bottom: 1px solid var(--color-card-border);
       cursor: grab;
@@ -395,6 +396,80 @@ _CSS = """\
 
     .node-filter-btn:hover {
       background: #c7d2fe;
+    }
+
+    /* IF チップ（Physical ビュー ノード内の接続IF/Loopback 表示、iteration-3 #2） */
+    .if-chip circle {
+      fill: #bfdbfe;
+      stroke: #3b82f6;
+      stroke-width: 1.5;
+      transition: fill 0.1s;
+    }
+
+    .if-chip:hover circle {
+      fill: #93c5fd;
+    }
+
+    .if-chip-shutdown circle {
+      fill: #f3f4f6;
+      stroke: #d1d5db;
+      opacity: 0.5;
+    }
+
+    /* HC2: static 経路 next-hop ノードのハイライト（手動選択 .selected と独立） */
+    .device-node.route-target .node-rect {
+      fill: #d1fae5;
+      stroke: #059669;
+      stroke-width: 3;
+    }
+
+    .device-card.route-target {
+      border: 2px solid #059669;
+      box-shadow: 0 0 6px rgba(5,150,105,0.4);
+    }
+
+    /* Device Details トグルボタン（iteration-3 #8） */
+    #cards-toggle-btn {
+      padding: 4px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: 1px solid var(--color-card-border);
+      border-radius: 4px;
+      background: var(--color-card-bg);
+      color: #374151;
+      cursor: pointer;
+    }
+
+    #cards-toggle-btn:hover {
+      background: #e5e7eb;
+    }
+
+    .cards-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    /* BGP ビュー AS グルーピング枠（iteration-3 Batch2 #4: 視認性改善） */
+    .as-group {
+      fill: rgba(219, 234, 254, 0.35);
+      stroke: #3b82f6;
+      stroke-width: 2;
+      stroke-dasharray: none;
+    }
+
+    .as-group-label {
+      font-size: 11px;
+      font-weight: 700;
+      fill: #1e3a5f;
+      pointer-events: none;
+      font-family: var(--font-mono);
+    }
+
+    .as-group-label-bg {
+      fill: #3b82f6;
+      opacity: 0.85;
     }\
 """
 
@@ -580,10 +655,11 @@ _JS = """\
 
       function clearHighlight() {
         allNodes.forEach(function(n) { n.classList.remove('highlighted'); });
-        // リンクの highlighted 除去: _selectedLinks に含まれるものは固定ハイライトを保持
+        // リンクの highlighted 除去:
+        // _selectedLinks（IF行クリック固定）と _selectedStaticEdges（static経路固定）は保持
         allLinks.forEach(function(l) {
           var lid = l.getAttribute('data-link-id');
-          if (!_selectedLinks.has(lid)) {
+          if (!_selectedLinks.has(lid) && !_selectedStaticEdges.has(lid)) {
             l.classList.remove('highlighted');
           }
         });
@@ -666,6 +742,10 @@ _JS = """\
     // ============================================================
     var _selectedNodes = new Set();
     var _selectedLinks = new Set();
+    var _selectedStaticRoutes = new Set();  // #6: static route key set
+    var _selectedStaticEdges = new Set();   // HC1: static 経路で固定中のエッジ link-id / seg-id 集合
+    var _selectedStaticNodes = new Set();   // HC2: static 経路 next-hop 機器（手動選択と独立）
+    var _selectedSegs = new Set();          // #7: seg-id set
 
     function clearSelection() {
       document.querySelectorAll('.device-node.selected').forEach(function(n) {
@@ -677,6 +757,14 @@ _JS = """\
       _selectedNodes.clear();
       // リンク・IF 行ハイライトも同時解除（Esc で全解除）
       clearLinkHighlight();
+      // HC2: static 経路 next-hop ノードも解除
+      document.querySelectorAll('.device-node.route-target').forEach(function(n) {
+        n.classList.remove('route-target');
+      });
+      document.querySelectorAll('.device-card.route-target').forEach(function(c) {
+        c.classList.remove('route-target');
+      });
+      _selectedStaticNodes.clear();
     }
 
     function clearLinkHighlight() {
@@ -687,6 +775,25 @@ _JS = """\
         r.classList.remove('highlighted');
       });
       _selectedLinks.clear();
+      // #6: static ルート経路ハイライト解除
+      document.querySelectorAll('[data-route-edge].highlighted').forEach(function(el) {
+        el.classList.remove('highlighted');
+      });
+      _selectedStaticRoutes.clear();
+      _selectedStaticEdges.clear();
+      // HC2: static 経路 next-hop ノードも解除
+      document.querySelectorAll('.device-node.route-target').forEach(function(n) {
+        n.classList.remove('route-target');
+      });
+      document.querySelectorAll('.device-card.route-target').forEach(function(c) {
+        c.classList.remove('route-target');
+      });
+      _selectedStaticNodes.clear();
+      // #7: セグメントハイライト解除
+      document.querySelectorAll('[data-seg-id].highlighted').forEach(function(el) {
+        el.classList.remove('highlighted');
+      });
+      _selectedSegs.clear();
     }
 
     // カード→ノード選択（カードクリックで対応ノードを selected 強調・累積トグル）
@@ -837,6 +944,149 @@ _JS = """\
           setNodeVisibility(cb.dataset.nodeFilter, cb.checked);
         });
       });
+    })();
+
+    // ============================================================
+    // Device Details 折りたたみトグル（iteration-3 #8）
+    // ============================================================
+    function toggleCards() {
+      var section = document.getElementById('cards-section');
+      var btn = document.getElementById('cards-toggle-btn');
+      if (!section) return;
+      var grid = section.querySelector('.cards-grid');
+      if (!grid) return;
+      var isHidden = grid.style.display === 'none';
+      if (isHidden) {
+        grid.style.display = '';
+        if (btn) btn.textContent = 'Device Details ▾';
+      } else {
+        grid.style.display = 'none';
+        if (btn) btn.textContent = 'Device Details ▸';
+      }
+    }
+
+    // ============================================================
+    // #6: Static Route 行クリック -> 経路エッジ + next-hop 機器 ハイライト
+    // ============================================================
+    function toggleStaticRouteHighlight(routeEdgeId, nexthopDeviceId) {
+      var routeKey = routeEdgeId + '|' + (nexthopDeviceId || '');
+      var isHighlighted = _selectedStaticRoutes.has(routeKey);
+      if (isHighlighted) {
+        _selectedStaticRoutes.delete(routeKey);
+        if (routeEdgeId) {
+          // HC1: static 経路固定エッジ集合からも削除
+          _selectedStaticEdges.delete(routeEdgeId);
+          // link-edge または seg-id 一致の要素から highlighted を除去
+          document.querySelectorAll('[data-link-id="' + routeEdgeId + '"]').forEach(function(el) {
+            el.classList.remove('highlighted');
+          });
+          document.querySelectorAll('[data-seg-id="' + routeEdgeId + '"]').forEach(function(el) {
+            el.classList.remove('highlighted');
+          });
+        }
+        if (nexthopDeviceId) {
+          // HC2: route-target クラスで手動選択と独立管理
+          document.querySelectorAll('.device-node[data-device="' + nexthopDeviceId + '"]').forEach(function(n) {
+            n.classList.remove('route-target');
+          });
+          var card = document.querySelector('.device-card[data-device="' + nexthopDeviceId + '"]');
+          if (card) card.classList.remove('route-target');
+          _selectedStaticNodes.delete(nexthopDeviceId);
+        }
+      } else {
+        _selectedStaticRoutes.add(routeKey);
+        if (routeEdgeId) {
+          // HC1: static 経路固定エッジ集合に追加（clearHighlight で保護される）
+          _selectedStaticEdges.add(routeEdgeId);
+          document.querySelectorAll('[data-link-id="' + routeEdgeId + '"]').forEach(function(el) {
+            el.classList.add('highlighted');
+          });
+          document.querySelectorAll('[data-seg-id="' + routeEdgeId + '"]').forEach(function(el) {
+            el.classList.add('highlighted');
+          });
+        }
+        if (nexthopDeviceId) {
+          // HC2: route-target クラスで手動選択（_selectedNodes）と独立
+          document.querySelectorAll('.device-node[data-device="' + nexthopDeviceId + '"]').forEach(function(n) {
+            n.classList.add('route-target');
+          });
+          var card = document.querySelector('.device-card[data-device="' + nexthopDeviceId + '"]');
+          if (card) {
+            card.classList.add('route-target');
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+          _selectedStaticNodes.add(nexthopDeviceId);
+        }
+      }
+    }
+
+    // Static route 行クリックイベント登録
+    (function() {
+      document.querySelectorAll('tr[data-route-edge]').forEach(function(row) {
+        var routeEdgeId = row.getAttribute('data-route-edge');
+        if (!routeEdgeId) return;
+        var nexthopDeviceId = row.getAttribute('data-route-nexthop-device') || '';
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleStaticRouteHighlight(routeEdgeId, nexthopDeviceId);
+        });
+      });
+    })();
+
+    // ============================================================
+    // #7: セグメントノード / IF 行双方向ハイライト
+    // ============================================================
+    function toggleSegHighlight(segId) {
+      if (!segId) return;
+      var isHighlighted = _selectedSegs.has(segId);
+      if (isHighlighted) {
+        _selectedSegs.delete(segId);
+        document.querySelectorAll('[data-seg-id="' + segId + '"]').forEach(function(el) {
+          el.classList.remove('highlighted');
+        });
+      } else {
+        _selectedSegs.add(segId);
+        document.querySelectorAll('[data-seg-id="' + segId + '"]').forEach(function(el) {
+          el.classList.add('highlighted');
+        });
+      }
+    }
+
+    // セグメントノード / seg-edge クリックイベント登録
+    (function() {
+      // segment-node <g> クリック
+      document.querySelectorAll('.segment-node[data-seg-id]').forEach(function(node) {
+        var segId = node.getAttribute('data-seg-id');
+        if (!segId) return;
+        node.style.cursor = 'pointer';
+        node.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleSegHighlight(segId);
+        });
+      });
+
+      // seg-edge <line> クリック
+      document.querySelectorAll('.seg-edge[data-seg-id]').forEach(function(edge) {
+        var segId = edge.getAttribute('data-seg-id');
+        if (!segId) return;
+        edge.style.cursor = 'pointer';
+        edge.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleSegHighlight(segId);
+        });
+      });
+
+      // IF 行クリック（data-seg-id を持つ行）
+      document.querySelectorAll('tr[data-seg-id]').forEach(function(row) {
+        var segId = row.getAttribute('data-seg-id');
+        if (!segId) return;
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleSegHighlight(segId);
+        });
+      });
     })();\
 """
 
@@ -945,9 +1195,7 @@ def build_html(
   </div>
 
   <div class="controls">
-    <span class="controls-label">Layers:</span>
-    {toggles_html}
-    <span class="controls-label" style="margin-left:12px;">Search:</span>
+    <span class="controls-label" style="margin-left:0;">Search:</span>
     <input type="search" id="search-input" placeholder="hostname / IP..." oninput="filterNodes(this.value)">
   </div>
 
@@ -971,8 +1219,17 @@ def build_html(
     </svg>
   </div>
 
+  <!-- LAYERS トグル（cards-section 直前、iteration-3 #3） -->
+  <div class="controls" id="layers-controls">
+    <span class="controls-label">Layers:</span>
+    {toggles_html}
+  </div>
+
   <div id="cards-section">
-    <h2>Device Details</h2>
+    <div class="cards-controls">
+      <h2>Device Details</h2>
+      <button id="cards-toggle-btn" onclick="toggleCards()">Device Details ▾</button>
+    </div>
     <div class="cards-grid">
       {cards_html}
     </div>
