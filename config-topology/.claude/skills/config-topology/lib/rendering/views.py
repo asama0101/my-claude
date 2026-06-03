@@ -17,6 +17,7 @@ from lib.rendering.svg import (
     _build_ip_to_iface_id,
     _chip_positions,
     _esc,
+    _normalize_subnet,
     _svg_bgp_as_groups,
     _svg_bgp_edges,
     _svg_links,
@@ -602,8 +603,12 @@ def _build_view_ospf(
                     b_pos = all_chip_positions[b_iface_id]
             x1, y1 = a_pos
             x2, y2 = b_pos
-            subnet = _esc(lk["subnet"])
+            subnet_raw = lk.get("subnet", "")
+            subnet = _esc(subnet_raw)
             ospf_area = lk.get("ospf_area")
+            # #1B: ospf_id を算出（ospf_network または subnet から正規化）
+            ospf_id = _normalize_subnet(lk.get("ospf_network") or subnet_raw)
+            ospf_id_attr = f' data-ospf-id="{_esc(ospf_id)}"' if ospf_id else ""
             # リンク中点（Physical ビューの link-label と同様の手法）
             mx = (x1 + x2) / 2
             my = (y1 + y2) / 2 - 15
@@ -625,7 +630,8 @@ def _build_view_ospf(
 
             parts.append(
                 f'<g class="link-edge" data-subnet="{subnet}" '
-                f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}">'
+                f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
+                f'{ospf_id_attr}>'
                 f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
                 f'class="link-line layer-ospf"/>'
                 f'{label_elem}'

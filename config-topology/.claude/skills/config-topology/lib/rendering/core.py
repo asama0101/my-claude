@@ -9,7 +9,7 @@ import math
 
 from lib.rendering.cards import _device_cards
 from lib.rendering.layout import _compute_canvas
-from lib.rendering.svg import _build_ip_to_device, _esc, _make_iface_by_device, _make_link_id
+from lib.rendering.svg import _build_ip_to_device, _esc, _make_iface_by_device, _make_link_id, _normalize_subnet
 from lib.rendering.template import _layer_toggles, _node_filter_ui, build_html
 from lib.rendering.views import (
     _bgp_has_resolved_edges,
@@ -22,6 +22,45 @@ from lib.rendering.views import (
     _generic_has_edges,
     _ospf_has_edges,
 )
+
+
+# _normalize_ospf_id は svg._normalize_subnet への後方互換エイリアス。
+# 独自実装は svg._normalize_subnet に一本化済み。
+# routing.network と link.ospf_network は同一 subnet を指す前提のため、
+# 両者を正規化すれば同一の ospf_id が得られることが保証される。
+_normalize_ospf_id = _normalize_subnet
+
+
+def _build_ospf_marking_map(
+    ospf_entries: list[dict],
+) -> dict[tuple[str, str], str]:
+    """OSPF エントリから (device, network) → ospf_id マップを構築する。
+
+    ospf_id は ``_normalize_ospf_id(network)``（= ``_normalize_subnet``）で正規化した CIDR 文字列。
+    解決できないエントリ（normalizeが空文字）はスキップする。
+
+    ``routing.network`` と ``link.ospf_network`` は同一 subnet を指す前提であり、
+    両者を正規化すれば同一の ospf_id が得られる。これにより SVG 側の
+    ``data-ospf-id``（正規化 subnet）とカード側の ``data-ospf-id`` が一致する。
+
+    Args:
+        ospf_entries: routing["ospf"] のエントリリスト
+
+    Returns:
+        ``{(device_id, network_str): ospf_id}`` 辞書（安定順序）。
+        マップキーは raw network 文字列のまま、値（ospf_id）のみ正規化される。
+    """
+    result: dict[tuple[str, str], str] = {}
+    for entry in sorted(ospf_entries, key=lambda e: (e.get("device", ""), e.get("network", ""))):
+        dev_id = entry.get("device", "")
+        network = entry.get("network", "")
+        if not (dev_id and network):
+            continue
+        ospf_id = _normalize_ospf_id(network)
+        if not ospf_id:
+            continue
+        result[(dev_id, network)] = ospf_id
+    return result
 
 
 def _active_entries(entries: list) -> list[dict]:
@@ -381,6 +420,13 @@ def render(topology: dict) -> str:
         interfaces,
     )
 
+    # ---------------------------------------------------------------------------
+    # #1B: OSPF マーキングマップ（OSPF 行に data-ospf-id を付与するため）
+    # ---------------------------------------------------------------------------
+    ospf_marking_map = _build_ospf_marking_map(
+        routing.get("ospf", []),
+    )
+
     # 機器カード
     cards_html = _device_cards(
         devices, interfaces, routing,
@@ -388,6 +434,7 @@ def render(topology: dict) -> str:
         iface_seg_id=iface_seg_id,
         static_route_map=static_route_map,
         bgp_session_map=bgp_session_map,
+        ospf_marking_map=ospf_marking_map,
     )
 
     # データのある routing キーを一度だけ計算し、トグルと CSS 両方に使用

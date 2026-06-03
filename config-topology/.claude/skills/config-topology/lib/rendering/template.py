@@ -960,6 +960,7 @@ _JS = """\
     var _selectedStaticNodes = new Set();   // HC2: static 経路 next-hop 機器（手動選択と独立）
     var _selectedSegs = new Set();          // #7: seg-id set
     var _selectedBgp = new Set();           // #5: bgp-id set
+    var _selectedOspf = new Set();          // #1B: ospf-id set
 
     // clearSelection: ノード選択(.selected)解除 + clearLinkHighlight() + _updateCardFilter()
     function clearSelection() {
@@ -1013,6 +1014,11 @@ _JS = """\
         el.classList.remove('highlighted');
       });
       _selectedBgp.clear();
+      // #1B: OSPF ハイライト解除
+      document.querySelectorAll('[data-ospf-id].highlighted').forEach(function(el) {
+        el.classList.remove('highlighted');
+      });
+      _selectedOspf.clear();
     }
 
     // カード→ノード選択（カードクリックで対応ノードを selected 強調・累積トグル）
@@ -1347,6 +1353,60 @@ _JS = """\
         row.addEventListener('click', function(e) {
           e.stopPropagation();
           toggleBgpHighlight(bgpId);
+        });
+      });
+    })();
+
+    // ============================================================
+    // #1B: OSPF リンク/セグメント ↔ OSPF Networks 表の双方向ハイライト
+    // ============================================================
+    function toggleOspfHighlight(ospfId) {
+      _toggleSelection(ospfId, _selectedOspf, 'data-ospf-id');
+    }
+
+    // OSPF リンク・セグメント・OSPF Networks 行 クリックイベント登録
+    (function() {
+      // OSPF ビューの link-edge[data-ospf-id] クリック
+      document.querySelectorAll('.link-edge[data-ospf-id]').forEach(function(el) {
+        var ospfId = el.getAttribute('data-ospf-id');
+        if (!ospfId) return;
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleOspfHighlight(ospfId);
+        });
+      });
+
+      // OSPF セグメントノード クリック
+      document.querySelectorAll('.segment-node[data-ospf-id]').forEach(function(el) {
+        var ospfId = el.getAttribute('data-ospf-id');
+        if (!ospfId) return;
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleOspfHighlight(ospfId);
+        });
+      });
+
+      // OSPF セグメントエッジ クリック
+      document.querySelectorAll('.seg-edge[data-ospf-id]').forEach(function(el) {
+        var ospfId = el.getAttribute('data-ospf-id');
+        if (!ospfId) return;
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleOspfHighlight(ospfId);
+        });
+      });
+
+      // OSPF Networks 行 <tr>[data-ospf-id] クリック
+      document.querySelectorAll('tr[data-ospf-id]').forEach(function(row) {
+        var ospfId = row.getAttribute('data-ospf-id');
+        if (!ospfId) return;
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleOspfHighlight(ospfId);
         });
       });
     })();

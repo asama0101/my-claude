@@ -9844,8 +9844,9 @@ def test_i4cr_ospf_multi_area_node_edge_anchor_matches_chip():
         "OSPFビュー: core1::GE0/2 チップが存在しない"
 
     # p2p エッジ(core1->core2): x1 が core1::GE0/0 チップ cx に一致
+    # data-ospf-id が追加される場合に備えて [^>]* で属性を柔軟にマッチ
     m = re.search(
-        r'data-a="core1" data-b="core2"><line x1="([\d.]+)"', svg
+        r'data-a="core1" data-b="core2"[^>]*><line x1="([\d.]+)"', svg
     )
     assert m is not None, "OSPFビュー: core1-core2 エッジが見つからない"
     assert abs(float(m.group(1)) - chip_cx_map["core1::GigabitEthernet0/0"]) < 1.0, \
@@ -9853,7 +9854,7 @@ def test_i4cr_ospf_multi_area_node_edge_anchor_matches_chip():
 
     # p2p エッジ(core1->edge1): x1 が core1::GE0/1 チップ cx に一致
     m = re.search(
-        r'data-a="core1" data-b="edge1"><line x1="([\d.]+)"', svg
+        r'data-a="core1" data-b="edge1"[^>]*><line x1="([\d.]+)"', svg
     )
     assert m is not None, "OSPFビュー: core1-edge1 エッジが見つからない"
     assert abs(float(m.group(1)) - chip_cx_map["core1::GigabitEthernet0/1"]) < 1.0, \
@@ -10688,3 +10689,777 @@ def test_p1a2_ecmp_clear_selection_removes_all_route_row_selected():
     ) is not None
     assert has_remove, \
         "clearLinkHighlight 内に route-row-selected の classList.remove が存在しない"
+
+
+# ===========================================================================
+# Phase 1B — #1 OSPF表↔図マーキング（BGP同型の双方向連動）
+# ===========================================================================
+# フィクスチャ設計:
+#   core1: GE0/0(area0, 10.0.0.0/30 p2p to core2)
+#          GE0/1(area0, 10.0.1.0/30 p2p to edge1)
+#          GE0/2(area1, 192.168.50.0/24 segment)
+#   core2: GE0/0(area0, 10.0.0.0/30 p2p to core1)
+#   edge1: GE0/0(area0, 10.0.1.0/30 p2p to core1)
+#   acc1:  GE0/0(area1, 192.168.50.0/24 segment)
+#   acc2:  GE0/0(area1, 192.168.50.0/24 segment)
+
+
+def _make_ospf_highlight_topology():
+    """OSPF表↔図連動テスト用 multi-as-area 類似 topology"""
+    return {
+        "title": "OSPF Highlight Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "core1", "hostname": "CORE1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "core2", "hostname": "CORE2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "edge1", "hostname": "EDGE1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "acc1", "hostname": "ACC1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "acc2", "hostname": "ACC2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            # core1 のインタフェース
+            {"id": "core1::GE0/0", "device": "core1", "name": "GE0/0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "core1::GE0/1", "device": "core1", "name": "GE0/1",
+             "ip": "10.0.1.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "core1::GE0/2", "device": "core1", "name": "GE0/2",
+             "ip": "192.168.50.1/24", "vlan": None, "description": None, "shutdown": False},
+            # core2
+            {"id": "core2::GE0/0", "device": "core2", "name": "GE0/0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+            # edge1
+            {"id": "edge1::GE0/0", "device": "edge1", "name": "GE0/0",
+             "ip": "10.0.1.2/30", "vlan": None, "description": None, "shutdown": False},
+            # acc1 / acc2（セグメントメンバー）
+            {"id": "acc1::GE0/0", "device": "acc1", "name": "GE0/0",
+             "ip": "192.168.50.2/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "acc2::GE0/0", "device": "acc2", "name": "GE0/0",
+             "ip": "192.168.50.3/24", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            # core1 -- core2 (area0, 10.0.0.0/30)
+            {"a_device": "core1", "a_if": "GE0/0", "b_device": "core2", "b_if": "GE0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet",
+             "ospf_area": "0", "ospf_network": "10.0.0.0/30"},
+            # core1 -- edge1 (area0, 10.0.1.0/30)
+            {"a_device": "core1", "a_if": "GE0/1", "b_device": "edge1", "b_if": "GE0/0",
+             "subnet": "10.0.1.0/30", "kind": "inferred-subnet",
+             "ospf_area": "0", "ospf_network": "10.0.1.0/30"},
+        ],
+        "segments": [
+            {
+                "id": "seg-192_168_50_0_24",
+                "subnet": "192.168.50.0/24",
+                "ospf_area": "1",
+                "ospf_network": "192.168.50.0/24",
+                "members": ["core1::GE0/2", "acc1::GE0/0", "acc2::GE0/0"],
+            }
+        ],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                # core1 -- 両エリア参加
+                {"device": "core1", "network": "10.0.0.0/30", "area": "0", "process": "1"},
+                {"device": "core1", "network": "10.0.1.0/30", "area": "0", "process": "1"},
+                {"device": "core1", "network": "192.168.50.0/24", "area": "1", "process": "1"},
+                # core2
+                {"device": "core2", "network": "10.0.0.0/30", "area": "0", "process": "1"},
+                # edge1
+                {"device": "edge1", "network": "10.0.1.0/30", "area": "0", "process": "1"},
+                # acc1 / acc2
+                {"device": "acc1", "network": "192.168.50.0/24", "area": "1", "process": "1"},
+                {"device": "acc2", "network": "192.168.50.0/24", "area": "1", "process": "1"},
+            ],
+            "static": [],
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# P1B-1: _normalize_ospf_id ヘルパーのユニットテスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_normalize_ospf_id_basic():
+    """#1B: _normalize_ospf_id が CIDR 文字列を正規化する。
+
+    '10.0.0.0/30' -> '10.0.0.0/30'（変化なし）
+    '10.0.0.1/30'（host bit） -> '10.0.0.0/30'（strict=False で正規化）
+    """
+    from lib.rendering.core import _normalize_ospf_id
+    assert _normalize_ospf_id("10.0.0.0/30") == "10.0.0.0/30"
+    assert _normalize_ospf_id("10.0.0.1/30") == "10.0.0.0/30"  # host bit 正規化
+    assert _normalize_ospf_id("192.168.50.0/24") == "192.168.50.0/24"
+
+
+@pytest.mark.unit
+def test_p1b_normalize_ospf_id_invalid_returns_empty():
+    """#1B: _normalize_ospf_id が無効な入力で空文字を返す（クラッシュしない）。"""
+    from lib.rendering.core import _normalize_ospf_id
+    assert _normalize_ospf_id("") == ""
+    assert _normalize_ospf_id(None) == ""
+    assert _normalize_ospf_id("not-a-subnet") == ""
+
+
+@pytest.mark.unit
+def test_p1b_normalize_ospf_id_deterministic():
+    """#1B: _normalize_ospf_id は決定的（同一入力で同一出力）。"""
+    from lib.rendering.core import _normalize_ospf_id
+    subnets = ["10.0.0.0/30", "192.168.50.0/24", "10.0.1.0/30"]
+    for s in subnets:
+        assert _normalize_ospf_id(s) == _normalize_ospf_id(s)
+
+
+# ---------------------------------------------------------------------------
+# P1B-2: OSPF Networks 表の <tr> に data-ospf-id が付く（cards.py）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_ospf_card_rows_have_data_ospf_id():
+    """#1B: OSPF Networks 表の <tr> に data-ospf-id が付く。
+
+    _device_cards が ospf_marking_map を受け取り、
+    各 OSPF エントリ行に data-ospf-id="{正規化 network}" を付与する。
+    """
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    # OSPF Networks 行に data-ospf-id が存在すること
+    assert 'data-ospf-id=' in html, \
+        "OSPF Networks 行に data-ospf-id 属性が存在しない"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_card_row_10_0_0_0_30_has_correct_id():
+    """#1B: 10.0.0.0/30 の OSPF 行に data-ospf-id='10.0.0.0/30' が付く。"""
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    assert 'data-ospf-id="10.0.0.0/30"' in html, \
+        "10.0.0.0/30 OSPF 行に data-ospf-id='10.0.0.0/30' が存在しない"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_card_row_segment_192_168_50_0_24_has_correct_id():
+    """#1B: 192.168.50.0/24 の OSPF 行に data-ospf-id='192.168.50.0/24' が付く。"""
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    assert 'data-ospf-id="192.168.50.0/24"' in html, \
+        "192.168.50.0/24 OSPF 行に data-ospf-id='192.168.50.0/24' が存在しない"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_card_row_count_matches_ospf_entries():
+    """#1B: OSPF 行の data-ospf-id 付き <tr> が OSPF エントリ数と一致する。
+
+    7件のエントリがあるとき、data-ospf-id を持つ <tr> が7行以上存在する。
+    """
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    rows_with_id = re.findall(r'<tr[^>]+data-ospf-id="[^"]*"', html)
+    assert len(rows_with_id) >= 7, \
+        f"data-ospf-id 付き OSPF 行が少ない: {len(rows_with_id)} 件（期待: >=7）"
+
+
+# ---------------------------------------------------------------------------
+# P1B-3: OSPF リンク（p2pエッジ）に data-ospf-id が付く（views.py）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_ospf_link_edge_has_data_ospf_id():
+    """#1B: OSPF ビューの p2p リンク <g> に data-ospf-id が付く。
+
+    _build_view_ospf が生成する <g class="link-edge"> に
+    data-ospf-id="{正規化 subnet}" が存在する。
+    """
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    # OSPFビューを抽出
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビュー <g class='view view-ospf'> が見つからない"
+    # link-edge に data-ospf-id が存在すること
+    link_with_ospf_id = re.findall(
+        r'<g[^>]*class="link-edge"[^>]*data-ospf-id="([^"]+)"', ospf_view
+    )
+    link_with_ospf_id2 = re.findall(
+        r'<g[^>]*data-ospf-id="([^"]+)"[^>]*class="link-edge"', ospf_view
+    )
+    all_ids = link_with_ospf_id + link_with_ospf_id2
+    assert len(all_ids) >= 1, \
+        "OSPF ビューの link-edge <g> に data-ospf-id が存在しない"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_link_edge_id_value_correct():
+    """#1B: OSPF p2p リンクの data-ospf-id が正規化サブネット値（10.0.0.0/30 等）と一致する。"""
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    # 10.0.0.0/30 リンクに data-ospf-id が付くこと
+    assert 'data-ospf-id="10.0.0.0/30"' in ospf_view, \
+        "10.0.0.0/30 リンクに data-ospf-id='10.0.0.0/30' が存在しない"
+
+
+# ---------------------------------------------------------------------------
+# P1B-4: OSPF セグメント楕円・セグメントエッジに data-ospf-id が付く（svg.py）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_ospf_segment_ellipse_has_data_ospf_id():
+    """#1B: OSPF セグメント <g class='segment-node layer-ospf'> に data-ospf-id が付く。
+
+    修正後: data-ospf-id は <g> のみに付与。<ellipse> には付与しない。
+    このテストは <g> での存在を検証する（ellipse フォールバックは廃止）。
+    """
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    # <g class="segment-node layer-ospf"> に data-ospf-id が存在すること（<g> のみ検証）
+    seg_nodes = re.findall(
+        r'<g[^>]*class="[^"]*segment-node[^"]*layer-ospf[^"]*"[^>]*data-ospf-id="([^"]+)"',
+        ospf_view
+    )
+    seg_nodes2 = re.findall(
+        r'<g[^>]*data-ospf-id="([^"]+)"[^>]*class="[^"]*segment-node[^"]*"',
+        ospf_view
+    )
+    all_ids = seg_nodes + seg_nodes2
+    assert len(all_ids) >= 1, \
+        "OSPF セグメント <g> に data-ospf-id が存在しない"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_segment_ellipse_id_value_correct():
+    """#1B: OSPF セグメント楕円の data-ospf-id が 192.168.50.0/24。"""
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert 'data-ospf-id="192.168.50.0/24"' in ospf_view, \
+        "OSPF セグメント（192.168.50.0/24）に data-ospf-id='192.168.50.0/24' が存在しない"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_segment_edge_has_data_ospf_id():
+    """#1B: OSPF セグメントエッジ <line class='seg-edge layer-ospf'> に data-ospf-id が付く。"""
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    seg_edges_with_ospf_id = re.findall(
+        r'<line[^>]*class="[^"]*seg-edge[^"]*layer-ospf[^"]*"[^>]*data-ospf-id="([^"]+)"',
+        ospf_view
+    )
+    seg_edges_with_ospf_id2 = re.findall(
+        r'<line[^>]*data-ospf-id="([^"]+)"[^>]*class="[^"]*seg-edge[^"]*"',
+        ospf_view
+    )
+    all_ids = seg_edges_with_ospf_id + seg_edges_with_ospf_id2
+    assert len(all_ids) >= 1, \
+        "OSPF セグメントエッジ <line> に data-ospf-id が存在しない"
+
+
+# ---------------------------------------------------------------------------
+# P1B-5: 図（SVG）と表（カード）で同一 data-ospf-id 値（突き合わせ）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_svg_and_card_share_same_ospf_id_for_p2p_link():
+    """#1B: OSPFリンク(10.0.0.0/30)の data-ospf-id が SVG と OSPF Networks 行で一致。
+
+    SVG の link-edge と カードの OSPF Networks <tr> が同一の
+    data-ospf-id="10.0.0.0/30" を持つ（双方向連動の前提）。
+    """
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+
+    # SVG側のospf_idを収集
+    svg_ospf_ids = set(re.findall(r'data-ospf-id="([^"]+)"', ospf_view))
+    # カード側のospf_idを収集
+    card_ospf_ids = set(re.findall(r'<tr[^>]+data-ospf-id="([^"]+)"', html))
+
+    assert svg_ospf_ids, "OSPF ビューに data-ospf-id が存在しない"
+    assert card_ospf_ids, "OSPF Networks 行に data-ospf-id が存在しない"
+
+    overlap = svg_ospf_ids & card_ospf_ids
+    assert overlap, \
+        f"SVG と OSPF 表で共通の data-ospf-id がない: svg={svg_ospf_ids}, card={card_ospf_ids}"
+    assert "10.0.0.0/30" in overlap, \
+        f"10.0.0.0/30 が SVG と OSPF 表の両方に存在しない: overlap={overlap}"
+
+
+@pytest.mark.unit
+def test_p1b_svg_and_card_share_same_ospf_id_for_segment():
+    """#1B: OSPFセグメント(192.168.50.0/24)の data-ospf-id が SVG と OSPF Networks 行で一致。"""
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+
+    svg_ospf_ids = set(re.findall(r'data-ospf-id="([^"]+)"', ospf_view))
+    card_ospf_ids = set(re.findall(r'<tr[^>]+data-ospf-id="([^"]+)"', html))
+
+    assert "192.168.50.0/24" in svg_ospf_ids, \
+        "192.168.50.0/24 が OSPF ビューの data-ospf-id に存在しない"
+    assert "192.168.50.0/24" in card_ospf_ids, \
+        "192.168.50.0/24 が OSPF Networks 行の data-ospf-id に存在しない"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_link_same_id_for_both_endpoints():
+    """#1B: 10.0.0.0/30 リンクで core1/core2 の OSPF 行が同一 data-ospf-id='10.0.0.0/30' を持つ。
+
+    core1 と core2 はどちらも network=10.0.0.0/30 を持つ OSPF エントリを持ち、
+    両者の OSPF Networks 行に同一の data-ospf-id が付くこと。
+    """
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    # 10.0.0.0/30 の data-ospf-id を持つ <tr> を収集
+    rows_1000_30 = re.findall(r'<tr[^>]+data-ospf-id="10\.0\.0\.0/30"', html)
+    # core1 と core2 の両方が network=10.0.0.0/30 を持つので最低2行あるはず
+    assert len(rows_1000_30) >= 2, \
+        f"10.0.0.0/30 の data-ospf-id 付き OSPF 行が2行未満: {len(rows_1000_30)} 件"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_segment_same_id_for_all_members():
+    """#1B: 192.168.50.0/24 セグメントで core1/acc1/acc2 の OSPF 行が同一 data-ospf-id を持つ。"""
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    # 192.168.50.0/24 の data-ospf-id を持つ <tr> を収集
+    rows_seg = re.findall(r'<tr[^>]+data-ospf-id="192\.168\.50\.0/24"', html)
+    # core1/acc1/acc2 の3行があるはず
+    assert len(rows_seg) >= 3, \
+        f"192.168.50.0/24 の data-ospf-id 付き OSPF 行が3行未満: {len(rows_seg)} 件"
+
+
+# ---------------------------------------------------------------------------
+# P1B-6: JS — toggleOspfHighlight / _selectedOspf / clearSelection
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_toggle_ospf_highlight_js_exists(rendered_html):
+    """#1B: toggleOspfHighlight(ospfId) 関数が JS に存在する。"""
+    assert "toggleOspfHighlight" in rendered_html, \
+        "toggleOspfHighlight 関数が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_p1b_selected_ospf_set_exists(rendered_html):
+    """#1B: _selectedOspf Set が JS に宣言されている。"""
+    assert "_selectedOspf" in rendered_html, \
+        "_selectedOspf Set が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_p1b_clear_selection_clears_ospf(rendered_html):
+    """#1B: clearSelection() / clearLinkHighlight() が _selectedOspf を解除する。
+
+    _selectedOspf.clear() の呼び出しが JS 内に存在することを確認する。
+    """
+    assert "_selectedOspf.clear()" in rendered_html, \
+        "clearSelection/clearLinkHighlight が _selectedOspf を解除しない（_selectedOspf.clear() が存在しない）"
+
+
+@pytest.mark.unit
+def test_p1b_toggle_ospf_highlight_uses_data_ospf_id(rendered_html):
+    """#1B: toggleOspfHighlight が data-ospf-id を参照する。"""
+    func_body = _extract_js_function(rendered_html, "toggleOspfHighlight")
+    assert func_body, "toggleOspfHighlight 関数が見つからない"
+    assert "data-ospf-id" in func_body, \
+        "toggleOspfHighlight が data-ospf-id を参照していない"
+
+
+@pytest.mark.unit
+def test_p1b_toggle_ospf_highlight_uses_toggle_selection(rendered_html):
+    """#1B: toggleOspfHighlight が _toggleSelection(_selectedOspf, 'data-ospf-id') を直接呼ぶ（BGP同型）。"""
+    func_body = _extract_js_function(rendered_html, "toggleOspfHighlight")
+    assert func_body, "toggleOspfHighlight 関数が見つからない"
+    # 直接文字列として _toggleSelection 呼び出しと _selectedOspf が存在すること
+    assert "_toggleSelection" in func_body, \
+        "toggleOspfHighlight が _toggleSelection ヘルパーを呼んでいない"
+    assert "_selectedOspf" in func_body, \
+        "toggleOspfHighlight の _toggleSelection 呼び出しに _selectedOspf が含まれていない"
+    assert "data-ospf-id" in func_body, \
+        "toggleOspfHighlight の _toggleSelection 呼び出しに 'data-ospf-id' が含まれていない"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_click_handlers_registered(rendered_html):
+    """#1B: OSPF リンク・セグメント・OSPF 行のクリックハンドラが登録されている。"""
+    assert "toggleOspfHighlight" in rendered_html, \
+        "toggleOspfHighlight の呼び出しが JS に存在しない"
+
+
+# ---------------------------------------------------------------------------
+# P1B-7: CSS — OSPF リンクの .highlighted 視覚スタイル
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_ospf_link_highlighted_css_exists(rendered_html):
+    """#1B: OSPF ハイライト用の CSS ルールが存在する。
+
+    .link-edge.highlighted .link-line または data-ospf-id 要素の
+    highlighted スタイルが定義されていること。
+    """
+    # link-edge.highlighted は既存 CSS に存在するので OSPF リンクにも適用される
+    # 追加 CSS（専用 OSPF ハイライト）または既存汎用スタイルのどちらかが存在すること
+    has_css = (
+        ".link-edge.highlighted" in rendered_html
+        or ".link-edge.highlighted .link-line" in rendered_html
+        or "[data-ospf-id].highlighted" in rendered_html
+    )
+    assert has_css, \
+        "OSPF リンクに適用されるハイライト CSS が存在しない（.link-edge.highlighted等）"
+
+
+# ---------------------------------------------------------------------------
+# P1B-8: 決定性（同一入力で2回一致）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_ospf_highlight_deterministic():
+    """#1B: OSPF ハイライト追加後も render() が決定的（同一入力で2回一致）。"""
+    from lib.rendering import render
+    topo = _make_ospf_highlight_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, \
+        "OSPF ハイライト追加後に render() が非決定的になった"
+
+
+# ---------------------------------------------------------------------------
+# P1B-9: 既存機能の非回帰（BGP/セグメント/static が壊れない）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_bgp_highlight_not_broken():
+    """#1B: OSPF 変更後も BGP ハイライト (_selectedBgp / toggleBgpHighlight) が残る。"""
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    # BGP がない topology だが JS の toggleBgpHighlight は常に生成される
+    assert "toggleBgpHighlight" in html, \
+        "OSPF 変更後に toggleBgpHighlight が消えた（BGP 非回帰失敗）"
+    assert "_selectedBgp" in html, \
+        "OSPF 変更後に _selectedBgp が消えた（BGP 非回帰失敗）"
+
+
+@pytest.mark.unit
+def test_p1b_seg_highlight_not_broken(rendered_html):
+    """#1B: OSPF 変更後も toggleSegHighlight / _selectedSegs が残る。"""
+    assert "toggleSegHighlight" in rendered_html, \
+        "OSPF 変更後に toggleSegHighlight が消えた（セグメント非回帰失敗）"
+    assert "_selectedSegs" in rendered_html, \
+        "OSPF 変更後に _selectedSegs が消えた（セグメント非回帰失敗）"
+
+
+# ---------------------------------------------------------------------------
+# P1B ヘルパー: OSPF ビューを HTML から抽出する
+# （3376行目の定義と統合。こちらの定義でファイル末尾を上書き）
+# ---------------------------------------------------------------------------
+
+def _extract_ospf_view(html: str) -> str:
+    """HTML から OSPF ビュー <g class='view view-ospf'...> の内容を返す。"""
+    m = re.search(
+        r'(<g[^>]*class="view view-ospf"[^>]*>.*?)(?=<g[^>]*class="view |</g>\s*</g>\s*</svg>)',
+        html,
+        re.DOTALL,
+    )
+    if m:
+        return m.group(1)
+    # フォールバック: view-ospf 以降を全て返す（固定スライスは廃止）
+    start = html.find('class="view view-ospf"')
+    if start == -1:
+        return ""
+    end = html.find('<g class="view view-', start + 10)
+    if end == -1:
+        return html[start:]
+    return html[start:end]
+
+
+# ===========================================================================
+# Phase 1B レビュー指摘修正: 追加ユニットテスト
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# P1B-R1: _normalize_subnet 一本化（svg.py）の確認
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_normalize_subnet_is_in_svg():
+    """統合後: svg._normalize_subnet が利用可能であること（一本化の確認）。"""
+    from lib.rendering.svg import _normalize_subnet
+    assert callable(_normalize_subnet)
+    assert _normalize_subnet("10.0.0.0/30") == "10.0.0.0/30"
+    assert _normalize_subnet("10.0.0.1/30") == "10.0.0.0/30"   # host bit 正規化
+    assert _normalize_subnet("192.168.50.0/24") == "192.168.50.0/24"
+    assert _normalize_subnet("") == ""
+    assert _normalize_subnet(None) == ""
+    assert _normalize_subnet("not-a-subnet") == ""
+
+
+@pytest.mark.unit
+def test_p1b_normalize_ospf_id_same_as_normalize_subnet():
+    """統合後: core._normalize_ospf_id と svg._normalize_subnet が同一結果を返す（alias 検証）。
+
+    _normalize_ospf_id は svg._normalize_subnet のエイリアスとして維持する。
+    """
+    from lib.rendering.core import _normalize_ospf_id
+    from lib.rendering.svg import _normalize_subnet
+    test_cases = [
+        "10.0.0.0/30",
+        "10.0.0.1/30",
+        "192.168.50.0/24",
+        "",
+        "not-a-subnet",
+    ]
+    for s in test_cases:
+        assert _normalize_ospf_id(s) == _normalize_subnet(s), \
+            f"_normalize_ospf_id('{s}') != _normalize_subnet('{s}')"
+
+
+@pytest.mark.unit
+def test_p1b_core_does_not_define_own_normalize():
+    """統合後: core.py 独自の _normalize_ospf_id 関数定義が削除されている。
+
+    core._normalize_ospf_id は svg._normalize_subnet への参照でなければならない。
+    """
+    import lib.rendering.core as _core_mod
+    import lib.rendering.svg as _svg_mod
+    # _normalize_ospf_id がエクスポートされていること（後方互換 alias として）
+    assert hasattr(_core_mod, "_normalize_ospf_id"), \
+        "core._normalize_ospf_id が存在しない（後方互換 alias が欠落）"
+    # core の _normalize_ospf_id と svg の _normalize_subnet が同一オブジェクトであること
+    assert _core_mod._normalize_ospf_id is _svg_mod._normalize_subnet, \
+        "core._normalize_ospf_id が svg._normalize_subnet のエイリアスになっていない（独自定義が残っている）"
+
+
+# ---------------------------------------------------------------------------
+# P1B-R2: <ellipse> の data-ospf-id 二重付与解消
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_ellipse_does_not_have_data_ospf_id():
+    """修正後: OSPF セグメント <ellipse> に data-ospf-id が付与されていない。
+
+    data-ospf-id は <g class="segment-node layer-ospf"> のみに付与し、
+    <ellipse> 側からは削除する。クリックは <g> で拾う設計。
+    """
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    # <ellipse> に data-ospf-id が存在しないこと
+    ellipse_with_ospf_id = re.findall(r'<ellipse[^>]*data-ospf-id="[^"]*"', ospf_view)
+    assert len(ellipse_with_ospf_id) == 0, \
+        f"<ellipse> に data-ospf-id が付与されている（二重付与: {ellipse_with_ospf_id[:2]}）"
+
+
+@pytest.mark.unit
+def test_p1b_segment_node_g_has_data_ospf_id():
+    """修正後: OSPF セグメント <g class='segment-node layer-ospf'> に data-ospf-id が付与されている。"""
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    # <g class="segment-node layer-ospf"> に data-ospf-id が存在すること
+    seg_g_with_ospf_id = re.findall(
+        r'<g[^>]*class="[^"]*segment-node[^"]*layer-ospf[^"]*"[^>]*data-ospf-id="([^"]+)"',
+        ospf_view
+    )
+    seg_g_with_ospf_id2 = re.findall(
+        r'<g[^>]*data-ospf-id="([^"]+)"[^>]*class="[^"]*segment-node[^"]*layer-ospf[^"]*"',
+        ospf_view
+    )
+    all_ids = seg_g_with_ospf_id + seg_g_with_ospf_id2
+    assert len(all_ids) >= 1, \
+        "<g class='segment-node layer-ospf'> に data-ospf-id が付与されていない"
+
+
+# ---------------------------------------------------------------------------
+# P1B-R3: _build_ospf_marking_map ユニットテスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_build_ospf_marking_map_two_devices_same_subnet():
+    """_build_ospf_marking_map: 2機が同一subnet → 正規化後の同一 ospf_id が格納される。"""
+    from lib.rendering.core import _build_ospf_marking_map
+    ospf_entries = [
+        {"device": "r1", "network": "10.0.0.0/30", "area": "0", "process": "1"},
+        {"device": "r2", "network": "10.0.0.0/30", "area": "0", "process": "1"},
+    ]
+    result = _build_ospf_marking_map(ospf_entries)
+    assert ("r1", "10.0.0.0/30") in result
+    assert ("r2", "10.0.0.0/30") in result
+    assert result[("r1", "10.0.0.0/30")] == "10.0.0.0/30"
+    assert result[("r2", "10.0.0.0/30")] == "10.0.0.0/30"
+    # 同一 ospf_id（同一 subnet なので同値）
+    assert result[("r1", "10.0.0.0/30")] == result[("r2", "10.0.0.0/30")]
+
+
+@pytest.mark.unit
+def test_p1b_build_ospf_marking_map_missing_network_skipped():
+    """_build_ospf_marking_map: network 欠損エントリはスキップされる。"""
+    from lib.rendering.core import _build_ospf_marking_map
+    ospf_entries = [
+        {"device": "r1", "area": "0"},                           # network なし → スキップ
+        {"device": "r2", "network": "10.0.0.0/30", "area": "0"},
+        {"network": "10.0.1.0/30", "area": "0"},                 # device なし → スキップ
+    ]
+    result = _build_ospf_marking_map(ospf_entries)
+    assert len(result) == 1
+    assert ("r2", "10.0.0.0/30") in result
+
+
+@pytest.mark.unit
+def test_p1b_build_ospf_marking_map_invalid_cidr_skipped():
+    """_build_ospf_marking_map: 無効 CIDR エントリはスキップされる（id なし）。"""
+    from lib.rendering.core import _build_ospf_marking_map
+    ospf_entries = [
+        {"device": "r1", "network": "not-a-cidr", "area": "0"},
+        {"device": "r2", "network": "10.0.0.0/30", "area": "0"},
+    ]
+    result = _build_ospf_marking_map(ospf_entries)
+    assert ("r1", "not-a-cidr") not in result, \
+        "無効 CIDR エントリがスキップされていない"
+    assert ("r2", "10.0.0.0/30") in result
+
+
+@pytest.mark.unit
+def test_p1b_build_ospf_marking_map_empty_returns_empty():
+    """_build_ospf_marking_map: 空リスト → {} を返す。"""
+    from lib.rendering.core import _build_ospf_marking_map
+    result = _build_ospf_marking_map([])
+    assert result == {}
+
+
+@pytest.mark.unit
+def test_p1b_build_ospf_marking_map_host_bit_normalized():
+    """_build_ospf_marking_map: host bit 入り network が正規化されて格納される。
+
+    network='10.0.0.1/30'（host bit あり）は正規化後 '10.0.0.0/30' として ospf_id に格納。
+    """
+    from lib.rendering.core import _build_ospf_marking_map
+    ospf_entries = [
+        {"device": "r1", "network": "10.0.0.1/30", "area": "0"},
+    ]
+    result = _build_ospf_marking_map(ospf_entries)
+    assert ("r1", "10.0.0.1/30") in result, \
+        "host bit 入り network キーが存在しない（マップキーは raw network のまま）"
+    assert result[("r1", "10.0.0.1/30")] == "10.0.0.0/30", \
+        "host bit 入り network の ospf_id が正規化されていない"
+
+
+@pytest.mark.unit
+def test_p1b_build_ospf_marking_map_no_extra_args():
+    """_build_ospf_marking_map: links/segments 引数が不要になった（シグネチャ変更）。
+
+    修正後は _build_ospf_marking_map(ospf_entries) の1引数シグネチャになる。
+    """
+    from lib.rendering.core import _build_ospf_marking_map
+    import inspect
+    sig = inspect.signature(_build_ospf_marking_map)
+    params = list(sig.parameters.keys())
+    assert "links" not in params, \
+        "_build_ospf_marking_map に未使用の 'links' 引数が残っている"
+    assert "segments" not in params, \
+        "_build_ospf_marking_map に未使用の 'segments' 引数が残っている"
+    assert "ospf_entries" in params, \
+        "_build_ospf_marking_map に 'ospf_entries' 引数がない"
+
+
+# ---------------------------------------------------------------------------
+# P1B-R4: id 整合 — cards.py のルックアップが正規化された network で一致
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_card_lookup_matches_normalized_network():
+    """#1B: host bit 入り network でも cards.py の data-ospf-id ルックアップが正しく機能する。
+
+    routing.ospf[].network = '10.0.0.1/30'（host bit あり）でも
+    _build_ospf_marking_map が ospf_id='10.0.0.0/30' を返し、
+    カード行に data-ospf-id='10.0.0.0/30' が付く。
+    また SVG 側の data-ospf-id（link.ospf_network='10.0.0.0/30' 正規化後）と一致する。
+    """
+    from lib.rendering import render
+    topo = {
+        "title": "Host-bit Network Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet",
+             "ospf_area": "0", "ospf_network": "10.0.0.0/30"},
+        ],
+        "segments": [],
+        "routing": {
+            "ospf": [
+                # host bit 入り network（routing.network != link.ospf_network だが同一 subnet）
+                {"device": "r1", "network": "10.0.0.1/30", "area": "0", "process": "1"},
+                {"device": "r2", "network": "10.0.0.2/30", "area": "0", "process": "1"},
+            ],
+        },
+    }
+    html = render(topo)
+    # カード行に data-ospf-id='10.0.0.0/30'（正規化後）が付くこと
+    assert 'data-ospf-id="10.0.0.0/30"' in html, \
+        "host bit 入り network から正規化された data-ospf-id='10.0.0.0/30' が得られない"
+    # SVG link-edge にも data-ospf-id='10.0.0.0/30' が付くこと（一致確認）
+    ospf_view = _extract_ospf_view(html)
+    assert 'data-ospf-id="10.0.0.0/30"' in ospf_view, \
+        "SVG link-edge に data-ospf-id='10.0.0.0/30' が存在しない（cards との不一致）"
+
+
+# ---------------------------------------------------------------------------
+# P1B-R5: link-edge の data-ospf-id と data-link-id 同一要素付与防止
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_ospf_link_edge_no_dual_attr():
+    """修正後: OSPF ビューの link-edge <g> に data-link-id と data-ospf-id が同時に付与されていない。
+
+    OSPF ビューの <g class='link-edge'> は data-ospf-id のみ持ち、
+    data-link-id は付与しない（クリック二重発火防止）。
+    """
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    # link-edge に data-link-id と data-ospf-id が同時に存在するものがないこと
+    dual_attrs = re.findall(
+        r'<g[^>]*class="link-edge"[^>]*data-link-id="[^"]*"[^>]*data-ospf-id="[^"]*"',
+        ospf_view
+    )
+    dual_attrs2 = re.findall(
+        r'<g[^>]*class="link-edge"[^>]*data-ospf-id="[^"]*"[^>]*data-link-id="[^"]*"',
+        ospf_view
+    )
+    all_dual = dual_attrs + dual_attrs2
+    assert len(all_dual) == 0, \
+        f"OSPF ビューの link-edge に data-link-id と data-ospf-id が同時付与されている: {len(all_dual)} 件"
+
+
+@pytest.mark.unit
+def test_p1b_ospf_card_row_count_exact():
+    """#1B 精緻化: OSPF 行の data-ospf-id 付き <tr> が fixture の OSPF エントリ数 (7) と == である。
+
+    _make_ospf_highlight_topology には 7 件の OSPF エントリがある。
+    >= 7 ではなく == 7 で検証（フィクスチャのエントリ数と連動）。
+    """
+    from lib.rendering import render
+    html = render(_make_ospf_highlight_topology())
+    rows_with_id = re.findall(r'<tr[^>]+data-ospf-id="[^"]*"', html)
+    assert len(rows_with_id) == 7, \
+        f"data-ospf-id 付き OSPF 行が 7 件でない: {len(rows_with_id)} 件（期待: ==7）"

@@ -14,22 +14,25 @@ def _device_cards(
     iface_seg_id: dict[str, str] | None = None,
     static_route_map: dict[tuple[str, str], dict] | None = None,
     bgp_session_map: dict[tuple[str, str], str] | None = None,
+    ospf_marking_map: dict[tuple[str, str], str] | None = None,
 ) -> str:
     """機器ごとのカード HTML を生成する（図の下に表示）
 
     Args:
-        devices:          デバイスリスト
-        interfaces:       インタフェースリスト
-        routing:          ルーティング dict
-        iface_link_id:    ``{iface_id: link_id}`` マップ。
-                          リンク端点の IF 行 <tr> に ``data-link-id`` を付与するために使用する。
-                          None の場合は付与しない（後方互換）。
-        iface_seg_id:     ``{iface_id: seg_id}`` マップ（#7）。
-                          セグメントメンバーの IF 行 <tr> に ``data-seg-id`` を付与する。
-        static_route_map: ``{(device, prefix): {route_edge_id, nexthop_device_id}}`` マップ（#2/#6）。
-                          static 行に ``data-route-edge`` / ``data-route-nexthop-device`` を付与する。
-        bgp_session_map:  ``{(device, neighbor_ip): bgp_id}`` マップ（#5）。
-                          BGP Sessions 行に ``data-bgp-id`` を付与する。
+        devices:           デバイスリスト
+        interfaces:        インタフェースリスト
+        routing:           ルーティング dict
+        iface_link_id:     ``{iface_id: link_id}`` マップ。
+                           リンク端点の IF 行 <tr> に ``data-link-id`` を付与するために使用する。
+                           None の場合は付与しない（後方互換）。
+        iface_seg_id:      ``{iface_id: seg_id}`` マップ（#7）。
+                           セグメントメンバーの IF 行 <tr> に ``data-seg-id`` を付与する。
+        static_route_map:  ``{(device, prefix): {route_edge_id, nexthop_device_id}}`` マップ（#2/#6）。
+                           static 行に ``data-route-edge`` / ``data-route-nexthop-device`` を付与する。
+        bgp_session_map:   ``{(device, neighbor_ip): bgp_id}`` マップ（#5）。
+                           BGP Sessions 行に ``data-bgp-id`` を付与する。
+        ospf_marking_map:  ``{(device, network): ospf_id}`` マップ（#1B）。
+                           OSPF Networks 行に ``data-ospf-id`` を付与する。
     """
     if iface_link_id is None:
         iface_link_id = {}
@@ -39,6 +42,8 @@ def _device_cards(
         static_route_map = {}
     if bgp_session_map is None:
         bgp_session_map = {}
+    if ospf_marking_map is None:
+        ospf_marking_map = {}
 
     # device_id -> interfaces マップ
     iface_by_device: dict[str, list[dict]] = {}
@@ -104,12 +109,15 @@ def _device_cards(
             )
         bgp_rows = "".join(bgp_row_parts)
 
-        # OSPF サマリー
+        # OSPF サマリー（#1B: data-ospf-id 付与）
         ospf_row_parts = []
         for o in ospf_by_device.get(dev_id, []):
+            network = o.get("network", "")
+            ospf_id = ospf_marking_map.get((dev_id, network), "")
+            tr_ospf_attrs = f' data-ospf-id="{_esc(ospf_id)}"' if ospf_id else ""
             ospf_row_parts.append(
-                f"<tr>"
-                f"<td>{_esc(o.get('network', ''))}</td>"
+                f"<tr{tr_ospf_attrs}>"
+                f"<td>{_esc(network)}</td>"
                 f"<td>Area {_esc(o.get('area', ''))}</td>"
                 f"<td>PID {_esc(o.get('process', ''))}</td>"
                 f"</tr>"

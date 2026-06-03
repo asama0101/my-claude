@@ -4,6 +4,7 @@ rendering/svg.py — SVG 要素生成モジュール
 from __future__ import annotations
 
 import html
+import ipaddress
 from collections import defaultdict
 from typing import Any
 
@@ -28,6 +29,26 @@ def _esc(value: Any) -> str:
     if value is None:
         return ""
     return html.escape(str(value), quote=True)
+
+
+def _normalize_subnet(subnet: object) -> str:
+    """サブネット文字列を正規化した CIDR 文字列を返す（OSPF ID 算出用）。
+
+    ``ipaddress.ip_network(subnet, strict=False)`` で host bit を除去した
+    ネットワークアドレスを返す。無効な入力は空文字を返す。
+
+    Args:
+        subnet: サブネット文字列（例: ``"10.0.0.0/30"``）
+
+    Returns:
+        正規化 CIDR 文字列。解析不能なら ``""``。
+    """
+    if not subnet:
+        return ""
+    try:
+        return str(ipaddress.ip_network(subnet, strict=False))
+    except (ValueError, TypeError):
+        return ""
 
 
 def _make_link_id(a_device: str, a_if: str, b_device: str, b_if: str) -> str:
@@ -463,6 +484,8 @@ def _svg_ospf_segments(segments: list[dict], positions: dict) -> str:
     Physical ビューの _svg_segments と同様だが、ラベルに「area {area} · {subnet}」を
     表示し、layer-ospf クラスを付与する。
     ospf_area が付いているセグメントのみを対象とする。
+
+    #1B: ``data-ospf-id`` を付与する（subnet を正規化した CIDR）。
     """
     parts = []
     for seg in sorted(segments, key=lambda s: s["id"]):
@@ -471,12 +494,17 @@ def _svg_ospf_segments(segments: list[dict], positions: dict) -> str:
             continue
         x, y = positions.get(seg["id"], (0, 0))
         seg_id = _esc(seg["id"])
-        subnet = _esc(seg["subnet"])
+        subnet_raw = seg.get("subnet", "")
+        subnet = _esc(subnet_raw)
+        # #1B: ospf_network または subnet から ospf_id を正規化して取得
+        ospf_id = _normalize_subnet(seg.get("ospf_network") or subnet_raw)
+        ospf_id_attr = f' data-ospf-id="{_esc(ospf_id)}"' if ospf_id else ""
         area_label = OSPF_AREA_LABEL_FORMAT.format(
             area=_esc(ospf_area), subnet=subnet
         )
+        # data-ospf-id は <g> のみに付与し <ellipse> には付与しない（クリックは <g> で拾う設計）
         parts.append(
-            f'<g class="segment-node layer-ospf" data-segment="{seg_id}">'
+            f'<g class="segment-node layer-ospf" data-segment="{seg_id}"{ospf_id_attr}>'
             f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{_SEG_RX}" ry="{_SEG_RY}" '
             f'class="seg-ellipse layer-ospf"/>'
             f'<text x="{x:.1f}" y="{y + 5:.1f}" text-anchor="middle" '
@@ -516,6 +544,9 @@ def _svg_ospf_segment_edges(
             continue
         sx, sy = positions.get(seg["id"], (0, 0))
         seg_id = _esc(seg["id"])
+        # #1B: セグメントの ospf_id を算出（ospf_network または subnet から正規化）
+        ospf_id = _normalize_subnet(seg.get("ospf_network") or seg.get("subnet") or "")
+        ospf_id_attr = f' data-ospf-id="{_esc(ospf_id)}"' if ospf_id else ""
         for member_iface_id in sorted(seg.get("members", [])):
             dev_id = iface_map.get(member_iface_id)
             if dev_id and dev_id in positions:
@@ -527,7 +558,7 @@ def _svg_ospf_segment_edges(
                 parts.append(
                     f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
                     f'class="seg-edge layer-ospf" data-seg="{seg_id}" '
-                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}"/>'
+                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}"{ospf_id_attr}/>'
                 )
     return "\n".join(parts)
 
