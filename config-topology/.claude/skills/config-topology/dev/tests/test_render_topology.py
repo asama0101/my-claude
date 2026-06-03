@@ -3933,3 +3933,986 @@ def test_c5_as_group_no_crash_when_local_as_missing():
     as_group_count = bgp_view.count('class="as-group"')
     assert as_group_count == 0, \
         f"as=None 機器のみなのに as-group が {as_group_count} 個出力されている"
+
+
+# ===========================================================================
+# Phase D #2: クリック選択・双方向ハイライト + IF行↔リンク連動
+# ===========================================================================
+
+def _make_link_id_topology():
+    """r1-r2 間に1リンク、各デバイスに複数 IF を持つ topology（link-id テスト用）"""
+    return {
+        "title": "Link ID Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": "to-r2", "shutdown": False},
+            {"id": "r1::lo0", "device": "r1", "name": "lo0",
+             "ip": "1.1.1.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": "to-r1", "shutdown": False},
+            {"id": "r2::lo0", "device": "r2", "name": "lo0",
+             "ip": "2.2.2.2/32", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0",
+             "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+def _make_multi_device_link_topology():
+    """r1-r2, r2-r3 の 2 リンクを持つ topology（複数 link-id テスト用）"""
+    return {
+        "title": "Multi Link ID Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r3", "hostname": "R3", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::Gi0/0", "device": "r1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::Gi0/0", "device": "r2", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::Gi0/1", "device": "r2", "name": "GigabitEthernet0/1",
+             "ip": "10.0.1.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r3::Gi0/0", "device": "r3", "name": "GigabitEthernet0/0",
+             "ip": "10.0.1.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "GigabitEthernet0/0",
+             "b_device": "r2", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+            {"a_device": "r2", "a_if": "GigabitEthernet0/1",
+             "b_device": "r3", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.1.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+# ---- #D2-1: link-edge <g> に data-link-id が付く --------------------------
+
+@pytest.mark.unit
+def test_phaseD2_link_edge_has_data_link_id():
+    """Phase D #2: link-edge <g> に data-link-id 属性が存在する"""
+    from lib.rendering import render
+    html = render(_make_link_id_topology())
+    phys = _extract_physical_view(html)
+    assert 'data-link-id="' in phys, \
+        "link-edge <g> に data-link-id 属性が存在しない"
+
+
+@pytest.mark.unit
+def test_phaseD2_link_edge_data_link_id_is_deterministic():
+    """Phase D #2: link-id が決定的（同一 topology で2回レンダリングして一致）"""
+    from lib.rendering import render
+    import copy
+    topo = _make_link_id_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    # data-link-id の全出現を抽出して比較
+    ids1 = re.findall(r'data-link-id="([^"]*)"', html1)
+    ids2 = re.findall(r'data-link-id="([^"]*)"', html2)
+    assert ids1 == ids2, f"data-link-id が非決定的: {ids1} vs {ids2}"
+
+
+@pytest.mark.unit
+def test_phaseD2_link_id_symmetric():
+    """Phase D #2: link-id は両端の端点から導出され対称的（順序に依存しない）
+    a→b と b→a で同じ link-id になること（sorted による決定性）"""
+    # link-id = sorted([a_device::a_if, b_device::b_if]) を '|' で結合
+    # r1::eth0 と r2::eth0 → sorted = ['r1::eth0', 'r2::eth0'] → 'r1::eth0|r2::eth0'
+    from lib.rendering.svg import _make_link_id
+    lid_ab = _make_link_id("r1", "eth0", "r2", "eth0")
+    lid_ba = _make_link_id("r2", "eth0", "r1", "eth0")
+    assert lid_ab == lid_ba, \
+        f"link-id が対称でない: a→b={lid_ab!r}, b→a={lid_ba!r}"
+
+
+@pytest.mark.unit
+def test_phaseD2_link_id_unique_per_link():
+    """Phase D #2: 異なるリンクは異なる link-id を持つ"""
+    from lib.rendering.svg import _make_link_id
+    lid1 = _make_link_id("r1", "GigabitEthernet0/0", "r2", "GigabitEthernet0/0")
+    lid2 = _make_link_id("r2", "GigabitEthernet0/1", "r3", "GigabitEthernet0/0")
+    assert lid1 != lid2, \
+        f"異なるリンクが同じ link-id: {lid1!r}"
+
+
+@pytest.mark.unit
+def test_phaseD2_link_line_has_data_link_id():
+    """Phase D #2: <line class='link-line'> にも data-link-id が付く"""
+    from lib.rendering import render
+    html = render(_make_link_id_topology())
+    phys = _extract_physical_view(html)
+    # <line ... data-link-id="..."> が存在すること
+    assert re.search(r'<line[^>]+data-link-id="[^"]*"', phys), \
+        "<line class='link-line'> に data-link-id が付いていない"
+
+
+# ---- #D2-2: IF 行に data-link-id が付く ------------------------------------
+
+@pytest.mark.unit
+def test_phaseD2_if_row_endpoint_has_data_link_id():
+    """Phase D #2: リンク端点の IF 行 <tr> に data-link-id が付く"""
+    from lib.rendering import render
+    html = render(_make_link_id_topology())
+    # r1::eth0 と r2::eth0 はリンク端点 → <tr> に data-link-id が付くはず
+    # カードセクションを抽出
+    cards_m = re.search(r'id="cards-section".*', html, re.DOTALL)
+    cards_section = cards_m.group(0) if cards_m else html
+    assert re.search(r'<tr[^>]+data-link-id="[^"]*"', cards_section), \
+        "カードの IF 行 <tr> に data-link-id が付いていない"
+
+
+@pytest.mark.unit
+def test_phaseD2_if_row_non_endpoint_no_data_link_id():
+    """Phase D #2: リンク端点でない IF 行 <tr> に data-link-id が付かない（lo0 は端点外）"""
+    from lib.rendering import render
+    html = render(_make_link_id_topology())
+    # lo0 はリンク端点でない → <tr> に data-link-id がない or 空
+    # lo0 の <tr> を近似的に検索（lo0 が含まれる tr ブロック）
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    # lo0 を含む <tr> を抽出し、data-link-id が付いていないことを確認
+    lo0_rows = re.findall(r'<tr[^>]*>(?:[^<]|<(?!tr|/tr))*?lo0(?:[^<]|<(?!tr|/tr))*?</tr>', cards_html, re.DOTALL)
+    for row in lo0_rows:
+        assert 'data-link-id="' not in row or 'data-link-id=""' in row, \
+            f"lo0（非端点 IF）の <tr> に data-link-id が付いている: {row[:200]}"
+
+
+@pytest.mark.unit
+def test_phaseD2_both_endpoints_have_same_link_id():
+    """Phase D #2: リンクの両端 device のカードの IF 行に同じ data-link-id が付く"""
+    from lib.rendering import render
+    from lib.rendering.svg import _make_link_id
+    html = render(_make_link_id_topology())
+    # 期待される link-id を計算
+    expected_lid = _make_link_id("r1", "eth0", "r2", "eth0")
+    # カードセクションからその link-id を持つ <tr> を探す
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    matching_rows = re.findall(
+        rf'<tr[^>]+data-link-id="{re.escape(expected_lid)}"[^>]*>',
+        cards_html
+    )
+    assert len(matching_rows) >= 2, \
+        f"link-id={expected_lid!r} を持つ <tr> が {len(matching_rows)} 個（期待: >=2、両端）"
+
+
+@pytest.mark.unit
+def test_phaseD2_multi_link_each_has_unique_link_id():
+    """Phase D #2: 複数リンクを持つ topology で各リンクが異なる link-id を持つ"""
+    from lib.rendering import render
+    html = render(_make_multi_device_link_topology())
+    phys = _extract_physical_view(html)
+    link_ids = re.findall(r'<g[^>]*class="link-edge"[^>]*data-link-id="([^"]*)"', phys)
+    if not link_ids:
+        link_ids = re.findall(r'data-link-id="([^"]*)"[^>]*class="link-edge"', phys)
+    assert len(link_ids) == 2, \
+        f"link-edge の data-link-id が {len(link_ids)} 個（期待: 2）"
+    assert link_ids[0] != link_ids[1], \
+        f"2 本のリンクが同じ link-id: {link_ids}"
+
+
+# ---- #D2-3: JS 関数の存在確認 -----------------------------------------------
+
+@pytest.mark.unit
+def test_phaseD2_js_card_click_selects_node(rendered_html):
+    """Phase D #2: カード→ノード選択 JS（selectNodeFromCard または card.addEventListener click）が含まれる"""
+    # カードクリックでノードを selected にする JS が存在すること
+    js_signals = [
+        "selectNodeFromCard",
+        "device-card",
+    ]
+    lower = rendered_html.lower()
+    # selectNodeFromCard か、device-card クリック処理のどちらかが含まれる
+    has_card_node_js = (
+        "selectnodefromcard" in lower or
+        ("device-card" in lower and "click" in lower and "selected" in lower)
+    )
+    assert has_card_node_js, \
+        "カード→ノード選択 JS（selectNodeFromCard）が見つからない"
+
+
+@pytest.mark.unit
+def test_phaseD2_js_if_row_link_highlight(rendered_html):
+    """Phase D #2: IF行↔リンク連動 JS 関数（toggleIfRowHighlight または data-link-id 参照）が含まれる"""
+    has_signal = (
+        "toggleIfRowHighlight" in rendered_html or
+        ("data-link-id" in rendered_html and "click" in rendered_html.lower())
+    )
+    assert has_signal, \
+        "IF行↔リンク連動 JS（toggleIfRowHighlight）が見つからない"
+
+
+@pytest.mark.unit
+def test_phaseD2_js_multiple_selection_accumulation(rendered_html):
+    """Phase D #2: 複数累積選択をサポートする JS（_selectedNodes または selectedNodes等）が含まれる"""
+    # 複数選択を管理する変数またはトグルロジックが含まれること
+    has_accumulation = (
+        "_selectedNodes" in rendered_html or
+        "_selectedLinks" in rendered_html or
+        "selectedNodes" in rendered_html or
+        # トグルロジック: wasSelected パターン（既存コードに含まれる）
+        "wasSelected" in rendered_html
+    )
+    assert has_accumulation, \
+        "複数選択累積ロジック（_selectedNodes 等）が見つからない"
+
+
+@pytest.mark.unit
+def test_phaseD2_js_esc_clears_selection(rendered_html):
+    """Phase D #2: Esc キーで全選択解除する JS が含まれる（既存 clearSelection の存在確認）"""
+    assert "clearSelection" in rendered_html, \
+        "Esc 解除用 clearSelection が見つからない"
+    assert "Escape" in rendered_html, \
+        "Esc キーハンドラが見つからない"
+
+
+# ---- #D2-4: CSS の存在確認 --------------------------------------------------
+
+@pytest.mark.unit
+def test_phaseD2_css_device_card_selected(rendered_html):
+    """Phase D #2: CSS に .device-card.selected のスタイルが含まれる（厳密検証）"""
+    style = _extract_style_blocks(rendered_html)
+    assert re.search(r'\.device-card\.selected\s*\{', style), \
+        "CSS に .device-card.selected { ... } スタイルが含まれない"
+
+
+@pytest.mark.unit
+def test_phaseD2_css_tr_highlighted(rendered_html):
+    """Phase D #2: CSS に tr.highlighted のスタイルが含まれる"""
+    style = _extract_style_blocks(rendered_html)
+    assert re.search(r'tr\.highlighted', style) or \
+           re.search(r'tr[^{]*\.highlighted', style), \
+        "CSS に tr.highlighted スタイルが含まれない"
+
+
+@pytest.mark.unit
+def test_phaseD2_css_tr_selected(rendered_html):
+    """Phase D #2: CSS に tr.selected のスタイルが含まれる（IF 行の選択強調）"""
+    style = _extract_style_blocks(rendered_html)
+    assert re.search(r'tr\.selected', style) or \
+           re.search(r'tr[^{]*\.selected', style), \
+        "CSS に tr.selected スタイルが含まれない"
+
+
+# ---- #D2-5: 決定性 ----------------------------------------------------------
+
+@pytest.mark.unit
+def test_phaseD2_link_id_deterministic_with_sample_topology(sample_topology):
+    """Phase D #2: sample topology で data-link-id の順序・内容が決定的"""
+    from lib.rendering import render
+    import copy
+    html1 = render(copy.deepcopy(sample_topology))
+    html2 = render(copy.deepcopy(sample_topology))
+    ids1 = re.findall(r'data-link-id="([^"]*)"', html1)
+    ids2 = re.findall(r'data-link-id="([^"]*)"', html2)
+    assert ids1 == ids2, "sample topology で data-link-id が非決定的"
+
+
+# ===========================================================================
+# Phase D #4: ノード表示フィルタ UI（checklist / setNodeVisibility）
+# ===========================================================================
+
+# ---- #D4-1: checklist UI の存在確認 ----------------------------------------
+
+@pytest.mark.unit
+def test_phaseD4_node_filter_checklist_exists(rendered_html):
+    """Phase D #4: ノードフィルタ チェックリスト UI が存在する（data-node-filter 属性）"""
+    assert 'data-node-filter=' in rendered_html, \
+        "ノードフィルタ用 data-node-filter 属性が見つからない"
+
+
+@pytest.mark.unit
+def test_phaseD4_node_filter_checkbox_count_matches_devices(sample_topology, rendered_html):
+    """Phase D #4: チェックボックス（data-node-filter）の数がデバイス数と一致する"""
+    device_count = len(sample_topology["devices"])
+    filter_checkboxes = re.findall(r'data-node-filter="([^"]*)"', rendered_html)
+    assert len(filter_checkboxes) == device_count, \
+        f"ノードフィルタ チェックボックス数 {len(filter_checkboxes)} != デバイス数 {device_count}"
+
+
+@pytest.mark.unit
+def test_phaseD4_node_filter_checkboxes_default_checked(rendered_html):
+    """Phase D #4: ノードフィルタ チェックボックスはデフォルト checked"""
+    # data-node-filter を持つ input[type=checkbox] が checked であること
+    # <input type="checkbox" ... data-node-filter="..." checked> パターン
+    filter_inputs = re.findall(
+        r'<input[^>]+data-node-filter="[^"]*"[^>]*>',
+        rendered_html
+    )
+    assert len(filter_inputs) >= 1, \
+        "data-node-filter を持つ input 要素が見つからない"
+    for inp in filter_inputs:
+        assert "checked" in inp, \
+            f"ノードフィルタ チェックボックスが checked でない: {inp}"
+
+
+@pytest.mark.unit
+def test_phaseD4_node_filter_sorted_hostname_order(sample_topology, rendered_html):
+    """Phase D #4: チェックリストはデバイス hostname 昇順でソートされている"""
+    filter_devices = re.findall(r'data-node-filter="([^"]*)"', rendered_html)
+    assert len(filter_devices) >= 1, "data-node-filter が見つからない"
+    # hostname 昇順でデバイス ID を並べた期待順序
+    sorted_ids = sorted(
+        (d["id"] for d in sample_topology["devices"]),
+        key=lambda did: next(
+            d["hostname"] for d in sample_topology["devices"] if d["id"] == did
+        )
+    )
+    # data-node-filter の値（device id）が sorted_ids 順になっているはず
+    assert filter_devices == sorted_ids, \
+        f"ノードフィルタの順序が hostname 昇順でない: {filter_devices} != {sorted_ids}"
+
+
+@pytest.mark.unit
+def test_phaseD4_select_all_button_exists(rendered_html):
+    """Phase D #4: 「全選択」ボタンが存在する（onclick 等で selectAllNodes を呼ぶ）"""
+    has_select_all = (
+        "selectAllNodes" in rendered_html or
+        "全選択" in rendered_html or
+        "select-all" in rendered_html.lower()
+    )
+    assert has_select_all, \
+        "全選択ボタン（selectAllNodes）が見つからない"
+
+
+@pytest.mark.unit
+def test_phaseD4_clear_all_button_exists(rendered_html):
+    """Phase D #4: 「全解除」ボタンが存在する（onclick 等で clearAllNodes を呼ぶ）"""
+    has_clear_all = (
+        "clearAllNodes" in rendered_html or
+        "全解除" in rendered_html or
+        "clear-all" in rendered_html.lower()
+    )
+    assert has_clear_all, \
+        "全解除ボタン（clearAllNodes）が見つからない"
+
+
+# ---- #D4-2: JS 関数の存在確認 -----------------------------------------------
+
+@pytest.mark.unit
+def test_phaseD4_js_set_node_visibility_exists(rendered_html):
+    """Phase D #4: setNodeVisibility JS 関数が含まれる"""
+    assert "setNodeVisibility" in rendered_html, \
+        "setNodeVisibility JS 関数が見つからない"
+
+
+@pytest.mark.unit
+def test_phaseD4_js_select_all_nodes_exists(rendered_html):
+    """Phase D #4: selectAllNodes JS 関数が含まれる"""
+    assert "selectAllNodes" in rendered_html, \
+        "selectAllNodes JS 関数が見つからない"
+
+
+@pytest.mark.unit
+def test_phaseD4_js_clear_all_nodes_exists(rendered_html):
+    """Phase D #4: clearAllNodes JS 関数が含まれる"""
+    assert "clearAllNodes" in rendered_html, \
+        "clearAllNodes JS 関数が見つからない"
+
+
+@pytest.mark.unit
+def test_phaseD4_js_set_node_visibility_uses_data_device(rendered_html):
+    """Phase D #4: setNodeVisibility が data-device を参照してノードを制御する実装を含む"""
+    # setNodeVisibility 関数内に data-device 参照があること
+    start = rendered_html.find("function setNodeVisibility(")
+    assert start != -1, "setNodeVisibility 関数が見つからない"
+    end = rendered_html.find("\n    function ", start + 10)
+    func_body = rendered_html[start:end] if end != -1 else rendered_html[start:start + 3000]
+    assert "data-device" in func_body or "dataset.device" in func_body or \
+           'data-device' in func_body, \
+        "setNodeVisibility 内で data-device 参照が見つからない"
+
+
+@pytest.mark.unit
+def test_phaseD4_js_set_node_visibility_hides_connected_edges(rendered_html):
+    """Phase D #4: setNodeVisibility がエッジも非表示にする実装を含む（data-a/data-b 参照）"""
+    start = rendered_html.find("function setNodeVisibility(")
+    assert start != -1, "setNodeVisibility 関数が見つからない"
+    end = rendered_html.find("\n    function ", start + 10)
+    func_body = rendered_html[start:end] if end != -1 else rendered_html[start:start + 3000]
+    # data-a, data-b, data-link-id, link-edge など接続エッジへの参照があること
+    has_edge_control = (
+        "data-a" in func_body or
+        "data-b" in func_body or
+        "link-edge" in func_body or
+        "data-link-id" in func_body
+    )
+    assert has_edge_control, \
+        "setNodeVisibility 内で接続エッジの制御が見つからない（data-a/data-b 等）"
+
+
+@pytest.mark.unit
+def test_phaseD4_js_set_node_visibility_hides_card(rendered_html):
+    """Phase D #4: setNodeVisibility が対応カードも非表示にする実装を含む"""
+    start = rendered_html.find("function setNodeVisibility(")
+    assert start != -1, "setNodeVisibility 関数が見つからない"
+    end = rendered_html.find("\n    function ", start + 10)
+    func_body = rendered_html[start:end] if end != -1 else rendered_html[start:start + 3000]
+    has_card_control = (
+        "device-card" in func_body or
+        "cards-section" in func_body
+    )
+    assert has_card_control, \
+        "setNodeVisibility 内でカードの制御が見つからない（device-card 等）"
+
+
+# ---- #D4-3: CSS クラス確認 --------------------------------------------------
+
+@pytest.mark.unit
+def test_phaseD4_css_node_filtered_class(rendered_html):
+    """Phase D #4: CSS に .node-filtered（非表示）ルールが含まれる"""
+    style = _extract_style_blocks(rendered_html)
+    assert re.search(r'\.node-filtered', style), \
+        "CSS に .node-filtered クラスが含まれない"
+
+
+@pytest.mark.unit
+def test_phaseD4_css_node_filtered_display_none(rendered_html):
+    """Phase D #4: .node-filtered は display:none または visibility:hidden を持つ"""
+    style = _extract_style_blocks(rendered_html)
+    m = re.search(r'\.node-filtered\s*\{([^}]*)\}', style)
+    assert m is not None, ".node-filtered ルールが見つからない"
+    rule_body = m.group(1)
+    assert "display" in rule_body or "visibility" in rule_body, \
+        f".node-filtered が display/visibility を設定していない: {rule_body!r}"
+
+
+# ---- #D4-4: filterNodes（検索）との非干渉確認 --------------------------------
+
+@pytest.mark.unit
+def test_phaseD4_search_and_filter_independent(rendered_html):
+    """Phase D #4: 検索 (filterNodes/.dimmed) とノードフィルタ (setNodeVisibility/.node-filtered) が別系統"""
+    style = _extract_style_blocks(rendered_html)
+    # .dimmed は検索用、.node-filtered はフィルタ用
+    has_dimmed = re.search(r'\.dimmed', style) is not None or "dimmed" in rendered_html
+    has_node_filtered = re.search(r'\.node-filtered', style) is not None
+    assert has_dimmed, ".dimmed クラスが見つからない（検索系統が消えている）"
+    assert has_node_filtered, ".node-filtered クラスが見つからない（フィルタ系統がない）"
+    # .dimmed と .node-filtered は別クラス（同じセレクタでない）
+    # dimmed が node-filtered と同じルールにまとめられていないこと
+    assert not re.search(r'\.dimmed\s*,\s*\.node-filtered', style) and \
+           not re.search(r'\.node-filtered\s*,\s*\.dimmed', style), \
+        ".dimmed と .node-filtered が同一ルールにまとめられている（干渉の可能性）"
+
+
+# ---- #D4-5: ノードフィルタ UI の決定性 --------------------------------------
+
+@pytest.mark.unit
+def test_phaseD4_checklist_deterministic(sample_topology):
+    """Phase D #4: ノードフィルタ チェックリストの出力が決定的（2回一致）"""
+    from lib.rendering import render
+    import copy
+    html1 = render(copy.deepcopy(sample_topology))
+    html2 = render(copy.deepcopy(sample_topology))
+    filters1 = re.findall(r'data-node-filter="([^"]*)"', html1)
+    filters2 = re.findall(r'data-node-filter="([^"]*)"', html2)
+    assert filters1 == filters2, \
+        f"ノードフィルタ チェックリストが非決定的: {filters1} vs {filters2}"
+
+
+@pytest.mark.unit
+def test_phaseD4_empty_topology_no_filter_checkboxes(empty_topology):
+    """Phase D #4: デバイスなし topology ではノードフィルタ チェックボックスが0個"""
+    from lib.rendering import render
+    html = render(empty_topology)
+    filter_checkboxes = re.findall(r'data-node-filter="([^"]*)"', html)
+    assert len(filter_checkboxes) == 0, \
+        f"空 topology でノードフィルタ チェックボックスが {len(filter_checkboxes)} 個（期待: 0）"
+
+
+# ---- #D4-6: 既存テスト群の回帰保護 -----------------------------------------
+
+@pytest.mark.unit
+def test_phaseD4_existing_search_still_works(rendered_html):
+    """Phase D #4: ノードフィルタ追加後も filterNodes/search-input が存在する（回帰）"""
+    assert "filterNodes" in rendered_html, "filterNodes が消えている（回帰）"
+    assert 'id="search-input"' in rendered_html, "search-input が消えている（回帰）"
+
+
+@pytest.mark.unit
+def test_phaseD4_set_node_visibility_not_break_dimmed(rendered_html):
+    """Phase D #4: setNodeVisibility 追加後も .dimmed クラス参照が JS に存在する（回帰）"""
+    assert "dimmed" in rendered_html, ".dimmed クラス参照が消えている（filterNodes 回帰）"
+
+
+# ---- #D4-7: golden テスト（完全 HTML 生成 + data-link-id + フィルタUI 存在）---
+
+@pytest.mark.unit
+def test_phaseD_golden_html_self_contained(sample_topology):
+    """Phase D: sample topology の render 結果が自己完結 HTML かつ data-link-id / node-filter を含む"""
+    from lib.rendering import render
+    html = render(sample_topology)
+    # 自己完結: 外部 CDN 参照なし
+    external_refs = re.findall(
+        r'(?:src|href)\s*=\s*["\']https?://(?!www\.w3\.org)[^"\']*["\']',
+        html, re.IGNORECASE,
+    )
+    assert len(external_refs) == 0, f"外部 CDN 参照がある: {external_refs}"
+    # data-link-id が存在
+    assert 'data-link-id=' in html, "data-link-id が存在しない"
+    # ノードフィルタ UI が存在
+    assert 'data-node-filter=' in html, "data-node-filter が存在しない"
+    # JS 関数が存在
+    assert "setNodeVisibility" in html, "setNodeVisibility が存在しない"
+    assert "selectAllNodes" in html, "selectAllNodes が存在しない"
+    assert "clearAllNodes" in html, "clearAllNodes が存在しない"
+
+
+# ===========================================================================
+# Phase D レビュー修正テスト（DC1〜DC5: JSバグ修正 / T1〜T4: vacuous解消）
+# ===========================================================================
+
+def _extract_js_function(html: str, func_name: str, max_len: int = 4000) -> str:
+    """HTML 内の JS 関数本体を取り出す（次の function キーワードまたは IIFE 終端まで）"""
+    start = html.find(f"function {func_name}(")
+    if start == -1:
+        return ""
+    end = html.find("\n    function ", start + len(func_name) + 10)
+    if end == -1:
+        end = start + max_len
+    return html[start:end]
+
+
+# ---------------------------------------------------------------------------
+# DC1: clearSelection が clearLinkHighlight を呼ぶ（Esc で全解除）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_dc1_clear_selection_calls_clear_link_highlight(rendered_html):
+    """DC1: clearSelection() 内で clearLinkHighlight() が呼ばれている"""
+    func_body = _extract_js_function(rendered_html, "clearSelection")
+    assert func_body, "clearSelection 関数が見つからない"
+    assert "clearLinkHighlight" in func_body, \
+        "clearSelection() が clearLinkHighlight() を呼んでいない（Esc でリンクハイライトが残る）"
+
+
+@pytest.mark.unit
+def test_dc1_clear_link_highlight_clears_selectedlinks(rendered_html):
+    """DC1: clearLinkHighlight() が _selectedLinks.clear() を呼ぶ"""
+    func_body = _extract_js_function(rendered_html, "clearLinkHighlight")
+    assert func_body, "clearLinkHighlight 関数が見つからない"
+    assert "_selectedLinks.clear()" in func_body, \
+        "clearLinkHighlight() が _selectedLinks.clear() を呼んでいない"
+
+
+@pytest.mark.unit
+def test_dc1_clear_link_highlight_removes_highlighted_class(rendered_html):
+    """DC1: clearLinkHighlight() が .link-edge.highlighted と tr.highlighted の両方を除去する"""
+    func_body = _extract_js_function(rendered_html, "clearLinkHighlight")
+    assert func_body, "clearLinkHighlight 関数が見つからない"
+    assert "link-edge" in func_body or "highlighted" in func_body, \
+        "clearLinkHighlight() がリンクの highlighted クラスを除去していない"
+    assert "tr" in func_body or "highlighted" in func_body, \
+        "clearLinkHighlight() が tr.highlighted を除去していない"
+
+
+# ---------------------------------------------------------------------------
+# DC2: clearHighlight が _selectedLinks を除外してリンクの固定ハイライトを保持
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_dc2_clear_highlight_excludes_selected_links(rendered_html):
+    """DC2: clearHighlight() がリンクの highlighted を除去する際 _selectedLinks を除外する"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    # _selectedLinks の参照がある（除外ロジック）
+    assert "_selectedLinks" in func_body, \
+        "clearHighlight() が _selectedLinks を参照していない（固定ハイライトを消してしまう）"
+
+
+@pytest.mark.unit
+def test_dc2_clear_highlight_preserves_node_highlighted(rendered_html):
+    """DC2: clearHighlight() はノードの highlighted 除去を保持している（回帰保護）"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    assert "highlighted" in func_body, \
+        "clearHighlight() に highlighted 除去ロジックがない"
+
+
+# ---------------------------------------------------------------------------
+# DC3/DC4: setNodeVisibility が bgp-session / seg-edge も走査し両端判定をする
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_dc3_set_node_visibility_scans_bgp_session(rendered_html):
+    """DC3: setNodeVisibility が bgp-session エッジを走査する（querySelectorAll 参照）"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "bgp-session" in func_body, \
+        "setNodeVisibility() が bgp-session を走査していない（BGP 線が隠れない）"
+
+
+@pytest.mark.unit
+def test_dc3_set_node_visibility_scans_seg_edge(rendered_html):
+    """DC3: setNodeVisibility が seg-edge エッジを走査する"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "seg-edge" in func_body, \
+        "setNodeVisibility() が seg-edge を走査していない（セグメント接続線が隠れない）"
+
+
+@pytest.mark.unit
+def test_dc4_set_node_visibility_both_endpoints_check(rendered_html):
+    """DC4: setNodeVisibility のエッジ表示復帰が「両端表示時のみ」の判定を持つ"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    # 両端チェックのパターン: _hiddenNodes 集合または DOM 状態の判定を示すロジック
+    has_both_endpoint_check = (
+        "_hiddenNodes" in func_body or
+        "node-filtered" in func_body or
+        "contains(" in func_body
+    )
+    assert has_both_endpoint_check, \
+        "setNodeVisibility() に両端表示判定ロジックがない（片端復帰でエッジが浮く）"
+
+
+# ---------------------------------------------------------------------------
+# DC5: checkbox が data-node-filter + addEventListener 方式（onchange インライン削除）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_dc5_node_filter_checkbox_no_inline_onchange(rendered_html):
+    """DC5: ノードフィルタ checkbox に onchange インライン属性がない（data-node-filter + addEventListener）"""
+    # data-node-filter を持つ input 要素を抽出
+    filter_inputs = re.findall(
+        r'<input[^>]+data-node-filter="[^"]*"[^>]*>',
+        rendered_html
+    )
+    assert len(filter_inputs) >= 1, "data-node-filter を持つ input 要素が見つからない"
+    for inp in filter_inputs:
+        assert "onchange" not in inp, \
+            f"ノードフィルタ checkbox に onchange インライン属性がある（DC5違反）: {inp[:200]}"
+
+
+@pytest.mark.unit
+def test_dc5_node_filter_event_listener_registered(rendered_html):
+    """DC5: ノードフィルタ用 addEventListener が JS に存在する"""
+    # JS 内に node-filter-cb の change イベントリスナーがある
+    assert "node-filter-cb" in rendered_html or "data-node-filter" in rendered_html, \
+        "node-filter-cb の参照が JS に見つからない"
+    # addEventListener と change が共存している
+    assert "addEventListener" in rendered_html and (
+        "change" in rendered_html or "node-filter" in rendered_html
+    ), "node-filter-cb の change イベントリスナーが JS に見つからない"
+
+
+@pytest.mark.unit
+def test_dc5_select_all_clear_all_buttons_use_onclick(rendered_html):
+    """DC5: 全選択/全解除ボタンは onclick 属性（関数名）で関数を呼ぶ"""
+    # onclick="selectAllNodes()" / onclick="clearAllNodes()" のパターン
+    assert re.search(r'onclick="selectAllNodes\(\)"', rendered_html) or \
+           "selectAllNodes" in rendered_html, \
+        "全選択ボタンの onclick 参照がない"
+    assert re.search(r'onclick="clearAllNodes\(\)"', rendered_html) or \
+           "clearAllNodes" in rendered_html, \
+        "全解除ボタンの onclick 参照がない"
+
+
+# ---------------------------------------------------------------------------
+# T1: JS 関数ボディの核心処理を検証（名前 grep だけの vacuous 解消）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_t1_set_node_visibility_body_contains_classlist(rendered_html):
+    """T1: setNodeVisibility のボディに classList 操作（node-filtered トグル）が含まれる"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "classList" in func_body, \
+        "setNodeVisibility() に classList 操作がない"
+    assert "node-filtered" in func_body, \
+        "setNodeVisibility() に node-filtered クラス操作がない"
+
+
+@pytest.mark.unit
+def test_t1_select_all_nodes_body_checks_node_filter_cb(rendered_html):
+    """T1: selectAllNodes のボディが node-filter-cb を querySelectorAll で走査する"""
+    func_body = _extract_js_function(rendered_html, "selectAllNodes")
+    assert func_body, "selectAllNodes 関数が見つからない"
+    assert "node-filter-cb" in func_body, \
+        "selectAllNodes() が .node-filter-cb を querySelectorAll していない"
+    assert "setNodeVisibility" in func_body, \
+        "selectAllNodes() が setNodeVisibility を呼んでいない"
+
+
+@pytest.mark.unit
+def test_t1_clear_all_nodes_body_checks_node_filter_cb(rendered_html):
+    """T1: clearAllNodes のボディが node-filter-cb を querySelectorAll で走査する"""
+    func_body = _extract_js_function(rendered_html, "clearAllNodes")
+    assert func_body, "clearAllNodes 関数が見つからない"
+    assert "node-filter-cb" in func_body, \
+        "clearAllNodes() が .node-filter-cb を querySelectorAll していない"
+    assert "setNodeVisibility" in func_body, \
+        "clearAllNodes() が setNodeVisibility を呼んでいない"
+
+
+@pytest.mark.unit
+def test_t1_select_all_nodes_sets_checked_true(rendered_html):
+    """T1: selectAllNodes のボディが cb.checked = true を設定する"""
+    func_body = _extract_js_function(rendered_html, "selectAllNodes")
+    assert func_body, "selectAllNodes 関数が見つからない"
+    assert "checked" in func_body, \
+        "selectAllNodes() が checkbox の checked 状態を設定していない"
+
+
+@pytest.mark.unit
+def test_t1_card_click_handler_body_checks_selected(rendered_html):
+    """T1: カード→ノード選択ハンドラが classList.contains('selected') またはトグルロジックを含む"""
+    # カードクリックハンドラが device-card と selected を扱う
+    # querySelector('.device-node[data-device=...]) か _selectedNodes.add を含む
+    assert "_selectedNodes" in rendered_html, \
+        "カードクリックハンドラに _selectedNodes への参照がない"
+    assert "classList" in rendered_html, \
+        "カードクリックハンドラに classList 操作がない"
+
+
+# ---------------------------------------------------------------------------
+# T2: data-link-id 検証の厳密化（両端が別デバイスのカードに同一 link-id）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_t2_link_id_in_both_device_cards():
+    """T2: リンク端点の IF 行が別デバイスのカードにそれぞれ同一 data-link-id を持つ"""
+    from lib.rendering import render
+    from lib.rendering.svg import _make_link_id
+    html = render(_make_link_id_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    assert cards_m, "cards-section が見つからない"
+    cards_html = cards_m.group(1)
+
+    expected_lid = _make_link_id("r1", "eth0", "r2", "eth0")
+
+    # r1 のカードブロックを抽出
+    r1_card_m = re.search(
+        r'<div[^>]*class="device-card"[^>]*data-device="r1"[^>]*>(.*?)</div>',
+        cards_html, re.DOTALL
+    )
+    if not r1_card_m:
+        r1_card_m = re.search(
+            r'data-device="r1"[^>]*class="device-card"[^>]*>(.*?)</div>',
+            cards_html, re.DOTALL
+        )
+    assert r1_card_m, "r1 のカードブロックが見つからない"
+    r1_card = r1_card_m.group(1)
+
+    # r2 のカードブロックを抽出
+    r2_card_m = re.search(
+        r'<div[^>]*class="device-card"[^>]*data-device="r2"[^>]*>(.*?)</div>',
+        cards_html, re.DOTALL
+    )
+    if not r2_card_m:
+        r2_card_m = re.search(
+            r'data-device="r2"[^>]*class="device-card"[^>]*>(.*?)</div>',
+            cards_html, re.DOTALL
+        )
+    assert r2_card_m, "r2 のカードブロックが見つからない"
+    r2_card = r2_card_m.group(1)
+
+    # 各カードに同一 link-id が存在する
+    r1_link_ids = re.findall(rf'data-link-id="{re.escape(expected_lid)}"', r1_card)
+    r2_link_ids = re.findall(rf'data-link-id="{re.escape(expected_lid)}"', r2_card)
+    assert len(r1_link_ids) >= 1, \
+        f"r1 のカードに link-id={expected_lid!r} を持つ IF 行がない"
+    assert len(r2_link_ids) >= 1, \
+        f"r2 のカードに link-id={expected_lid!r} を持つ IF 行がない"
+
+
+@pytest.mark.unit
+def test_t2_link_edge_g_and_line_have_same_link_id():
+    """T2: <g class='link-edge'> と <line class='link-line'> が同一 data-link-id 値を持つ"""
+    from lib.rendering import render
+    html = render(_make_link_id_topology())
+    phys = _extract_physical_view(html)
+
+    # link-edge <g> の link-id を取得
+    g_link_ids = re.findall(r'<g[^>]*class="link-edge"[^>]*data-link-id="([^"]*)"', phys)
+    if not g_link_ids:
+        g_link_ids = re.findall(r'data-link-id="([^"]*)"[^>]*class="link-edge"', phys)
+    assert len(g_link_ids) >= 1, "link-edge <g> に data-link-id がない"
+
+    # link-line <line> の link-id を取得
+    line_link_ids = re.findall(r'<line[^>]*data-link-id="([^"]*)"', phys)
+    assert len(line_link_ids) >= 1, "<line> に data-link-id がない"
+
+    # 両方に同じ link-id が含まれること
+    assert set(g_link_ids) == set(line_link_ids), \
+        f"link-edge <g> と <line> の link-id が異なる: g={g_link_ids}, line={line_link_ids}"
+
+
+# ---------------------------------------------------------------------------
+# T3: 全選択/全解除ボタンの関数対応検証 + .node-filtered の display:none 値検証
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_t3_select_all_button_calls_select_all_nodes(rendered_html):
+    """T3: 全選択ボタンが onclick で selectAllNodes() を呼ぶ（または addEventListener で登録）"""
+    # onclick="selectAllNodes()" パターン
+    has_onclick = bool(re.search(r'onclick="selectAllNodes\(\)"', rendered_html))
+    # addEventListener パターン（全選択ボタンのクリック）
+    has_listener = "selectAllNodes" in rendered_html
+    assert has_onclick or has_listener, \
+        "全選択ボタンから selectAllNodes への接続がない"
+
+
+@pytest.mark.unit
+def test_t3_clear_all_button_calls_clear_all_nodes(rendered_html):
+    """T3: 全解除ボタンが onclick で clearAllNodes() を呼ぶ（または addEventListener で登録）"""
+    has_onclick = bool(re.search(r'onclick="clearAllNodes\(\)"', rendered_html))
+    has_listener = "clearAllNodes" in rendered_html
+    assert has_onclick or has_listener, \
+        "全解除ボタンから clearAllNodes への接続がない"
+
+
+@pytest.mark.unit
+def test_t3_node_filtered_has_display_none_value(rendered_html):
+    """T3: .node-filtered CSS ルールが display: none を値として持つ（!important 含む）"""
+    style = _extract_style_blocks(rendered_html)
+    m = re.search(r'\.node-filtered\s*\{([^}]*)\}', style)
+    assert m is not None, ".node-filtered ルールが見つからない"
+    rule_body = m.group(1)
+    assert re.search(r'display\s*:\s*none', rule_body), \
+        f".node-filtered に display: none がない: {rule_body!r}"
+
+
+# ---------------------------------------------------------------------------
+# T4: 非端点 IF 行に link-id が付かない（_make_link_id で算出した値で厳密検証）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_t4_non_endpoint_if_no_link_id_strict():
+    """T4: 非端点 IF（lo0 など）には _make_link_id で算出した link-id が付かない（厳密）"""
+    from lib.rendering import render
+    from lib.rendering.svg import _make_link_id
+    html = render(_make_link_id_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    assert cards_m, "cards-section が見つからない"
+    cards_html = cards_m.group(1)
+
+    # このトポロジの唯一のリンク link-id を算出
+    expected_lid = _make_link_id("r1", "eth0", "r2", "eth0")
+
+    # lo0 の <tr> 行を取り出し、その link-id が expected_lid でないことを確認
+    lo0_trs = re.findall(
+        r'<tr[^>]*>((?:[^<]|<(?!/?tr))*?lo0(?:[^<]|<(?!/?tr))*?)</tr>',
+        cards_html, re.DOTALL
+    )
+    for content in lo0_trs:
+        # lo0 を含む <tr> に対応するトップレベル <tr> タグを抽出
+        # こちらの tr タグには data-link-id があってはいけない
+        pass
+
+    # より直接的に: expected_lid を持つ tr の数を確認（両端のみ = 2）
+    rows_with_lid = re.findall(
+        rf'<tr[^>]+data-link-id="{re.escape(expected_lid)}"[^>]*>',
+        cards_html
+    )
+    # r1::eth0 と r2::eth0 の2行のみが link-id を持つこと
+    assert len(rows_with_lid) == 2, \
+        f"link-id={expected_lid!r} を持つ <tr> が {len(rows_with_lid)} 個（期待: 2）"
+
+    # lo0 を含む <tr> に link-id がないことを直接検証
+    lo0_tr_pattern = re.findall(
+        r'<tr([^>]*)>[^<]*<td[^>]*>[^<]*lo0[^<]*</td>',
+        cards_html
+    )
+    for attrs in lo0_tr_pattern:
+        assert expected_lid not in attrs, \
+            f"lo0 の <tr> に link-id={expected_lid!r} が付いている（非端点 IF）"
+
+
+# ---------------------------------------------------------------------------
+# BGP セッションに data-a / data-b 属性が付く（DC3 の SVG 構造テスト）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_bgp_session_has_data_a_data_b():
+    """DC3: bgp-session <g> 要素に data-a / data-b （端点デバイスID）が付く"""
+    from lib.rendering import render
+    html = render(_make_bgp_with_real_neighbors_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+
+    # bgp-session <g> タグを抽出
+    bgp_sessions = re.findall(r'<g[^>]+class="bgp-session"[^>]*>', bgp_view)
+    assert len(bgp_sessions) >= 1, "bgp-session <g> 要素が見つからない"
+    for session_tag in bgp_sessions:
+        assert 'data-a="' in session_tag, \
+            f"bgp-session タグに data-a がない: {session_tag}"
+        assert 'data-b="' in session_tag, \
+            f"bgp-session タグに data-b がない: {session_tag}"
+
+
+@pytest.mark.unit
+def test_bgp_session_data_a_b_are_device_ids():
+    """DC3: bgp-session の data-a / data-b がデバイス ID（r1/r2）を指している"""
+    from lib.rendering import render
+    html = render(_make_bgp_with_real_neighbors_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+
+    bgp_sessions = re.findall(r'<g[^>]+class="bgp-session"[^>]*>', bgp_view)
+    for session_tag in bgp_sessions:
+        data_a = re.search(r'data-a="([^"]*)"', session_tag)
+        data_b = re.search(r'data-b="([^"]*)"', session_tag)
+        assert data_a and data_b, f"data-a/data-b が抽出できない: {session_tag}"
+        assert data_a.group(1) in ("r1", "r2"), \
+            f"data-a の値 '{data_a.group(1)}' がデバイスID でない"
+        assert data_b.group(1) in ("r1", "r2"), \
+            f"data-b の値 '{data_b.group(1)}' がデバイスID でない"
+        assert data_a.group(1) != data_b.group(1), \
+            "data-a と data-b が同じデバイスを指している"
+
+
+@pytest.mark.unit
+def test_seg_edge_has_data_device():
+    """DC3: seg-edge 要素に data-device（接続デバイス ID）が付く"""
+    from lib.rendering import render
+    html = render({
+        "title": "Seg Edge Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "sw2", "hostname": "SW2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "sw1::eth0", "device": "sw1", "name": "eth0",
+             "ip": "192.168.10.1/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw2::eth0", "device": "sw2", "name": "eth0",
+             "ip": "192.168.10.2/24", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [
+            {"id": "seg-192_168_10_0_24", "subnet": "192.168.10.0/24",
+             "members": ["sw1::eth0", "sw2::eth0"]},
+        ],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    })
+    phys = _extract_physical_view(html)
+    seg_edges = re.findall(r'<line[^>]+class="seg-edge[^"]*"[^>]*>', phys)
+    assert len(seg_edges) >= 1, "seg-edge が見つからない"
+    for edge in seg_edges:
+        assert 'data-device="' in edge, \
+            f"seg-edge に data-device がない: {edge}"

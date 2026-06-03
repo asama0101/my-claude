@@ -30,6 +30,25 @@ def _esc(value: Any) -> str:
     return html.escape(str(value), quote=True)
 
 
+def _make_link_id(a_device: str, a_if: str, b_device: str, b_if: str) -> str:
+    """リンクの決定的 ID を返す。
+
+    両端点 ``{device}::{iface}`` を sorted して ``|`` で結合する。
+    両方向から呼んでも同じ文字列が得られる（対称性）。
+
+    Args:
+        a_device: A 側 device id
+        a_if:     A 側 interface 名
+        b_device: B 側 device id
+        b_if:     B 側 interface 名
+
+    Returns:
+        例: ``"r1::eth0|r2::eth0"``
+    """
+    endpoints = sorted([f"{a_device}::{a_if}", f"{b_device}::{b_if}"])
+    return "|".join(endpoints)
+
+
 def _build_search_attr(dev: dict, interfaces_for_dev: list[dict]) -> str:
     """device ノードの data-search 属性値を構築する（hostname小文字 + IP群）"""
     parts = [dev["hostname"].lower()]
@@ -171,6 +190,8 @@ def _svg_links(links: list[dict], positions: dict) -> str:
 
     リンク中点に「a_if — b_if」＋ subnet の常時 <text> ラベルを表示する。
     オフセットは BGP バッジと同様の手法（中点から -15px 上）を流用する。
+    各 <g class="link-edge"> と <line class="link-line"> に ``data-link-id`` を付与する。
+    link-id は ``_make_link_id(a_device, a_if, b_device, b_if)`` で導出（決定的・対称）。
     """
     parts = []
     for link in sorted(links, key=lambda l: (l["a_device"], l["b_device"])):
@@ -179,17 +200,21 @@ def _svg_links(links: list[dict], positions: dict) -> str:
         x1, y1 = positions.get(a_dev, (0, 0))
         x2, y2 = positions.get(b_dev, (0, 0))
         subnet = _esc(link.get("subnet", ""))
-        a_if = _esc(link.get("a_if") or "")
-        b_if = _esc(link.get("b_if") or "")
+        a_if_raw = link.get("a_if") or ""
+        b_if_raw = link.get("b_if") or ""
+        a_if = _esc(a_if_raw)
+        b_if = _esc(b_if_raw)
+        # 決定的 link-id（両端点をソートして結合）
+        link_id = _esc(_make_link_id(a_dev, a_if_raw, b_dev, b_if_raw))
         # リンク中点（BGP バッジと同様の手法）
         mx = (x1 + x2) / 2
         my = (y1 + y2) / 2 - 15
         label_text = f"{a_if} — {b_if}"
         parts.append(
             f'<g class="link-edge" data-subnet="{subnet}" '
-            f'data-a="{_esc(a_dev)}" data-b="{_esc(b_dev)}">'
+            f'data-a="{_esc(a_dev)}" data-b="{_esc(b_dev)}" data-link-id="{link_id}">'
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-            f'class="link-line layer-physical"/>'
+            f'class="link-line layer-physical" data-link-id="{link_id}"/>'
             f'<title>{subnet} ({a_if} — {b_if})</title>'
             f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" class="link-label layer-physical">'
             f'{label_text}</text>'
@@ -219,7 +244,8 @@ def _svg_segment_edges(
                 dx, dy = positions[dev_id]
                 parts.append(
                     f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
-                    f'class="seg-edge layer-physical" data-seg="{seg_id}"/>'
+                    f'class="seg-edge layer-physical" data-seg="{seg_id}" '
+                    f'data-device="{_esc(dev_id)}"/>'
                 )
     return "\n".join(parts)
 
@@ -270,7 +296,8 @@ def _svg_bgp_edges(
         my = (y1 + y2) / 2 - 15
 
         parts.append(
-            f'<g class="bgp-session" data-type="{_esc(bgp_type)}">'
+            f'<g class="bgp-session" data-type="{_esc(bgp_type)}" '
+            f'data-a="{_esc(dev_id)}" data-b="{_esc(neighbor_dev)}">'
             f'<path d="M{x1:.1f},{y1:.1f} Q{mx:.1f},{my:.1f} {x2:.1f},{y2:.1f}" '
             f'class="{css_class}" fill="none"/>'
             f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '

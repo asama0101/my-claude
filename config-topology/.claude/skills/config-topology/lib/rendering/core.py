@@ -8,8 +8,8 @@ import math
 
 from lib.rendering.cards import _device_cards
 from lib.rendering.layout import _compute_canvas
-from lib.rendering.svg import _esc, _make_iface_by_device
-from lib.rendering.template import _layer_toggles, build_html
+from lib.rendering.svg import _esc, _make_iface_by_device, _make_link_id
+from lib.rendering.template import _layer_toggles, _node_filter_ui, build_html
 from lib.rendering.views import (
     _bgp_has_resolved_edges,
     _build_physical_layout,
@@ -130,8 +130,29 @@ def render(topology: dict) -> str:
     # タブ HTML
     tabs_html = _build_view_tabs(all_view_ids)
 
+    # ---------------------------------------------------------------------------
+    # iface_id -> link_id マップ（IF 行に data-link-id を付与するため）
+    # iface_by_device（既存）を流用して O(links) で構築
+    # ---------------------------------------------------------------------------
+    iface_link_id: dict[str, str] = {}
+    for link in links:
+        a_dev = link.get("a_device", "")
+        a_if_name = link.get("a_if") or ""
+        b_dev = link.get("b_device", "")
+        b_if_name = link.get("b_if") or ""
+        if not (a_dev and b_dev):
+            continue
+        lid = _make_link_id(a_dev, a_if_name, b_dev, b_if_name)
+        # iface_by_device を使って device ごとの IF リストから一致するものを登録
+        for iface in iface_by_device.get(a_dev, []):
+            if iface["name"] == a_if_name:
+                iface_link_id[iface["id"]] = lid
+        for iface in iface_by_device.get(b_dev, []):
+            if iface["name"] == b_if_name:
+                iface_link_id[iface["id"]] = lid
+
     # 機器カード
-    cards_html = _device_cards(devices, interfaces, routing)
+    cards_html = _device_cards(devices, interfaces, routing, iface_link_id=iface_link_id)
 
     # データのある routing キーを一度だけ計算し、トグルと CSS 両方に使用
     active = _active_routing_keys(routing)
@@ -154,11 +175,15 @@ def render(topology: dict) -> str:
     topology_json = json.dumps(topology, ensure_ascii=False, sort_keys=True, indent=2)
     topology_json_safe = topology_json.replace("</", "<\\/").replace("<!--", "<\\!--")
 
+    # ノードフィルタ UI（hostname 昇順チェックリスト）
+    node_filter_html = _node_filter_ui(devices)
+
     return build_html(
         title=title,
         layer_hide_css=layer_hide_css,
         tabs_html=tabs_html,
         toggles_html=toggles_html,
+        node_filter_html=node_filter_html,
         svg_height=svg_height,
         vb_min_x=vb_min_x,
         vb_min_y=vb_min_y,

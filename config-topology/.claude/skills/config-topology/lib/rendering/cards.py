@@ -10,8 +10,21 @@ def _device_cards(
     devices: list[dict],
     interfaces: list[dict],
     routing: dict,
+    iface_link_id: dict[str, str] | None = None,
 ) -> str:
-    """機器ごとのカード HTML を生成する（図の下に表示）"""
+    """機器ごとのカード HTML を生成する（図の下に表示）
+
+    Args:
+        devices:       デバイスリスト
+        interfaces:    インタフェースリスト
+        routing:       ルーティング dict
+        iface_link_id: ``{iface_id: link_id}`` マップ。
+                       リンク端点の IF 行 <tr> に ``data-link-id`` を付与するために使用する。
+                       None の場合は付与しない（後方互換）。
+    """
+    if iface_link_id is None:
+        iface_link_id = {}
+
     # device_id -> interfaces マップ
     iface_by_device: dict[str, list[dict]] = {}
     for iface in interfaces:
@@ -43,8 +56,11 @@ def _device_cards(
         if_row_parts = []
         for iface in sorted(iface_by_device.get(dev_id, []), key=lambda i: i["name"]):
             shutdown_mark = " (shutdown)" if iface.get("shutdown") else ""
+            # リンク端点の IF には data-link-id を付与する
+            lid = iface_link_id.get(iface["id"], "")
+            tr_attrs = f' data-link-id="{_esc(lid)}"' if lid else ""
             if_row_parts.append(
-                f"<tr>"
+                f"<tr{tr_attrs}>"
                 f"<td>{_esc(iface['name'])}{_esc(shutdown_mark)}</td>"
                 f"<td>{_esc(iface.get('ip', ''))}</td>"
                 f"<td>{_esc(iface.get('description', ''))}</td>"

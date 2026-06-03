@@ -332,7 +332,70 @@ _CSS = """\
 
     tr:last-child td { border-bottom: none; }
 
-    .section-table { margin-top: 4px; }\
+    .section-table { margin-top: 4px; }
+
+    /* カード選択スタイル */
+    .device-card.selected {
+      border: 2px solid var(--color-selected);
+      box-shadow: 0 0 6px rgba(239,68,68,0.4);
+    }
+
+    tr.selected td {
+      background: #fef08a;
+    }
+
+    tr.highlighted td {
+      background: #fef3c7;
+      font-weight: 600;
+    }
+
+    /* ノードフィルタ（非表示クラス: display:none 強制） */
+    .node-filtered {
+      display: none !important;
+    }
+
+    /* ノードフィルタ UI パネル */
+    .node-filter-panel {
+      background: #fff;
+      border-bottom: 1px solid var(--color-card-border);
+      padding: 6px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .node-filter-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--color-card-border);
+      background: var(--color-card-bg);
+      user-select: none;
+    }
+
+    .node-filter-label:hover {
+      background: #e5e7eb;
+    }
+
+    .node-filter-btn {
+      padding: 3px 10px;
+      font-size: 0.82rem;
+      border: 1px solid var(--color-card-border);
+      border-radius: 4px;
+      background: #e0e7ff;
+      color: #3730a3;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .node-filter-btn:hover {
+      background: #c7d2fe;
+    }\
 """
 
 # ---------------------------------------------------------------------------
@@ -517,7 +580,13 @@ _JS = """\
 
       function clearHighlight() {
         allNodes.forEach(function(n) { n.classList.remove('highlighted'); });
-        allLinks.forEach(function(l) { l.classList.remove('highlighted'); });
+        // リンクの highlighted 除去: _selectedLinks に含まれるものは固定ハイライトを保持
+        allLinks.forEach(function(l) {
+          var lid = l.getAttribute('data-link-id');
+          if (!_selectedLinks.has(lid)) {
+            l.classList.remove('highlighted');
+          }
+        });
       }
 
       // ノードホバー
@@ -549,19 +618,27 @@ _JS = """\
         });
       });
 
-      // ノードクリックで選択強調
+      // ノードクリックで選択強調（累積トグル対応）
       allNodes.forEach(function(node) {
         node.addEventListener('click', function(e) {
           e.stopPropagation();
-          const wasSelected = node.classList.contains('selected');
-          clearSelection();
-          if (!wasSelected) {
+          var deviceId = node.dataset.device;
+          var wasSelected = node.classList.contains('selected');
+          if (wasSelected) {
+            // トグル: 解除
+            node.classList.remove('selected');
+            var card = document.querySelector('.device-card[data-device="' + deviceId + '"]');
+            if (card) card.classList.remove('selected');
+            _selectedNodes.delete(deviceId);
+          } else {
+            // 累積選択
             node.classList.add('selected');
-            // 対応するカードをスクロール
-            const card = document.querySelector(
-              '.device-card[data-device="' + node.dataset.device + '"]'
-            );
-            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            var card = document.querySelector('.device-card[data-device="' + deviceId + '"]');
+            if (card) {
+              card.classList.add('selected');
+              card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            _selectedNodes.add(deviceId);
           }
         });
       });
@@ -570,12 +647,6 @@ _JS = """\
         clearSelection();
       });
     })();
-
-    function clearSelection() {
-      document.querySelectorAll('.device-node.selected').forEach(function(n) {
-        n.classList.remove('selected');
-      });
-    }
 
     // ============================================================
     // レイヤートグル
@@ -587,8 +658,224 @@ _JS = """\
       } else {
         document.body.classList.add('hide-' + layer);
       }
-    }\
+    }
+
+    // ============================================================
+    // カード↔ノード双方向選択・複数累積トグル / IF行↔リンク連動
+    // （宣言を参照より前に配置して TDZ を回避）
+    // ============================================================
+    var _selectedNodes = new Set();
+    var _selectedLinks = new Set();
+
+    function clearSelection() {
+      document.querySelectorAll('.device-node.selected').forEach(function(n) {
+        n.classList.remove('selected');
+      });
+      document.querySelectorAll('.device-card.selected').forEach(function(c) {
+        c.classList.remove('selected');
+      });
+      _selectedNodes.clear();
+      // リンク・IF 行ハイライトも同時解除（Esc で全解除）
+      clearLinkHighlight();
+    }
+
+    function clearLinkHighlight() {
+      document.querySelectorAll('.link-edge.highlighted').forEach(function(l) {
+        l.classList.remove('highlighted');
+      });
+      document.querySelectorAll('tr.highlighted').forEach(function(r) {
+        r.classList.remove('highlighted');
+      });
+      _selectedLinks.clear();
+    }
+
+    // カード→ノード選択（カードクリックで対応ノードを selected 強調・累積トグル）
+    (function() {
+      document.querySelectorAll('.device-card').forEach(function(card) {
+        card.addEventListener('click', function(e) {
+          // IF 行クリックは別ハンドラが処理するので tr 上のクリックは除外
+          if (e.target.closest('tr')) return;
+          var deviceId = card.dataset.device;
+          var wasCardSelected = card.classList.contains('selected');
+          if (wasCardSelected) {
+            // トグル: 選択解除
+            card.classList.remove('selected');
+            _selectedNodes.delete(deviceId);
+            document.querySelectorAll('.device-node[data-device="' + deviceId + '"]')
+              .forEach(function(n) { n.classList.remove('selected'); });
+          } else {
+            // 累積選択
+            card.classList.add('selected');
+            _selectedNodes.add(deviceId);
+            document.querySelectorAll('.device-node[data-device="' + deviceId + '"]')
+              .forEach(function(n) { n.classList.add('selected'); });
+          }
+        });
+      });
+    })();
+
+    // IF行↔リンク双方向ハイライト（トグル: 2回目クリックで解除）
+    function toggleIfRowHighlight(linkId) {
+      if (!linkId) return;
+      var isHighlighted = _selectedLinks.has(linkId);
+      if (isHighlighted) {
+        // 解除
+        _selectedLinks.delete(linkId);
+        document.querySelectorAll('[data-link-id="' + linkId + '"]').forEach(function(el) {
+          el.classList.remove('highlighted');
+        });
+      } else {
+        // 追加ハイライト
+        _selectedLinks.add(linkId);
+        document.querySelectorAll('[data-link-id="' + linkId + '"]').forEach(function(el) {
+          el.classList.add('highlighted');
+        });
+      }
+    }
+
+    // IF 行・リンクエッジ クリックイベントの登録
+    (function() {
+      document.querySelectorAll('tr[data-link-id]').forEach(function(row) {
+        var linkId = row.getAttribute('data-link-id');
+        if (!linkId) return;
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleIfRowHighlight(linkId);
+        });
+      });
+
+      // リンクエッジクリックで対応 IF 行ハイライト
+      document.querySelectorAll('.link-edge[data-link-id]').forEach(function(edge) {
+        var linkId = edge.getAttribute('data-link-id');
+        if (!linkId) return;
+        edge.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleIfRowHighlight(linkId);
+        });
+      });
+    })();
+
+    // ============================================================
+    // ノード表示フィルタ
+    // ============================================================
+    // 非表示デバイスの集合（両端判定に使用）
+    var _hiddenNodes = new Set();
+
+    function setNodeVisibility(deviceId, visible) {
+      // 非表示デバイス集合を更新
+      if (visible) {
+        _hiddenNodes.delete(deviceId);
+      } else {
+        _hiddenNodes.add(deviceId);
+      }
+
+      // 全ビューのノードを制御
+      document.querySelectorAll('.device-node[data-device="' + deviceId + '"]')
+        .forEach(function(node) {
+          node.classList.toggle('node-filtered', !visible);
+        });
+
+      // エッジの制御（全種別: link-edge / bgp-session / seg-edge）
+      // link-edge: data-a / data-b 両端判定
+      document.querySelectorAll('.link-edge').forEach(function(edge) {
+        var a = edge.dataset.a;
+        var b = edge.dataset.b;
+        if (a === deviceId || b === deviceId) {
+          var aHidden = _hiddenNodes.has(a);
+          var bHidden = _hiddenNodes.has(b);
+          // いずれかの端点が非表示なら隠す。両端が表示のときのみ表示に戻す
+          edge.classList.toggle('node-filtered', aHidden || bHidden);
+        }
+      });
+
+      // bgp-session: data-a / data-b 両端判定（svg.py で付与）
+      document.querySelectorAll('.bgp-session').forEach(function(edge) {
+        var a = edge.dataset.a;
+        var b = edge.dataset.b;
+        if (!a || !b) return;
+        if (a === deviceId || b === deviceId) {
+          var aHidden = _hiddenNodes.has(a);
+          var bHidden = _hiddenNodes.has(b);
+          edge.classList.toggle('node-filtered', aHidden || bHidden);
+        }
+      });
+
+      // seg-edge: data-device で単端点デバイスに対応
+      document.querySelectorAll('.seg-edge').forEach(function(edge) {
+        var dev = edge.dataset.device;
+        if (dev === deviceId) {
+          edge.classList.toggle('node-filtered', !visible);
+        }
+      });
+
+      // カードの制御
+      var card = document.querySelector('.device-card[data-device="' + deviceId + '"]');
+      if (card) {
+        card.classList.toggle('node-filtered', !visible);
+      }
+    }
+
+    function selectAllNodes() {
+      document.querySelectorAll('.node-filter-cb').forEach(function(cb) {
+        cb.checked = true;
+        setNodeVisibility(cb.dataset.nodeFilter, true);
+      });
+    }
+
+    function clearAllNodes() {
+      document.querySelectorAll('.node-filter-cb').forEach(function(cb) {
+        cb.checked = false;
+        setNodeVisibility(cb.dataset.nodeFilter, false);
+      });
+    }
+
+    // ノードフィルタ checkbox のイベントリスナー登録（DC5: onchange インライン不使用）
+    (function() {
+      document.querySelectorAll('.node-filter-cb').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+          setNodeVisibility(cb.dataset.nodeFilter, cb.checked);
+        });
+      });
+    })();\
 """
+
+
+def _node_filter_ui(devices: list[dict]) -> str:
+    """ノード表示フィルタ チェックリスト UI を生成して返す。
+
+    デバイスを hostname 昇順にソートし、各チェックボックスは ``data-node-filter="{device_id}"``
+    でデフォルト checked。「全選択」「全解除」ボタンも生成する。
+    デバイスが0件の場合は空文字列を返す。
+
+    Args:
+        devices: topology の devices リスト（各要素は id/hostname を持つ）
+    """
+    if not devices:
+        return ""
+
+    sorted_devs = sorted(devices, key=lambda d: d.get("hostname", d["id"]))
+
+    checkboxes = []
+    for dev in sorted_devs:
+        dev_id = _esc(dev["id"])
+        hostname = _esc(dev.get("hostname", dev["id"]))
+        checkboxes.append(
+            f'<label class="node-filter-label">'
+            f'<input type="checkbox" class="node-filter-cb" '
+            f'data-node-filter="{dev_id}" checked> {hostname}'
+            f'</label>'
+        )
+
+    checkboxes_html = "\n    ".join(checkboxes)
+    return (
+        f'<div class="node-filter-panel">'
+        f'<span class="controls-label">Nodes:</span>\n    '
+        f'{checkboxes_html}\n    '
+        f'<button class="node-filter-btn" onclick="selectAllNodes()">全選択</button>'
+        f'<button class="node-filter-btn" onclick="clearAllNodes()">全解除</button>'
+        f'</div>'
+    )
 
 
 def _layer_toggles(active_keys: list[str]) -> str:
@@ -621,6 +908,7 @@ def build_html(
     layer_hide_css: str,
     tabs_html: str,
     toggles_html: str,
+    node_filter_html: str,
     svg_height: int,
     vb_min_x: float,
     vb_min_y: float,
@@ -662,6 +950,8 @@ def build_html(
     <span class="controls-label" style="margin-left:12px;">Search:</span>
     <input type="search" id="search-input" placeholder="hostname / IP..." oninput="filterNodes(this.value)">
   </div>
+
+  {node_filter_html}
 
   <div id="svg-container" style="width:100%;height:{svg_height}px;">
     <svg id="topology-svg"
