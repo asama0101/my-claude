@@ -65,8 +65,14 @@ def render(topology: dict) -> str:
     # ---------------------------------------------------------------------------
     positions = _build_physical_layout(devices, interfaces, links, segments)
 
+    # device ごとの IF 数マップ（viewBox 計算でノード矩形半寸を加味するため）
+    _iface_count: dict[str, int] = {}
+    for _iface in interfaces:
+        _dev = _iface["device"]
+        _iface_count[_dev] = _iface_count.get(_dev, 0) + 1
+
     # 動的キャンバス（全ビューのうち Physical を基準とした SVG サイズ）
-    vb_min_x, vb_min_y, svg_width, svg_height = _compute_canvas(positions)
+    vb_min_x, vb_min_y, svg_width, svg_height = _compute_canvas(positions, node_sizes=_iface_count)
     svg_width = math.ceil(svg_width)
     svg_height = math.ceil(svg_height)
 
@@ -136,11 +142,11 @@ def render(topology: dict) -> str:
         esc_id = _esc(layer_id)
         if layer_id == "physical":
             layer_hide_css_parts.append(
-                f"    body.hide-physical .layer-physical {{ display: none; }}"
+                f"    body.hide-physical #cards-section .layer-physical {{ display: none; }}"
             )
         else:
             layer_hide_css_parts.append(
-                f"    body.hide-{esc_id} .layer-{esc_id} {{ display: none; }}"
+                f"    body.hide-{esc_id} #cards-section .layer-{esc_id} {{ display: none; }}"
             )
     layer_hide_css = "\n".join(layer_hide_css_parts)
 

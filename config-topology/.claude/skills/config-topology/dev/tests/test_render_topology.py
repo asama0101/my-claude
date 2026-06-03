@@ -1849,34 +1849,6 @@ def test_l3_edges_have_l3_edge_class():
         "L3 ビューが（削除後も）生成されている"
 
 
-@pytest.mark.unit
-def test_l3_edges_not_layer_physical():
-    """Phase A #6: L3 ビューは削除された — view-l3 グループが生成されない"""
-    from lib.rendering import render
-    topo = {
-        "title": "L3 Edge Class Test",
-        "generated_from": [],
-        "devices": [
-            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
-            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
-        ],
-        "interfaces": [
-            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
-             "vlan": None, "description": None, "shutdown": False},
-            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
-             "vlan": None, "description": None, "shutdown": False},
-        ],
-        "links": [
-            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
-             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
-        ],
-        "segments": [],
-        "routing": {"bgp": [], "ospf": [], "static": []},
-    }
-    html = render(topo)
-    assert 'class="view view-l3"' not in html, \
-        "L3 ビューが（削除後も）生成されている"
-
 
 @pytest.mark.unit
 def test_selectview_uses_dataset_view():
@@ -2456,17 +2428,18 @@ def test_phaseA_physical_toggle_is_first_in_toggles(rendered_html):
 
 @pytest.mark.unit
 def test_phaseA_hide_physical_css_rule_strict(rendered_html):
-    """Phase A #3: body.hide-physical .layer-physical { display:none } の CSS ルールが
-    正規表現で確認できる（全文検索ではなく <style> 内の正確なルールを検証）"""
+    """Phase A #3 / 要件#3: body.hide-physical #cards-section .layer-physical { display:none } の
+    CSS ルールが正規表現で確認できる。
+    セレクタが #cards-section に限定されていることで SVG 図内の layer-physical 要素には影響しない。"""
     import re
     style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
     assert len(style_blocks) >= 1, "style ブロックが見つからない"
     combined_style = "\n".join(style_blocks)
-    # body.hide-physical .layer-physical { display:none } 相当のルールが存在すること
+    # body.hide-physical #cards-section .layer-physical { display:none } 相当のルールが存在すること
     assert re.search(
-        r'body\.hide-physical\s+\.layer-physical\s*\{[^}]*display\s*:\s*none',
+        r'body\.hide-physical\s+#cards-section\s+\.layer-physical\s*\{[^}]*display\s*:\s*none',
         combined_style,
-    ), "body.hide-physical .layer-physical { display:none } ルールが見つからない"
+    ), "body.hide-physical #cards-section .layer-physical { display:none } ルールが見つからない"
 
 
 @pytest.mark.unit
@@ -2485,8 +2458,9 @@ def test_phaseA_hide_physical_css_no_seg_edge_rule(rendered_html):
 
 @pytest.mark.unit
 def test_phaseA_hide_physical_interfaces_card_is_hidden():
-    """Phase A #3: physical トグルOFFで Interfaces カード表（.layer-physical）が hide 対象になる。
-    CSS に body.hide-physical .layer-physical の hide ルールが存在すること。"""
+    """Phase A #3 / 要件#3: physical トグルOFFで Interfaces カード表（.layer-physical）が hide 対象になる。
+    CSS に body.hide-physical #cards-section .layer-physical の hide ルールが存在すること。
+    #cards-section に限定することで SVG 内の link-line/link-label は影響を受けない。"""
     from lib.rendering import render
     import re
     topo = {
@@ -2506,11 +2480,16 @@ def test_phaseA_hide_physical_interfaces_card_is_hidden():
     html = render(topo)
     style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', html, re.DOTALL | re.IGNORECASE)
     combined_style = "\n".join(style_blocks)
-    # Interfaces カード（.layer-physical）が hide 対象のルールを持つ
+    # Interfaces カード（.layer-physical）が #cards-section 限定で hide 対象のルールを持つ
     assert re.search(
+        r'body\.hide-physical\s+#cards-section\s+\.layer-physical\s*\{[^}]*display\s*:\s*none',
+        combined_style,
+    ), "body.hide-physical #cards-section .layer-physical ルールがない（Interfaces カード表が hide されない）"
+    # グローバルルール（図を消すもの）は存在しないこと
+    assert not re.search(
         r'body\.hide-physical\s+\.layer-physical\s*\{[^}]*display\s*:\s*none',
         combined_style,
-    ), "body.hide-physical .layer-physical ルールがない（Interfaces カード表が hide されない）"
+    ), "グローバルな body.hide-physical .layer-physical ルールが存在する（SVG 図内まで消えてしまう）"
     # seg-edge は hide 対象でないこと（SVG の接続線は常時表示）
     assert not re.search(
         r'body\.hide-physical\s+\.seg-edge\s*\{[^}]*display\s*:\s*none',
@@ -2534,3 +2513,830 @@ def test_phaseA_l3_css_hide_rule_not_generated_strict(rendered_html):
         ".layer-l3 CSS ルールが（L3削除後も）生成されている"
     assert "l3-edge" not in rendered_html, \
         ".l3-edge クラスが（L3削除後も）生成されている"
+
+
+# ===========================================================================
+# Phase B #1a: Physical ノード情報拡充・物理リンクラベル常時表示
+# ===========================================================================
+
+def _make_physical_detail_topology():
+    """IF に description あり・shutdown あり・IP なし が混在する人工 topology（Physical ビュー詳細テスト用）"""
+    return {
+        "title": "Physical Detail Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            # r1: 通常 IF（IP あり・description あり）
+            {"id": "r1::GigabitEthernet0/0", "device": "r1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.1/30", "vlan": None,
+             "description": "CORE-LINK-to-R2", "shutdown": False},
+            # r1: Loopback（IP あり・description なし）
+            {"id": "r1::Loopback0", "device": "r1", "name": "Loopback0",
+             "ip": "10.255.0.1/32", "vlan": None,
+             "description": None, "shutdown": False},
+            # r1: shutdown IF（IP あり・description あり）
+            {"id": "r1::GigabitEthernet0/1", "device": "r1", "name": "GigabitEthernet0/1",
+             "ip": "192.168.1.1/24", "vlan": None,
+             "description": "SITE-LAN", "shutdown": True},
+            # r1: IP なし IF
+            {"id": "r1::GigabitEthernet0/2", "device": "r1", "name": "GigabitEthernet0/2",
+             "ip": None, "vlan": None,
+             "description": None, "shutdown": False},
+            # r2: 通常 IF
+            {"id": "r2::GigabitEthernet0/0", "device": "r2", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.2/30", "vlan": None,
+             "description": "CORE-LINK-to-R1", "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "GigabitEthernet0/0",
+             "b_device": "r2", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+        },
+    }
+
+
+def _extract_physical_view(html: str) -> str:
+    """HTML から Physical ビューの SVG コンテンツを抽出する"""
+    m = re.search(
+        r'<g class="view view-physical"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        html, re.DOTALL
+    )
+    return m.group(1) if m else html
+
+
+def _extract_bgp_view(html: str) -> str:
+    """HTML から BGP ビューの SVG コンテンツを抽出する"""
+    m = re.search(
+        r'<g class="view view-bgp"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        html, re.DOTALL
+    )
+    return m.group(1) if m else ""
+
+
+# ---- Physical ノードに全 IF 名・IP が常時表示される ----------------------
+
+@pytest.mark.unit
+def test_phaseB1a_physical_node_shows_if_name():
+    """Phase B #1a: Physical ビューのノードに IF 名（GigabitEthernet0/0）が表示される"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    assert "GigabitEthernet0/0" in phys, \
+        "Physical ビューのノードに GigabitEthernet0/0 が表示されていない"
+
+
+@pytest.mark.unit
+def test_phaseB1a_physical_node_shows_if_ip():
+    """Phase B #1a: Physical ビューのノードに IP（10.0.0.1/30）が表示される"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    assert "10.0.0.1/30" in phys, \
+        "Physical ビューのノードに 10.0.0.1/30 が表示されていない"
+
+
+@pytest.mark.unit
+def test_phaseB1a_physical_node_shows_if_without_ip():
+    """Phase B #1a: IP 未設定 IF も Physical ビューのノードに表示される（IF名のみ）"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    # GigabitEthernet0/2 は IP なし → name だけでも表示される
+    assert "GigabitEthernet0/2" in phys, \
+        "IP 未設定 IF（GigabitEthernet0/2）が Physical ノードに表示されていない"
+
+
+@pytest.mark.unit
+def test_phaseB1a_physical_node_shows_loopback():
+    """Phase B #1a: Loopback も Physical ビューのノードに表示される"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    assert "Loopback0" in phys, \
+        "Loopback0 が Physical ノードに表示されていない"
+
+
+# ---- shutdown IF は淡色クラスを持つ ----------------------------------------
+
+@pytest.mark.unit
+def test_phaseB1a_shutdown_if_has_dimmed_class():
+    """Phase B #1a: shutdown=True の IF 行に if-shutdown クラス（淡色）が付く"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    # GigabitEthernet0/1 は shutdown=True → 淡色クラスが付く
+    assert "if-shutdown" in phys, \
+        "shutdown IF に if-shutdown クラスが付いていない"
+
+
+@pytest.mark.unit
+def test_phaseB1a_active_if_has_no_shutdown_class():
+    """Phase B #1a: shutdown=False の IF 行に if-shutdown クラスが付かない"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    # Loopback0 は shutdown=False → テキスト要素の class に if-shutdown が含まれない
+    # GigabitEthernet0/0 の text 要素を探して if-shutdown がないことを確認
+    # （ページ全体に if-shutdown があることは許容するが、全 IF に付いてはいけない）
+    # GigabitEthernet0/0 を含む text 要素直後に if-shutdown があってはいけない
+    m = re.search(r'GigabitEthernet0/0[^<]*<', phys)
+    if m:
+        context = phys[max(0, m.start() - 200):m.end() + 50]
+        # その直前の text 要素に if-shutdown がないこと
+        assert "if-shutdown" not in context or phys.count("if-shutdown") <= phys.count(
+            "GigabitEthernet0/1"
+        ), "active IF（GigabitEthernet0/0）に if-shutdown クラスが付いている"
+
+
+# ---- IF の description が <title> に入る ------------------------------------
+
+@pytest.mark.unit
+def test_phaseB1a_if_description_in_title():
+    """Phase B #1a: description のある IF 行に <title>description</title> が付く"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    # GigabitEthernet0/0 の description="CORE-LINK-to-R2" が title に入る
+    assert "CORE-LINK-to-R2" in phys, \
+        "IF の description（CORE-LINK-to-R2）が Physical ビューに表示されていない"
+
+
+@pytest.mark.unit
+def test_phaseB1a_if_description_in_title_element():
+    """Phase B #1a: description は <title> 要素として表現される（hover 表示）"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    # <title>CORE-LINK-to-R2</title> が存在すること（常時真の OR 後半は削除）
+    assert "<title>CORE-LINK-to-R2</title>" in phys, \
+        "CORE-LINK-to-R2 description が <title>...</title> 形式で存在しない"
+
+
+@pytest.mark.unit
+def test_phaseB1a_if_no_description_no_empty_title():
+    """Phase B #1a: description=None の IF には空の <title></title> が付かない"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    # Loopback0 は description=None → <title></title> が付かないこと
+    assert "<title></title>" not in phys, \
+        "description=None の IF に空の <title></title> が付いている"
+
+
+# ---- BGP/OSPF ノードには IF 一覧が出ない ------------------------------------
+
+@pytest.mark.unit
+def test_phaseB1a_bgp_node_no_if_list():
+    """Phase B #1a: BGP ビューのノードに IF 行（if-row クラス）が含まれない"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    bgp = _extract_bgp_view(html)
+    assert bgp, "BGP ビューが生成されていない（topology に bgp エントリあり）"
+    assert "if-row" not in bgp, \
+        "BGP ビューのノードに if-row クラスが含まれている（コンパクト維持違反）"
+
+
+@pytest.mark.unit
+def test_phaseB1a_bgp_node_compact_hostname_still_shown():
+    """Phase B #1a: BGP ビューのノードに hostname が引き続き表示される"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    bgp = _extract_bgp_view(html)
+    assert "R1" in bgp and "R2" in bgp, \
+        "BGP ビューに hostname が表示されていない"
+
+
+@pytest.mark.unit
+def test_phaseB1a_ospf_node_no_if_list():
+    """Phase B #1a: OSPF ビューのノードに IF 行（if-row クラス）が含まれない"""
+    from lib.rendering import render
+    topo = _make_ospf_two_devices_topology()
+    html = render(topo)
+    m = re.search(
+        r'<g class="view view-ospf"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        html, re.DOTALL
+    )
+    if m:
+        ospf_content = m.group(1)
+        assert "if-row" not in ospf_content, \
+            "OSPF ビューのノードに if-row クラスが含まれている（コンパクト維持違反）"
+
+
+# ---- 物理リンクに a_if — b_if + subnet の常時テキストが出る ----------------
+
+@pytest.mark.unit
+def test_phaseB1a_link_label_shows_if_names():
+    """Phase B #1a: 物理リンクに「a_if — b_if」の常時 <text> ラベルが表示される"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    # "GigabitEthernet0/0 — GigabitEthernet0/0" または短縮形が <text> 要素に入る
+    # セパレータは — または " - " 等を許容
+    has_link_label = (
+        ("GigabitEthernet0/0" in phys and "—" in phys) or
+        ("GigabitEthernet0/0" in phys and " - " in phys) or
+        "link-label" in phys
+    )
+    assert has_link_label, \
+        "物理リンクに IF 名の常時ラベルが表示されていない"
+
+
+@pytest.mark.unit
+def test_phaseB1a_link_label_is_text_element():
+    """Phase B #1a: リンクラベルは SVG <text> 要素で実装される（title でなく常時表示）"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    # Physical ビューに link-label クラスの text 要素があること
+    assert 'class="link-label' in phys or \
+           (re.search(r'<text[^>]*>[^<]*(GigabitEthernet0/0)[^<]*</text>', phys) is not None), \
+        "リンクラベルが <text> 要素で実装されていない"
+
+
+@pytest.mark.unit
+def test_phaseB1a_link_label_shows_subnet():
+    """Phase B #1a: リンクラベルに subnet（10.0.0.0/30）が表示される"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    assert "10.0.0.0/30" in phys, \
+        "物理リンクのラベルに subnet（10.0.0.0/30）が表示されていない"
+
+
+# ---- 可変高ノードのレイアウト重なりなし ------------------------------------
+
+@pytest.mark.unit
+def test_phaseB1a_node_height_varies_with_if_count():
+    """Phase B #1a: IF 数の異なるノードで高さが変わる（可変高）"""
+    from lib.rendering.layout import _node_size_for
+    # r1 は IF が 4 本 → r2 は 1 本 → r1 の高さ > r2 の高さ
+    h_many = _node_size_for(4)[1]
+    h_few = _node_size_for(1)[1]
+    assert h_many > h_few, \
+        f"IF 数が多いノードの高さが少ないノードと同じ（h_many={h_many}, h_few={h_few}）"
+
+
+@pytest.mark.unit
+def test_phaseB1a_node_height_helper_exists():
+    """Phase B #1a: layout._node_size_for(n_ifaces) ヘルパーが存在する（高さは [1] で取得）"""
+    from lib.rendering.layout import _node_size_for
+    assert callable(_node_size_for)
+    h = _node_size_for(0)[1]
+    assert isinstance(h, (int, float)) and h > 0
+
+
+@pytest.mark.unit
+def test_phaseB1a_layout_separation_with_variable_height():
+    """Phase B #1a: IF 数差が大きいノードを含む topology でノード矩形が重ならない"""
+    from lib.rendering.layout import _layout_force_directed, _node_size_for
+    # r1: IF 6 本（大きいノード）、r2: IF 1 本（小さいノード）
+    node_ids = ["r1", "r2", "r3"]
+    iface_counts = {"r1": 6, "r2": 1, "r3": 3}
+    edges = [("r1", "r2"), ("r2", "r3")]
+    pos = _layout_force_directed(
+        node_ids, edges, width=1200.0, height=1000.0,
+        node_sizes=iface_counts,
+    )
+    # 各ペアで矩形重なりなしを確認
+    for i, na in enumerate(node_ids):
+        for j, nb in enumerate(node_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(iface_counts[na])
+            wb, hb = _node_size_for(iface_counts[nb])
+            # 矩形が重なっていないこと（中心間距離 > 必要最小間隔）
+            needed_x = (wa + wb) / 2 + 5
+            needed_y = (ha + hb) / 2 + 5
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            no_overlap = dx >= needed_x or dy >= needed_y
+            assert no_overlap, (
+                f"ノード {na}({wa}x{ha}) と {nb}({wb}x{hb}) の矩形が重なっている "
+                f"（中心 ({x1:.1f},{y1:.1f}) vs ({x2:.1f},{y2:.1f}), "
+                f"dx={dx:.1f} needed_x={needed_x:.1f}, dy={dy:.1f} needed_y={needed_y:.1f}）"
+            )
+
+
+@pytest.mark.unit
+def test_phaseB1a_node_size_helper_exists():
+    """Phase B #1a: _node_size_for(n_ifaces) が (width, height) を返すヘルパーが存在する"""
+    from lib.rendering.layout import _node_size_for
+    assert callable(_node_size_for)
+    w, h = _node_size_for(3)
+    assert isinstance(w, (int, float)) and w > 0
+    assert isinstance(h, (int, float)) and h > 0
+
+
+# ---- 決定性（可変高ノード含む）-------------------------------------------
+
+@pytest.mark.unit
+def test_phaseB1a_render_deterministic_with_variable_height():
+    """Phase B #1a: 可変高ノードを含む topology で2回 render した結果が完全一致"""
+    from lib.rendering import render
+    topo1 = _make_physical_detail_topology()
+    topo2 = _make_physical_detail_topology()
+    html1 = render(topo1)
+    html2 = render(topo2)
+    assert html1 == html2, \
+        "可変高ノードを含む topology で render() の出力が非決定的"
+
+
+# ---- Physical ノードの件数・コンパクト維持の回帰テスト ---------------------
+
+@pytest.mark.unit
+def test_phaseB1a_physical_view_device_nodes_present():
+    """Phase B #1a: Physical ビューに device-node が存在する（回帰保護）"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    device_nodes = re.findall(r'class="device-node"', phys)
+    assert len(device_nodes) >= 2, \
+        f"Physical ビューに device-node が {len(device_nodes)} 個（期待: >=2）"
+
+
+@pytest.mark.unit
+def test_phaseB1a_existing_tests_regression(sample_topology):
+    """Phase B #1a: sample topology で既存テスト（hostname・IF名・決定性）が回帰しない"""
+    from lib.rendering import render
+    html = render(sample_topology)
+    # 既存テストの主要アサーション
+    assert "R1" in html and "R2" in html
+    assert "GigabitEthernet0/0" in html
+    assert "ebgp" in html.lower()
+    # 決定性
+    html2 = render(sample_topology)
+    assert html == html2, "sample topology で決定性が失われた"
+
+
+# ===========================================================================
+# 要件#3: LAYERS トグルは「#cards-section 配下のカード表のみ」を ON/OFF する
+# 図(SVG)内の layer-* 要素（link-line/link-label/bgp-edge 等）は連動しない
+# ===========================================================================
+
+def _extract_style_blocks(html: str) -> str:
+    """HTML 内の全 <style> ブロックを結合して返す"""
+    import re
+    blocks = re.findall(r'<style[^>]*>(.*?)</style>', html, re.DOTALL | re.IGNORECASE)
+    return "\n".join(blocks)
+
+
+@pytest.mark.unit
+def test_req3_hide_physical_scoped_to_cards_section(rendered_html):
+    """要件#3: body.hide-physical は #cards-section 配下の .layer-physical のみ hide する。
+    CSS セレクタが 'body.hide-physical #cards-section .layer-physical' 形式であること。"""
+    import re
+    style = _extract_style_blocks(rendered_html)
+    assert re.search(
+        r'body\.hide-physical\s+#cards-section\s+\.layer-physical\s*\{[^}]*display\s*:\s*none',
+        style,
+    ), "body.hide-physical #cards-section .layer-physical { display:none } ルールが見つからない"
+
+
+@pytest.mark.unit
+def test_req3_hide_bgp_scoped_to_cards_section(rendered_html):
+    """要件#3: body.hide-bgp は #cards-section 配下の .layer-bgp のみ hide する。"""
+    import re
+    style = _extract_style_blocks(rendered_html)
+    assert re.search(
+        r'body\.hide-bgp\s+#cards-section\s+\.layer-bgp\s*\{[^}]*display\s*:\s*none',
+        style,
+    ), "body.hide-bgp #cards-section .layer-bgp { display:none } ルールが見つからない"
+
+
+@pytest.mark.unit
+def test_req3_hide_static_scoped_to_cards_section(rendered_html):
+    """要件#3: body.hide-static は #cards-section 配下の .layer-static のみ hide する。"""
+    import re
+    style = _extract_style_blocks(rendered_html)
+    assert re.search(
+        r'body\.hide-static\s+#cards-section\s+\.layer-static\s*\{[^}]*display\s*:\s*none',
+        style,
+    ), "body.hide-static #cards-section .layer-static { display:none } ルールが見つからない"
+
+
+@pytest.mark.unit
+def test_req3_no_global_hide_physical_rule(rendered_html):
+    """要件#3（否定検証）: グローバルな 'body.hide-physical .layer-physical'（#cards-section なし）が
+    存在しない。存在すると SVG 内 link-line/link-label も消えてしまう。"""
+    import re
+    style = _extract_style_blocks(rendered_html)
+    # #cards-section を挟まずに直接 .layer-physical を指定するルールがないこと
+    assert not re.search(
+        r'body\.hide-physical\s+\.layer-physical\s*\{[^}]*display\s*:\s*none',
+        style,
+    ), (
+        "グローバルな body.hide-physical .layer-physical { display:none } が存在する。"
+        "SVG 内の link-line/link-label が消えてしまう（要件#3違反）。"
+    )
+
+
+@pytest.mark.unit
+def test_req3_no_global_hide_bgp_rule(rendered_html):
+    """要件#3（否定検証）: グローバルな 'body.hide-bgp .layer-bgp'（#cards-section なし）が存在しない。"""
+    import re
+    style = _extract_style_blocks(rendered_html)
+    assert not re.search(
+        r'body\.hide-bgp\s+\.layer-bgp\s*\{[^}]*display\s*:\s*none',
+        style,
+    ), (
+        "グローバルな body.hide-bgp .layer-bgp { display:none } が存在する。"
+        "BGP ビューの bgp-edge が消えてしまう（要件#3違反）。"
+    )
+
+
+@pytest.mark.unit
+def test_req3_vrrp_hide_scoped_to_cards_section():
+    """要件#3: vrrp 等の動的キーも #cards-section 限定で hide ルールが生成される"""
+    import re
+    from lib.rendering import render
+    html = render(_make_vrrp_topology())
+    style = _extract_style_blocks(html)
+    assert re.search(
+        r'body\.hide-vrrp\s+#cards-section\s+\.layer-vrrp\s*\{[^}]*display\s*:\s*none',
+        style,
+    ), "body.hide-vrrp #cards-section .layer-vrrp { display:none } ルールが見つからない"
+    # グローバルルールは存在しないこと
+    assert not re.search(
+        r'body\.hide-vrrp\s+\.layer-vrrp\s*\{[^}]*display\s*:\s*none',
+        style,
+    ), "グローバルな body.hide-vrrp .layer-vrrp ルールが存在する（要件#3違反）"
+
+
+@pytest.mark.unit
+def test_req3_cards_section_id_exists(rendered_html):
+    """要件#3 前提: #cards-section という id を持つ要素が HTML 内に存在する"""
+    assert 'id="cards-section"' in rendered_html, \
+        "id='cards-section' 要素が存在しない（CSS セレクタが機能しない）"
+
+
+# ===========================================================================
+# Phase B レビュー修正テスト
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# C1: 多 IF ノードでキャンバス高が追従する・viewBox 内に収まる
+# ---------------------------------------------------------------------------
+
+def _make_many_if_topology(n_if_per_node: int = 30):
+    """各ノードが n_if_per_node 本の IF を持つ 3 ノード topology"""
+    devices = [
+        {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        {"id": "r3", "hostname": "R3", "vendor": "cisco_ios", "as": None, "sections": []},
+    ]
+    interfaces = []
+    for dev_id in ("r1", "r2", "r3"):
+        for i in range(n_if_per_node):
+            interfaces.append({
+                "id": f"{dev_id}::Gi0/{i}",
+                "device": dev_id,
+                "name": f"GigabitEthernet0/{i}",
+                "ip": f"10.{i}.0.1/30",
+                "vlan": None,
+                "description": None,
+                "shutdown": False,
+            })
+    links = [
+        {"a_device": "r1", "a_if": "GigabitEthernet0/0",
+         "b_device": "r2", "b_if": "GigabitEthernet0/0",
+         "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        {"a_device": "r2", "a_if": "GigabitEthernet0/1",
+         "b_device": "r3", "b_if": "GigabitEthernet0/1",
+         "subnet": "10.1.0.0/30", "kind": "inferred-subnet"},
+    ]
+    return {
+        "title": f"Many IF ({n_if_per_node}/node)",
+        "generated_from": [],
+        "devices": devices,
+        "interfaces": interfaces,
+        "links": links,
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+def _rect_overlap(x1, y1, w1, h1, x2, y2, w2, h2, margin=5.0) -> bool:
+    """2 矩形（中心座標 + 幅高さ）が重なっているか（margin 込み）"""
+    dx = abs(x1 - x2)
+    dy = abs(y1 - y2)
+    needed_x = (w1 + w2) / 2 + margin
+    needed_y = (h1 + h2) / 2 + margin
+    return dx < needed_x and dy < needed_y
+
+
+@pytest.mark.unit
+def test_c1_many_if_nodes_no_overlap():
+    """C1: IF 30本ノードを含む topology でノード矩形が重ならない"""
+    from lib.rendering import _build_physical_layout
+    from lib.rendering.layout import _node_size_for
+    topo = _make_many_if_topology(30)
+    devices = topo["devices"]
+    interfaces = topo["interfaces"]
+    links = topo["links"]
+    segments = topo["segments"]
+
+    iface_count = {}
+    for iface in interfaces:
+        iface_count[iface["device"]] = iface_count.get(iface["device"], 0) + 1
+
+    pos = _build_physical_layout(devices, interfaces, links, segments)
+
+    dev_ids = [d["id"] for d in devices]
+    for i, na in enumerate(dev_ids):
+        for j, nb in enumerate(dev_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            w1, h1 = _node_size_for(iface_count.get(na, 0))
+            w2, h2 = _node_size_for(iface_count.get(nb, 0))
+            assert not _rect_overlap(x1, y1, w1, h1, x2, y2, w2, h2), (
+                f"ノード {na}({w1:.0f}x{h1:.0f}) と {nb}({w2:.0f}x{h2:.0f}) の矩形が重なっている "
+                f"（中心 ({x1:.1f},{y1:.1f}) vs ({x2:.1f},{y2:.1f})）"
+            )
+
+
+@pytest.mark.unit
+def test_c1_many_if_nodes_within_viewbox():
+    """C1: IF 30本ノードを含む topology で全ノード矩形が viewBox 内に収まる"""
+    from lib.rendering import render
+    from lib.rendering.layout import _node_size_for
+    import re
+
+    topo = _make_many_if_topology(30)
+    html = render(topo)
+
+    # viewBox を抽出
+    m = re.search(r'<svg[^>]+viewBox="([^"]+)"', html)
+    assert m, "viewBox が見つからない"
+    vb = [float(v) for v in m.group(1).split()]
+    assert len(vb) == 4, f"viewBox パラメータが 4 つでない: {vb}"
+    vb_min_x, vb_min_y, vb_w, vb_h = vb
+
+    # Physical ビューから rect 要素の x/y/width/height を収集
+    phys_m = re.search(
+        r'class="view view-physical"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        html, re.DOTALL
+    )
+    assert phys_m, "view-physical が見つからない"
+    phys = phys_m.group(1)
+
+    rects = re.findall(
+        r'<rect[^>]+class="node-rect"[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*'
+        r'width="([^"]+)"[^>]*height="([^"]+)"',
+        phys
+    )
+    if not rects:
+        # 属性順序違い対応（x/y が後）
+        rects = re.findall(
+            r'<rect[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*width="([^"]+)"[^>]*height="([^"]+)"',
+            phys
+        )
+
+    assert len(rects) >= 3, f"Physical ビューに node-rect が {len(rects)} 個（期待: >=3）"
+
+    for rx_str, ry_str, rw_str, rh_str in rects:
+        rx, ry, rw, rh = float(rx_str), float(ry_str), float(rw_str), float(rh_str)
+        assert rx >= vb_min_x - 1, \
+            f"ノード rect 左端 {rx:.1f} が viewBox 左端 {vb_min_x:.1f} より外"
+        assert ry >= vb_min_y - 1, \
+            f"ノード rect 上端 {ry:.1f} が viewBox 上端 {vb_min_y:.1f} より外"
+        assert rx + rw <= vb_min_x + vb_w + 1, \
+            f"ノード rect 右端 {rx+rw:.1f} が viewBox 右端 {vb_min_x+vb_w:.1f} より外"
+        assert ry + rh <= vb_min_y + vb_h + 1, \
+            f"ノード rect 下端 {ry+rh:.1f} が viewBox 下端 {vb_min_y+vb_h:.1f} より外"
+
+
+# ---------------------------------------------------------------------------
+# C2: _svg_links の KeyError 防御
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_c2_link_missing_a_if_no_exception():
+    """C2: a_if キー欠損リンクで render が例外を投げずラベルが空で描画される"""
+    from lib.rendering import render
+    topo = {
+        "title": "KeyError Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            # a_if / b_if キーが欠損
+            {"a_device": "r1", "b_device": "r2",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    try:
+        html = render(topo)
+    except KeyError as e:
+        pytest.fail(f"a_if/b_if 欠損リンクで KeyError が発生: {e}")
+    assert isinstance(html, str) and len(html) > 0
+    # link-edge 要素は存在すること（空ラベルで描画される）
+    assert "link-edge" in html, "link-edge 要素が存在しない"
+
+
+@pytest.mark.unit
+def test_c2_link_missing_both_if_keys_label_empty():
+    """C2: a_if/b_if 両キー欠損リンクのラベルが空（クラッシュしない）"""
+    from lib.rendering.svg import _svg_links
+    links = [
+        {"a_device": "r1", "b_device": "r2",
+         "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+    ]
+    positions = {"r1": (100.0, 100.0), "r2": (300.0, 100.0)}
+    try:
+        result = _svg_links(links, positions)
+    except KeyError as e:
+        pytest.fail(f"a_if/b_if 欠損リンクで _svg_links が KeyError: {e}")
+    assert "link-edge" in result
+
+
+# ---------------------------------------------------------------------------
+# M1: _node_height_for ラッパー → layout._node_size_for を使う統一テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_m1_node_size_for_accessible_from_layout():
+    """M1: layout モジュールから _node_size_for が直接アクセスできる"""
+    from lib.rendering.layout import _node_size_for
+    w, h = _node_size_for(5)
+    assert w > 0 and h > 0
+
+
+@pytest.mark.unit
+def test_m1_node_height_for_not_in_svg():
+    """M1: _node_height_for ラッパーが svg.py から削除されている（layout._node_size_for に一本化）"""
+    import lib.rendering.svg as _svg_mod
+    assert not hasattr(_svg_mod, "_node_height_for"), \
+        "svg.py に _node_height_for がまだ残っている（M1 未完了）"
+
+
+@pytest.mark.unit
+def test_m1_node_size_for_consistent_height():
+    """M1: layout._node_size_for の高さが各 n で単調増加する（IF なし < あり）"""
+    from lib.rendering.layout import _node_size_for
+    for n in (0, 1, 5, 10, 30):
+        _, h = _node_size_for(n)
+        assert h > 0, f"n={n}: 高さが 0 以下"
+    # 単調増加確認
+    prev_h = 0.0
+    for n in (0, 1, 5, 10, 30):
+        _, h = _node_size_for(n)
+        assert h >= prev_h, f"n={n}: 高さ {h} < 前の高さ {prev_h}（単調増加違反）"
+        prev_h = h
+
+
+# ---------------------------------------------------------------------------
+# T1: test_phaseB1a_active_if_has_no_shutdown_class の厳密化
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_t1_active_if_no_shutdown_class_strict():
+    """T1: active IF（GigabitEthernet0/0）の <text> 要素クラスに if-shutdown が含まれない（厳密）"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+
+    # <text ... class="...">...</text> で GigabitEthernet0/0 を含む要素を全抽出
+    text_elems = re.findall(r'<text[^>]+class="([^"]+)"[^>]*>[^<]*GigabitEthernet0/0[^<]*</text>', phys)
+    assert len(text_elems) >= 1, \
+        "GigabitEthernet0/0 を含む <text> 要素が見つからない"
+    for cls in text_elems:
+        assert "if-shutdown" not in cls, \
+            f"active IF GigabitEthernet0/0 の <text> クラスに if-shutdown が含まれている: class='{cls}'"
+
+
+# ---------------------------------------------------------------------------
+# T2: test_phaseB1a_ospf_node_no_if_list の vacuous 修正
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_t2_ospf_node_no_if_list_strict():
+    """T2: OSPF ビューは必ず存在し（m is not None）、if-row クラスを含まない"""
+    from lib.rendering import render
+    topo = _make_ospf_two_devices_topology()
+    html = render(topo)
+    m = re.search(
+        r'<g class="view view-ospf"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        html, re.DOTALL
+    )
+    assert m is not None, \
+        "view-ospf グループが見つからない（2台OSPF参加なのに生成されない）"
+    ospf_content = m.group(1)
+    assert "if-row" not in ospf_content, \
+        "OSPF ビューのノードに if-row クラスが含まれている（コンパクト維持違反）"
+
+
+# ---------------------------------------------------------------------------
+# T3: hide-static のグローバル形が存在しないことを正規表現で否定検証
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_t3_no_global_hide_static_rule(rendered_html):
+    """T3: body.hide-static .layer-static{display:none} のグローバル形が style に存在しない"""
+    style = _extract_style_blocks(rendered_html)
+    assert not re.search(
+        r'body\.hide-static\s+\.layer-static\s*\{[^}]*display\s*:\s*none',
+        style,
+    ), (
+        "グローバルな body.hide-static .layer-static { display:none } が存在する。"
+        "#cards-section 限定のルールのみ許可（要件#3）。"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T4: リンクラベル検証の厳密化 + 複数リンク
+# ---------------------------------------------------------------------------
+
+def _make_multi_link_topology():
+    """異なる IF ペアの複数リンクを持つ topology"""
+    return {
+        "title": "Multi Link Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r3", "hostname": "R3", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::Gi0/0", "device": "r1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::Gi0/0", "device": "r2", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::Gi0/1", "device": "r2", "name": "GigabitEthernet0/1",
+             "ip": "10.0.1.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r3::Gi0/0", "device": "r3", "name": "GigabitEthernet0/0",
+             "ip": "10.0.1.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "GigabitEthernet0/0",
+             "b_device": "r2", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+            {"a_device": "r2", "a_if": "GigabitEthernet0/1",
+             "b_device": "r3", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.1.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+@pytest.mark.unit
+def test_t4_link_label_text_contains_if_name():
+    """T4: <text class="link-label..."> 要素内に IF 名が入る（直接検証）"""
+    from lib.rendering import render
+    html = render(_make_physical_detail_topology())
+    phys = _extract_physical_view(html)
+    # <text ... class="link-label...">...</text> を全抽出
+    link_label_texts = re.findall(
+        r'<text[^>]+class="[^"]*link-label[^"]*"[^>]*>(.*?)</text>',
+        phys, re.DOTALL
+    )
+    assert len(link_label_texts) >= 1, \
+        "link-label クラスの <text> 要素が見つからない"
+    combined = " ".join(link_label_texts)
+    # GigabitEthernet0/0 が含まれること
+    assert "GigabitEthernet0/0" in combined, \
+        f"link-label <text> 要素に IF 名が含まれていない: {combined[:200]}"
+
+
+@pytest.mark.unit
+def test_t4_multiple_links_generate_multiple_labels():
+    """T4: 複数リンクを持つ topology で各リンク分のラベルが生成される"""
+    from lib.rendering import render
+    html = render(_make_multi_link_topology())
+    phys = _extract_physical_view(html)
+    link_label_texts = re.findall(
+        r'<text[^>]+class="[^"]*link-label[^"]*"[^>]*>(.*?)</text>',
+        phys, re.DOTALL
+    )
+    # 2 リンク分のラベル（IF ペア + subnet）= 4 テキスト要素（各リンクに2行）
+    assert len(link_label_texts) >= 2, \
+        f"複数リンクでラベルが {len(link_label_texts)} 個（期待: >=2）"
+    combined = " ".join(link_label_texts)
+    # 両リンクの IF 名が含まれること
+    assert "GigabitEthernet0/0" in combined, "リンク1の IF 名がラベルにない"
+    assert "GigabitEthernet0/1" in combined, "リンク2の IF 名がラベルにない"

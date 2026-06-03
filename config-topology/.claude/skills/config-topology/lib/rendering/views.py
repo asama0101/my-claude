@@ -6,9 +6,11 @@ from __future__ import annotations
 from lib.rendering.layout import (
     _adaptive_iter,
     _canvas_size_for_nodes,
+    _compute_canvas,
     _compute_layout,
     _layout_force_directed,
     _make_bbox_str,
+    _node_size_for,
 )
 from lib.rendering.svg import (
     _esc,
@@ -140,7 +142,12 @@ def _build_physical_layout(
     links: list[dict],
     segments: list[dict],
 ) -> dict[str, tuple[float, float]]:
-    """Physical ビュー用レイアウト計算（device + segment ノード）"""
+    """Physical ビュー用レイアウト計算（device + segment ノード）。
+
+    可変高対応: デバイスの IF 数を node_sizes として渡し、
+    重なり強制分離パスで矩形ベースの間隔を使用する。
+    また最大ノード高からキャンバス高を補正し、多 IF ノードが viewBox に収まるよう保証する。
+    """
     node_ids = [d["id"] for d in devices] + [s["id"] for s in segments]
     iface_to_device = {iface["id"]: iface["device"] for iface in interfaces}
     edge_list: list[tuple[str, str]] = []
@@ -152,15 +159,28 @@ def _build_physical_layout(
             if dev_id:
                 edge_list.append((seg["id"], dev_id))
 
+    # device ごとの IF 数マップ（可変高分離用）
+    iface_count: dict[str, int] = {}
+    for iface in interfaces:
+        dev_id = iface["device"]
+        iface_count[dev_id] = iface_count.get(dev_id, 0) + 1
+
+    # 最大ノード高を算出してキャンバス高に反映（多 IF ノード対応）
+    max_node_h = max(
+        (_node_size_for(cnt)[1] for cnt in iface_count.values()),
+        default=_node_size_for(0)[1],
+    )
+
     est_n = max(1, len(node_ids))
-    est_w, est_h = _canvas_size_for_nodes(est_n)
+    est_w, est_h = _canvas_size_for_nodes(est_n, max_node_h=max_node_h)
 
     if est_n <= 1:
         return _compute_layout(devices, segments)
 
     return _layout_force_directed(
         node_ids, edge_list, width=est_w, height=est_h,
-        iterations=_adaptive_iter(est_n)
+        iterations=_adaptive_iter(est_n),
+        node_sizes=iface_count,
     )
 
 
@@ -204,11 +224,15 @@ def _build_view_physical(
     positions: dict[str, tuple[float, float]],
     iface_by_device: dict[str, list[dict]],
 ) -> str:
-    """Physical ビュー SVG コンテンツを生成する（BGP オーバーレイなし）"""
+    """Physical ビュー SVG コンテンツを生成する（BGP オーバーレイなし）。
+
+    ノードは show_interfaces=True で可変高カード型（IF 一覧常時表示）。
+    """
     seg_edges = _svg_segment_edges(segments, interfaces, positions)
     links_str = _svg_links(links, positions)
     segs_str = _svg_segments(segments, positions)
-    nodes_str = _svg_nodes(devices, positions, iface_by_device)
+    # Physical ビューのみ show_interfaces=True（BGP/OSPF ビューはデフォルトのコンパクト）
+    nodes_str = _svg_nodes(devices, positions, iface_by_device, show_interfaces=True)
     bbox = _make_bbox_str(positions)
     inner = "\n".join(filter(None, [seg_edges, links_str, segs_str, nodes_str]))
     return (

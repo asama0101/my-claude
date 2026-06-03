@@ -9,8 +9,12 @@ from typing import Any
 from lib.rendering.layout import (
     _NODE_WIDTH,
     _NODE_HEIGHT,
+    _NODE_HEADER_H,
+    _NODE_IF_ROW_H,
+    _NODE_IF_PADDING,
     _SEG_RX,
     _SEG_RY,
+    _node_size_for,
 )
 
 
@@ -31,19 +35,49 @@ def _build_search_attr(dev: dict, interfaces_for_dev: list[dict]) -> str:
     return " ".join(parts)
 
 
+def _svg_if_row(cx: float, if_start_y: float, k: int, iface: dict) -> str:
+    """単一 IF 行の SVG <text> 要素を生成する（_svg_nodes の内部ヘルパー）。
+
+    Args:
+        cx:          ノード中心 x 座標
+        if_start_y:  IF 行列の開始 y 座標（ヘッダー領域直下）
+        k:           IF 行インデックス（0 始まり）
+        iface:       IF 辞書
+    """
+    row_y = if_start_y + k * _NODE_IF_ROW_H + 11  # text baseline
+    css_cls = "if-row if-shutdown" if iface.get("shutdown") else "if-row"
+    if_name = _esc(iface.get("name", ""))
+    if_ip = _esc(iface.get("ip") or "")
+    desc = iface.get("description")
+    label_text = f"{if_name}  {if_ip}" if if_ip else if_name
+    title_elem = f"<title>{_esc(desc)}</title>" if desc else ""
+    return (
+        f'<text x="{cx:.1f}" y="{row_y:.1f}" text-anchor="middle" '
+        f'class="{css_cls}">'
+        f'{title_elem}{label_text}</text>'
+    )
+
+
 def _svg_nodes(
     devices: list[dict],
     positions: dict,
     iface_by_device: dict[str, list[dict]] | None = None,
+    *,
+    show_interfaces: bool = False,
 ) -> str:
-    """機器ノードの SVG 要素を生成する"""
+    """機器ノードの SVG 要素を生成する。
+
+    show_interfaces=True のとき（Physical ビュー用）、ノードを可変高カード型にして
+    配下の全 IF（name/ip）を小フォントで列挙する。shutdown は淡色クラス付与。
+    description がある IF 行には <title> でホバー表示する。
+
+    show_interfaces=False（デフォルト）のとき、従来通り hostname + AS/vendor のコンパクト表示。
+    """
     if iface_by_device is None:
         iface_by_device = {}
     parts = []
     for dev in sorted(devices, key=lambda d: d["id"]):
         x, y = positions.get(dev["id"], (0, 0))
-        nx = x - _NODE_WIDTH / 2
-        ny = y - _NODE_HEIGHT / 2
         hostname = _esc(dev["hostname"])
         vendor = _esc(dev.get("vendor", ""))
         as_num = _esc(dev.get("as", ""))
@@ -53,18 +87,59 @@ def _svg_nodes(
 
         search_val = _esc(_build_search_attr(dev, iface_by_device.get(dev["id"], [])))
 
-        parts.append(
-            f'<g class="device-node" data-device="{dev_id}" '
-            f'data-search="{search_val}" '
-            f'transform="translate(0,0)">'
-            f'<rect x="{nx:.1f}" y="{ny:.1f}" width="{_NODE_WIDTH}" height="{_NODE_HEIGHT}" '
-            f'rx="6" ry="6" class="node-rect"/>'
-            f'<text x="{x:.1f}" y="{y - 6:.1f}" text-anchor="middle" class="node-label">'
-            f'{hostname}</text>'
-            f'<text x="{x:.1f}" y="{y + 10:.1f}" text-anchor="middle" class="node-sublabel">'
-            f'{label2}</text>'
-            f'</g>'
-        )
+        # ノード高さを分岐前に確定して nx/ny を共通計算
+        if show_interfaces:
+            ifaces = sorted(iface_by_device.get(dev["id"], []), key=lambda i: i["name"])
+            n_if = len(ifaces)
+        else:
+            ifaces = []
+            n_if = 0
+
+        _w, node_h = _node_size_for(n_if) if show_interfaces else (float(_NODE_WIDTH), float(_NODE_HEIGHT))
+        nx = x - _NODE_WIDTH / 2
+        ny = y - node_h / 2
+
+        if show_interfaces:
+            # ----- Physical ビュー: 可変高カード型ノード -----
+            # hostname は上部中央（太字）
+            label_y = ny + 14
+            sublabel_y = ny + 26
+
+            # IF 行開始 y 座標
+            if_start_y = ny + _NODE_HEADER_H + _NODE_IF_PADDING // 2
+
+            if_rows_str = "\n".join(
+                _svg_if_row(x, if_start_y, k, iface)
+                for k, iface in enumerate(ifaces)
+            )
+
+            parts.append(
+                f'<g class="device-node" data-device="{dev_id}" '
+                f'data-search="{search_val}" '
+                f'transform="translate(0,0)">'
+                f'<rect x="{nx:.1f}" y="{ny:.1f}" width="{_NODE_WIDTH}" height="{node_h:.1f}" '
+                f'rx="6" ry="6" class="node-rect"/>'
+                f'<text x="{x:.1f}" y="{label_y:.1f}" text-anchor="middle" class="node-label">'
+                f'{hostname}</text>'
+                f'<text x="{x:.1f}" y="{sublabel_y:.1f}" text-anchor="middle" class="node-sublabel">'
+                f'{label2}</text>'
+                + (f'\n{if_rows_str}' if if_rows_str else '')
+                + f'\n</g>'
+            )
+        else:
+            # ----- BGP/OSPF 等: 従来通りコンパクト表示 -----
+            parts.append(
+                f'<g class="device-node" data-device="{dev_id}" '
+                f'data-search="{search_val}" '
+                f'transform="translate(0,0)">'
+                f'<rect x="{nx:.1f}" y="{ny:.1f}" width="{_NODE_WIDTH}" height="{_NODE_HEIGHT}" '
+                f'rx="6" ry="6" class="node-rect"/>'
+                f'<text x="{x:.1f}" y="{y - 6:.1f}" text-anchor="middle" class="node-label">'
+                f'{hostname}</text>'
+                f'<text x="{x:.1f}" y="{y + 10:.1f}" text-anchor="middle" class="node-sublabel">'
+                f'{label2}</text>'
+                f'</g>'
+            )
     return "\n".join(parts)
 
 
@@ -87,22 +162,34 @@ def _svg_segments(segments: list[dict], positions: dict) -> str:
 
 
 def _svg_links(links: list[dict], positions: dict) -> str:
-    """リンクエッジの SVG 要素を生成する"""
+    """リンクエッジの SVG 要素を生成する（Physical ビュー用）。
+
+    リンク中点に「a_if — b_if」＋ subnet の常時 <text> ラベルを表示する。
+    オフセットは BGP バッジと同様の手法（中点から -15px 上）を流用する。
+    """
     parts = []
     for link in sorted(links, key=lambda l: (l["a_device"], l["b_device"])):
         a_dev = link["a_device"]
         b_dev = link["b_device"]
         x1, y1 = positions.get(a_dev, (0, 0))
         x2, y2 = positions.get(b_dev, (0, 0))
-        subnet = _esc(link["subnet"])
-        a_if = _esc(link["a_if"])
-        b_if = _esc(link["b_if"])
+        subnet = _esc(link.get("subnet", ""))
+        a_if = _esc(link.get("a_if") or "")
+        b_if = _esc(link.get("b_if") or "")
+        # リンク中点（BGP バッジと同様の手法）
+        mx = (x1 + x2) / 2
+        my = (y1 + y2) / 2 - 15
+        label_text = f"{a_if} — {b_if}"
         parts.append(
             f'<g class="link-edge" data-subnet="{subnet}" '
             f'data-a="{_esc(a_dev)}" data-b="{_esc(b_dev)}">'
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
             f'class="link-line layer-physical"/>'
             f'<title>{subnet} ({a_if} — {b_if})</title>'
+            f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" class="link-label layer-physical">'
+            f'{label_text}</text>'
+            f'<text x="{mx:.1f}" y="{my + 12:.1f}" text-anchor="middle" class="link-label layer-physical">'
+            f'{subnet}</text>'
             f'</g>'
         )
     return "\n".join(parts)
