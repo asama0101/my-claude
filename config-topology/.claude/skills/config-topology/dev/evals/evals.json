@@ -24,6 +24,36 @@
       "expected_output": "層別YAML（./topology/ 配下の _meta/devices/physical/routing.*）と ./topology.html。devices=3。192.168.100.0/24 を共有する segment ノードが1つ生成され、3台のIFが接続。各機器に loopback宛の static ルート2本ずつ。point-to-point link ではなく segment になっていること。HTMLは自己完結。",
       "files": ["evals/inputs/segment-static/sw-r1.cfg", "evals/inputs/segment-static/sw-r2.cfg", "evals/inputs/segment-static/sw-r3.cfg"],
       "assertions": []
+    },
+    {
+      "id": 3,
+      "name": "multi-as-area",
+      "prompt": "7台構成のネットワークです（core1/core2/edge1/cust1/cust2/acc1/acc2）。Cisco IOS 6台と Juniper JunOS（set形式）1台（cust2）が混在し、iBGP/eBGP の複数AS（65000/65100/65200）と OSPF の複数エリア（area0 バックボーンと area1 アクセス）、さらに 192.168.50.0/24 の共有L2セグメントが含まれます。これらの config からネットワーク構成図を作ってください。中間の層別YAML（./topology/ 配下の _meta/devices/physical/routing.*）と、ブラウザで見られるインタラクティブな HTML 構成図の両方が欲しいです。機器間リンク・共有セグメント・AS境界（iBGP/eBGP）・OSPFエリアが分かるようにしてください。",
+      "expected_output": "層別YAML（./topology/ 配下の _meta/devices/physical/routing.*）と ./topology.html。devices=7（cisco_ios×6, juniper_junos×1=cust2）。192.168.50.0/24 は3メンバ（core1/acc1/acc2）の segment ノード。p2p link は4本（core1-core2, core1-edge1, edge1-cust1, core2-cust2）。bgp は AS65000 内 iBGP 3機（core1/core2/edge1）と eBGP（core2-cust2=65000/65200, edge1-cust1=65000/65100）。ospf は area0（core1/core2/edge1）と area1（core1/acc1/acc2）で core1 はマルチエリア。static は acc1/acc2 の相互 loopback ルート。HTMLは自己完結でズーム/パン可、AS枠とOSPF area が見える。",
+      "files": [
+        "evals/inputs/multi-as-area/core1.cfg",
+        "evals/inputs/multi-as-area/core2.cfg",
+        "evals/inputs/multi-as-area/edge1.cfg",
+        "evals/inputs/multi-as-area/cust1.cfg",
+        "evals/inputs/multi-as-area/cust2.conf",
+        "evals/inputs/multi-as-area/acc1.cfg",
+        "evals/inputs/multi-as-area/acc2.cfg"
+      ],
+      "assertions": [
+        "devices レイヤに7台が存在する（hostname: CORE1/CORE2/EDGE1/CUST1/CUST2/ACC1/ACC2）",
+        "vendor は cisco_ios が6台、juniper_junos が1台（CUST2）である",
+        "segment が1つ生成され、subnet が 192.168.50.0/24、members が3つ（core1/acc1/acc2 の各1IF）である",
+        "physical の p2p link がちょうど4本で、subnet が 10.0.0.0/30・10.0.1.0/30・10.1.0.0/30・10.2.0.0/30 である",
+        "routing.bgp に type=ibgp のエントリが3つあり、いずれも local_as=65000（core1/core2/edge1）である",
+        "routing.bgp に eBGP ピアとして 65000/65200（core2-cust2）と 65000/65100（edge1-cust1）の関係が存在する",
+        "routing.ospf に area 0 と area 1 の両方が存在する",
+        "core1 が OSPF で area 0（10.0.0.0/30, 10.0.1.0/30）と area 1（192.168.50.0/24）の両方に属する（マルチエリア）",
+        "routing.static に acc1→10.255.3.2/32(next-hop 192.168.50.3) と acc2→10.255.3.1/32(next-hop 192.168.50.2) の相互 loopback ルートがある",
+        "HTML 構成図は外部リソース参照を持たず自己完結している",
+        "HTML に7台すべてのノードが描画されている",
+        "HTML に AS65000・AS65100・AS65200 の3つの AS 枠が表示される",
+        "HTML の OSPF 表示に Area 0 と Area 1 が現れる"
+      ]
     }
   ]
 }
