@@ -13,64 +13,11 @@ from lib.rendering.layout import (
 from lib.rendering.svg import (
     _esc,
     _svg_bgp_edges,
-    _svg_l3_edges,
-    _svg_l3_subnet_nodes,
     _svg_links,
     _svg_nodes,
     _svg_segment_edges,
     _svg_segments,
 )
-
-
-def _build_l3_layout(
-    devices: list[dict],
-    links: list[dict],
-    segments: list[dict],
-    interfaces: list[dict],
-) -> dict[str, tuple[float, float]]:
-    """L3 ビュー用レイアウト計算（device + サブネットノード）"""
-    # サブネットノード ID を生成
-    subnet_node_ids: list[str] = []
-    seen: set[str] = set()
-    for lk in links:
-        nid = f"l3-sub-{lk['subnet']}"
-        if nid not in seen:
-            subnet_node_ids.append(nid)
-            seen.add(nid)
-    for seg in segments:
-        subnet_node_ids.append(seg["id"])
-
-    device_ids = [d["id"] for d in devices]
-    all_node_ids = device_ids + subnet_node_ids
-
-    # エッジ: device ↔ サブネットノード（デデュップ: dev × subnet_node 一意化）
-    edge_list: list[tuple[str, str]] = []
-    seen_edges: set[tuple[str, str]] = set()
-    for lk in links:
-        nid = f"l3-sub-{lk['subnet']}"
-        for dev_id in (lk["a_device"], lk["b_device"]):
-            pair = (dev_id, nid)
-            if pair not in seen_edges:
-                seen_edges.add(pair)
-                edge_list.append(pair)
-
-    iface_to_device = {iface["id"]: iface["device"] for iface in interfaces}
-    for seg in segments:
-        for member_iface_id in seg.get("members", []):
-            dev_id = iface_to_device.get(member_iface_id)
-            if dev_id:
-                edge_list.append((seg["id"], dev_id))
-
-    est_n = max(1, len(all_node_ids))
-    est_w, est_h = _canvas_size_for_nodes(est_n)
-
-    if est_n <= 1:
-        return _compute_layout(devices, segments)
-
-    return _layout_force_directed(
-        all_node_ids, edge_list, width=est_w, height=est_h,
-        iterations=_adaptive_iter(est_n)
-    )
 
 
 def _build_bgp_layout(
@@ -254,42 +201,18 @@ def _build_view_physical(
     interfaces: list[dict],
     links: list[dict],
     segments: list[dict],
-    routing: dict,
     positions: dict[str, tuple[float, float]],
     iface_by_device: dict[str, list[dict]],
 ) -> str:
-    """Physical ビュー SVG コンテンツを生成する"""
+    """Physical ビュー SVG コンテンツを生成する（BGP オーバーレイなし）"""
     seg_edges = _svg_segment_edges(segments, interfaces, positions)
     links_str = _svg_links(links, positions)
-    bgp_str = _svg_bgp_edges(routing.get("bgp", []), interfaces, positions)
     segs_str = _svg_segments(segments, positions)
     nodes_str = _svg_nodes(devices, positions, iface_by_device)
     bbox = _make_bbox_str(positions)
-    inner = "\n".join(filter(None, [seg_edges, links_str, bgp_str, segs_str, nodes_str]))
+    inner = "\n".join(filter(None, [seg_edges, links_str, segs_str, nodes_str]))
     return (
         f'<g class="view view-physical" data-bbox="{bbox}">\n'
-        f'{inner}\n'
-        f'</g>'
-    )
-
-
-def _build_view_l3(
-    devices: list[dict],
-    interfaces: list[dict],
-    links: list[dict],
-    segments: list[dict],
-    routing: dict,
-    iface_by_device: dict[str, list[dict]],
-) -> str:
-    """L3 ビュー SVG コンテンツを生成する"""
-    positions_l3 = _build_l3_layout(devices, links, segments, interfaces)
-    edges_str = _svg_l3_edges(links, segments, interfaces, routing, positions_l3)
-    subnet_nodes_str = _svg_l3_subnet_nodes(links, segments, positions_l3)
-    nodes_str = _svg_nodes(devices, positions_l3, iface_by_device)
-    bbox = _make_bbox_str(positions_l3)
-    inner = "\n".join(filter(None, [edges_str, subnet_nodes_str, nodes_str]))
-    return (
-        f'<g class="view view-l3" data-bbox="{bbox}" style="display:none">\n'
         f'{inner}\n'
         f'</g>'
     )
@@ -392,7 +315,6 @@ def _build_view_tabs(view_ids: list[str]) -> str:
     """ビュー切替タブ HTML を生成する"""
     labels = {
         "physical": "Physical",
-        "l3": "L3",
         "bgp": "BGP",
         "ospf": "OSPF",
     }

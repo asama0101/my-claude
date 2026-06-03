@@ -591,10 +591,15 @@ _JS = """\
 """
 
 
-def _layer_toggles(routing: dict) -> str:
-    """routing キーを走査してレイヤートグルチェックボックスを生成する"""
+def _layer_toggles(active_keys: list[str]) -> str:
+    """レイヤートグルチェックボックスを生成して返す。
+
+    Args:
+        active_keys: データが1件以上ある routing キーの昇順リスト（呼び出し側で計算済み）。
+                     physical トグルは常に先頭に生成する。
+    """
     layers = [("physical", "Physical", True)]
-    for key in sorted(routing.keys()):
+    for key in active_keys:
         layers.append((key, key.upper(), True))
 
     toggles = []

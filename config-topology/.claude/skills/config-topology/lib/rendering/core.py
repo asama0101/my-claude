@@ -15,7 +15,6 @@ from lib.rendering.views import (
     _build_physical_layout,
     _build_view_bgp,
     _build_view_generic,
-    _build_view_l3,
     _build_view_ospf,
     _build_view_physical,
     _build_view_tabs,
@@ -24,11 +23,24 @@ from lib.rendering.views import (
 )
 
 
+def _active_entries(entries: list) -> list[dict]:
+    """エントリリストから device キーを持つ dict のみ返す。"""
+    return [e for e in entries if isinstance(e, dict) and "device" in e]
+
+
+def _active_routing_keys(routing: dict) -> list[str]:
+    """routing dict のうちデータ（device キーを持つ dict エントリ）が1件以上あるキーを昇順で返す。"""
+    return sorted(
+        key for key, entries in routing.items()
+        if any(isinstance(e, dict) and "device" in e for e in entries)
+    )
+
+
 def render(topology: dict) -> str:
     """
     topology dict を受け取り、自己完結 HTML 文字列を返す。
 
-    Stage2: レイヤー別ビュー（physical / l3 / プロトコル別）をすべて SVG 内に埋め込み、
+    Stage2: レイヤー別ビュー（physical / プロトコル別）をすべて SVG 内に埋め込み、
     JS タブで切替える。座標は全ビュー分 Python で事前計算し決定性を維持する。
 
     Args:
@@ -61,14 +73,9 @@ def render(topology: dict) -> str:
     # ---------------------------------------------------------------------------
     # ビュー SVG コンテンツ生成
     # ---------------------------------------------------------------------------
-    # Physical ビュー
+    # Physical ビュー（BGP オーバーレイなし）
     view_physical_svg = _build_view_physical(
-        devices, interfaces, links, segments, routing, positions, iface_by_device
-    )
-
-    # L3 ビュー
-    view_l3_svg = _build_view_l3(
-        devices, interfaces, links, segments, routing, iface_by_device
+        devices, interfaces, links, segments, positions, iface_by_device
     )
 
     # プロトコル別ビュー（routing キーを走査して動的生成）
@@ -78,7 +85,7 @@ def render(topology: dict) -> str:
     for proto_key in sorted(routing.keys()):
         proto_entries = routing.get(proto_key, [])
         # エントリが空、または device フィールドを持つものが1つもない場合はスキップ
-        active_entries = [e for e in proto_entries if isinstance(e, dict) and "device" in e]
+        active_entries = _active_entries(proto_entries)
         if not active_entries:
             continue
         # ゲーティング: プロトコル種別に応じてエッジ有無を判定
@@ -106,12 +113,12 @@ def render(topology: dict) -> str:
         proto_views.append(view_svg)
         proto_view_ids.append(proto_key)
 
-    # ビュー ID リスト（タブ生成用）
-    all_view_ids = ["physical", "l3"] + proto_view_ids
+    # ビュー ID リスト（タブ生成用）— L3 は削除
+    all_view_ids = ["physical"] + proto_view_ids
 
     # SVG 内の全ビューを結合
     all_views_svg = "\n".join(
-        [view_physical_svg, view_l3_svg] + proto_views
+        [view_physical_svg] + proto_views
     )
 
     # タブ HTML
@@ -120,23 +127,16 @@ def render(topology: dict) -> str:
     # 機器カード
     cards_html = _device_cards(devices, interfaces, routing)
 
-    # レイヤートグル（既存機能を維持）
-    toggles_html = _layer_toggles(routing)
-
-    # レイヤー表示制御 CSS（dynamic generation, routing キー連動）
-    layer_ids = ["physical", "l3"] + sorted(routing.keys())
+    # データのある routing キーを一度だけ計算し、トグルと CSS 両方に使用
+    active = _active_routing_keys(routing)
+    toggles_html = _layer_toggles(active)
+    layer_ids = ["physical"] + active  # L3 は削除
     layer_hide_css_parts = []
     for layer_id in layer_ids:
         esc_id = _esc(layer_id)
         if layer_id == "physical":
             layer_hide_css_parts.append(
-                f"    body.hide-physical .layer-physical,\n"
-                f"    body.hide-physical .seg-edge {{ display: none; }}"
-            )
-        elif layer_id == "l3":
-            layer_hide_css_parts.append(
-                f"    body.hide-l3 .layer-l3,\n"
-                f"    body.hide-l3 .l3-edge {{ display: none; }}"
+                f"    body.hide-physical .layer-physical {{ display: none; }}"
             )
         else:
             layer_hide_css_parts.append(

@@ -105,8 +105,8 @@ def _device_cards(
         card = f"""
 <div class="device-card" data-device="{_esc(dev_id)}">
   <h3>{hostname} <span class="badge-vendor">{vendor}</span> <span class="badge-as">{as_str}</span></h3>
-  <h4>Interfaces</h4>
-  <table>
+  <h4 class="layer-physical">Interfaces</h4>
+  <table class="layer-physical">
     <thead><tr><th>Name</th><th>IP</th><th>Description</th></tr></thead>
     <tbody>{if_rows}</tbody>
   </table>

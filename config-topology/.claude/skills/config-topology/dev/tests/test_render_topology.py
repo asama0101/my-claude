@@ -773,13 +773,11 @@ def _make_bidirectional_bgp_topology():
 
 @pytest.mark.unit
 def test_bgp_bidirectional_dedup_single_edge():
-    """R1→R2 と R2→R1 の双方向 BGP エントリがあっても Physical ビュー内のエッジは1本のみ"""
+    """Phase A #1b: Physical ビューに BGP オーバーレイを描かない — bgp-session は0本"""
     import re
     from lib.rendering import render
     html = render(_make_bidirectional_bgp_topology())
 
-    # Stage2 では複数ビューに bgp-session が分散するため Physical ビュー内のみを検査する
-    # view-physical <g> ブロックを抽出（次のビュー <g> または </g></svg> まで）
     physical_match = re.search(
         r'class="view view-physical"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</svg>)',
         html,
@@ -791,13 +789,13 @@ def test_bgp_bidirectional_dedup_single_edge():
         physical_content = html  # フォールバック
 
     bgp_sessions = re.findall(r'class="bgp-session"', physical_content)
-    assert len(bgp_sessions) == 1, \
-        f"BGP 双方向エントリで Physical ビュー内に {len(bgp_sessions)} 本のエッジが描画された（期待: 1本）"
+    assert len(bgp_sessions) == 0, \
+        f"BGP 双方向エントリで Physical ビュー内に {len(bgp_sessions)} 本のエッジが描画された（期待: 0本）"
 
 
 @pytest.mark.unit
 def test_bgp_single_direction_still_rendered():
-    """片方向 BGP エントリのみのとき、Physical ビュー内に1本のエッジが描画される"""
+    """Phase A #1b: 片方向 BGP でも Physical ビューに bgp-session は0本（BGP ビューのみ描画）"""
     import re
     from lib.rendering import render
 
@@ -817,8 +815,8 @@ def test_bgp_single_direction_still_rendered():
         physical_content = html
 
     bgp_sessions = re.findall(r'class="bgp-session"', physical_content)
-    assert len(bgp_sessions) == 1, \
-        f"片方向 BGP エントリで Physical ビュー内に {len(bgp_sessions)} 本のエッジが描画された（期待: 1本）"
+    assert len(bgp_sessions) == 0, \
+        f"片方向 BGP エントリで Physical ビュー内に {len(bgp_sessions)} 本のエッジが描画された（期待: 0本）"
 
 
 # ===========================================================================
@@ -1037,9 +1035,9 @@ def test_stage2_view_physical_group_exists(rendered_html):
 
 
 @pytest.mark.unit
-def test_stage2_view_l3_group_exists(rendered_html):
-    """L3 ビューの <g class="view view-l3"> が存在する"""
-    assert 'class="view view-l3"' in rendered_html
+def test_stage2_view_l3_group_not_generated(rendered_html):
+    """Phase A #6: L3 ビューは削除された — view-l3 <g> が存在しない"""
+    assert 'class="view view-l3"' not in rendered_html
 
 
 @pytest.mark.unit
@@ -1049,22 +1047,22 @@ def test_stage2_view_bgp_group_exists(rendered_html):
 
 
 @pytest.mark.unit
-def test_stage2_view_ospf_group_exists(rendered_html):
-    """OSPF ビューの <g class="view view-ospf"> が存在するか、またはゲーティングで非生成（sample は r1 のみ参加）"""
-    # sample topology は r1 のみ OSPF 参加 → ゲーティング後は view-ospf は生成されない
-    # これは正しい挙動: エッジなし → ビューなし
-    # テストは「view-ospf がないこと」も正常として受け入れる
-    pass  # ゲーティング実装後は生成されない（r1 のみ参加）
+def test_stage2_view_ospf_group_not_generated(rendered_html):
+    """OSPF ビューは sample topology では生成されない（r1 のみ参加 → エッジなし → ゲーティング除外）"""
+    # sample topology は r1 のみ OSPF 参加 → エッジ集合が空 → view-ospf は生成されない
+    assert 'class="view view-ospf"' not in rendered_html, \
+        "sample topology で OSPF ビューが（r1 のみ参加なのに）生成されている"
 
 
 # ---- data-bbox 属性 -------------------------------------------------------
 
 @pytest.mark.unit
 def test_stage2_view_groups_have_data_bbox(rendered_html):
-    """各ビュー <g> に data-bbox 属性が存在する（生成されたビューのみ検証）"""
+    """各ビュー <g> に data-bbox 属性が存在する（生成されたビューのみ検証）
+    Phase A #6: L3 は削除されたため view-physical のみ必須"""
     import re
-    # view-physical / view-l3 は常に必須
-    for view_id in ("physical", "l3"):
+    # view-physical は常に必須（L3 は Phase A で削除）
+    for view_id in ("physical",):
         pattern = rf'class="view view-{view_id}"[^>]*data-bbox="[^"]+"'
         alt_pattern = rf'data-bbox="[^"]+"[^>]*class="view view-{view_id}"'
         found = re.search(pattern, rendered_html) or re.search(alt_pattern, rendered_html)
@@ -1323,11 +1321,11 @@ def test_stage2_empty_topology_has_physical_view(empty_topology):
 
 
 @pytest.mark.unit
-def test_stage2_empty_topology_has_l3_view(empty_topology):
-    """空 topology でも view-l3 <g> が存在する"""
+def test_stage2_empty_topology_no_l3_view(empty_topology):
+    """Phase A #6: L3 は削除 — 空 topology でも view-l3 <g> が存在しない"""
     from lib.rendering import render
     result = render(empty_topology)
-    assert 'class="view view-l3"' in result
+    assert 'class="view view-l3"' not in result
 
 
 # ---- 自己完結性 -----------------------------------------------------------
@@ -1350,7 +1348,7 @@ def test_stage2_self_contained_no_external_cdn(rendered_html):
 
 @pytest.mark.unit
 def test_stage2_l3_view_contains_subnet_nodes():
-    """L3 ビューにサブネットノードが描画される（有効なリンクがある場合）"""
+    """Phase A #6: L3 ビューは削除された — view-l3 グループが存在しない"""
     from lib.rendering import render
     topo = {
         "title": "L3 Test",
@@ -1373,15 +1371,7 @@ def test_stage2_l3_view_contains_subnet_nodes():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
     html = render(topo)
-    import re
-    # view-l3 グループ内を抽出
-    m = re.search(r'class="view view-l3"[^>]*>(.*?)(?=class="view view-|</g>\s*</svg>)', html, re.DOTALL)
-    # L3 ビューにサブネット関連の要素が含まれること（ellipse または subnet）
-    assert m is not None, "view-l3 グループが見つからない"
-    l3_content = m.group(1)
-    assert "10.0.0.0/30" in l3_content or "subnet" in l3_content.lower() or \
-        "ellipse" in l3_content.lower() or "seg-" in l3_content.lower(), \
-        "L3 ビューにサブネット関連要素が見つからない"
+    assert 'class="view view-l3"' not in html, "L3 ビューが（削除後も）生成されている"
 
 
 # ---- BGP ビューには BGP 参加デバイスのみ含まれる -------------------------
@@ -1652,7 +1642,7 @@ def test_gating_tab_count_equals_view_count():
 
 @pytest.mark.unit
 def test_gating_physical_and_l3_always_generated():
-    """physical と l3 ビューは常に生成される（routing が空でも）"""
+    """Phase A #6: physical ビューは常に生成される。l3 は削除されたため生成されない"""
     from lib.rendering import render
     topo = {
         "title": "No Routing",
@@ -1667,7 +1657,7 @@ def test_gating_physical_and_l3_always_generated():
     }
     html = render(topo)
     assert 'class="view view-physical"' in html
-    assert 'class="view view-l3"' in html
+    assert 'class="view view-l3"' not in html
 
 
 # ===========================================================================
@@ -1707,48 +1697,11 @@ def _make_shared_subnet_topology():
 
 @pytest.mark.unit
 def test_l3_edge_dedup_unique_dev_subnet_pairs():
-    """同一サブネット3リンクでも L3 ビューのデバイス↔サブネットエッジは重複しない"""
+    """Phase A #6: L3 ビューは削除された — view-l3 グループが生成されない"""
     from lib.rendering import render
     html = render(_make_shared_subnet_topology())
-
-    # view-l3 グループを抽出
-    m = re.search(
-        r'class="view view-l3"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
-        html, re.DOTALL
-    )
-    assert m is not None, "view-l3 グループが見つからない"
-    l3_content = m.group(1)
-
-    # l3-sub-192.168.1.0/24 ノードへのエッジ（data-seg 属性）を収集
-    subnet_node_id = "l3-sub-192.168.1.0/24"
-    # 各エッジの (x1,y1,x2,y2) で一意性を検証（重複座標ペアなし）
-    edge_lines = re.findall(
-        r'<line x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)" class="[^"]*l3-edge[^"]*"',
-        l3_content
-    )
-    # 各デバイス(r1,r2,r3)からサブネットへのエッジが各1本ずつ = 3本
-    assert len(edge_lines) == 3, \
-        f"L3 エッジが {len(edge_lines)} 本（期待: 3本 = デバイス数）"
-
-
-@pytest.mark.unit
-def test_l3_edge_dedup_no_duplicate_lines():
-    """L3 ビューのデバイス↔サブネット線に完全一致の重複行がない"""
-    from lib.rendering import render
-    html = render(_make_shared_subnet_topology())
-
-    m = re.search(
-        r'class="view view-l3"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
-        html, re.DOTALL
-    )
-    assert m is not None, "view-l3 グループが見つからない"
-    l3_content = m.group(1)
-
-    # l3-edge クラスを持つ line 要素を全収集
-    edge_lines = re.findall(r'<line [^/]*/>', l3_content)
-    # 同一文字列の重複がないこと
-    assert len(edge_lines) == len(set(edge_lines)), \
-        f"L3 ビューに重複エッジがある: {len(edge_lines)} 行中 {len(edge_lines) - len(set(edge_lines))} 重複"
+    assert 'class="view view-l3"' not in html, \
+        "L3 ビューが（削除後も）生成されている"
 
 
 # ===========================================================================
@@ -1869,7 +1822,7 @@ def test_build_physical_layout_returns_dict():
 
 @pytest.mark.unit
 def test_l3_edges_have_l3_edge_class():
-    """L3 ビューのデバイス↔サブネット線が l3-edge クラスを持つ"""
+    """Phase A #6: L3 ビューは削除された — view-l3 グループが生成されない"""
     from lib.rendering import render
     topo = {
         "title": "L3 Edge Class Test",
@@ -1892,21 +1845,13 @@ def test_l3_edges_have_l3_edge_class():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
     html = render(topo)
-    m = re.search(
-        r'class="view view-l3"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
-        html, re.DOTALL
-    )
-    assert m is not None, "view-l3 グループが見つからない"
-    l3_content = m.group(1)
-    assert "l3-edge" in l3_content, \
-        "L3 ビューのエッジに l3-edge クラスがない"
-    assert "layer-l3" in l3_content, \
-        "L3 ビューのエッジに layer-l3 クラスがない"
+    assert 'class="view view-l3"' not in html, \
+        "L3 ビューが（削除後も）生成されている"
 
 
 @pytest.mark.unit
 def test_l3_edges_not_layer_physical():
-    """L3 ビューのデバイス↔サブネット線が layer-physical クラスを持たない"""
+    """Phase A #6: L3 ビューは削除された — view-l3 グループが生成されない"""
     from lib.rendering import render
     topo = {
         "title": "L3 Edge Class Test",
@@ -1929,21 +1874,8 @@ def test_l3_edges_not_layer_physical():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
     html = render(topo)
-    m = re.search(
-        r'class="view view-l3"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
-        html, re.DOTALL
-    )
-    assert m is not None, "view-l3 グループが見つからない"
-    l3_content = m.group(1)
-    # l3-edge クラスを持つ line に layer-physical が混入していないこと
-    l3_edges_with_physical = re.findall(
-        r'class="[^"]*l3-edge[^"]*layer-physical[^"]*"', l3_content
-    )
-    l3_edges_with_physical += re.findall(
-        r'class="[^"]*layer-physical[^"]*l3-edge[^"]*"', l3_content
-    )
-    assert len(l3_edges_with_physical) == 0, \
-        "L3 ビューのエッジに layer-physical クラスが混入している"
+    assert 'class="view view-l3"' not in html, \
+        "L3 ビューが（削除後も）生成されている"
 
 
 @pytest.mark.unit
@@ -1963,11 +1895,12 @@ def test_selectview_uses_dataset_view():
     # data-view 属性がタブに設定されている
     assert 'data-view=' in html, "タブに data-view 属性がない"
     # selectView 呼び出しが data-view 経由になっている（dataset.view or this.dataset）
-    # または onclick に直接 selectView が残っていても data-view で代替可能
-    # 少なくとも data-view 属性があることを検証
+    # Phase A #6: L3 削除後は routing={} の場合タブは physical のみ（1つ以上で OK）
     tab_data_views = re.findall(r'data-view="([^"]+)"', html)
-    assert len(tab_data_views) >= 2, \
-        f"data-view 属性を持つタブが少なすぎる: {tab_data_views}"
+    assert len(tab_data_views) >= 1, \
+        f"data-view 属性を持つタブがない: {tab_data_views}"
+    assert "physical" in tab_data_views, \
+        "physical タブが存在しない"
 
 
 # ===========================================================================
@@ -2150,3 +2083,454 @@ def test_css_layer_ids_are_safe():
         # 'body.hide-vrrp .layer-vrrp' 形式を確認
         assert not re.search(r'body\.hide-[^{}\s]*[{}][^{}\s]*\s*{', style), \
             "CSS ルール内に不正な {} が含まれている（インジェクションの可能性）"
+
+
+# ===========================================================================
+# H. 死にトグル修正: データなし routing プロトコルは UI 非生成
+# ===========================================================================
+
+def _make_bgp_only_with_empty_ospf_topology():
+    """bgp のみデータあり、ospf は空リストの topology"""
+    return {
+        "title": "BGP Only (ospf empty)",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],   # 意図的に空 (topology_io の常時注入を模倣)
+            "static": [],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_dead_toggle_ospf_not_generated_when_empty():
+    """ospf が空リストのとき toggle-ospf（死にトグル）が生成されない"""
+    from lib.rendering import render
+    html = render(_make_bgp_only_with_empty_ospf_topology())
+    assert 'id="toggle-ospf"' not in html, \
+        "ospf が空なのに toggle-ospf が生成されている（死にトグル）"
+    assert 'data-layer="ospf"' not in html, \
+        "ospf が空なのに data-layer='ospf' が生成されている（死にトグル）"
+
+
+@pytest.mark.unit
+def test_dead_toggle_bgp_still_generated_when_nonempty():
+    """bgp にデータがあるとき toggle-bgp は生成される"""
+    from lib.rendering import render
+    html = render(_make_bgp_only_with_empty_ospf_topology())
+    assert 'id="toggle-bgp"' in html or "toggle-bgp" in html, \
+        "bgp にデータがあるのに toggle-bgp が生成されていない"
+
+
+@pytest.mark.unit
+def test_dead_toggle_ospf_css_hide_not_generated_when_empty():
+    """ospf が空リストのとき body.hide-ospf / .layer-ospf の CSS ルールが生成されない"""
+    from lib.rendering import render
+    html = render(_make_bgp_only_with_empty_ospf_topology())
+    assert "hide-ospf" not in html, \
+        "ospf が空なのに body.hide-ospf CSS ルールが生成されている"
+    assert "layer-ospf" not in html, \
+        "ospf が空なのに .layer-ospf CSS ルールが生成されている"
+
+
+@pytest.mark.unit
+def test_dead_toggle_bgp_css_still_generated_when_nonempty():
+    """bgp にデータがあるとき hide-bgp / layer-bgp CSS ルールは生成される"""
+    from lib.rendering import render
+    html = render(_make_bgp_only_with_empty_ospf_topology())
+    assert "hide-bgp" in html, \
+        "bgp にデータがあるのに body.hide-bgp CSS ルールが生成されていない"
+    assert "layer-bgp" in html, \
+        "bgp にデータがあるのに .layer-bgp CSS ルールが生成されていない"
+
+
+@pytest.mark.unit
+def test_dead_toggle_regression_ospf_toggle_generated_when_nonempty():
+    """ospf にデータがある topology では toggle-ospf が引き続き生成される（回帰保護）"""
+    from lib.rendering import render
+    # _make_ospf_two_devices_topology() は ospf に2エントリある
+    topo = _make_ospf_two_devices_topology()
+    html = render(topo)
+    assert 'id="toggle-ospf"' in html or "toggle-ospf" in html, \
+        "ospf にデータがあるのに toggle-ospf が生成されていない（回帰）"
+
+
+# ===========================================================================
+# Phase A: #6 L3 ビュー完全削除
+# ===========================================================================
+
+@pytest.mark.unit
+def test_phaseA_l3_view_not_generated(rendered_html):
+    """Phase A #6: L3 ビュー <g class="view view-l3"> が生成されない"""
+    assert 'class="view view-l3"' not in rendered_html, \
+        "L3 ビューが（削除後も）生成されている"
+
+
+@pytest.mark.unit
+def test_phaseA_l3_tab_not_generated(rendered_html):
+    """Phase A #6: L3 タブ（data-view="l3"）が生成されない"""
+    assert 'data-view="l3"' not in rendered_html, \
+        "L3 タブが（削除後も）生成されている"
+
+
+@pytest.mark.unit
+def test_phaseA_l3_view_not_generated_empty(empty_topology):
+    """Phase A #6: 空 topology でも L3 ビューが生成されない"""
+    from lib.rendering import render
+    html = render(empty_topology)
+    assert 'class="view view-l3"' not in html, \
+        "空 topology で L3 ビューが（削除後も）生成されている"
+
+
+@pytest.mark.unit
+def test_phaseA_l3_view_not_generated_no_routing():
+    """Phase A #6: routing が空でも L3 ビューが生成されない"""
+    from lib.rendering import render
+    topo = {
+        "title": "No Routing",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [],
+        "links": [],
+        "segments": [],
+        "routing": {},
+    }
+    html = render(topo)
+    assert 'class="view view-l3"' not in html, \
+        "routing 空 topology で L3 ビューが（削除後も）生成されている"
+
+
+@pytest.mark.unit
+def test_phaseA_l3_css_hide_rule_not_generated(rendered_html):
+    """Phase A #6: body.hide-l3 / .layer-l3 / .l3-edge の3つがいずれも出力されない"""
+    assert "hide-l3" not in rendered_html, \
+        "body.hide-l3 CSS ルールが（L3削除後も）生成されている"
+    assert "layer-l3" not in rendered_html, \
+        ".layer-l3 CSS ルールが（L3削除後も）生成されている"
+    assert "l3-edge" not in rendered_html, \
+        ".l3-edge クラスが（L3削除後も）生成されている"
+
+
+@pytest.mark.unit
+def test_phaseA_physical_tab_still_exists(rendered_html):
+    """Phase A #6: L3 削除後も Physical タブは存在する"""
+    assert 'data-view="physical"' in rendered_html, \
+        "Physical タブが消えている"
+
+
+@pytest.mark.unit
+def test_phaseA_bgp_tab_still_exists(rendered_html):
+    """Phase A #6: L3 削除後も BGP タブは存在する（sample は bgp あり）"""
+    assert 'data-view="bgp"' in rendered_html, \
+        "BGP タブが消えている"
+
+
+# ===========================================================================
+# Phase A: #1b Physical ビューから BGP オーバーレイ除去
+# ===========================================================================
+
+@pytest.mark.unit
+def test_phaseA_physical_view_no_bgp_session(rendered_html):
+    """Phase A #1b: Physical ビュー内に bgp-session クラスが存在しない"""
+    import re
+    m = re.search(
+        r'<g class="view view-physical"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, "view-physical グループが見つからない"
+    phys_content = m.group(1)
+    bgp_sessions = re.findall(r'class="bgp-session"', phys_content)
+    assert len(bgp_sessions) == 0, \
+        f"Physical ビュー内に bgp-session が {len(bgp_sessions)} 個（期待: 0）"
+
+
+@pytest.mark.unit
+def test_phaseA_physical_view_no_bgp_edge_class(rendered_html):
+    """Phase A #1b: Physical ビュー内に bgp-edge クラスが存在しない"""
+    import re
+    m = re.search(
+        r'<g class="view view-physical"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, "view-physical グループが見つからない"
+    phys_content = m.group(1)
+    assert "bgp-edge" not in phys_content, \
+        "Physical ビュー内に bgp-edge クラスが残っている"
+
+
+@pytest.mark.unit
+def test_phaseA_physical_view_no_bgp_badge(rendered_html):
+    """Phase A #1b: Physical ビュー内に bgp-badge クラスが存在しない"""
+    import re
+    m = re.search(
+        r'<g class="view view-physical"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, "view-physical グループが見つからない"
+    phys_content = m.group(1)
+    assert "bgp-badge" not in phys_content, \
+        "Physical ビュー内に bgp-badge クラスが残っている"
+
+
+@pytest.mark.unit
+def test_phaseA_bgp_view_still_has_bgp_edges(rendered_html):
+    """Phase A #1b: BGP ビューは引き続き bgp-edge を含む（削除対象外）"""
+    import re
+    m = re.search(
+        r'<g class="view view-bgp"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, "view-bgp グループが見つからない"
+    bgp_content = m.group(1)
+    assert "bgp-edge" in bgp_content, \
+        "BGP ビューに bgp-edge が含まれていない（誤って削除された）"
+
+
+@pytest.mark.unit
+def test_phaseA_physical_view_no_bgp_bidirectional():
+    """Phase A #1b: 双方向 BGP があっても Physical ビューに bgp-session が0本"""
+    import re
+    from lib.rendering import render
+    html = render(_make_bidirectional_bgp_topology())
+    m = re.search(
+        r'<g class="view view-physical"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        html, re.DOTALL
+    )
+    if m:
+        phys_content = m.group(1)
+    else:
+        phys_content = html
+    bgp_sessions = re.findall(r'class="bgp-session"', phys_content)
+    assert len(bgp_sessions) == 0, \
+        f"Physical ビュー内に bgp-session が {len(bgp_sessions)} 本（期待: 0）"
+
+
+# ===========================================================================
+# Phase A: #3 LAYERS トグルをカード表セクション制御のみに
+# ===========================================================================
+
+@pytest.mark.unit
+def test_phaseA_interfaces_table_has_layer_physical_class():
+    """Phase A #3: Interfaces 表セクションに layer-physical クラスが付与される"""
+    from lib.rendering import render
+    topo = {
+        "title": "Toggle Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    # Interfaces 表（h4 + table）に layer-physical クラスが付いていること
+    assert "layer-physical" in html, \
+        "カードの Interfaces 表に layer-physical クラスが付いていない"
+
+
+@pytest.mark.unit
+def test_phaseA_interfaces_h4_has_layer_physical_class():
+    """Phase A #3: Interfaces の h4 見出しに layer-physical クラスがある"""
+    from lib.rendering import render
+    topo = {
+        "title": "Toggle Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    import re
+    # <h4 class="layer-physical"> または <h4 ... class="... layer-physical ...">
+    assert re.search(r'<h4[^>]*class="[^"]*layer-physical[^"]*"', html), \
+        "Interfaces h4 に layer-physical クラスがない"
+
+
+@pytest.mark.unit
+def test_phaseA_interfaces_table_tag_has_layer_physical_class():
+    """Phase A #3: Interfaces の table タグに layer-physical クラスがある"""
+    from lib.rendering import render
+    topo = {
+        "title": "Toggle Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    import re
+    assert re.search(r'<table[^>]*class="[^"]*layer-physical[^"]*"', html), \
+        "Interfaces table に layer-physical クラスがない"
+
+
+@pytest.mark.unit
+def test_phaseA_physical_toggle_always_exists(rendered_html):
+    """Phase A #3: physical トグルが常に先頭に存在する（sample topology）"""
+    assert 'id="toggle-physical"' in rendered_html, \
+        "toggle-physical が存在しない"
+    assert 'data-layer="physical"' in rendered_html, \
+        "data-layer='physical' が存在しない"
+
+
+@pytest.mark.unit
+def test_phaseA_physical_toggle_exists_empty(empty_topology):
+    """Phase A #3: 空 topology でも physical トグルが存在する"""
+    from lib.rendering import render
+    html = render(empty_topology)
+    assert 'id="toggle-physical"' in html, \
+        "空 topology で toggle-physical が存在しない"
+
+
+@pytest.mark.unit
+def test_phaseA_bgp_card_table_still_has_layer_bgp(rendered_html):
+    """Phase A #3: BGP セッション表は引き続き class="layer-bgp" を持つ（回帰保護）"""
+    # cards.py の BGP 表は既存の layer-bgp クラスを持つ（厳密な属性検索）
+    assert 'class="layer-bgp"' in rendered_html, \
+        "カードの BGP 表から class='layer-bgp' が消えている"
+
+
+@pytest.mark.unit
+def test_phaseA_hide_physical_css_rule_exists(rendered_html):
+    """Phase A #3: body.hide-physical .layer-physical { display:none } 相当の CSS が出力される"""
+    assert "hide-physical" in rendered_html, \
+        "body.hide-physical CSS ルールが存在しない"
+    assert "layer-physical" in rendered_html, \
+        ".layer-physical CSS ルールが存在しない"
+
+
+@pytest.mark.unit
+def test_phaseA_physical_toggle_is_first_in_toggles(rendered_html):
+    """Phase A #3: physical トグルが routing トグルより先に現れる"""
+    phys_pos = rendered_html.find('data-layer="physical"')
+    bgp_pos = rendered_html.find('data-layer="bgp"')
+    assert phys_pos != -1, "data-layer='physical' が存在しない"
+    assert bgp_pos != -1, "data-layer='bgp' が存在しない"
+    assert phys_pos < bgp_pos, \
+        f"physical トグル ({phys_pos}) が bgp トグル ({bgp_pos}) より後に来ている"
+
+
+# ===========================================================================
+# Phase A: #3 LAYERS トグルの CSS 検証（厳密化）および seg-edge 常時表示テスト
+# ===========================================================================
+
+@pytest.mark.unit
+def test_phaseA_hide_physical_css_rule_strict(rendered_html):
+    """Phase A #3: body.hide-physical .layer-physical { display:none } の CSS ルールが
+    正規表現で確認できる（全文検索ではなく <style> 内の正確なルールを検証）"""
+    import re
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    assert len(style_blocks) >= 1, "style ブロックが見つからない"
+    combined_style = "\n".join(style_blocks)
+    # body.hide-physical .layer-physical { display:none } 相当のルールが存在すること
+    assert re.search(
+        r'body\.hide-physical\s+\.layer-physical\s*\{[^}]*display\s*:\s*none',
+        combined_style,
+    ), "body.hide-physical .layer-physical { display:none } ルールが見つからない"
+
+
+@pytest.mark.unit
+def test_phaseA_hide_physical_css_no_seg_edge_rule(rendered_html):
+    """Phase A #3 要件: physical トグルOFFで seg-edge は hide されない。
+    CSS に body.hide-physical .seg-edge { display:none } ルールが存在してはならない。"""
+    import re
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined_style = "\n".join(style_blocks)
+    # seg-edge の hide 連動ルールが存在しないこと
+    assert not re.search(
+        r'body\.hide-physical\s+\.seg-edge\s*\{[^}]*display\s*:\s*none',
+        combined_style,
+    ), "body.hide-physical .seg-edge { display:none } ルールが存在する（要件違反: seg-edge は常時表示）"
+
+
+@pytest.mark.unit
+def test_phaseA_hide_physical_interfaces_card_is_hidden():
+    """Phase A #3: physical トグルOFFで Interfaces カード表（.layer-physical）が hide 対象になる。
+    CSS に body.hide-physical .layer-physical の hide ルールが存在すること。"""
+    from lib.rendering import render
+    import re
+    topo = {
+        "title": "Toggle Card Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {},
+    }
+    html = render(topo)
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', html, re.DOTALL | re.IGNORECASE)
+    combined_style = "\n".join(style_blocks)
+    # Interfaces カード（.layer-physical）が hide 対象のルールを持つ
+    assert re.search(
+        r'body\.hide-physical\s+\.layer-physical\s*\{[^}]*display\s*:\s*none',
+        combined_style,
+    ), "body.hide-physical .layer-physical ルールがない（Interfaces カード表が hide されない）"
+    # seg-edge は hide 対象でないこと（SVG の接続線は常時表示）
+    assert not re.search(
+        r'body\.hide-physical\s+\.seg-edge\s*\{[^}]*display\s*:\s*none',
+        combined_style,
+    ), "body.hide-physical .seg-edge ルールが存在する（図の接続線は常時表示すべき）"
+
+
+@pytest.mark.unit
+def test_phaseA_bgp_card_table_has_layer_bgp_class_strict(rendered_html):
+    """Phase A #3: BGP セッション表は class="layer-bgp" を持つ（厳密な属性検索）"""
+    assert 'class="layer-bgp"' in rendered_html, \
+        "カードの BGP 表に class='layer-bgp' が存在しない"
+
+
+@pytest.mark.unit
+def test_phaseA_l3_css_hide_rule_not_generated_strict(rendered_html):
+    """Phase A #6: hide-l3, layer-l3, l3-edge の3つがいずれも出力されない"""
+    assert "hide-l3" not in rendered_html, \
+        "body.hide-l3 CSS ルールが（L3削除後も）生成されている"
+    assert "layer-l3" not in rendered_html, \
+        ".layer-l3 CSS ルールが（L3削除後も）生成されている"
+    assert "l3-edge" not in rendered_html, \
+        ".l3-edge クラスが（L3削除後も）生成されている"
