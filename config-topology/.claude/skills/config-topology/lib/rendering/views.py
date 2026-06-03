@@ -352,14 +352,12 @@ def _build_view_physical(
 ) -> str:
     """Physical ビュー SVG コンテンツを生成する（BGP オーバーレイなし）。
 
-    ノードは show_interfaces=True でチップ型（接続IF/Loopback のみ）。
+    ノードは chip_iface_ids=phys_chip_ids（接続IF + Loopback）でチップ型描画。
     iteration-3 #2: 接続IF/Loopback のみをチップとして表示し、全 IF はカード表に残す。
     iteration-4 #6: チップアンカー（リンク端点をチップ座標に接続）。
+    整理: 描画チップ集合とアンカー集合の源泉を phys_chip_ids に一本化する（ドリフト防止）。
     """
-    # 接続 iface-id 集合を計算（iteration-3 #2 / iteration-4 #6 で共用）
-    connected_iface_ids = _build_connected_iface_ids(links, segments, interfaces)
-
-    # Physical チップ集合（接続IF + Loopback）
+    # Physical チップ集合（接続IF + Loopback）— 描画・アンカー共通の単一源泉
     phys_chip_ids = _build_physical_chip_iface_ids(interfaces, links, segments)
 
     # チップ座標マップを構築（全デバイス分）
@@ -377,18 +375,20 @@ def _build_view_physical(
     # name_to_iface_id マップ（_svg_links のチップアンカー用）
     name_to_iface_id = {(i["device"], i["name"]): i["id"] for i in interfaces}
 
-    seg_edges = _svg_segment_edges(segments, interfaces, positions)
+    seg_edges = _svg_segment_edges(segments, interfaces, positions,
+                                    chip_positions=all_chip_positions)
     links_str = _svg_links(
         links, positions,
         chip_positions=all_chip_positions,
         name_to_iface_id=name_to_iface_id,
     )
     segs_str = _svg_segments(segments, positions)
-    # Physical ビューのみ show_interfaces=True（BGP/OSPF ビューはデフォルトのコンパクト）
+    # Physical ビュー: chip_iface_ids=phys_chip_ids を単一経路として渡す。
+    # _svg_nodes 内の show_interfaces/connected_iface_ids は chip_iface_ids が
+    # 明示されたとき無視される（優先）ため、描画チップ集合とアンカー集合が同一源泉に統一される。
     nodes_str = _svg_nodes(
         devices, positions, iface_by_device,
-        show_interfaces=True,
-        connected_iface_ids=connected_iface_ids,
+        chip_iface_ids=phys_chip_ids,
     )
     bbox = _make_bbox_str(positions)
     inner = "\n".join(filter(None, [seg_edges, links_str, segs_str, nodes_str]))
@@ -408,10 +408,21 @@ def _build_bgp_chip_iface_ids(
     各エントリの local_ip / neighbor_ip にマッチする IF を集める。
     - local_ip → 当該デバイスの IF
     - neighbor_ip → 逆引きで隣接デバイスの IF
-    決定的（IP ソート）。Loopback IF は BGP セッション参加 IP に一致しない限り含まれない。
+    - local_ip=null（iBGP Loopback 源）のとき、当該デバイスの Loopback IF を追加
+      （iBGP は Loopback アドレス経由が一般的であり、neighbor_ip で逆引きできない
+       ケースを補完する）
+    決定的（IP ソート）。
     """
+    from lib.rendering.svg import _is_loopback
+
     # ip_only -> iface_id マップ（共通ヘルパーを使用）
     ip_to_iface_id = _build_ip_to_iface_id(interfaces)
+
+    # device -> Loopback iface_id リスト（local_ip=null 補完用）
+    dev_loopbacks: dict[str, list[str]] = {}
+    for iface in interfaces:
+        if _is_loopback(iface.get("name", "")):
+            dev_loopbacks.setdefault(iface["device"], []).append(iface["id"])
 
     result: set[str] = set()
     for entry in bgp_entries:
@@ -419,6 +430,11 @@ def _build_bgp_chip_iface_ids(
         neighbor_ip = (entry.get("neighbor_ip") or "").split("/")[0]
         if local_ip and local_ip in ip_to_iface_id:
             result.add(ip_to_iface_id[local_ip])
+        elif not local_ip:
+            # local_ip=null: 当該デバイスの Loopback を BGP ソース IF として追加
+            dev_id = entry.get("device", "")
+            for lb_id in dev_loopbacks.get(dev_id, []):
+                result.add(lb_id)
         if neighbor_ip and neighbor_ip in ip_to_iface_id:
             result.add(ip_to_iface_id[neighbor_ip])
     return result

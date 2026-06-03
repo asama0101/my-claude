@@ -417,10 +417,22 @@ def _svg_segment_edges(
     segments: list[dict],
     interfaces: list[dict],
     positions: dict,
+    chip_positions: dict[str, tuple[float, float]] | None = None,
 ) -> str:
     """セグメントメンバーへの接続エッジを生成する。
 
     #7: <line class="seg-edge"> に ``data-seg-id`` を付与する。
+
+    iteration-4 クロスレビュー バグ3修正: chip_positions が渡された場合、
+    機器側端点をメンバー iface_id のチップ座標にアンカーする。
+    _svg_ospf_segment_edges と対称な動作。
+    チップが無い場合はノード中心にフォールバック。
+
+    Args:
+        segments:       セグメントリスト
+        interfaces:     topology の interfaces リスト
+        positions:      ノードID → (cx, cy) 座標辞書
+        chip_positions: iface_id → (cx, cy) チップ座標辞書（None のときフォールバック）
     """
     # interface id -> device id マップ
     iface_map = {iface["id"]: iface["device"] for iface in interfaces}
@@ -432,7 +444,11 @@ def _svg_segment_edges(
         for member_iface_id in sorted(seg.get("members", [])):
             dev_id = iface_map.get(member_iface_id)
             if dev_id and dev_id in positions:
-                dx, dy = positions[dev_id]
+                # チップアンカー: メンバー iface_id のチップ座標を使用
+                if chip_positions is not None and member_iface_id in chip_positions:
+                    dx, dy = chip_positions[member_iface_id]
+                else:
+                    dx, dy = positions[dev_id]
                 parts.append(
                     f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
                     f'class="seg-edge layer-physical" data-seg="{seg_id}" '
@@ -578,6 +594,17 @@ def _svg_bgp_edges(
                 a_iface_id = ip_to_iface_id.get(local_ip_raw)
                 if a_iface_id and a_iface_id in chip_positions:
                     x1, y1 = chip_positions[a_iface_id]
+            else:
+                # local_ip=null（iBGP Loopback 源）: 当該デバイスの Loopback チップを探す
+                # 複数 Loopback がある場合に備え iface_id 昇順ソートして先頭を選択（決定的）。
+                # 選んだ iface_id が chip_positions に存在することを確認してから使用する。
+                lb_candidates = sorted(
+                    iface_id for iface_id in chip_positions
+                    if iface_id.startswith(f"{dev_id}::")
+                    and _is_loopback(iface_id[len(dev_id) + 2:])
+                )
+                if lb_candidates:
+                    x1, y1 = chip_positions[lb_candidates[0]]
             # B 側: neighbor_ip → iface_id → chip_pos
             b_iface_id = ip_to_iface_id.get(neighbor_ip)
             if b_iface_id and b_iface_id in chip_positions:

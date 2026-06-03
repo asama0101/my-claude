@@ -9646,3 +9646,607 @@ def test_p3b10_deterministic_after_grid_change(sample_topology):
     html1 = render(t1)
     html2 = render(t2)
     assert html1 == html2, "grid 移行後の render() が非決定的"
+
+
+# ===========================================================================
+# iteration-4 クロスレビュー実バグ修正 — multi-as-area 現実的フィクスチャ
+# ===========================================================================
+#
+# バグ1: OSPFビューでマルチエリアノード（core1）の全OSPF-IFチップが描画される（回帰保護）
+# バグ2: BGPビューで local_ip=null の iBGP ノード（edge1）に Loopback チップが出ない
+# バグ3: Physicalビューのセグメントエッジがノード中心に接続（チップアンカー未実装）
+# ===========================================================================
+
+def _make_multi_as_area_topology():
+    """multi-as-area を模した現実的トポロジー（7台）。
+
+    構成:
+      core1(AS65000): GE0/0(area0,core1-core2), GE0/1(area0,core1-edge1),
+                      GE0/2(area1,seg-shared), Loopback0(10.255.0.1/32)
+      core2(AS65000): GE0/0(area0,core1-core2), GE0/1(eBGP-cust2), Loopback0(10.255.0.2/32)
+                      iBGP(local_ip=null, neighbor=10.255.0.1)
+      edge1(AS65000): GE0/0(area0,core1-edge1), GE0/1(eBGP-cust1), Loopback0(10.255.0.3/32)
+                      iBGP(local_ip=null, neighbor=10.255.0.1)
+      acc1: GE0/0(area1,seg-shared), Loopback0(10.255.3.1/32)
+      acc2: GE0/0(area1,seg-shared), Loopback0(10.255.3.2/32)
+      cust1(AS65100): GE0/0(eBGP-edge1), Loopback0
+      cust2(AS65200): ge-0/0/0(eBGP-core2), lo0
+
+    セグメント: seg-192_168_50_0_24 (area1) members=[acc1::GE0/0, acc2::GE0/0, core1::GE0/2]
+    """
+    return {
+        "title": "multi-as-area test",
+        "generated_from": [],
+        "devices": [
+            {"id": "acc1", "hostname": "ACC1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "acc2", "hostname": "ACC2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "core1", "hostname": "CORE1", "vendor": "cisco_ios", "as": 65000, "sections": []},
+            {"id": "core2", "hostname": "CORE2", "vendor": "cisco_ios", "as": 65000, "sections": []},
+            {"id": "cust1", "hostname": "CUST1", "vendor": "cisco_ios", "as": 65100, "sections": []},
+            {"id": "cust2", "hostname": "CUST2", "vendor": "juniper_junos", "as": 65200, "sections": []},
+            {"id": "edge1", "hostname": "EDGE1", "vendor": "cisco_ios", "as": 65000, "sections": []},
+        ],
+        "interfaces": [
+            # acc1
+            {"id": "acc1::Loopback0", "device": "acc1", "name": "Loopback0",
+             "ip": "10.255.3.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "acc1::GigabitEthernet0/0", "device": "acc1", "name": "GigabitEthernet0/0",
+             "ip": "192.168.50.2/24", "vlan": None, "description": "ACCESS-SHARED-SEGMENT-AREA1", "shutdown": False},
+            # acc2
+            {"id": "acc2::Loopback0", "device": "acc2", "name": "Loopback0",
+             "ip": "10.255.3.2/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "acc2::GigabitEthernet0/0", "device": "acc2", "name": "GigabitEthernet0/0",
+             "ip": "192.168.50.3/24", "vlan": None, "description": "ACCESS-SHARED-SEGMENT-AREA1", "shutdown": False},
+            # core1 - 3 OSPF参加IF + Loopback
+            {"id": "core1::Loopback0", "device": "core1", "name": "Loopback0",
+             "ip": "10.255.0.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "core1::GigabitEthernet0/0", "device": "core1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": "CORE-LINK-to-CORE2-AREA0", "shutdown": False},
+            {"id": "core1::GigabitEthernet0/1", "device": "core1", "name": "GigabitEthernet0/1",
+             "ip": "10.0.1.1/30", "vlan": None, "description": "CORE-LINK-to-EDGE1-AREA0", "shutdown": False},
+            {"id": "core1::GigabitEthernet0/2", "device": "core1", "name": "GigabitEthernet0/2",
+             "ip": "192.168.50.1/24", "vlan": None, "description": "ACCESS-SHARED-SEGMENT-AREA1", "shutdown": False},
+            # core2 - iBGP(local_ip=null) + eBGP物理IF
+            {"id": "core2::Loopback0", "device": "core2", "name": "Loopback0",
+             "ip": "10.255.0.2/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "core2::GigabitEthernet0/0", "device": "core2", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": "CORE-LINK-to-CORE1-AREA0", "shutdown": False},
+            {"id": "core2::GigabitEthernet0/1", "device": "core2", "name": "GigabitEthernet0/1",
+             "ip": "10.2.0.1/30", "vlan": None, "description": "EBGP-LINK-to-CUST2", "shutdown": False},
+            # cust1
+            {"id": "cust1::Loopback0", "device": "cust1", "name": "Loopback0",
+             "ip": "10.255.1.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "cust1::GigabitEthernet0/0", "device": "cust1", "name": "GigabitEthernet0/0",
+             "ip": "10.1.0.2/30", "vlan": None, "description": "EBGP-LINK-to-EDGE1", "shutdown": False},
+            # cust2
+            {"id": "cust2::lo0", "device": "cust2", "name": "lo0",
+             "ip": "10.255.2.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "cust2::ge-0/0/0", "device": "cust2", "name": "ge-0/0/0",
+             "ip": "10.2.0.2/30", "vlan": None, "description": "EBGP-LINK-to-CORE2", "shutdown": False},
+            # edge1 - iBGP(local_ip=null) + eBGP物理IF + Loopback
+            {"id": "edge1::Loopback0", "device": "edge1", "name": "Loopback0",
+             "ip": "10.255.0.3/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "edge1::GigabitEthernet0/0", "device": "edge1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.1.2/30", "vlan": None, "description": "CORE-LINK-to-CORE1-AREA0", "shutdown": False},
+            {"id": "edge1::GigabitEthernet0/1", "device": "edge1", "name": "GigabitEthernet0/1",
+             "ip": "10.1.0.1/30", "vlan": None, "description": "EBGP-LINK-to-CUST1", "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "core1", "a_if": "GigabitEthernet0/0",
+             "b_device": "core2", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet", "ospf_area": "0"},
+            {"a_device": "core1", "a_if": "GigabitEthernet0/1",
+             "b_device": "edge1", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.1.0/30", "kind": "inferred-subnet", "ospf_area": "0"},
+            {"a_device": "core2", "a_if": "GigabitEthernet0/1",
+             "b_device": "cust2", "b_if": "ge-0/0/0",
+             "subnet": "10.2.0.0/30", "kind": "inferred-subnet"},
+            {"a_device": "cust1", "a_if": "GigabitEthernet0/0",
+             "b_device": "edge1", "b_if": "GigabitEthernet0/1",
+             "subnet": "10.1.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [
+            {"id": "seg-192_168_50_0_24", "subnet": "192.168.50.0/24",
+             "ospf_area": "1", "ospf_network": "192.168.50.0/24",
+             "members": ["acc1::GigabitEthernet0/0", "acc2::GigabitEthernet0/0",
+                         "core1::GigabitEthernet0/2"]},
+        ],
+        "routing": {
+            "bgp": [
+                # core1: iBGPのみ(local_ip=null, neighbor=core2 Loopback)
+                {"device": "core1", "local_as": 65000, "peer_as": 65000,
+                 "local_ip": None, "neighbor_ip": "10.255.0.2", "type": "ibgp"},
+                # core2: iBGP(local_ip=null) + eBGP
+                {"device": "core2", "local_as": 65000, "peer_as": 65000,
+                 "local_ip": None, "neighbor_ip": "10.255.0.1", "type": "ibgp"},
+                {"device": "core2", "local_as": 65000, "peer_as": 65200,
+                 "local_ip": "10.2.0.1", "neighbor_ip": "10.2.0.2", "type": "ebgp"},
+                {"device": "cust1", "local_as": 65100, "peer_as": 65000,
+                 "local_ip": "10.1.0.2", "neighbor_ip": "10.1.0.1", "type": "ebgp"},
+                {"device": "cust2", "local_as": 65200, "peer_as": 65000,
+                 "local_ip": "10.2.0.2", "neighbor_ip": "10.2.0.1", "type": "ebgp"},
+                # edge1: iBGP(local_ip=null) + eBGP — edge1 Loopback(10.255.0.3)は
+                # 他機のneighbor_ipに現れないのでバグ2の再現ケース
+                {"device": "edge1", "local_as": 65000, "peer_as": 65000,
+                 "local_ip": None, "neighbor_ip": "10.255.0.1", "type": "ibgp"},
+                {"device": "edge1", "local_as": 65000, "peer_as": 65100,
+                 "local_ip": "10.1.0.1", "neighbor_ip": "10.1.0.2", "type": "ebgp"},
+            ],
+            "ospf": [
+                {"device": "acc1", "area": "1", "process": 1, "network": "192.168.50.0/24"},
+                {"device": "acc2", "area": "1", "process": 1, "network": "192.168.50.0/24"},
+                {"device": "core1", "area": "0", "process": 1, "network": "10.0.0.0/30"},
+                {"device": "core1", "area": "0", "process": 1, "network": "10.0.1.0/30"},
+                {"device": "core1", "area": "1", "process": 1, "network": "192.168.50.0/24"},
+                {"device": "core2", "area": "0", "process": 1, "network": "10.0.0.0/30"},
+                {"device": "edge1", "area": "0", "process": 1, "network": "10.0.1.0/30"},
+            ],
+            "static": [],
+        },
+    }
+
+
+def _extract_bgp_view_from(html: str) -> str:
+    """BGP ビュー <g class="view view-bgp" ...> ... の中身を返す"""
+    start = html.find('class="view view-bgp"')
+    if start == -1:
+        return ""
+    next_view = html.find('class="view view-', start + 10)
+    return html[start:next_view] if next_view != -1 else html[start:]
+
+
+def _extract_ospf_view_from(html: str) -> str:
+    """OSPF ビュー <g class="view view-ospf" ...> ... の中身を返す"""
+    start = html.find('class="view view-ospf"')
+    if start == -1:
+        return ""
+    next_view = html.find('class="view view-', start + 10)
+    return html[start:next_view] if next_view != -1 else html[start:]
+
+
+def _extract_physical_view_from(html: str) -> str:
+    """Physical ビュー <g class="view view-physical" ...> ... の中身を返す"""
+    start = html.find('class="view view-physical"')
+    if start == -1:
+        return ""
+    next_view = html.find('class="view view-', start + 10)
+    return html[start:next_view] if next_view != -1 else html[start:]
+
+
+# ---------------------------------------------------------------------------
+# バグ1回帰保護: OSPFビューでマルチエリアノードの全OSPF-IFチップが描画される
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_i4cr_ospf_multi_area_node_all_chips_rendered():
+    """バグ1回帰: OSPFビューでcore1(3 OSPF-IF)の全チップが描画される。
+
+    core1 は area0 に GE0/0(p2p-core2), GE0/1(p2p-edge1) 参加し、
+    area1 の共有セグメントに GE0/2 で参加する。
+    3チップすべてが data-iface-id として存在すること。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+    ospf = _extract_ospf_view_from(html)
+    assert ospf, "OSPF ビューが生成されない"
+
+    # core1 の 3 OSPF IF すべてがチップとして存在する
+    assert 'data-iface-id="core1::GigabitEthernet0/0"' in ospf, \
+        "OSPFビューで core1::GE0/0 チップが描画されない"
+    assert 'data-iface-id="core1::GigabitEthernet0/1"' in ospf, \
+        "OSPFビューで core1::GE0/1 チップが描画されない"
+    assert 'data-iface-id="core1::GigabitEthernet0/2"' in ospf, \
+        "OSPFビューで core1::GE0/2 チップが描画されない（area1セグメントメンバー）"
+
+
+@pytest.mark.unit
+def test_i4cr_ospf_multi_area_node_edge_anchor_matches_chip():
+    """バグ1回帰: OSPFビューのエッジ端点座標が描画チップ座標に一致する（描画=アンカー）。
+
+    _build_view_ospf で構築した chip_positions と _svg_nodes の chip 集合が
+    同一の ospf_chip_ids 由来であることを、座標一致で検証する。
+    """
+    from lib.rendering.views import _build_view_ospf, _build_ospf_chip_iface_ids
+    from lib.rendering.svg import _chip_positions
+
+    topo = _make_multi_as_area_topology()
+    interfaces = topo["interfaces"]
+    links = topo["links"]
+    segments = topo["segments"]
+    devices = topo["devices"]
+    ospf_entries = topo["routing"]["ospf"]
+
+    iface_by_device: dict = {}
+    for iface in interfaces:
+        iface_by_device.setdefault(iface["device"], []).append(iface)
+
+    svg = _build_view_ospf(
+        devices, ospf_entries, links, iface_by_device, segments, interfaces
+    )
+
+    # core1 GE0/0, GE0/1, GE0/2 のチップ座標と p2p/seg エッジ端点が一致するか確認
+    # チップ cx を抽出
+    chip_cx_map: dict[str, float] = {}
+    for m in re.finditer(r'data-iface-id="(core1::[^"]+)"><circle cx="([\d.]+)"', svg):
+        chip_cx_map[m.group(1)] = float(m.group(2))
+
+    assert "core1::GigabitEthernet0/0" in chip_cx_map, \
+        "OSPFビュー: core1::GE0/0 チップが存在しない"
+    assert "core1::GigabitEthernet0/1" in chip_cx_map, \
+        "OSPFビュー: core1::GE0/1 チップが存在しない"
+    assert "core1::GigabitEthernet0/2" in chip_cx_map, \
+        "OSPFビュー: core1::GE0/2 チップが存在しない"
+
+    # p2p エッジ(core1->core2): x1 が core1::GE0/0 チップ cx に一致
+    m = re.search(
+        r'data-a="core1" data-b="core2"><line x1="([\d.]+)"', svg
+    )
+    assert m is not None, "OSPFビュー: core1-core2 エッジが見つからない"
+    assert abs(float(m.group(1)) - chip_cx_map["core1::GigabitEthernet0/0"]) < 1.0, \
+        f"core1-core2 エッジ x1={m.group(1)} が core1::GE0/0 チップ cx={chip_cx_map['core1::GigabitEthernet0/0']} に一致しない"
+
+    # p2p エッジ(core1->edge1): x1 が core1::GE0/1 チップ cx に一致
+    m = re.search(
+        r'data-a="core1" data-b="edge1"><line x1="([\d.]+)"', svg
+    )
+    assert m is not None, "OSPFビュー: core1-edge1 エッジが見つからない"
+    assert abs(float(m.group(1)) - chip_cx_map["core1::GigabitEthernet0/1"]) < 1.0, \
+        f"core1-edge1 エッジ x1={m.group(1)} が core1::GE0/1 チップ cx={chip_cx_map['core1::GigabitEthernet0/1']} に一致しない"
+
+    # seg-edge(seg->core1): x2 が core1::GE0/2 チップ cx に一致
+    m = re.search(
+        r'<line[^>]*data-device="core1"[^>]*/>', svg
+    )
+    assert m is not None, "OSPFビュー: seg-edge core1 が見つからない"
+    x2_m = re.search(r'x2="([\d.]+)"', m.group(0))
+    assert x2_m is not None, f"seg-edge core1 に x2 が見つからない: {m.group(0)}"
+    assert abs(float(x2_m.group(1)) - chip_cx_map["core1::GigabitEthernet0/2"]) < 1.0, \
+        f"seg-edge core1 x2={x2_m.group(1)} が core1::GE0/2 チップ cx={chip_cx_map['core1::GigabitEthernet0/2']} に一致しない"
+
+
+# ---------------------------------------------------------------------------
+# バグ2: BGPビューで local_ip=null の iBGP ノードに Loopback チップが出ない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_i4cr_bgp_ibgp_loopback_chip_when_local_ip_null():
+    """バグ2: local_ip=null の iBGP ノード（edge1）に Loopback チップが描画される。
+
+    edge1 は iBGP(local_ip=null, neighbor=10.255.0.1) + eBGP を持つ。
+    edge1::Loopback0(10.255.0.3) は他機の neighbor_ip に現れないが、
+    local_ip=null の iBGP エントリに対して「自機の Loopback」として拾われるべき。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+    bgp = _extract_bgp_view_from(html)
+    assert bgp, "BGP ビューが生成されない"
+
+    assert 'data-iface-id="edge1::Loopback0"' in bgp, \
+        "BGPビューで edge1::Loopback0 チップが描画されない（local_ip=null iBGP ノードのバグ2）"
+
+
+@pytest.mark.unit
+def test_i4cr_bgp_ibgp_loopback_chip_coexists_with_ebgp_chip():
+    """バグ2: edge1 の Loopback チップと eBGP 物理 IF チップが共存する。
+
+    iBGP Loopback 追加後に eBGP 用 GE0/1 チップが消えないこと。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+    bgp = _extract_bgp_view_from(html)
+    assert bgp, "BGP ビューが生成されない"
+
+    assert 'data-iface-id="edge1::Loopback0"' in bgp, \
+        "edge1::Loopback0 チップが存在しない"
+    assert 'data-iface-id="edge1::GigabitEthernet0/1"' in bgp, \
+        "edge1::GE0/1（eBGP物理IF）チップが消えた（regression）"
+
+
+@pytest.mark.unit
+def test_i4cr_bgp_chip_iface_ids_ibgp_loopback():
+    """バグ2ユニット: _build_bgp_chip_iface_ids が local_ip=null iBGPノードの
+    自機 Loopback を含めることを直接検証する。
+
+    edge1 の local_ip=null iBGP エントリから edge1::Loopback0 が返される。
+    """
+    from lib.rendering.views import _build_bgp_chip_iface_ids
+
+    topo = _make_multi_as_area_topology()
+    bgp_entries = topo["routing"]["bgp"]
+    interfaces = topo["interfaces"]
+
+    result = _build_bgp_chip_iface_ids(bgp_entries, interfaces)
+
+    assert "edge1::Loopback0" in result, \
+        f"edge1::Loopback0 が BGP チップ集合にない: {sorted(result)}"
+
+
+@pytest.mark.unit
+def test_i4cr_bgp_chip_iface_ids_core1_loopback_still_present():
+    """バグ2: 修正後も core1::Loopback0（neighbor_ip 経由で解決済み）が残る。
+
+    core2 の iBGP neighbor_ip=10.255.0.1 → core1::Loopback0 は従来通り拾えるはず。
+    """
+    from lib.rendering.views import _build_bgp_chip_iface_ids
+
+    topo = _make_multi_as_area_topology()
+    result = _build_bgp_chip_iface_ids(topo["routing"]["bgp"], topo["interfaces"])
+
+    assert "core1::Loopback0" in result, \
+        f"core1::Loopback0 が BGP チップ集合にない（regression）: {sorted(result)}"
+
+
+@pytest.mark.unit
+def test_i4cr_bgp_ibgp_session_endpoint_uses_loopback_chip():
+    """バグ2: iBGP セッション線の local_ip=null 端がノード中心でなく Loopback チップ座標を使う。
+
+    edge1 の iBGP（local_ip=null）について、edge1::Loopback0 チップが存在するとき、
+    BGP path の edge1 側端点がそのチップ座標に一致すること。
+    local_ip=null 端はノード中心フォールバックではなく Loopback チップを使う。
+    """
+    from lib.rendering.svg import _svg_bgp_edges, _chip_positions
+    from lib.rendering.layout import _NODE_WIDTH, _node_size_for, _NODE_HEADER_H
+    from lib.rendering.svg import _IF_CHIP_OFFSET_X, _IF_CHIP_OFFSET_Y
+
+    topo = _make_multi_as_area_topology()
+    interfaces = topo["interfaces"]
+    bgp_entries = topo["routing"]["bgp"]
+
+    # edge1 と core1 のみでテスト（iBGP セッション）
+    edge1_entries = [e for e in bgp_entries if e["device"] == "edge1" and e["type"] == "ibgp"]
+    assert edge1_entries, "edge1 iBGP エントリが見つからない"
+
+    positions = {
+        "edge1": (200.0, 300.0),
+        "core1": (600.0, 300.0),
+    }
+
+    # edge1::Loopback0 チップ座標を計算（k=0: 名前ソートでLoopback0が最初）
+    edge1_ifaces = [i for i in interfaces if i["device"] == "edge1"]
+    edge1_dev = {"id": "edge1", "hostname": "EDGE1"}
+    chip_ids_edge1 = {"edge1::Loopback0"}
+    edge1_chips = _chip_positions(edge1_dev, chip_ids_edge1, edge1_ifaces, 200.0, 300.0)
+    assert "edge1::Loopback0" in edge1_chips, "edge1::Loopback0 チップ座標が取れない"
+
+    # core1::Loopback0 チップ座標
+    core1_ifaces = [i for i in interfaces if i["device"] == "core1"]
+    core1_dev = {"id": "core1", "hostname": "CORE1"}
+    chip_ids_core1 = {"core1::Loopback0"}
+    core1_chips = _chip_positions(core1_dev, chip_ids_core1, core1_ifaces, 600.0, 300.0)
+
+    all_chips = {**edge1_chips, **core1_chips}
+
+    svg = _svg_bgp_edges(edge1_entries, interfaces, positions, chip_positions=all_chips)
+
+    # edge1 iBGP のパスを探す
+    m = re.search(r'<path[^>]+d="M([\d.]+),([\d.]+)', svg)
+    assert m is not None, \
+        "edge1 iBGP セッション線が描画されない（positions に core1/edge1 両方あり、エッジは必ず生成される）"
+
+    # path_x1 が edge1::Loopback0 チップ座標に一致することを確認
+    path_x1 = float(m.group(1))
+    path_y1 = float(m.group(2))
+    exp_x, exp_y = edge1_chips["edge1::Loopback0"]
+
+    assert abs(path_x1 - exp_x) < 1.0, \
+        f"iBGP local_ip=null 端の x={path_x1} が Loopback チップ cx={exp_x} に一致しない（ノード中心フォールバックのまま）"
+    assert abs(path_y1 - exp_y) < 1.0, \
+        f"iBGP local_ip=null 端の y={path_y1} が Loopback チップ cy={exp_y} に一致しない"
+
+
+# ---------------------------------------------------------------------------
+# バグ3: Physicalビューのセグメントエッジがノード中心に接続（チップアンカー未実装）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_i4cr_physical_segment_edge_anchors_to_chip():
+    """バグ3: Physicalビューのセグメントエッジ端点がメンバーIFチップ座標に一致する。
+
+    acc1::GE0/0, acc2::GE0/0, core1::GE0/2 が seg-192_168_50_0_24 のメンバー。
+    各デバイスとのセグエッジ x2,y2 がそれぞれのチップ座標に一致すること。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+    phys = _extract_physical_view_from(html)
+    assert phys, "Physical ビューが生成されない"
+
+    # 各メンバーのチップ座標を抽出
+    chip_cx_map: dict[str, float] = {}
+    chip_cy_map: dict[str, float] = {}
+    for m in re.finditer(
+        r'data-iface-id="([^"]+)"><circle cx="([\d.]+)" cy="([\d.]+)"', phys
+    ):
+        chip_cx_map[m.group(1)] = float(m.group(2))
+        chip_cy_map[m.group(1)] = float(m.group(3))
+
+    # セグエッジの x2,y2（デバイス側端点）を抽出
+    seg_edge_map: dict[str, tuple[float, float]] = {}
+    for m in re.finditer(
+        r'<line[^>]*class="seg-edge layer-physical"[^>]*data-device="([^"]+)"[^>]*/>', phys
+    ):
+        line_str = m.group(0)
+        x2_m = re.search(r'x2="([\d.]+)"', line_str)
+        y2_m = re.search(r'y2="([\d.]+)"', line_str)
+        if x2_m and y2_m:
+            seg_edge_map[m.group(1)] = (float(x2_m.group(1)), float(y2_m.group(1)))
+
+    # acc1 の GE0/0 チップ座標とセグエッジ端点が一致
+    assert "acc1" in seg_edge_map, "seg-edge の acc1 が見つからない"
+    assert "acc1::GigabitEthernet0/0" in chip_cx_map, \
+        "acc1::GE0/0 チップが Physical ビューに存在しない"
+    seg_x, seg_y = seg_edge_map["acc1"]
+    chip_x = chip_cx_map["acc1::GigabitEthernet0/0"]
+    chip_y = chip_cy_map["acc1::GigabitEthernet0/0"]
+    assert abs(seg_x - chip_x) < 1.0, \
+        f"Physical seg-edge acc1 x2={seg_x} がチップ cx={chip_x} に一致しない（ノード中心のまま: バグ3）"
+    assert abs(seg_y - chip_y) < 1.0, \
+        f"Physical seg-edge acc1 y2={seg_y} がチップ cy={chip_y} に一致しない（ノード中心のまま: バグ3）"
+
+    # acc2
+    assert "acc2" in seg_edge_map, "seg-edge の acc2 が見つからない"
+    assert "acc2::GigabitEthernet0/0" in chip_cx_map, \
+        "acc2::GE0/0 チップが Physical ビューに存在しない"
+    seg_x, seg_y = seg_edge_map["acc2"]
+    chip_x = chip_cx_map["acc2::GigabitEthernet0/0"]
+    chip_y = chip_cy_map["acc2::GigabitEthernet0/0"]
+    assert abs(seg_x - chip_x) < 1.0, \
+        f"Physical seg-edge acc2 x2={seg_x} がチップ cx={chip_x} に一致しない（バグ3）"
+    assert abs(seg_y - chip_y) < 1.0, \
+        f"Physical seg-edge acc2 y2={seg_y} がチップ cy={chip_y} に一致しない（バグ3）"
+
+    # core1 の GE0/2 チップ
+    assert "core1" in seg_edge_map, "seg-edge の core1 が見つからない"
+    assert "core1::GigabitEthernet0/2" in chip_cx_map, \
+        "core1::GE0/2 チップが Physical ビューに存在しない"
+    seg_x, seg_y = seg_edge_map["core1"]
+    chip_x = chip_cx_map["core1::GigabitEthernet0/2"]
+    chip_y = chip_cy_map["core1::GigabitEthernet0/2"]
+    assert abs(seg_x - chip_x) < 1.0, \
+        f"Physical seg-edge core1 x2={seg_x} が GE0/2 チップ cx={chip_x} に一致しない（バグ3）"
+    assert abs(seg_y - chip_y) < 1.0, \
+        f"Physical seg-edge core1 y2={seg_y} が GE0/2 チップ cy={chip_y} に一致しない（バグ3）"
+
+
+
+@pytest.mark.unit
+def test_i4cr_physical_segment_edge_uses_svg_segment_edges_with_chips():
+    """バグ3ユニット: _svg_segment_edges が chip_positions を受け取りアンカーに使う。
+
+    _svg_segment_edges(segments, interfaces, positions, chip_positions=...) を
+    直接呼んで、chip_positions がある場合にデバイス側端点がチップ座標になることを検証。
+    """
+    from lib.rendering.svg import _svg_segment_edges, _chip_positions
+
+    interfaces = [
+        {"id": "acc1::GigabitEthernet0/0", "device": "acc1", "name": "GigabitEthernet0/0",
+         "ip": "192.168.50.2/24", "shutdown": False, "description": None},
+        {"id": "acc1::Loopback0", "device": "acc1", "name": "Loopback0",
+         "ip": "10.255.3.1/32", "shutdown": False, "description": None},
+    ]
+    segments = [
+        {"id": "seg-192_168_50_0_24", "subnet": "192.168.50.0/24",
+         "members": ["acc1::GigabitEthernet0/0"]},
+    ]
+    positions = {
+        "seg-192_168_50_0_24": (500.0, 100.0),
+        "acc1": (200.0, 300.0),
+    }
+
+    # acc1::GE0/0 チップ座標を計算
+    acc1_dev = {"id": "acc1", "hostname": "ACC1"}
+    acc1_chips = _chip_positions(acc1_dev, {"acc1::GigabitEthernet0/0"}, interfaces, 200.0, 300.0)
+    chip_cx, chip_cy = acc1_chips["acc1::GigabitEthernet0/0"]
+
+    # chip_positions あり: チップアンカー
+    svg_with_chip = _svg_segment_edges(segments, interfaces, positions,
+                                        chip_positions=acc1_chips)
+    m = re.search(r'x2="([\d.]+)" y2="([\d.]+)"', svg_with_chip)
+    assert m is not None, f"seg-edge 生成されない: {svg_with_chip}"
+    assert abs(float(m.group(1)) - chip_cx) < 1.0, \
+        f"chip_positions ありのとき x2={m.group(1)} がチップ cx={chip_cx} に一致しない"
+    assert abs(float(m.group(2)) - chip_cy) < 1.0, \
+        f"chip_positions ありのとき y2={m.group(2)} がチップ cy={chip_cy} に一致しない"
+
+    # chip_positions なし（デフォルト）: ノード中心フォールバック
+    svg_no_chip = _svg_segment_edges(segments, interfaces, positions)
+    m2 = re.search(r'x2="([\d.]+)" y2="([\d.]+)"', svg_no_chip)
+    assert m2 is not None, f"chip_positions なしで seg-edge 生成されない: {svg_no_chip}"
+    assert abs(float(m2.group(1)) - 200.0) < 1.0, \
+        f"chip_positions なしのとき x2={m2.group(1)} がノード中心 200.0 に一致しない"
+    assert abs(float(m2.group(2)) - 300.0) < 1.0, \
+        f"chip_positions なしのとき y2={m2.group(2)} がノード中心 300.0 に一致しない"
+
+
+@pytest.mark.unit
+def test_i4cr_deterministic_multi_as_area():
+    """regression: multi-as-area トポロジーで render() が決定的（2回一致）"""
+    from lib.rendering import render
+    import copy
+    topo = _make_multi_as_area_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "multi-as-area render() が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# [test M-2] BGPビューで非BGP機（acc1/acc2）に Loopback チップが出ない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_i4cr_bgp_chip_iface_ids_non_bgp_device_has_no_loopback():
+    """M-2: _build_bgp_chip_iface_ids が非BGP機（acc1/acc2）の Loopback を含まない。
+
+    acc1/acc2 は BGP エントリを一切持たず（bgp_entries に device=acc1/acc2 がない）、
+    また他機の local_ip / neighbor_ip にも現れないため、
+    acc1::Loopback0 / acc2::Loopback0 は BGP チップ集合に入らない。
+    """
+    from lib.rendering.views import _build_bgp_chip_iface_ids
+
+    topo = _make_multi_as_area_topology()
+    bgp_entries = topo["routing"]["bgp"]
+    interfaces = topo["interfaces"]
+
+    result = _build_bgp_chip_iface_ids(bgp_entries, interfaces)
+
+    assert "acc1::Loopback0" not in result, \
+        f"非BGP機 acc1 の Loopback が BGP チップ集合に含まれている: {sorted(result)}"
+    assert "acc2::Loopback0" not in result, \
+        f"非BGP機 acc2 の Loopback が BGP チップ集合に含まれている: {sorted(result)}"
+
+
+@pytest.mark.unit
+def test_i4cr_bgp_view_non_bgp_device_no_loopback_chip():
+    """M-2: BGPビューに acc1/acc2 の Loopback チップが描画されない（非BGP機）。
+
+    acc1/acc2 は BGP 参加機でないため BGP ビューに device-node 自体が存在しない。
+    したがって Loopback チップも存在しないことを確認する。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+    bgp = _extract_bgp_view_from(html)
+    assert bgp, "BGP ビューが生成されない"
+
+    assert 'data-iface-id="acc1::Loopback0"' not in bgp, \
+        "非BGP機 acc1 の Loopback チップが BGP ビューに描画されている"
+    assert 'data-iface-id="acc2::Loopback0"' not in bgp, \
+        "非BGP機 acc2 の Loopback チップが BGP ビューに描画されている"
+
+
+# ---------------------------------------------------------------------------
+# [整理] _build_view_physical チップ集合単一経路: 描画チップとアンカー集合の一致
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_i4cr_physical_chip_iface_ids_equals_connected_plus_loopback():
+    """整理: _build_physical_chip_iface_ids が接続IF + Loopback の和集合を返す。
+
+    _build_connected_iface_ids（リンク/セグメント端点）と Loopback の和が
+    _build_physical_chip_iface_ids と完全一致することを確認する（等値保証）。
+    """
+    from lib.rendering.views import (
+        _build_physical_chip_iface_ids,
+        _build_connected_iface_ids,
+    )
+    from lib.rendering.svg import _is_loopback
+
+    topo = _make_multi_as_area_topology()
+    interfaces = topo["interfaces"]
+    links = topo["links"]
+    segments = topo["segments"]
+
+    phys_chip_ids = _build_physical_chip_iface_ids(interfaces, links, segments)
+    connected = _build_connected_iface_ids(links, segments, interfaces)
+
+    # 接続IF + Loopback の和集合を手動構築
+    expected = set()
+    for iface in interfaces:
+        if iface["id"] in connected or _is_loopback(iface.get("name", "")):
+            expected.add(iface["id"])
+
+    assert phys_chip_ids == expected, \
+        f"_build_physical_chip_iface_ids と 手動計算の差分: {phys_chip_ids ^ expected}"
