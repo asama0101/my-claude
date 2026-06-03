@@ -85,11 +85,20 @@ def _device_cards(
                 tr_attrs += f' data-link-id="{_esc(lid)}"'
             if sid:
                 tr_attrs += f' data-seg-id="{_esc(sid)}"'
+            # Interfaces テーブルの表示列: Status / MTU / Speed
+            # duplex / switchport / encapsulation / l2_l3 は YAML に保持するが表示対象外
+            admin_status = iface.get("admin_status", "")
+            mtu_val = iface.get("mtu")
+            mtu_str = str(mtu_val) if mtu_val is not None else ""
+            speed_val = iface.get("speed", "")
             if_row_parts.append(
                 f"<tr{tr_attrs}>"
                 f"<td>{_esc(iface['name'])}{_esc(shutdown_mark)}</td>"
                 f"<td>{_esc(iface.get('ip', ''))}</td>"
                 f"<td>{_esc(iface.get('description', ''))}</td>"
+                f"<td>{_esc(admin_status)}</td>"
+                f"<td>{_esc(mtu_str)}</td>"
+                f"<td>{_esc(speed_val)}</td>"
                 f"</tr>"
             )
         if_rows = "".join(if_row_parts)
@@ -167,7 +176,7 @@ def _device_cards(
   <h3>{hostname} <span class="badge-vendor">{vendor}</span> <span class="badge-as">{as_str}</span></h3>
   <h4 class="layer-physical">Interfaces</h4>
   <table class="layer-physical">
-    <thead><tr><th>Name</th><th>IP</th><th>Description</th></tr></thead>
+    <thead><tr><th>Name</th><th>IP</th><th>Description</th><th>Status</th><th>MTU</th><th>Speed</th></tr></thead>
     <tbody>{if_rows}</tbody>
   </table>
   {f'''<h4 class="layer-bgp">BGP Sessions</h4>

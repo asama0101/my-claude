@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import re
 
-from .base import BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute
+from .base import ADMIN_DOWN, ADMIN_UP, L2, L3, BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute
 
 
 def detect(text: str) -> bool:
@@ -62,12 +62,21 @@ def parse(text: str) -> Device:
     static_routes: list[StaticRoute] = []
 
     # IF ごとのデータを収集するための辞書
-    # key: if_name, value: dict with keys ip, description, shutdown
+    # key: if_name, value: dict with keys ip, description, shutdown, mtu, speed,
+    #                       encapsulation, l2_flag (bool)
     if_data: dict[str, dict] = {}
 
     def ensure_if(name: str) -> None:
         if name not in if_data:
-            if_data[name] = {"ip": None, "description": None, "shutdown": False}
+            if_data[name] = {
+                "ip": None,
+                "description": None,
+                "shutdown": False,
+                "mtu": None,
+                "speed": None,
+                "encapsulation": None,
+                "l2_flag": False,   # family ethernet-switching が出現したか
+            }
 
     for line in text.splitlines():
         stripped = line.strip()
@@ -110,6 +119,38 @@ def parse(text: str) -> Device:
             if_data[if_name]["shutdown"] = True
             continue
 
+        # set interfaces <if> mtu <val>（\d+ マッチ済みなので ValueError は発生しない）
+        m = re.match(r'^interfaces\s+(\S+)\s+mtu\s+(\d+)', rest)
+        if m:
+            if_name = m.group(1)
+            ensure_if(if_name)
+            if_data[if_name]["mtu"] = int(m.group(2))
+            continue
+
+        # set interfaces <if> speed <val>
+        m = re.match(r'^interfaces\s+(\S+)\s+speed\s+(\S+)', rest)
+        if m:
+            if_name = m.group(1)
+            ensure_if(if_name)
+            if_data[if_name]["speed"] = m.group(2)
+            continue
+
+        # set interfaces <if> encapsulation <val>
+        m = re.match(r'^interfaces\s+(\S+)\s+encapsulation\s+(\S+)', rest)
+        if m:
+            if_name = m.group(1)
+            ensure_if(if_name)
+            if_data[if_name]["encapsulation"] = m.group(2)
+            continue
+
+        # set interfaces <if> unit N family ethernet-switching ...  → L2 フラグ
+        m = re.match(r'^interfaces\s+(\S+)\s+unit\s+\d+\s+family\s+ethernet-switching', rest)
+        if m:
+            if_name = m.group(1)
+            ensure_if(if_name)
+            if_data[if_name]["l2_flag"] = True
+            continue
+
         # set routing-options autonomous-system <asn>
         m = re.match(r'^routing-options\s+autonomous-system\s+(\d+)', rest)
         if m:
@@ -150,11 +191,26 @@ def parse(text: str) -> Device:
     # IF データを Interface リストに変換（収集順を保持）
     interfaces: list[Interface] = []
     for name, data in if_data.items():
+        # l2_l3 判定（JunOS: family ethernet-switching が L2 判定で優先される）
+        # switchport は常に None（JunOS には switchport コマンドがなく l2_l3='l2' で表現）
+        if data["l2_flag"]:
+            l2_l3 = L2
+        elif data["ip"] is not None:
+            l2_l3 = L3
+        else:
+            l2_l3 = None
+        # admin_status: disable 由来（定数使用）
+        admin_status = ADMIN_DOWN if data["shutdown"] else ADMIN_UP
         interfaces.append(Interface(
             name=name,
             ip=data["ip"],
             description=data["description"],
             shutdown=data["shutdown"],
+            mtu=data["mtu"],
+            speed=data["speed"],
+            encapsulation=data["encapsulation"],
+            l2_l3=l2_l3,
+            admin_status=admin_status,
         ))
 
     return Device(

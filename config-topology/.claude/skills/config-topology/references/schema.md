@@ -70,6 +70,15 @@ topology/
 | `vlan` | int \| null | access/SVI の VLAN（v1 では基本 null。L2 は将来拡張） |
 | `description` | string \| null | IF の description |
 | `shutdown` | bool | 管理停止状態。`true` のIFは結線推論から除外する |
+| `admin_status` | string \| null | **Phase 2D** 管理状態。`"up"` / `"down"`。`shutdown` 由来（IOS: shutdown文、JunOS: disable）。設定由来が取れない場合は null |
+| `oper_status` | string \| null | **Phase 2D** 運用状態。config から取得不可のため現状常に null（将来 SNMP 連携等で up/down 受け入れ予定） |
+| `mtu` | int \| null | **Phase 2D** MTU 値（バイト）。config に `mtu` 行がなければ null |
+| `speed` | string \| null | **Phase 2D** インターフェース速度文字列（`"1000"`, `"1g"` 等。ベンダー表記をそのまま格納）。取得不能は null |
+| `duplex` | string \| null | **Phase 2D** duplex 設定（`"full"` / `"half"` 等）。IOS 対応。JunOS set 形式では通常取得不可（null） |
+| `l2_l3` | string \| null | **Phase 2D** レイヤー種別。`"l2"`（switchport / ethernet-switching）/ `"l3"`（ip address あり）/ null（判定不能） |
+| `switchport` | object \| null | **Phase 2D** IOS switchport 情報。`{"mode": "access"\|"trunk", "access_vlan": int?, "trunk_vlans": string?}`。switchport 非設定は null |
+| `encapsulation` | string \| null | **Phase 2D** カプセル化種別（`"dot1q"`, `"flexible-ethernet-services"` 等）。なければ null |
+| `source` | string | **Phase 2D** データソース識別子。現行は常に `"parsed"` |
 
 ## links
 2 機器のちょうど 2 つの IF が同一サブネットを共有するとき 1 本生成。

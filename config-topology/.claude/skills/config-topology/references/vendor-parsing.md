@@ -4,6 +4,13 @@
 
 ## 正規化モデル（base.py）
 ```python
+# モジュール定数（マジック文字列を一元管理）
+ADMIN_UP: str = "up"
+ADMIN_DOWN: str = "down"
+L2: str = "l2"
+L3: str = "l3"
+SOURCE_PARSED: str = "parsed"
+
 @dataclass
 class Interface:
     name: str
@@ -11,6 +18,15 @@ class Interface:
     description: str | None
     shutdown: bool = False
     vlan: int | None = None
+    admin_status: str | None = None   # ADMIN_UP / ADMIN_DOWN（shutdown 由来）
+    oper_status: str | None = None    # None（config 取得不可・将来 SNMP 拡張で string | null）
+    mtu: int | None = None            # int | None
+    speed: str | None = None          # 文字列（"1000", "1g" 等。ベンダー表記のまま）
+    duplex: str | None = None         # "full" / "half" / None（JunOS set では通常 None）
+    l2_l3: str | None = None          # L2 / L3 / None
+    switchport: dict | None = None    # {mode, access_vlan?, trunk_vlans?} | None（IOS 専用）
+    encapsulation: str | None = None  # "dot1q", "flexible-ethernet-services" 等
+    source: str = SOURCE_PARSED       # 常に "parsed"
 
 @dataclass
 class BgpNeighbor:
@@ -50,8 +66,17 @@ class Device:
 - 行指向・`!` 区切り。`interface <name>` ブロック内をインデントで把握。
 - `hostname X` → hostname。
 - `ip address A.B.C.D MASK` → `ip`（マスクは prefixlen に変換。`ipaddress` 使用）。`secondary` は v1 では無視。
+- `no ip address` は「IP 未設定」の明示構文だが、ip address コマンドがなければ ip=None になるため特別対応しない設計判断。
 - `shutdown`（ブロック内・`no` なし）→ `shutdown=True`。
 - `description X` → description。
+- `mtu <val>` → `mtu`（int）。`\d+` マッチ後のため ValueError は不発生。
+- `speed <val>` → `speed`（文字列のまま格納。例: `"1000"`, `"auto"`）。
+- `duplex <val>` → `duplex`（例: `"full"`, `"half"`）。
+- `switchport mode access|trunk` → `switchport.mode`。`switchport access vlan <id>` → `switchport.access_vlan`（int）。`switchport trunk allowed vlan <range>` → `switchport.trunk_vlans`（文字列）。`no switchport` フラグを検知して L3 と判定する。
+- `encapsulation dot1Q|DOT1Q <vlan>` → `encapsulation="dot1q"`（IGNORECASE で DOT1Q 等も許容）。
+- **l2_l3 判定（IOS）**: `ip address` あり または `no switchport` あり → L3。`switchport` あり → L2。それ以外 None。
+  - IOS は ip あり／no switchport が L3 判定で優先され（switchport より先に評価）、switchport は L2 の根拠となる。
+- **admin_status 導出**: `shutdown` = True → `ADMIN_DOWN`、それ以外 → `ADMIN_UP`。
 - `router bgp <asn>` → asn。配下 `neighbor <ip> remote-as <peer>` → BgpNeighbor。
 - `router ospf <pid>` 配下 `network <addr> <wildcard> area <a>` → OspfNetwork（wildcard を逆マスクして CIDR 化）。
 - `ip route <prefix> <mask> <next_hop>` → StaticRoute（`0.0.0.0 0.0.0.0` → `0.0.0.0/0`）。
@@ -61,8 +86,16 @@ class Device:
 - 全行 `set ...` 前提。
 - `set system host-name X` → hostname。
 - `set interfaces <if> description "X"` → description（クォート除去）。
-- `set interfaces <if> unit N family inet address A.B.C.D/PL` → `ip`（既に CIDR）。IF 名は `<if>`（unit は v1 では IF 名に含めない）。
-- `set interfaces <if> disable` → shutdown。
+- `set interfaces <if> unit N family inet address A.B.C.D/PL` → `ip`（既に CIDR）。IF 名は `<if>`（unit は v1 では IF 名に含めない）。先勝ち（同一 IF に複数 IP があれば最初のものを採用）。
+- `set interfaces <if> disable` → shutdown=True。
+- `set interfaces <if> mtu <val>` → `mtu`（int）。`\d+` マッチ後のため ValueError は不発生。
+- `set interfaces <if> speed <val>` → `speed`（文字列のまま格納。例: `"1g"`, `"10g"`）。duplex は JunOS set 形式では通常出現しないため常に None。
+- `set interfaces <if> encapsulation <val>` → `encapsulation`（値はそのまま格納。例: `"flexible-ethernet-services"`）。
+- `set interfaces <if> unit N family ethernet-switching ...` → `l2_flag=True`。
+- **l2_l3 判定（JunOS）**: `family ethernet-switching` あり → L2。`family inet`（= ip あり）→ L3。それ以外 None。
+  - JunOS は ethernet-switching が L2 判定で優先され（inet より先に評価）、ethernet-switching は L2 の根拠となる。
+  - `switchport` フィールドは常に None（JunOS には IOS の switchport コマンドが存在しない。L2 は l2_l3='l2' で表現）。
+- **admin_status 導出**: `disable` あり → `ADMIN_DOWN`、それ以外 → `ADMIN_UP`。
 - `set routing-options autonomous-system <asn>` → asn。
 - `set protocols bgp group <g> neighbor <ip> peer-as <peer>` → BgpNeighbor。
 - `set ... ospf area <a> interface <if>` があれば OspfNetwork（area, network は IF の IP から導出可能なら CIDR、無理なら IF 名を network に格納）。v1 は best-effort。

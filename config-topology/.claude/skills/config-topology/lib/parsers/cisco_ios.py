@@ -20,7 +20,7 @@ from __future__ import annotations
 import ipaddress
 import re
 
-from .base import BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute
+from .base import ADMIN_DOWN, ADMIN_UP, L2, L3, SOURCE_PARSED, BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute
 
 
 def detect(text: str) -> bool:
@@ -54,6 +54,11 @@ def detect(text: str) -> bool:
             return True
 
     return False
+
+
+def _ensure_switchport(sp: dict | None) -> dict:
+    """switchport dict が None なら空 dict を返す小ヘルパー（重複初期化を排除）。"""
+    return sp if sp is not None else {}
 
 
 def _mask_to_prefixlen(mask: str) -> int:
@@ -101,6 +106,13 @@ def parse(text: str) -> Device:
             if_ip: str | None = None
             if_desc: str | None = None
             if_shutdown = False
+            if_mtu: int | None = None
+            if_speed: str | None = None
+            if_duplex: str | None = None
+            if_switchport: dict | None = None
+            if_encapsulation: str | None = None
+            if_has_ip_cmd = False      # "ip address" コマンドがあったか
+            if_no_switchport = False   # "no switchport" があったか
             i += 1
             # ブロック内を読む（インデントされた行か次のトップレベルまで）
             while i < len(lines):
@@ -117,24 +129,74 @@ def parse(text: str) -> Device:
                     try:
                         prefixlen = _mask_to_prefixlen(mask)
                         if_ip = f"{addr}/{prefixlen}"
+                        if_has_ip_cmd = True
                     except ValueError:
                         pass
                 # description
                 m3 = re.match(r'^description\s+(.*)', inner_stripped)
                 if m3:
                     if_desc = m3.group(1).strip()
-                # shutdown
+                # shutdown / no shutdown
                 if inner_stripped == "shutdown":
                     if_shutdown = True
-                # no shutdown
                 if inner_stripped == "no shutdown":
                     if_shutdown = False
+                # mtu（\d+ マッチ済みなので ValueError は発生しない）
+                m_mtu = re.match(r'^mtu\s+(\d+)', inner_stripped)
+                if m_mtu:
+                    if_mtu = int(m_mtu.group(1))
+                # speed
+                m_speed = re.match(r'^speed\s+(\S+)', inner_stripped)
+                if m_speed:
+                    if_speed = m_speed.group(1)
+                # duplex
+                m_duplex = re.match(r'^duplex\s+(\S+)', inner_stripped)
+                if m_duplex:
+                    if_duplex = m_duplex.group(1)
+                # switchport mode access / trunk
+                m_sw_mode = re.match(r'^switchport\s+mode\s+(\S+)', inner_stripped)
+                if m_sw_mode:
+                    if_switchport = _ensure_switchport(if_switchport)
+                    if_switchport["mode"] = m_sw_mode.group(1)
+                # switchport access vlan <id>（\d+ マッチ済みなので ValueError は発生しない）
+                m_sw_av = re.match(r'^switchport\s+access\s+vlan\s+(\d+)', inner_stripped)
+                if m_sw_av:
+                    if_switchport = _ensure_switchport(if_switchport)
+                    if_switchport["access_vlan"] = int(m_sw_av.group(1))
+                # switchport trunk allowed vlan <range>
+                m_sw_tv = re.match(r'^switchport\s+trunk\s+allowed\s+vlan\s+(\S+)', inner_stripped)
+                if m_sw_tv:
+                    if_switchport = _ensure_switchport(if_switchport)
+                    if_switchport["trunk_vlans"] = m_sw_tv.group(1)
+                # no switchport
+                if inner_stripped == "no switchport":
+                    if_no_switchport = True
+                # encapsulation dot1Q <vlan>（IGNORECASE で DOT1Q 等も許容）
+                m_enc = re.match(r'^encapsulation\s+dot1[Qq]\s+(\d+)', inner_stripped, re.IGNORECASE)
+                if m_enc:
+                    if_encapsulation = "dot1q"
                 i += 1
+            # l2_l3 判定（IOS: ip あり / no switchport が L3 判定で優先される）
+            if if_has_ip_cmd or if_no_switchport:
+                if_l2_l3 = L3
+            elif if_switchport is not None:
+                if_l2_l3 = L2
+            else:
+                if_l2_l3 = None
+            # admin_status: shutdown 由来（定数使用）
+            if_admin_status = ADMIN_DOWN if if_shutdown else ADMIN_UP
             interfaces.append(Interface(
                 name=if_name,
                 ip=if_ip,
                 description=if_desc,
                 shutdown=if_shutdown,
+                mtu=if_mtu,
+                speed=if_speed,
+                duplex=if_duplex,
+                switchport=if_switchport,
+                encapsulation=if_encapsulation,
+                l2_l3=if_l2_l3,
+                admin_status=if_admin_status,
             ))
             continue
 

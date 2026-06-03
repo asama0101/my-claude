@@ -134,6 +134,16 @@ def build(
                 "vlan": iface.vlan,
                 "description": iface.description,
                 "shutdown": iface.shutdown,
+                # Phase 2D: IF属性拡充（admin_status はパーサ計算結果をそのまま信頼する）
+                "admin_status": iface.admin_status,
+                "oper_status": iface.oper_status,
+                "mtu": iface.mtu,
+                "speed": iface.speed,
+                "duplex": iface.duplex,
+                "l2_l3": iface.l2_l3,
+                "switchport": iface.switchport,
+                "encapsulation": iface.encapsulation,
+                "source": iface.source,
             })
 
     # --- リンク推論 ---
