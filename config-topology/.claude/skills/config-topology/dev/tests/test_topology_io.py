@@ -801,3 +801,94 @@ def test_golden_roundtrip_from_yaml_dir(sample_topology, tmp_path):
     dump_topology(sample_topology, out_dir)
     loaded = load_topology(out_dir)
     assert loaded == sample_topology
+
+
+# ================================================================
+# Phase C #7: ospf_area / ospf_network の round-trip テスト
+# ================================================================
+
+@pytest.mark.unit
+def test_link_with_ospf_area_roundtrip(sample_topology, tmp_path):
+    """links に ospf_area / ospf_network が含まれる topology の dump → load round-trip。"""
+    import copy
+    topo = copy.deepcopy(sample_topology)
+    assert topo["links"], "前提: sample_topology に links が存在すること（vacuous 防止）"
+    topo["links"][0]["ospf_area"] = "0"
+    topo["links"][0]["ospf_network"] = topo["links"][0]["subnet"]
+
+    out_dir = str(tmp_path / "ospf_area_rt")
+    dump_topology(topo, out_dir)
+    loaded = load_topology(out_dir)
+
+    # round-trip 一致
+    assert loaded["links"] == topo["links"], \
+        f"ospf_area 付き links が round-trip 後に不一致"
+
+
+@pytest.mark.unit
+def test_link_without_ospf_area_roundtrip(sample_topology, tmp_path):
+    """ospf_area が欠如している links の dump → load round-trip（後方互換）。"""
+    import copy
+    topo = copy.deepcopy(sample_topology)
+    # links の ospf_area を確実に欠如させる（既存フィールドがあれば削除）
+    for lk in topo["links"]:
+        lk.pop("ospf_area", None)
+        lk.pop("ospf_network", None)
+
+    out_dir = str(tmp_path / "no_ospf_area_rt")
+    dump_topology(topo, out_dir)
+    loaded = load_topology(out_dir)
+
+    # ospf_area なしで round-trip 一致
+    assert loaded["links"] == topo["links"], \
+        f"ospf_area なし links が round-trip 後に不一致"
+
+
+@pytest.mark.unit
+def test_link_ospf_area_null_roundtrip(sample_topology, tmp_path):
+    """ospf_area=None の links が dump → load で None のまま保持される。"""
+    import copy
+    topo = copy.deepcopy(sample_topology)
+    assert topo["links"], "前提: sample_topology に links が存在すること（vacuous 防止）"
+    topo["links"][0]["ospf_area"] = None
+    topo["links"][0]["ospf_network"] = None
+
+    out_dir = str(tmp_path / "ospf_null_rt")
+    dump_topology(topo, out_dir)
+    loaded = load_topology(out_dir)
+
+    assert loaded["links"] == topo["links"], \
+        f"ospf_area=None が round-trip 後に変化した"
+
+
+@pytest.mark.unit
+def test_link_ospf_area_mismatch_roundtrip(sample_topology, tmp_path):
+    """ospf_area が '0/1' 形式（area 不一致）でも round-trip 一致する。"""
+    import copy
+    topo = copy.deepcopy(sample_topology)
+    assert topo["links"], "前提: sample_topology に links が存在すること（vacuous 防止）"
+    topo["links"][0]["ospf_area"] = "0/1"
+    topo["links"][0]["ospf_network"] = topo["links"][0]["subnet"]
+
+    out_dir = str(tmp_path / "ospf_mismatch_rt")
+    dump_topology(topo, out_dir)
+    loaded = load_topology(out_dir)
+
+    assert loaded["links"] == topo["links"], \
+        f"ospf_area='0/1' が round-trip 後に不一致"
+
+
+@pytest.mark.unit
+def test_link_ospf_area_does_not_break_reference_integrity(sample_topology, tmp_path):
+    """ospf_area フィールド追加後も参照整合チェックが通る（壊さない）。"""
+    import copy
+    topo = copy.deepcopy(sample_topology)
+    assert topo["links"], "前提: sample_topology に links が存在すること（vacuous 防止）"
+    topo["links"][0]["ospf_area"] = "0"
+    topo["links"][0]["ospf_network"] = topo["links"][0]["subnet"]
+
+    out_dir = str(tmp_path / "ospf_integrity")
+    dump_topology(topo, out_dir)
+    # 例外なく load できること（参照整合が壊れていない）
+    loaded = load_topology(out_dir)
+    assert loaded is not None

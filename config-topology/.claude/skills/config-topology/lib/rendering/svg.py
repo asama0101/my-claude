@@ -4,6 +4,7 @@ rendering/svg.py — SVG 要素生成モジュール
 from __future__ import annotations
 
 import html
+from collections import defaultdict
 from typing import Any
 
 from lib.rendering.layout import (
@@ -15,6 +16,10 @@ from lib.rendering.layout import (
     _SEG_RX,
     _SEG_RY,
     _node_size_for,
+    _AS_GROUP_PADDING,
+    _AS_GROUP_LABEL_OFFSET,
+    _AS_GROUP_RX,
+    _AS_GROUP_RY,
 )
 
 
@@ -270,6 +275,65 @@ def _svg_bgp_edges(
             f'class="{css_class}" fill="none"/>'
             f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '
             f'class="bgp-badge layer-bgp">{_esc(bgp_type)} {local_as}↔{peer_as}</text>'
+            f'</g>'
+        )
+    return "\n".join(parts)
+
+
+def _svg_bgp_as_groups(
+    bgp_devices: list[dict],
+    positions: dict[str, tuple[float, float]],
+    padding: float = _AS_GROUP_PADDING,
+    label_offset_y: float = _AS_GROUP_LABEL_OFFSET,
+) -> str:
+    """BGP ビュー用 AS グルーピング枠を生成する。
+
+    同一 local_as（device["as"]）の BGP 参加機を
+    <g class="as-group-container" data-as="{asn}"> で囲み、
+    内部に <rect class="as-group"> と <text class="as-group-label"> を配置する。
+    local_as が None の機器は枠なし（クラッシュしない）。
+    描画順はノードの背面になるよう呼び出し側で先に出力すること。
+
+    決定性: AS 番号昇順・同一 AS 内はデバイス ID 昇順でソートして処理する。
+    """
+    # device["as"] を local_as として使用（build 済みなので信頼する）
+    # asn -> [device_id, ...] のマップを AS 番号昇順で構築
+    asn_to_devs: dict[int, list[str]] = defaultdict(list)
+    for dev in sorted(bgp_devices, key=lambda d: d["id"]):
+        asn = dev.get("as")
+        if asn is None:
+            continue
+        if dev["id"] in positions:
+            asn_to_devs[asn].append(dev["id"])
+
+    parts = []
+    for asn in sorted(asn_to_devs.keys()):
+        dev_ids = asn_to_devs[asn]
+        if not dev_ids:
+            continue
+
+        # bounding box を計算（ノード中心座標から node-rect の左上/右下を算出）
+        xs = [positions[d][0] for d in dev_ids]
+        ys = [positions[d][1] for d in dev_ids]
+        min_x = min(xs) - _NODE_WIDTH / 2 - padding
+        min_y = min(ys) - _NODE_HEIGHT / 2 - padding
+        max_x = max(xs) + _NODE_WIDTH / 2 + padding
+        max_y = max(ys) + _NODE_HEIGHT / 2 + padding
+
+        rect_w = max_x - min_x
+        rect_h = max_y - min_y
+        label_x = (min_x + max_x) / 2
+        label_y = min_y + label_offset_y
+
+        # M5: <g class="as-group-container" data-as="{asn}"> でラップ
+        parts.append(
+            f'<g class="as-group-container" data-as="{_esc(asn)}">'
+            f'<rect x="{min_x:.1f}" y="{min_y:.1f}" '
+            f'width="{rect_w:.1f}" height="{rect_h:.1f}" '
+            f'rx="{_AS_GROUP_RX}" ry="{_AS_GROUP_RY}" class="as-group"/>'
+            f'<text x="{label_x:.1f}" y="{label_y:.1f}" '
+            f'text-anchor="middle" class="as-group-label">'
+            f'AS {_esc(asn)}</text>'
             f'</g>'
         )
     return "\n".join(parts)

@@ -139,6 +139,9 @@ def build(
     # --- リンク推論 ---
     links_out, segments_out = _infer_links_and_segments(devices, device_ids)
 
+    # --- OSPF area 逆引き: links に ospf_area / ospf_network を付与 ---
+    _annotate_links_with_ospf_area(links_out, devices, device_ids)
+
     # --- BGP 解決 ---
     bgp_out = _build_bgp(devices, device_ids)
 
@@ -255,6 +258,144 @@ def _infer_links_and_segments(
     segments_out.sort(key=lambda s: s["id"])
 
     return links_out, segments_out
+
+
+# ================================================================
+# 共通ヘルパー
+# ================================================================
+
+def _make_id_to_device(
+    devices: list[Device],
+    device_ids: list[str],
+) -> dict[str, Device]:
+    """device_id → Device の逆引き辞書を返す（複数箇所で共通利用）。"""
+    return {dev_id: dev for dev, dev_id in zip(devices, device_ids)}
+
+
+# ================================================================
+# OSPF area 逆引き
+# ================================================================
+
+def _resolve_ospf_area_for_device(
+    dev: Device,
+    subnet_network: ipaddress.IPv4Network | ipaddress.IPv6Network,
+) -> str | None:
+    """device の OSPF エントリから subnet_network をカバーする area を返す。
+
+    - IOS（e.network が CIDR）: e.network をパースして subnet_network と比較。
+      subnet_network == e.network またはサブネットとして包含される場合に一致。
+      IPv4/IPv6 バージョン不一致の場合はスキップ（TypeError 回避）。
+    - JunOS（e.network が IF 名）: device の interface で name が一致するものを探し、
+      その IP から算出した network が subnet_network と一致するか判定。
+      IF 名のユニット表記（ge-0/0/0.0 等）はベース部分（ge-0/0/0）で突き合わせる。
+      IF の network と subnet_network のバージョン不一致の場合はスキップ。
+
+    一致した最初の area を返す。一致しない場合は None。
+    """
+    # device の IF 名 → network の逆引きテーブルを構築
+    # JunOS 解決に必要（IF 名からサブネットを算出するため）
+    # IPv4/IPv6 混在対応: バージョンが一致する IF のみ登録
+    if_name_to_network: dict[str, ipaddress.IPv4Network | ipaddress.IPv6Network] = {}
+    for iface in dev.interfaces:
+        if iface.ip is None or iface.shutdown:
+            continue
+        try:
+            iface_network = ipaddress.ip_interface(iface.ip).network
+            # バージョンが subnet_network と一致する IF のみ登録（版不一致でマッチさせない）
+            if iface_network.version == subnet_network.version:
+                if_name_to_network[iface.name] = iface_network
+        except ValueError:
+            continue
+
+    for entry in dev.ospf:
+        net_str = entry.network
+        area = entry.area
+
+        # IOS パス: CIDR として解釈を試みる
+        try:
+            entry_network = ipaddress.ip_network(net_str, strict=False)
+            # IPv4/IPv6 バージョン不一致の場合はスキップ（TypeError 回避）
+            if entry_network.version != subnet_network.version:
+                continue
+            # subnet_network が entry_network と一致するかサブネットであれば採用
+            if subnet_network == entry_network or subnet_network.subnet_of(entry_network):
+                return area
+            continue
+        except ValueError:
+            pass
+
+        # JunOS パス: IF 名として解釈（CIDR パース失敗）
+        # ユニット表記（ge-0/0/0.0）のドット以降を除去してベース IF 名を得る
+        base_if = net_str.split(".")[0]
+        # dev の interfaces から name が base_if に一致するものを探す
+        # if_name_to_network はバージョン一致 IF のみ含むので版不一致は自動除外
+        resolved_network = if_name_to_network.get(base_if)
+        if resolved_network is not None and resolved_network == subnet_network:
+            return area
+
+    return None
+
+
+def _annotate_links_with_ospf_area(
+    links: list[dict],
+    devices: list[Device],
+    device_ids: list[str],
+) -> None:
+    """links リストを in-place で更新し、各 link に ospf_area / ospf_network を付与する。
+
+    付与条件:
+    - 少なくとも片端の device が OSPF で subnet をカバーしている場合
+    - 両端が OSPF 参加かつ area が同一 → ospf_area = 単一 area 文字列（例 "0"）
+    - 両端が OSPF 参加かつ area が異なる → ospf_area = 昇順スラッシュ区切り（例 "0/1"）
+    - 片端のみ OSPF 参加 → その端の area を ospf_area に設定
+    - OSPF 非参加リンクには ospf_area / ospf_network を付けない
+
+    Args:
+        links: _infer_links_and_segments() が生成した links リスト（in-place 更新）
+        devices: Device リスト
+        device_ids: devices に対応する device id リスト
+    """
+    # device_id → Device の逆引き
+    id_to_device = _make_id_to_device(devices, device_ids)
+
+    for link in links:
+        try:
+            subnet_network = ipaddress.ip_network(link["subnet"], strict=False)
+        except ValueError:
+            continue
+
+        a_dev_id = link["a_device"]
+        b_dev_id = link["b_device"]
+
+        a_device = id_to_device.get(a_dev_id)
+        b_device = id_to_device.get(b_dev_id)
+
+        area_a: str | None = None
+        area_b: str | None = None
+
+        if a_device is not None:
+            area_a = _resolve_ospf_area_for_device(a_device, subnet_network)
+        if b_device is not None:
+            area_b = _resolve_ospf_area_for_device(b_device, subnet_network)
+
+        # 少なくとも片端が OSPF 参加の場合のみ付与
+        if area_a is None and area_b is None:
+            # OSPF 非参加: フィールドを付けない
+            continue
+
+        # area を集約（決定的: 数値ソート → 数値でない混在なら lex ソート）
+        areas_set = {a for a in {area_a, area_b} if a is not None}
+        if all(a.isdigit() for a in areas_set):
+            areas = sorted(areas_set, key=int)
+        else:
+            areas = sorted(areas_set)
+        if len(areas) == 1:
+            ospf_area_val = areas[0]
+        else:
+            ospf_area_val = "/".join(areas)
+
+        link["ospf_area"] = ospf_area_val
+        link["ospf_network"] = link["subnet"]
 
 
 # ================================================================

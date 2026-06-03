@@ -11,9 +11,11 @@ from lib.rendering.layout import (
     _layout_force_directed,
     _make_bbox_str,
     _node_size_for,
+    OSPF_AREA_LABEL_FORMAT,
 )
 from lib.rendering.svg import (
     _esc,
+    _svg_bgp_as_groups,
     _svg_bgp_edges,
     _svg_links,
     _svg_nodes,
@@ -249,12 +251,16 @@ def _build_view_bgp(
     links: list[dict],
     iface_by_device: dict[str, list[dict]],
 ) -> str:
-    """BGP ビュー SVG コンテンツを生成する"""
+    """BGP ビュー SVG コンテンツを生成する。
+
+    描画順: AS 枠（背面）→ BGP エッジ → ノード（前面）
+    """
     positions_bgp, bgp_devices = _build_bgp_layout(devices, bgp_entries, interfaces)
+    as_groups_str = _svg_bgp_as_groups(bgp_devices, positions_bgp)
     bgp_str = _svg_bgp_edges(bgp_entries, interfaces, positions_bgp)
     nodes_str = _svg_nodes(bgp_devices, positions_bgp, iface_by_device)
     bbox = _make_bbox_str(positions_bgp)
-    inner = "\n".join(filter(None, [bgp_str, nodes_str]))
+    inner = "\n".join(filter(None, [as_groups_str, bgp_str, nodes_str]))
     return (
         f'<g class="view view-bgp" data-bbox="{bbox}" style="display:none">\n'
         f'{inner}\n'
@@ -268,7 +274,13 @@ def _build_view_ospf(
     links: list[dict],
     iface_by_device: dict[str, list[dict]],
 ) -> str:
-    """OSPF ビュー SVG コンテンツを生成する"""
+    """OSPF ビュー SVG コンテンツを生成する。
+
+    OSPF 参加リンクのエッジ中点に「area {area} · {subnet}」を常時 <text> 表示する。
+    ospf_area が付いているリンクは area ラベルを表示。
+    ospf_area が欠如しているリンクはサブネットのみ表示（後方互換）。
+    両端で area が異なる場合（例 "0/1"）はそのまま表示。
+    """
     positions_ospf, ospf_devices = _build_ospf_layout(devices, ospf_entries, links)
 
     # OSPF エッジ（同一リンクの両端が OSPF 参加）
@@ -279,12 +291,32 @@ def _build_view_ospf(
             x1, y1 = positions_ospf.get(lk["a_device"], (0, 0))
             x2, y2 = positions_ospf.get(lk["b_device"], (0, 0))
             subnet = _esc(lk["subnet"])
+            ospf_area = lk.get("ospf_area")
+            # リンク中点（Physical ビューの link-label と同様の手法）
+            mx = (x1 + x2) / 2
+            my = (y1 + y2) / 2 - 15
+
+            if ospf_area is not None:
+                label_line1 = OSPF_AREA_LABEL_FORMAT.format(
+                    area=_esc(ospf_area), subnet=subnet
+                )
+                label_elem = (
+                    f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
+                    f'class="link-label layer-ospf">{label_line1}</text>'
+                )
+            else:
+                # ospf_area 欠如: subnet のみ表示（後方互換）
+                label_elem = (
+                    f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
+                    f'class="link-label layer-ospf">{subnet}</text>'
+                )
+
             parts.append(
                 f'<g class="link-edge" data-subnet="{subnet}" '
                 f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}">'
                 f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
                 f'class="link-line layer-ospf"/>'
-                f'<title>{subnet}</title>'
+                f'{label_elem}'
                 f'</g>'
             )
     edges_str = "\n".join(parts)

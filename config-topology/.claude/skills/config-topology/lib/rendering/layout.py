@@ -22,6 +22,15 @@ _MARGIN = 80           # キャンバス外周マージン（px）
 _MIN_CANVAS_W = 600    # 動的キャンバス最小幅
 _MIN_CANVAS_H = 400    # 動的キャンバス最小高さ
 
+# AS グルーピング枠（BGP ビュー用）定数
+_AS_GROUP_PADDING = 20    # AS 枠とノード矩形間のパディング（px）
+_AS_GROUP_LABEL_OFFSET = 14  # AS 枠ラベルの上端からのオフセット（px）
+_AS_GROUP_RX = 10         # AS 枠角丸半径 x（px）
+_AS_GROUP_RY = 10         # AS 枠角丸半径 y（px）
+
+# OSPF ラベル書式定数
+OSPF_AREA_LABEL_FORMAT = "area {area} · {subnet}"
+
 # キャンバスサイズ計算定数（DRY 化用）
 _CANVAS_SCALE_EXP = 0.7   # ノード数のスケーリング指数
 _CANVAS_FACTOR_W = 15     # 幅方向ファクター

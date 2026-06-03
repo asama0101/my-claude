@@ -997,3 +997,346 @@ class TestSelfLoopAndDuplicateIp:
             result = build([d1, d2], generated_from=[])
         except Exception as e:
             pytest.fail(f"重複 IP で例外が発生した: {e}")
+
+
+# ================================================================
+# Phase C #7: OSPF area 逆引きテスト (TDD RED フェーズ)
+# ================================================================
+
+class TestOspfAreaOnLinks:
+    """links に ospf_area / ospf_network を付与するロジックのテスト。
+
+    仕様:
+    - IOS: ospf network が CIDR → link の subnet が一致または包含されるとき area を採用
+    - JunOS: ospf network が IF 名 → device の interface の IP から subnet を算出して一致
+    - 両端の area が同一 → "0" (単一値)
+    - 両端の area が異なる → "0/1" (昇順スラッシュ区切り)
+    - 片端のみ OSPF 参加かつカバーする場合も area を付与
+    - OSPF 非参加リンクには ospf_area を付けない
+    """
+
+    # ---- ヘルパー ----
+
+    def _build(self, devices):
+        from scripts.build_topology import build
+        return build(devices, generated_from=[])
+
+    # ---- IOS–IOS 同 area テスト ----
+
+    @pytest.mark.unit
+    def test_ios_ios_same_area_link_has_ospf_area(self):
+        """IOS–IOS 同一 area: link に ospf_area="0" が付く。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.2.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.2.0.0/30", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.2.0.2/30")],
+                          ospf=[OspfNetwork(process=1, network="10.2.0.0/30", area="0")])
+        result = self._build([d1, d2])
+        assert len(result["links"]) == 1
+        link = result["links"][0]
+        assert link.get("ospf_area") == "0", f"ospf_area が付かない: {link}"
+
+    @pytest.mark.unit
+    def test_ios_ios_same_area_ospf_network_field(self):
+        """IOS–IOS 同一 area: link の ospf_network がリンクの subnet と一致。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.2.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.2.0.0/30", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.2.0.2/30")],
+                          ospf=[OspfNetwork(process=1, network="10.2.0.0/30", area="0")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        assert link.get("ospf_network") == "10.2.0.0/30", f"ospf_network が不正: {link}"
+
+    # ---- IOS–JunOS クロスベンダー テスト ----
+
+    @pytest.mark.unit
+    def test_cross_vendor_junos_side_area_resolved(self):
+        """IOS–JunOS: JunOS 側は IF 名→IP→subnet で area を解決できる。"""
+        # JunOS: ge-0/0/0.0 → devices.yaml の ge-0/0/0 → ip=10.2.0.2/30 → subnet=10.2.0.0/30
+        d_ios = make_device("CORE-IOS", vendor="cisco_ios",
+                             interfaces=[make_iface("GigabitEthernet0/0", ip="10.2.0.1/30")],
+                             ospf=[OspfNetwork(process=1, network="10.2.0.0/30", area="0")])
+        d_jun = make_device("EDGE-JUNOS", vendor="juniper_junos",
+                             interfaces=[make_iface("ge-0/0/0", ip="10.2.0.2/30")],
+                             ospf=[OspfNetwork(process=None, network="ge-0/0/0.0", area="0")])
+        result = self._build([d_ios, d_jun])
+        assert len(result["links"]) == 1
+        link = result["links"][0]
+        assert link.get("ospf_area") == "0", f"JunOS 側の area 解決に失敗: {link}"
+
+    @pytest.mark.unit
+    def test_cross_vendor_junos_if_name_without_unit(self):
+        """JunOS: IF 名にユニット番号なし（例 ge-0/0/0）でも area が解決できる。"""
+        d_ios = make_device("R1", vendor="cisco_ios",
+                             interfaces=[make_iface("eth0", ip="10.5.0.1/30")],
+                             ospf=[OspfNetwork(process=1, network="10.5.0.0/30", area="1")])
+        d_jun = make_device("R2", vendor="juniper_junos",
+                             interfaces=[make_iface("ge-0/0/0", ip="10.5.0.2/30")],
+                             # network が "ge-0/0/0"（ユニット番号なし）
+                             ospf=[OspfNetwork(process=None, network="ge-0/0/0", area="1")])
+        result = self._build([d_ios, d_jun])
+        link = result["links"][0]
+        assert link.get("ospf_area") == "1", f"ユニットなし IF 名の area 解決に失敗: {link}"
+
+    # ---- area 不一致（両端で area が異なる）テスト ----
+
+    @pytest.mark.unit
+    def test_area_mismatch_both_areas_in_label(self):
+        """両端 area が異なる場合 ospf_area が '0/1' など両方を含む。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.3.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.3.0.0/30", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.3.0.2/30")],
+                          ospf=[OspfNetwork(process=1, network="10.3.0.0/30", area="1")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        area_val = link.get("ospf_area", "")
+        # 両方の area 値が含まれること（"0/1" または "1/0" 等）
+        assert "0" in area_val and "1" in area_val, \
+            f"area 不一致のとき両方の area が含まれるべき: {area_val}"
+
+    @pytest.mark.unit
+    def test_area_mismatch_stable_order(self):
+        """area 不一致のとき ospf_area の表記が昇順で決定的。"""
+        # area "1" と "0" → 昇順なら "0/1"
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.4.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.4.0.0/30", area="1")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.4.0.2/30")],
+                          ospf=[OspfNetwork(process=1, network="10.4.0.0/30", area="0")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        assert link.get("ospf_area") == "0/1", \
+            f"area 昇順表記が期待値と異なる: {link.get('ospf_area')}"
+
+    # ---- OSPF 非参加リンクテスト ----
+
+    @pytest.mark.unit
+    def test_non_ospf_link_has_no_ospf_area(self):
+        """OSPF 非参加リンクには ospf_area が付かない（None または欠如）。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.9.0.1/30")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.9.0.2/30")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        assert link.get("ospf_area") is None, \
+            f"OSPF 非参加なのに ospf_area が付いた: {link}"
+
+    @pytest.mark.unit
+    def test_non_ospf_link_has_no_ospf_network(self):
+        """OSPF 非参加リンクには ospf_network が付かない（None または欠如）。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.9.0.1/30")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.9.0.2/30")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        assert link.get("ospf_network") is None, \
+            f"OSPF 非参加なのに ospf_network が付いた: {link}"
+
+    # ---- 片端のみ OSPF 参加テスト ----
+
+    @pytest.mark.unit
+    def test_one_side_ospf_area_attached(self):
+        """片端のみ OSPF 参加でもそのデバイスの area が link に付く。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.8.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.8.0.0/30", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.8.0.2/30")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        assert link.get("ospf_area") == "0", \
+            f"片端のみ OSPF のとき area が付かない: {link}"
+
+    # ---- E2E: cross-vendor-ospf eval フィクスチャを使用 ----
+
+    @pytest.mark.integration
+    def test_e2e_cross_vendor_ospf_link_area(self):
+        """cross-vendor-ospf eval フィクスチャで JunOS 側 area が link に付く。
+
+        iosC.cfg: GigabitEthernet0/0 10.2.0.1/30, ospf area 0
+        junosD.conf: ge-0/0/0.0 10.2.0.2/30, ospf area 0
+        → 共有サブネット 10.2.0.0/30 の link に ospf_area="0" が付くはず。
+        """
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+
+        eval_dir = os.path.join(os.path.dirname(__file__), "..", "evals", "inputs", "cross-vendor-ospf")
+        ios_cfg = os.path.join(eval_dir, "iosC.cfg")
+        junos_cfg = os.path.join(eval_dir, "junosD.conf")
+        devices = parse_paths([ios_cfg, junos_cfg])
+        result = build(devices, generated_from=["iosC.cfg", "junosD.conf"])
+
+        # 10.2.0.0/30 の link を探す
+        ospf_links = [lk for lk in result["links"] if lk["subnet"] == "10.2.0.0/30"]
+        assert len(ospf_links) == 1, f"10.2.0.0/30 リンクが見つからない: {result['links']}"
+        link = ospf_links[0]
+        assert link.get("ospf_area") == "0", \
+            f"cross-vendor OSPF リンクに area が付かない: {link}"
+
+    # ---- 決定性テスト ----
+
+    @pytest.mark.unit
+    def test_ospf_area_assignment_deterministic(self):
+        """OSPF area 付与が決定的（2回呼んでも同じ結果）。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.6.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.6.0.0/30", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.6.0.2/30")],
+                          ospf=[OspfNetwork(process=1, network="10.6.0.0/30", area="0")])
+        from scripts.build_topology import build
+        r1 = build([d1, d2], generated_from=[])
+        r2 = build([d1, d2], generated_from=[])
+        assert r1["links"] == r2["links"], "OSPF area 付与が非決定的"
+
+    # ---- area mismatch テスト（T2 厳密化） ----
+
+    @pytest.mark.unit
+    def test_area_mismatch_both_areas_strict(self):
+        """T2: area 不一致のとき split('/') による厳密検証（'10' や '2' を誤検知しない）。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.3.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.3.0.0/30", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.3.0.2/30")],
+                          ospf=[OspfNetwork(process=1, network="10.3.0.0/30", area="1")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        area_val = link.get("ospf_area", "")
+        # split("/") で厳密に各 area が含まれること
+        area_parts = area_val.split("/")
+        assert "0" in area_parts, \
+            f"area '0' が ospf_area の要素に含まれない: {area_val}"
+        assert "1" in area_parts, \
+            f"area '1' が ospf_area の要素に含まれない: {area_val}"
+
+    # ---- C2: area 数値ソート ----
+
+    @pytest.mark.unit
+    def test_area_numeric_sort_two_digits(self):
+        """C2: area '10' と '2' → 数値昇順で '2/10'（辞書順 '10/2' でない）。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.11.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.11.0.0/30", area="10")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.11.0.2/30")],
+                          ospf=[OspfNetwork(process=1, network="10.11.0.0/30", area="2")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        assert link.get("ospf_area") == "2/10", \
+            f"area 数値昇順ソートが期待値と異なる: {link.get('ospf_area')}"
+
+    @pytest.mark.unit
+    def test_area_numeric_sort_existing_0_1(self):
+        """C2: area '0' と '1' → '0/1'（既存ケースが壊れない）。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.4.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.4.0.0/30", area="1")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.4.0.2/30")],
+                          ospf=[OspfNetwork(process=1, network="10.4.0.0/30", area="0")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        assert link.get("ospf_area") == "0/1", \
+            f"area '0/1' の既存ケースが壊れた: {link.get('ospf_area')}"
+
+    # ---- C1: IPv4/IPv6 混在でクラッシュしない ----
+
+    @pytest.mark.unit
+    def test_ipv6_ospf_network_no_crash(self):
+        """C1: IPv6 OSPF network を持つデバイスで build がクラッシュしない。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.1.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="2001:db8::/32", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.1.0.2/30")])
+        from scripts.build_topology import build
+        try:
+            result = build([d1, d2], generated_from=[])
+        except Exception as e:
+            pytest.fail(f"IPv6 OSPF network で例外が発生: {e}")
+        # クラッシュしないこと（area は付かないかも）
+        assert len(result["links"]) == 1
+
+    @pytest.mark.unit
+    def test_ipv4_ipv6_mixed_link_no_crash(self):
+        """C1: IPv4 link と IPv6 OSPF network が混在してもクラッシュしない。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[
+                              make_iface("eth0", ip="10.1.0.1/30"),
+                              make_iface("eth1", ip="2001:db8::1/64"),
+                          ],
+                          ospf=[
+                              OspfNetwork(process=1, network="10.1.0.0/30", area="0"),
+                              OspfNetwork(process=1, network="2001:db8::/64", area="0"),
+                          ])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[
+                              make_iface("eth0", ip="10.1.0.2/30"),
+                          ],
+                          ospf=[OspfNetwork(process=1, network="10.1.0.0/30", area="0")])
+        from scripts.build_topology import build
+        try:
+            result = build([d1, d2], generated_from=[])
+        except Exception as e:
+            pytest.fail(f"IPv4/IPv6 混在で例外が発生: {e}")
+        # IPv4 link には正しく area が付くこと
+        ipv4_links = [lk for lk in result["links"] if lk.get("subnet") == "10.1.0.0/30"]
+        assert len(ipv4_links) == 1
+        assert ipv4_links[0].get("ospf_area") == "0", \
+            f"IPv4/IPv6 混在でも IPv4 link に area が付かない: {ipv4_links[0]}"
+
+    @pytest.mark.unit
+    def test_ipv6_if_does_not_match_ipv4_ospf(self):
+        """C1: if_name_to_network 構築で IPv6 IF が IPv4 OSPF network とマッチしない。"""
+        # JunOS パス: IPv6 IF のネットワークが IPv4 subnet_network とマッチしないこと
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.1.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="10.1.0.0/30", area="0")])
+        # d2 は IPv6 only → IPv4 リンクに area を付けない
+        d2 = make_device("R2", vendor="juniper_junos",
+                          interfaces=[make_iface("ge-0/0/0", ip="2001:db8::2/64")],
+                          ospf=[OspfNetwork(process=None, network="ge-0/0/0", area="0")])
+        from scripts.build_topology import build
+        try:
+            result = build([d1, d2], generated_from=[])
+        except Exception as e:
+            pytest.fail(f"IPv6 JunOS IF で例外が発生: {e}")
+
+    # ---- T3: 誤マッチ回避テスト ----
+
+    @pytest.mark.unit
+    def test_supernet_ospf_matches_link_subnet(self):
+        """T3: IOS スーパーネット（OSPF network=/24）が /30 link subnet を包含してはarea を付ける（設計確認）。"""
+        # 192.168.0.0/24 の OSPF が 192.168.0.0/30 の link を包含 → area を付ける
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="192.168.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="192.168.0.0/24", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="192.168.0.2/30")],
+                          ospf=[OspfNetwork(process=1, network="192.168.0.0/24", area="0")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        assert link.get("ospf_area") == "0", \
+            f"スーパーネット OSPF が link を包含するのに area が付かない: {link}"
+
+    @pytest.mark.unit
+    def test_unrelated_subnet_ospf_does_not_match_link(self):
+        """T3: 無関係サブネット（192.168.0.0/24 の OSPF）が 10.2.0.0/30 link に area を付けない。"""
+        d1 = make_device("R1", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.2.0.1/30")],
+                          ospf=[OspfNetwork(process=1, network="192.168.0.0/24", area="0")])
+        d2 = make_device("R2", vendor="cisco_ios",
+                          interfaces=[make_iface("eth0", ip="10.2.0.2/30")])
+        result = self._build([d1, d2])
+        link = result["links"][0]
+        assert link.get("ospf_area") is None, \
+            f"無関係サブネット OSPF が 10.2.0.0/30 link に area を付けてしまった: {link}"

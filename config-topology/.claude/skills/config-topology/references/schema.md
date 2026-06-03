@@ -79,6 +79,8 @@ topology/
 | `a_if` / `b_if` | string | 端点 IF 名 |
 | `subnet` | string | 共有サブネット CIDR（例 `10.0.0.0/30`） |
 | `kind` | string | 結線の由来。初版は常に `"inferred-subnet"` |
+| `ospf_area` | string \| null | **任意**。OSPF 参加リンクの area 番号。両端が同一 area なら単一値（例 `"0"`）。両端で異なる場合は昇順スラッシュ区切り（例 `"0/1"`）。OSPF 非参加リンクには付かない（フィールド欠如）。 |
+| `ospf_network` | string \| null | **任意**。`ospf_area` が付くリンクの subnet CIDR（`subnet` フィールドと同値）。OSPF 非参加リンクには付かない（フィールド欠如）。 |
 
 `links` には `id` を設けない（`segments` とは異なる）。リンクは `(subnet, a_device, a_if, b_device, b_if)` の複合キーで一意に定まるため。将来 CDP/LLDP 由来の結線を混在させる際は `kind` で由来を区別する。
 

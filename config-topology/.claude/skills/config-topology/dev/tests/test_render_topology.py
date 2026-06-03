@@ -3340,3 +3340,596 @@ def test_t4_multiple_links_generate_multiple_labels():
     # 両リンクの IF 名が含まれること
     assert "GigabitEthernet0/0" in combined, "リンク1の IF 名がラベルにない"
     assert "GigabitEthernet0/1" in combined, "リンク2の IF 名がラベルにない"
+
+
+# ================================================================
+# Phase C #7: OSPF ビュー 常時ラベル表示テスト (TDD RED フェーズ)
+# ================================================================
+
+def _make_ospf_topology_with_area():
+    """OSPF area=0 が付いた 2 デバイス topology（IOS–IOS 同 area）を返す。"""
+    return {
+        "title": "OSPF Area Label Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.2.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.2.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0",
+             "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.2.0.0/30", "kind": "inferred-subnet",
+             "ospf_area": "0", "ospf_network": "10.2.0.0/30"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                {"device": "r1", "process": 1, "network": "10.2.0.0/30", "area": "0"},
+                {"device": "r2", "process": 1, "network": "10.2.0.0/30", "area": "0"},
+            ],
+            "static": [],
+        },
+    }
+
+
+def _make_ospf_topology_area_mismatch():
+    """OSPF area 不一致（0/1）の 2 デバイス topology を返す。"""
+    return {
+        "title": "OSPF Area Mismatch Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.3.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.3.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0",
+             "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.3.0.0/30", "kind": "inferred-subnet",
+             "ospf_area": "0/1", "ospf_network": "10.3.0.0/30"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                {"device": "r1", "process": 1, "network": "10.3.0.0/30", "area": "0"},
+                {"device": "r2", "process": 1, "network": "10.3.0.0/30", "area": "1"},
+            ],
+            "static": [],
+        },
+    }
+
+
+def _extract_ospf_view(html: str) -> str:
+    """HTML から OSPF ビューの SVG コンテンツを抽出する（_extract_bgp_view_full と同パターン）。"""
+    m = re.search(
+        r'<g[^>]+class="[^"]*view-ospf[^"]*"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        html, re.DOTALL
+    )
+    return m.group(1) if m else ""
+
+
+@pytest.mark.unit
+def test_ospf_view_edge_has_visible_text_label():
+    """OSPF ビューのリンクエッジに可視 <text> ラベルが存在する。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビュー (view-ospf) が見つからない"
+    # <text> 要素（<title> でなく可視テキスト）が存在すること
+    assert "<text" in ospf_view, \
+        "OSPF ビューに可視 <text> ラベルが存在しない"
+
+
+@pytest.mark.unit
+def test_ospf_view_label_contains_area():
+    """OSPF ビューのラベルに 'area 0' が含まれる。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert "area" in ospf_view.lower(), \
+        f"OSPF ビューに 'area' テキストが含まれない: {ospf_view[:500]}"
+    assert "0" in ospf_view, \
+        f"OSPF ビューに area 番号 '0' が含まれない"
+
+
+@pytest.mark.unit
+def test_ospf_view_label_contains_subnet():
+    """OSPF ビューのラベルにサブネット (10.2.0.0/30) が含まれる。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert "10.2.0.0/30" in ospf_view, \
+        f"OSPF ビューにサブネットが含まれない: {ospf_view[:500]}"
+
+
+@pytest.mark.unit
+def test_ospf_view_label_area_mismatch_shows_both():
+    """OSPF area 不一致 (0/1) のとき両方の area がラベルに出る（T2: split による厳密検証）。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_area_mismatch()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    # "0/1" が直接含まれること（split で要素として '0' と '1' が存在することを厳密検証）
+    assert "0/1" in ospf_view, \
+        f"area 不一致のとき '0/1' がラベルに出ない: {ospf_view[:500]}"
+    # split("/") で要素として確認（'10/2' などで '0' が誤判定されないよう）
+    area_parts = "0/1".split("/")
+    assert "0" in area_parts and "1" in area_parts
+
+
+@pytest.mark.unit
+def test_ospf_view_label_no_area_when_ospf_area_absent():
+    """ospf_area が欠如しているリンクはサブネットのみ（area 表示なし）か省略。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    # ospf_area を削除
+    for lk in topo["links"]:
+        lk.pop("ospf_area", None)
+        lk.pop("ospf_network", None)
+    html = render(topo)
+    # 例外が発生しないこと（後方互換）
+    assert "<svg" in html.lower(), "ospf_area 欠如でレンダリングが失敗"
+
+
+@pytest.mark.unit
+def test_ospf_view_label_is_text_not_only_title():
+    """OSPF ビューのラベルが <title> だけでなく <text> 要素で出る（常時可視）。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    # <text> 要素が存在すること
+    text_elements = re.findall(r'<text[^>]*>.*?</text>', ospf_view, re.DOTALL)
+    assert len(text_elements) >= 1, \
+        f"OSPF ビューに <text> 要素（常時可視ラベル）が存在しない"
+
+
+@pytest.mark.unit
+def test_ospf_view_area_label_deterministic():
+    """OSPF ビューのラベル出力が決定的（2回レンダリングして一致）。"""
+    from lib.rendering import render
+    import copy
+    topo = _make_ospf_topology_with_area()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "OSPF ビューのラベル出力が非決定的"
+
+
+# ===========================================================================
+# Phase C #5: BGP ビュー AS グルーピング枠
+# ===========================================================================
+
+def _make_ibgp_topology():
+    """iBGP: 同一 AS(65001) に r1/r2 の 2 台。iBGP セッションあり。"""
+    return {
+        "title": "iBGP AS Group Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65001, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::lo0", "device": "r1", "name": "Loopback0",
+             "ip": "10.255.0.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::lo0", "device": "r2", "name": "Loopback0",
+             "ip": "10.255.0.2/32", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.255.0.1",
+                 "neighbor_ip": "10.255.0.2", "peer_as": 65001, "type": "ibgp"},
+                {"device": "r2", "local_as": 65001, "local_ip": "10.255.0.2",
+                 "neighbor_ip": "10.255.0.1", "peer_as": 65001, "type": "ibgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+def _make_ebgp_topology():
+    """eBGP: AS65001(r1) と AS65002(r2) の 2 台。"""
+    return {
+        "title": "eBGP AS Group Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+def _extract_bgp_view_full(html: str) -> str:
+    """HTML から BGP ビューの内部コンテンツを抽出する（view-bgp の <g> タグ開始直後から）。"""
+    m = re.search(
+        r'<g[^>]+class="[^"]*view-bgp[^"]*"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>\s*</svg>)',
+        html, re.DOTALL
+    )
+    return m.group(1) if m else ""
+
+
+# --- #5-1: iBGP 2機 → AS 枠が1つ・ラベル「AS 65001」 --------------------
+
+@pytest.mark.unit
+def test_c5_ibgp_single_as_group_exists():
+    """Phase C #5: iBGP 2 機（同一 AS65001）→ BGP ビューに as-group 枠が 1 つ存在する"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビュー (view-bgp) が見つからない"
+    groups = re.findall(r'class="as-group"', bgp_view)
+    assert len(groups) == 1, \
+        f"iBGP 2機で as-group が {len(groups)} 個（期待: 1）"
+
+
+@pytest.mark.unit
+def test_c5_ibgp_as_group_label_text():
+    """Phase C #5: iBGP AS 枠のラベルに「AS 65001」が含まれる"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert "AS 65001" in bgp_view, \
+        f"iBGP AS 枠ラベルに「AS 65001」が含まれない: {bgp_view[:500]}"
+
+
+@pytest.mark.unit
+def test_c5_ibgp_both_members_inside_group():
+    """Phase C #5: iBGP 2機が同一 AS 枠内に収まる（枠の位置がノードを包含）"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    # AS 枠の <rect> の x/y/width/height を取得（属性順: x y width height ... class="as-group"）
+    as_group_rects = re.findall(
+        r'<rect[^>]*x="([^"]+)"[^>]*y="([^"]+)"'
+        r'[^>]*width="([^"]+)"[^>]*height="([^"]+)"[^>]*class="as-group"',
+        bgp_view
+    )
+    if not as_group_rects:
+        # class が先にある場合のフォールバック
+        as_group_rects = re.findall(
+            r'<rect[^>]*class="as-group"[^>]*x="([^"]+)"[^>]*y="([^"]+)"'
+            r'[^>]*width="([^"]+)"[^>]*height="([^"]+)"',
+            bgp_view
+        )
+    assert len(as_group_rects) >= 1, "as-group <rect> が見つからない"
+    rx, ry, rw, rh = (float(v) for v in as_group_rects[0])
+    # ノードの中心座標を取得: node-rect は x/y/width/height を持つ
+    node_rects = re.findall(
+        r'<rect[^>]*class="node-rect"[^>]*x="([^"]+)"[^>]*y="([^"]+)"'
+        r'[^>]*width="([^"]+)"[^>]*height="([^"]+)"',
+        bgp_view
+    )
+    if not node_rects:
+        # 属性順違い（x,y,width,height が先のパターン）
+        node_rects = re.findall(
+            r'<rect[^>]*x="([^"]+)"[^>]*y="([^"]+)"'
+            r'[^>]*width="([^"]+)"[^>]*height="([^"]+)"[^>]*class="node-rect"',
+            bgp_view
+        )
+    assert len(node_rects) >= 2, f"BGP ビューに node-rect が {len(node_rects)} 個（期待: >=2）"
+    for nx_str, ny_str, nw_str, nh_str in node_rects:
+        nx, ny, nw, nh = float(nx_str), float(ny_str), float(nw_str), float(nh_str)
+        assert nx >= rx - 1, f"ノード左端 {nx:.1f} が AS 枠左端 {rx:.1f} より外"
+        assert ny >= ry - 1, f"ノード上端 {ny:.1f} が AS 枠上端 {ry:.1f} より外"
+        assert nx + nw <= rx + rw + 1, f"ノード右端 {nx+nw:.1f} が AS 枠右端 {rx+rw:.1f} より外"
+        assert ny + nh <= ry + rh + 1, f"ノード下端 {ny+nh:.1f} が AS 枠下端 {ry+rh:.1f} より外"
+
+
+# --- #5-2: eBGP 2機 → AS 枠が2つ・ラベルが各 AS --------------------
+
+@pytest.mark.unit
+def test_c5_ebgp_two_as_groups_exist():
+    """Phase C #5: eBGP 2 機（AS65001 / AS65002）→ BGP ビューに as-group 枠が 2 つ存在する"""
+    from lib.rendering import render
+    html = render(_make_ebgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    groups = re.findall(r'class="as-group"', bgp_view)
+    assert len(groups) == 2, \
+        f"eBGP 2機で as-group が {len(groups)} 個（期待: 2）"
+
+
+@pytest.mark.unit
+def test_c5_ebgp_as_group_labels_both_present():
+    """Phase C #5: eBGP の AS 枠ラベルに「AS 65001」と「AS 65002」が両方含まれる"""
+    from lib.rendering import render
+    html = render(_make_ebgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert "AS 65001" in bgp_view, "「AS 65001」ラベルが見つからない"
+    assert "AS 65002" in bgp_view, "「AS 65002」ラベルが見つからない"
+
+
+# --- #5-3: 枠がノードの背面（DOM 順）-------------------------------------
+
+@pytest.mark.unit
+def test_c5_as_group_rect_before_device_node():
+    """Phase C #5: as-group <rect> が device-node より前に DOM 出力される（背面）"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    as_group_pos = bgp_view.find('class="as-group"')
+    device_node_pos = bgp_view.find('class="device-node"')
+    assert as_group_pos != -1, "as-group が見つからない"
+    assert device_node_pos != -1, "device-node が見つからない"
+    assert as_group_pos < device_node_pos, \
+        f"as-group ({as_group_pos}) が device-node ({device_node_pos}) より後に出力されている（前景になってしまう）"
+
+
+@pytest.mark.unit
+def test_c5_as_group_rect_before_bgp_edges():
+    """Phase C #5: as-group <rect> が bgp-session より前に DOM 出力される（背面）"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    as_group_pos = bgp_view.find('class="as-group"')
+    bgp_session_pos = bgp_view.find('class="bgp-session"')
+    assert as_group_pos != -1, "as-group が見つからない"
+    assert bgp_session_pos != -1, "bgp-session が見つからない"
+    assert as_group_pos < bgp_session_pos, \
+        f"as-group ({as_group_pos}) が bgp-session ({bgp_session_pos}) より後に出力されている"
+
+
+# --- #5-4: BGP 未参加ノードは枠にも図にも出ない --------------------------
+
+@pytest.mark.unit
+def test_c5_non_bgp_device_not_in_as_group():
+    """Phase C #5: BGP 未参加デバイス（r3）は AS 枠にも BGP ビューにも出ない"""
+    from lib.rendering import render
+    topo = _make_ebgp_topology()
+    # BGP 未参加の r3 を追加
+    topo["devices"].append(
+        {"id": "r3", "hostname": "R3", "vendor": "cisco_ios", "as": 65003, "sections": []}
+    )
+    topo["interfaces"].append(
+        {"id": "r3::eth0", "device": "r3", "name": "eth0",
+         "ip": "192.168.1.1/30", "vlan": None, "description": None, "shutdown": False}
+    )
+    # r3 は bgp_entries に一切登場しない
+    html = render(topo)
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    # R3 が BGP ビューに存在しないこと
+    assert "R3" not in bgp_view, \
+        "BGP 未参加の R3 が BGP ビューに出力されている"
+    # AS 65003 枠も出ないこと
+    assert "AS 65003" not in bgp_view, \
+        "BGP 未参加の AS65003 の枠が出力されている"
+
+
+# --- #5-5: 決定性 -----------------------------------------------------------
+
+@pytest.mark.unit
+def test_c5_bgp_as_group_deterministic():
+    """Phase C #5: BGP AS グルーピング出力が決定的（同一入力で2回一致）"""
+    from lib.rendering import render
+    import copy
+    topo = _make_ebgp_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "BGP AS グルーピング出力が非決定的"
+
+
+@pytest.mark.unit
+def test_c5_ibgp_as_group_deterministic():
+    """Phase C #5: iBGP topology でも AS グルーピング出力が決定的"""
+    from lib.rendering import render
+    import copy
+    topo = _make_ibgp_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "iBGP AS グルーピング出力が非決定的"
+
+
+# --- #5-6: 既存 BGP ビューの回帰保護（エッジ・ノードが壊れない）----------
+
+@pytest.mark.unit
+def test_c5_bgp_edges_still_rendered_after_grouping():
+    """Phase C #5: AS グルーピング追加後も bgp-session エッジが引き続き描画される"""
+    from lib.rendering import render
+    html = render(_make_ebgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert "bgp-session" in bgp_view, \
+        "AS グルーピング追加後に bgp-session が消えている"
+
+
+@pytest.mark.unit
+def test_c5_bgp_nodes_still_rendered_after_grouping():
+    """Phase C #5: AS グルーピング追加後も device-node が引き続き描画される"""
+    from lib.rendering import render
+    html = render(_make_ebgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    device_nodes = re.findall(r'class="device-node"', bgp_view)
+    assert len(device_nodes) >= 2, \
+        f"AS グルーピング追加後に device-node が {len(device_nodes)} 個（期待: >=2）"
+
+
+@pytest.mark.unit
+def test_c5_as_group_label_class_present():
+    """Phase C #5: as-group-label クラスの <text> 要素が存在する"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert 'class="as-group-label"' in bgp_view, \
+        "as-group-label クラスの <text> 要素がない"
+
+
+# ===========================================================================
+# Phase C レビュー修正テスト（M5: as-group-container ラッパー構造）
+# ===========================================================================
+
+@pytest.mark.unit
+def test_m5_as_group_container_g_element_exists():
+    """M5: as-group-container クラスの <g> 要素が BGP ビューに存在する"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    assert 'class="as-group-container"' in bgp_view, \
+        "as-group-container クラスの <g> 要素が見つからない（M5 未実装）"
+
+
+@pytest.mark.unit
+def test_m5_as_group_container_has_data_as():
+    """M5: as-group-container <g> 要素に data-as 属性が含まれる"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    assert 'data-as="' in bgp_view, \
+        "as-group-container <g> 要素に data-as 属性がない（M5 未実装）"
+
+
+@pytest.mark.unit
+def test_m5_as_group_and_label_inside_container():
+    """M5: as-group クラスの <rect> と as-group-label クラスの <text> が container <g> 内に存在する"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    # container <g> ブロックを取り出す
+    m = re.search(
+        r'<g[^>]*class="as-group-container"[^>]*>(.*?)</g>',
+        bgp_view, re.DOTALL
+    )
+    assert m is not None, "as-group-container <g> が見つからない"
+    container_content = m.group(1)
+    assert 'class="as-group"' in container_content, \
+        "as-group <rect> が container 内に存在しない"
+    assert 'class="as-group-label"' in container_content, \
+        "as-group-label <text> が container 内に存在しない"
+
+
+@pytest.mark.unit
+def test_m5_as_group_container_deterministic():
+    """M5: as-group-container を含む BGP ビューが決定的（2回レンダリングして一致）"""
+    from lib.rendering import render
+    import copy
+    topo = _make_ibgp_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "as-group-container を含む BGP ビューが非決定的"
+
+
+@pytest.mark.unit
+def test_m5_ebgp_two_containers_with_data_as():
+    """M5: eBGP 2 機（AS65001/AS65002）→ BGP ビューに data-as='65001' と data-as='65002' が存在する"""
+    from lib.rendering import render
+    html = render(_make_ebgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert 'data-as="65001"' in bgp_view, \
+        "data-as='65001' が BGP ビューに存在しない"
+    assert 'data-as="65002"' in bgp_view, \
+        "data-as='65002' が BGP ビューに存在しない"
+
+
+@pytest.mark.unit
+def test_c5_no_as_group_when_no_bgp():
+    """Phase C #5: BGP エントリが空のとき as-group が出力されない"""
+    from lib.rendering import render
+    topo = {
+        "title": "No BGP",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+        ],
+        "interfaces": [],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    # BGP ビューが生成されない（ゲーティング）ので as-group も出ない
+    assert 'class="as-group"' not in html, \
+        "BGP エントリなしなのに as-group が出力されている"
+
+
+@pytest.mark.unit
+def test_c5_as_group_no_crash_when_local_as_missing():
+    """Phase C #5 (T4 強化): local_as が取れない BGP エントリがあってもクラッシュせず、
+    as=None 機器は as-group に出ない（BGP ビューに class='as-group' が無いか、
+    None の AS グループ枠が存在しない）。"""
+    from lib.rendering import render
+    topo = {
+        "title": "No local_as",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                # local_as キーなし
+                {"device": "r1", "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+        },
+    }
+    try:
+        html = render(topo)
+    except Exception as e:
+        pytest.fail(f"local_as 欠損 BGP エントリで例外発生: {e}")
+    assert isinstance(html, str) and len(html) > 0
+    # as=None の機器は as-group に出ないこと
+    bgp_view = _extract_bgp_view_full(html)
+    # as-group が存在する場合は "AS None" ラベルが無いことを確認
+    assert "AS None" not in bgp_view, \
+        "as=None 機器の AS グループ枠「AS None」が出力されている"
+    # as=None 機器が as-group に入っていないこと（as-group 枠の数は 0 であるべき）
+    as_group_count = bgp_view.count('class="as-group"')
+    assert as_group_count == 0, \
+        f"as=None 機器のみなのに as-group が {as_group_count} 個出力されている"
