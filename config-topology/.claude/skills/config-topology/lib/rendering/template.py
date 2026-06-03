@@ -245,6 +245,17 @@ _CSS = """\
       stroke-dasharray: 6 3;
     }
 
+    .seg-edge.highlighted {
+      stroke: var(--color-highlight);
+      stroke-width: 3.5;
+      stroke-dasharray: none;
+    }
+
+    .segment-node.highlighted .seg-ellipse {
+      stroke: var(--color-highlight);
+      stroke-width: 3.5;
+    }
+
     /* リンク */
     .link-line {
       stroke: var(--color-link);
@@ -508,6 +519,33 @@ _CSS = """\
     .as-group-label-bg {
       fill: #3b82f6;
       opacity: 0.85;
+    }
+
+    /* #3: Static 行クリック時の行マーキング */
+    tr.route-row-selected td {
+      background: #d1fae5;
+      outline: 2px solid #059669;
+      outline-offset: -2px;
+      font-weight: 600;
+    }
+
+    /* #5: BGP セッションハイライト */
+    .bgp-session.highlighted .bgp-edge {
+      stroke: var(--color-highlight);  /* seg-edge ハイライトと視覚的一貫性 */
+      stroke-width: 4;
+      opacity: 1;
+    }
+
+    /* 多ノードB: フォーカスモード（ダブルクリック）薄表示
+       検索dimmed(0.4)より強く薄める意図で 0.12 を使用 */
+    .focus-dimmed {
+      opacity: 0.12;
+      pointer-events: none;
+    }
+
+    /* 多ノードC: カード絞り込み（選択外カードを非表示） */
+    .card-unselected {
+      display: none;
     }\
 """
 
@@ -522,6 +560,9 @@ _JS = """\
     var _currentView = 'physical';
 
     function selectView(viewId) {
+      // ビュー切替時はフォーカスモードを解除（残留防止）
+      clearFocusMode();
+
       _currentView = viewId;
 
       // ビュー <g> の表示切替
@@ -594,8 +635,8 @@ _JS = """\
           link.style.opacity = '';
           return;
         }
-        var aNode = currentViewEl.querySelector('.device-node[data-device="' + link.dataset.a + '"]');
-        var bNode = currentViewEl.querySelector('.device-node[data-device="' + link.dataset.b + '"]');
+        var aNode = currentViewEl.querySelector('.device-node[data-device="' + CSS.escape(link.dataset.a) + '"]');
+        var bNode = currentViewEl.querySelector('.device-node[data-device="' + CSS.escape(link.dataset.b) + '"]');
         var aDimmed = aNode && aNode.classList.contains('dimmed');
         var bDimmed = bNode && bNode.classList.contains('dimmed');
         link.style.opacity = (aDimmed && bDimmed) ? '0.15' : '';
@@ -841,27 +882,35 @@ _JS = """\
       });
 
       // ノードクリックで選択強調（累積トグル対応）
+      // dblclick誤発火防止: 単クリック処理を setTimeout で遅延し
+      // dblclick ハンドラ冒頭の clearTimeout でキャンセルする
+      var _clickTimer = null;  // IIFE スコープで管理（dblclick側と共有）
       allNodes.forEach(function(node) {
         node.addEventListener('click', function(e) {
           e.stopPropagation();
           var deviceId = node.dataset.device;
-          var wasSelected = node.classList.contains('selected');
-          if (wasSelected) {
-            // トグル: 解除
-            node.classList.remove('selected');
-            var card = document.querySelector('.device-card[data-device="' + deviceId + '"]');
-            if (card) card.classList.remove('selected');
-            _selectedNodes.delete(deviceId);
-          } else {
-            // 累積選択
-            node.classList.add('selected');
-            var card = document.querySelector('.device-card[data-device="' + deviceId + '"]');
-            if (card) {
-              card.classList.add('selected');
-              card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          // 単クリックは 250ms 遅延: dblclick が来たらキャンセルされる
+          _clickTimer = setTimeout(function() {
+            _clickTimer = null;
+            var wasSelected = node.classList.contains('selected');
+            if (wasSelected) {
+              // トグル: 解除
+              node.classList.remove('selected');
+              var card = document.querySelector('.device-card[data-device="' + CSS.escape(deviceId) + '"]');
+              if (card) card.classList.remove('selected');
+              _selectedNodes.delete(deviceId);
+            } else {
+              // 累積選択
+              node.classList.add('selected');
+              var card = document.querySelector('.device-card[data-device="' + CSS.escape(deviceId) + '"]');
+              if (card) {
+                card.classList.add('selected');
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              }
+              _selectedNodes.add(deviceId);
             }
-            _selectedNodes.add(deviceId);
-          }
+            _updateCardFilter();
+          }, 250);
         });
       });
 
@@ -892,7 +941,10 @@ _JS = """\
     var _selectedStaticEdges = new Set();   // HC1: static 経路で固定中のエッジ link-id / seg-id 集合
     var _selectedStaticNodes = new Set();   // HC2: static 経路 next-hop 機器（手動選択と独立）
     var _selectedSegs = new Set();          // #7: seg-id set
+    var _selectedBgp = new Set();           // #5: bgp-id set
 
+    // clearSelection: ノード選択(.selected)解除 + clearLinkHighlight() + clearFocusMode() + _updateCardFilter()
+    // フォーカスは解除するが、clearLinkHighlight はフォーカスを解除しない方針（責務分離）
     function clearSelection() {
       document.querySelectorAll('.device-node.selected').forEach(function(n) {
         n.classList.remove('selected');
@@ -901,18 +953,16 @@ _JS = """\
         c.classList.remove('selected');
       });
       _selectedNodes.clear();
-      // リンク・IF 行ハイライトも同時解除（Esc で全解除）
+      // リンク・IF 行・static・セグメント・BGP ハイライトも同時解除
       clearLinkHighlight();
-      // HC2: static 経路 next-hop ノードも解除
-      document.querySelectorAll('.device-node.route-target').forEach(function(n) {
-        n.classList.remove('route-target');
-      });
-      document.querySelectorAll('.device-card.route-target').forEach(function(c) {
-        c.classList.remove('route-target');
-      });
-      _selectedStaticNodes.clear();
+      // 多ノードB: フォーカスモード解除
+      clearFocusMode();
+      // 多ノードC: カード絞り込みを同期
+      _updateCardFilter();
     }
 
+    // clearLinkHighlight: リンク/IF行/static経路/セグメント/BGP ハイライトを解除する。
+    // フォーカスモード（focus-dimmed）は解除しない（フォーカスは clearFocusMode / clearSelection 担当）。
     function clearLinkHighlight() {
       document.querySelectorAll('.link-edge.highlighted').forEach(function(l) {
         l.classList.remove('highlighted');
@@ -924,6 +974,10 @@ _JS = """\
       // #6: static ルート経路ハイライト解除
       document.querySelectorAll('[data-route-edge].highlighted').forEach(function(el) {
         el.classList.remove('highlighted');
+      });
+      // #3: static 行マーキング解除
+      document.querySelectorAll('tr.route-row-selected').forEach(function(r) {
+        r.classList.remove('route-row-selected');
       });
       _selectedStaticRoutes.clear();
       _selectedStaticEdges.clear();
@@ -940,6 +994,11 @@ _JS = """\
         el.classList.remove('highlighted');
       });
       _selectedSegs.clear();
+      // #5: BGP ハイライト解除
+      document.querySelectorAll('[data-bgp-id].highlighted').forEach(function(el) {
+        el.classList.remove('highlighted');
+      });
+      _selectedBgp.clear();
     }
 
     // カード→ノード選択（カードクリックで対応ノードを selected 強調・累積トグル）
@@ -954,36 +1013,46 @@ _JS = """\
             // トグル: 選択解除
             card.classList.remove('selected');
             _selectedNodes.delete(deviceId);
-            document.querySelectorAll('.device-node[data-device="' + deviceId + '"]')
+            document.querySelectorAll('.device-node[data-device="' + CSS.escape(deviceId) + '"]')
               .forEach(function(n) { n.classList.remove('selected'); });
           } else {
             // 累積選択
             card.classList.add('selected');
             _selectedNodes.add(deviceId);
-            document.querySelectorAll('.device-node[data-device="' + deviceId + '"]')
+            document.querySelectorAll('.device-node[data-device="' + CSS.escape(deviceId) + '"]')
               .forEach(function(n) { n.classList.add('selected'); });
           }
+          // 多ノードC: 選択変化をカード絞り込みに反映
+          _updateCardFilter();
         });
       });
     })();
 
-    // IF行↔リンク双方向ハイライト（トグル: 2回目クリックで解除）
-    function toggleIfRowHighlight(linkId) {
-      if (!linkId) return;
-      var isHighlighted = _selectedLinks.has(linkId);
+    // ============================================================
+    // 修正8: toggle*Highlight の共通ヘルパー
+    // ============================================================
+    // _toggleSelection(id, selectedSet, dataAttr): CSS.escape 込みで data-{attr} 要素を
+    // highlighted クラスでトグルし、selectedSet を更新する（挙動・クラス(.highlighted)不変）
+    function _toggleSelection(id, selectedSet, dataAttr) {
+      if (!id) return;
+      var isHighlighted = selectedSet.has(id);
+      var selector = '[' + dataAttr + '="' + CSS.escape(id) + '"]';
       if (isHighlighted) {
-        // 解除
-        _selectedLinks.delete(linkId);
-        document.querySelectorAll('[data-link-id="' + linkId + '"]').forEach(function(el) {
+        selectedSet.delete(id);
+        document.querySelectorAll(selector).forEach(function(el) {
           el.classList.remove('highlighted');
         });
       } else {
-        // 追加ハイライト
-        _selectedLinks.add(linkId);
-        document.querySelectorAll('[data-link-id="' + linkId + '"]').forEach(function(el) {
+        selectedSet.add(id);
+        document.querySelectorAll(selector).forEach(function(el) {
           el.classList.add('highlighted');
         });
       }
+    }
+
+    // IF行↔リンク双方向ハイライト（トグル: 2回目クリックで解除）
+    function toggleIfRowHighlight(linkId) {
+      _toggleSelection(linkId, _selectedLinks, 'data-link-id');
     }
 
     // IF 行・リンクエッジ クリックイベントの登録
@@ -1023,8 +1092,8 @@ _JS = """\
         _hiddenNodes.add(deviceId);
       }
 
-      // 全ビューのノードを制御
-      document.querySelectorAll('.device-node[data-device="' + deviceId + '"]')
+      // 全ビューのノードを制御（CSS.escape でセレクタインジェクション防御）
+      document.querySelectorAll('.device-node[data-device="' + CSS.escape(deviceId) + '"]')
         .forEach(function(node) {
           node.classList.toggle('node-filtered', !visible);
         });
@@ -1063,7 +1132,7 @@ _JS = """\
       });
 
       // カードの制御
-      var card = document.querySelector('.device-card[data-device="' + deviceId + '"]');
+      var card = document.querySelector('.device-card[data-device="' + CSS.escape(deviceId) + '"]');
       if (card) {
         card.classList.toggle('node-filtered', !visible);
       }
@@ -1095,6 +1164,8 @@ _JS = """\
     // ============================================================
     // #6: Static Route 行クリック -> 経路エッジ + next-hop 機器 ハイライト
     // ============================================================
+    // 修正4: 行マーキング（route-row-selected）を関数内部に一本化。
+    //         クリックハンドラ側では addClass/removeClass を行わない。
     function toggleStaticRouteHighlight(routeEdgeId, nexthopDeviceId) {
       var routeKey = routeEdgeId + '|' + (nexthopDeviceId || '');
       var isHighlighted = _selectedStaticRoutes.has(routeKey);
@@ -1103,20 +1174,24 @@ _JS = """\
         if (routeEdgeId) {
           // HC1: static 経路固定エッジ集合からも削除
           _selectedStaticEdges.delete(routeEdgeId);
-          // link-edge または seg-id 一致の要素から highlighted を除去
-          document.querySelectorAll('[data-link-id="' + routeEdgeId + '"]').forEach(function(el) {
+          // link-edge または seg-id 一致の要素から highlighted を除去（CSS.escape でインジェクション防御）
+          document.querySelectorAll('[data-link-id="' + CSS.escape(routeEdgeId) + '"]').forEach(function(el) {
             el.classList.remove('highlighted');
           });
-          document.querySelectorAll('[data-seg-id="' + routeEdgeId + '"]').forEach(function(el) {
+          document.querySelectorAll('[data-seg-id="' + CSS.escape(routeEdgeId) + '"]').forEach(function(el) {
             el.classList.remove('highlighted');
+          });
+          // 修正4: 行マーキングを関数内部で管理（クリックハンドラ側では操作しない）
+          document.querySelectorAll("tr[data-route-edge='" + CSS.escape(routeEdgeId) + "']").forEach(function(r) {
+            r.classList.remove('route-row-selected');
           });
         }
         if (nexthopDeviceId) {
           // HC2: route-target クラスで手動選択と独立管理
-          document.querySelectorAll('.device-node[data-device="' + nexthopDeviceId + '"]').forEach(function(n) {
+          document.querySelectorAll('.device-node[data-device="' + CSS.escape(nexthopDeviceId) + '"]').forEach(function(n) {
             n.classList.remove('route-target');
           });
-          var card = document.querySelector('.device-card[data-device="' + nexthopDeviceId + '"]');
+          var card = document.querySelector('.device-card[data-device="' + CSS.escape(nexthopDeviceId) + '"]');
           if (card) card.classList.remove('route-target');
           _selectedStaticNodes.delete(nexthopDeviceId);
         }
@@ -1125,19 +1200,23 @@ _JS = """\
         if (routeEdgeId) {
           // HC1: static 経路固定エッジ集合に追加（clearHighlight で保護される）
           _selectedStaticEdges.add(routeEdgeId);
-          document.querySelectorAll('[data-link-id="' + routeEdgeId + '"]').forEach(function(el) {
+          document.querySelectorAll('[data-link-id="' + CSS.escape(routeEdgeId) + '"]').forEach(function(el) {
             el.classList.add('highlighted');
           });
-          document.querySelectorAll('[data-seg-id="' + routeEdgeId + '"]').forEach(function(el) {
+          document.querySelectorAll('[data-seg-id="' + CSS.escape(routeEdgeId) + '"]').forEach(function(el) {
             el.classList.add('highlighted');
+          });
+          // 修正4: 行マーキングを関数内部で管理（追加時 add）
+          document.querySelectorAll("tr[data-route-edge='" + CSS.escape(routeEdgeId) + "']").forEach(function(r) {
+            r.classList.add('route-row-selected');
           });
         }
         if (nexthopDeviceId) {
           // HC2: route-target クラスで手動選択（_selectedNodes）と独立
-          document.querySelectorAll('.device-node[data-device="' + nexthopDeviceId + '"]').forEach(function(n) {
+          document.querySelectorAll('.device-node[data-device="' + CSS.escape(nexthopDeviceId) + '"]').forEach(function(n) {
             n.classList.add('route-target');
           });
-          var card = document.querySelector('.device-card[data-device="' + nexthopDeviceId + '"]');
+          var card = document.querySelector('.device-card[data-device="' + CSS.escape(nexthopDeviceId) + '"]');
           if (card) {
             card.classList.add('route-target');
             card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1147,7 +1226,7 @@ _JS = """\
       }
     }
 
-    // Static route 行クリックイベント登録
+    // Static route 行クリックイベント登録（修正4: 行マーキングは toggleStaticRouteHighlight 内部で管理）
     (function() {
       document.querySelectorAll('tr[data-route-edge]').forEach(function(row) {
         var routeEdgeId = row.getAttribute('data-route-edge');
@@ -1156,6 +1235,7 @@ _JS = """\
         row.style.cursor = 'pointer';
         row.addEventListener('click', function(e) {
           e.stopPropagation();
+          // 行マーキングは toggleStaticRouteHighlight 内部で一元管理
           toggleStaticRouteHighlight(routeEdgeId, nexthopDeviceId);
         });
       });
@@ -1169,12 +1249,12 @@ _JS = """\
       var isHighlighted = _selectedSegs.has(segId);
       if (isHighlighted) {
         _selectedSegs.delete(segId);
-        document.querySelectorAll('[data-seg-id="' + segId + '"]').forEach(function(el) {
+        document.querySelectorAll('[data-seg-id="' + CSS.escape(segId) + '"]').forEach(function(el) {
           el.classList.remove('highlighted');
         });
       } else {
         _selectedSegs.add(segId);
-        document.querySelectorAll('[data-seg-id="' + segId + '"]').forEach(function(el) {
+        document.querySelectorAll('[data-seg-id="' + CSS.escape(segId) + '"]').forEach(function(el) {
           el.classList.add('highlighted');
         });
       }
@@ -1214,6 +1294,220 @@ _JS = """\
           toggleSegHighlight(segId);
         });
       });
+    })();
+
+    // ============================================================
+    // #5: BGP Session ↔ 表の双方向ハイライト
+    // ============================================================
+    function toggleBgpHighlight(bgpId) {
+      _toggleSelection(bgpId, _selectedBgp, 'data-bgp-id');
+    }
+
+    // BGP セッション <g> クリック + BGP 行 <tr> クリックイベント登録
+    (function() {
+      // bgp-session SVG 要素クリック
+      document.querySelectorAll('.bgp-session[data-bgp-id]').forEach(function(el) {
+        var bgpId = el.getAttribute('data-bgp-id');
+        if (!bgpId) return;
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleBgpHighlight(bgpId);
+        });
+      });
+
+      // BGP 行 <tr> クリック
+      document.querySelectorAll('tr[data-bgp-id]').forEach(function(row) {
+        var bgpId = row.getAttribute('data-bgp-id');
+        if (!bgpId) return;
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleBgpHighlight(bgpId);
+        });
+      });
+    })();
+
+    // ============================================================
+    // 多ノードB: フォーカスモード（ダブルクリックで隣接機器のみ表示）
+    // ============================================================
+    var _focusDevice = null;  // 現在フォーカス中のデバイスID（null = フォーカスなし）
+
+    function clearFocusMode() {
+      if (_focusDevice === null) return;
+      _focusDevice = null;
+      // focus-dimmed を全要素から除去
+      document.querySelectorAll('.focus-dimmed').forEach(function(el) {
+        el.classList.remove('focus-dimmed');
+      });
+      // 多ノードC: フォーカス変化をカード絞り込みに反映（_selectedNodes 変化から呼ばれる場合も）
+      _updateCardFilter();
+    }
+
+    function applyFocusMode(deviceId) {
+      // 隣接の定義: 直接リンク(link-edge) + BGP セッション(bgp-session) + 同一セグメント(seg-edge)。
+      // 現ビュー限定の理由: 他ビューのノードは display:none のため走査不要（パフォーマンス + 誤発火防止）。
+      var currentViewEl = document.querySelector('.view-' + _currentView);
+      if (!currentViewEl) return;
+
+      // 隣接デバイスを収集（link-edge/bgp-session の data-a/data-b、seg-edge 同一セグメント）
+      var neighbors = new Set([deviceId]);
+
+      // link-edge: data-a/data-b
+      currentViewEl.querySelectorAll('.link-edge[data-a][data-b]').forEach(function(edge) {
+        var a = edge.dataset.a;
+        var b = edge.dataset.b;
+        if (a === deviceId) neighbors.add(b);
+        if (b === deviceId) neighbors.add(a);
+      });
+
+      // bgp-session: data-a/data-b
+      currentViewEl.querySelectorAll('.bgp-session[data-a][data-b]').forEach(function(edge) {
+        var a = edge.dataset.a;
+        var b = edge.dataset.b;
+        if (a === deviceId) neighbors.add(b);
+        if (b === deviceId) neighbors.add(a);
+      });
+
+      // seg-edge: 同一セグメントのメンバー機器を隣接とみなす
+      // OSPFビューの seg-edge は data-seg-id 非保持のため空振り（Physicalのみ有効）。Phase3で data-seg-id 付与予定
+      var mySegs = new Set();
+      currentViewEl.querySelectorAll('.seg-edge[data-device="' + CSS.escape(deviceId) + '"][data-seg-id]')
+        .forEach(function(edge) { mySegs.add(edge.dataset.segId || edge.getAttribute('data-seg-id')); });
+      if (mySegs.size > 0) {
+        mySegs.forEach(function(segId) {
+          currentViewEl.querySelectorAll('.seg-edge[data-seg-id="' + CSS.escape(segId) + '"]')
+            .forEach(function(edge) {
+              var dev = edge.dataset.device || edge.getAttribute('data-device');
+              if (dev) neighbors.add(dev);
+            });
+        });
+      }
+
+      // まず focus-dimmed を全 device-node / link-edge / bgp-session / seg-edge に付与
+      currentViewEl.querySelectorAll('.device-node').forEach(function(node) {
+        var dev = node.dataset.device || node.getAttribute('data-device');
+        if (neighbors.has(dev)) {
+          node.classList.remove('focus-dimmed');
+        } else {
+          node.classList.add('focus-dimmed');
+        }
+      });
+
+      currentViewEl.querySelectorAll('.link-edge').forEach(function(edge) {
+        var a = edge.dataset.a;
+        var b = edge.dataset.b;
+        if (neighbors.has(a) && neighbors.has(b)) {
+          edge.classList.remove('focus-dimmed');
+        } else {
+          edge.classList.add('focus-dimmed');
+        }
+      });
+
+      currentViewEl.querySelectorAll('.bgp-session').forEach(function(edge) {
+        var a = edge.dataset.a;
+        var b = edge.dataset.b;
+        if (a && b && neighbors.has(a) && neighbors.has(b)) {
+          edge.classList.remove('focus-dimmed');
+        } else {
+          edge.classList.add('focus-dimmed');
+        }
+      });
+
+      currentViewEl.querySelectorAll('.segment-node').forEach(function(node) {
+        // セグメントに接続している機器が隣接に含まれるなら表示
+        var segId = node.getAttribute('data-seg-id') || node.getAttribute('data-segment');
+        var hasNeighbor = false;
+        if (segId) {
+          currentViewEl.querySelectorAll('.seg-edge[data-seg-id="' + CSS.escape(segId) + '"]')
+            .forEach(function(edge) {
+              var dev = edge.getAttribute('data-device');
+              if (dev && neighbors.has(dev)) hasNeighbor = true;
+            });
+        }
+        node.classList.toggle('focus-dimmed', !hasNeighbor);
+      });
+
+      currentViewEl.querySelectorAll('.seg-edge').forEach(function(edge) {
+        var dev = edge.getAttribute('data-device');
+        if (dev && neighbors.has(dev)) {
+          edge.classList.remove('focus-dimmed');
+        } else {
+          edge.classList.add('focus-dimmed');
+        }
+      });
+      // 多ノードC: フォーカス変化（選択/フォーカス変化からも呼ぶ）をカード絞り込みに反映
+      _updateCardFilter();
+    }
+
+    // ダブルクリックイベント登録（device-node）
+    // 修正3: dblclick ハンドラ冒頭で _clickTimer を clearTimeout してキャンセル
+    //        （dblclick 時は選択トグルを行わずフォーカスのみ）
+    // 注: _clickTimer は上の IIFE スコープで宣言済みのため直接参照できる
+    (function() {
+      document.querySelectorAll('.device-node').forEach(function(node) {
+        node.addEventListener('dblclick', function(e) {
+          e.stopPropagation();
+          // 単クリック遅延タイマーをキャンセル（選択トグルの誤発火防止）
+          if (_clickTimer !== null) {
+            clearTimeout(_clickTimer);
+            _clickTimer = null;
+          }
+          var deviceId = node.dataset.device || node.getAttribute('data-device');
+          if (_focusDevice === deviceId) {
+            // 同じノードを再ダブルクリック → フォーカス解除
+            clearFocusMode();
+          } else {
+            clearFocusMode();
+            _focusDevice = deviceId;
+            applyFocusMode(deviceId);
+          }
+        });
+      });
+
+      // 空白ダブルクリックでフォーカス解除
+      document.getElementById('topology-svg').addEventListener('dblclick', function(e) {
+        if (!e.target.closest('.device-node')) {
+          clearFocusMode();
+        }
+      });
+    })();
+
+    // ============================================================
+    // 多ノードC: カード選択連動絞り込みトグル
+    // ============================================================
+    // _updateCardFilter: card-filter-toggle ON 時に _selectedNodes + _focusDevice に基づいて
+    // カードを絞り込む。_selectedNodes 変更・clearSelection・applyFocusMode・clearFocusMode
+    // 等の選択/フォーカス変化から呼び出す（トグルの change イベントだけでなく変化時にも呼ぶ）。
+    function _updateCardFilter() {
+      var cb = document.getElementById('card-filter-toggle');
+      if (!cb || !cb.checked) {
+        // OFF: 全カードを表示（card-unselected を除去）
+        document.querySelectorAll('.device-card.card-unselected').forEach(function(c) {
+          c.classList.remove('card-unselected');
+        });
+        return;
+      }
+      // ON: _selectedNodes + _focusDevice の機器のカードのみ表示
+      var visibleDevices = new Set(_selectedNodes);
+      if (_focusDevice) visibleDevices.add(_focusDevice);
+
+      document.querySelectorAll('.device-card').forEach(function(card) {
+        var dev = card.dataset.device || card.getAttribute('data-device');
+        if (!dev) return;
+        if (visibleDevices.size === 0 || visibleDevices.has(dev)) {
+          card.classList.remove('card-unselected');
+        } else {
+          card.classList.add('card-unselected');
+        }
+      });
+    }
+
+    (function() {
+      var cb = document.getElementById('card-filter-toggle');
+      if (cb) {
+        cb.addEventListener('change', _updateCardFilter);
+      }
     })();\
 """
 
@@ -1312,7 +1606,7 @@ def build_html(
   <header>
     <h1 id="topo-title">{title}</h1>
     <span style="font-size:0.75rem;opacity:0.7;">
-      <kbd>F</kbd> 全体表示　<kbd>Esc</kbd> リセット　ホイール=ズーム　ドラッグ=パン
+      <kbd>F</kbd> 全体表示　<kbd>Esc</kbd> リセット　ホイール=ズーム　ドラッグ=パン　ダブルクリック=隣接フォーカス
     </span>
   </header>
 
@@ -1366,7 +1660,12 @@ def build_html(
         <span class="controls-label">Layers:</span>
         {toggles_html}
       </div>
-      <h2>Device Details</h2>
+      <h2>Device Details
+        <label style="font-size:0.8rem;font-weight:400;margin-left:16px;cursor:pointer;">
+          <input type="checkbox" id="card-filter-toggle" style="vertical-align:middle;">
+          選択中の機器のみ表示
+        </label>
+      </h2>
       <div class="cards-grid">
         {cards_html}
       </div>

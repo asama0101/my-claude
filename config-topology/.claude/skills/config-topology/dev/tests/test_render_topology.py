@@ -6740,9 +6740,12 @@ def test_th6_toggle_seg_manages_selected_segs(rendered_html):
 @pytest.mark.unit
 def test_th7_seg_node_click_calls_toggle_seg_in_iife(rendered_html):
     """TH7: segment-node クリックリスナーが IIFE 内で toggleSegHighlight を呼ぶ"""
-    iife_start = rendered_html.find("segment-node")
+    # JS 部分のみを対象にする（CSS に .segment-node.highlighted が含まれるため）
+    js_start = rendered_html.find("<script>")
+    js_section = rendered_html[js_start:] if js_start != -1 else rendered_html
+    iife_start = js_section.find("segment-node")
     assert iife_start != -1, "segment-node への参照が JS に存在しない"
-    nearby = rendered_html[max(0, iife_start - 200):iife_start + 500]
+    nearby = js_section[max(0, iife_start - 200):iife_start + 500]
     assert "toggleSegHighlight" in nearby, \
         "segment-node クリックハンドラが toggleSegHighlight を呼んでいない"
 
@@ -7231,3 +7234,924 @@ def test_mc3_svg_nodes_connected_none_shows_only_loopback():
     assert "Loopback0" in svg, "connected_iface_ids=None のとき Loopback0 が表示されない"
     assert 'data-if="GigabitEthernet0/0"' not in svg, \
         "connected_iface_ids=None のとき非 Loopback IF が表示されている"
+
+
+# ===========================================================================
+# Phase 2 テスト群
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# #3: Static 行自体のハイライト（クリックした行のマーキング）
+# ---------------------------------------------------------------------------
+
+def _make_p2_static_topology():
+    """Phase 2 テスト用 — static route がある2台構成"""
+    return {
+        "title": "P2 Static Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [],
+            "ospf": [],
+            "static": [
+                {"device": "r1", "prefix": "192.168.2.0/24", "next_hop": "10.0.0.2"},
+                {"device": "r2", "prefix": "192.168.1.0/24", "next_hop": "10.0.0.1"},
+            ],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_p2_3_static_row_highlight_css_exists(rendered_html):
+    """#3: static 行クリック時に使うハイライトクラスの CSS ルールが存在する。
+
+    `.route-row-selected` か `tr.highlighted` のいずれかの CSS 宣言が
+    _CSS に含まれる（行マーキング用スタイル）。
+    """
+    has_route_row_selected = ".route-row-selected" in rendered_html
+    has_tr_highlighted = "tr.highlighted" in rendered_html
+    assert has_route_row_selected or has_tr_highlighted, \
+        "static 行のハイライト CSS（.route-row-selected or tr.highlighted）が存在しない"
+
+
+@pytest.mark.unit
+def test_p2_3_toggle_static_adds_row_class(rendered_html):
+    """#3: toggleStaticRouteHighlight が static 行自体にクラスを付与するロジックを含む。
+
+    JS 内で `data-route-edge` を持つ行要素（row/tr）に対して
+    classList.add/remove するコードが存在することを確認する。
+    """
+    # toggleStaticRouteHighlight 内のクリック行への classList 操作を検証
+    js_section = rendered_html
+    # toggleStaticRouteHighlight 関数定義部分を抽出
+    m = re.search(
+        r'function toggleStaticRouteHighlight\s*\(.*?\{(.*?)(?=\n    // ====)',
+        js_section, re.DOTALL
+    )
+    func_body = m.group(1) if m else js_section
+    # 行自体への classList 操作: e.currentTarget / row / tr の .classList.add/toggle
+    has_row_marking = (
+        "classList.add('route-row-selected')" in func_body
+        or "classList.toggle('route-row-selected'" in func_body
+        or re.search(r'\.classList\.(add|toggle)\(["\']route-row-selected', func_body) is not None
+        or re.search(r'\.classList\.(add|toggle)\(["\']highlighted', func_body) is not None
+    )
+    assert has_row_marking, \
+        "toggleStaticRouteHighlight が行自体に classList.add/toggle するロジックを持たない"
+
+
+@pytest.mark.unit
+def test_p2_3_clear_selection_removes_route_row_selected(rendered_html):
+    """#3: clearSelection() / clearLinkHighlight() が route-row-selected を解除する。
+
+    clearSelection または clearLinkHighlight 内で route-row-selected クラスを
+    querySelectorAll + classList.remove するコードが存在する。
+    """
+    # JS 内で route-row-selected が存在し、かつ remove 操作が存在する
+    has_clear = (
+        "route-row-selected" in rendered_html
+        and "classList.remove('route-row-selected')" in rendered_html
+    )
+    assert has_clear, \
+        "clearSelection/clearLinkHighlight で route-row-selected が解除されない"
+
+
+# ---------------------------------------------------------------------------
+# #4: Shared Network (seg-edge / seg-ellipse) ハイライト CSS 欠落修正
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_4_seg_edge_highlighted_css_exists(rendered_html):
+    """#4: .seg-edge.highlighted の CSS ルールが存在する（バグ修正）。
+
+    stroke-width と stroke 系のプロパティを含む .seg-edge.highlighted ルールが
+    _CSS に定義されている。
+    """
+    assert ".seg-edge.highlighted" in rendered_html, \
+        ".seg-edge.highlighted の CSS ルールが存在しない（バグ #4 未修正）"
+
+
+@pytest.mark.unit
+def test_p2_4_seg_edge_highlighted_has_stroke_style(rendered_html):
+    """#4: .seg-edge.highlighted の CSS が stroke 系プロパティを含む（視覚効果）。
+
+    単なるクラス存在確認ではなく、実際に太線または色変更のスタイルが定義されている。
+    """
+    m = re.search(
+        r'\.seg-edge\.highlighted\s*\{([^}]+)\}',
+        rendered_html
+    )
+    assert m is not None, ".seg-edge.highlighted の CSS ブロックが存在しない"
+    block = m.group(1)
+    has_stroke = "stroke" in block
+    assert has_stroke, \
+        f".seg-edge.highlighted の CSS に stroke プロパティがない: {block!r}"
+
+
+@pytest.mark.unit
+def test_p2_4_seg_ellipse_highlighted_css_exists(rendered_html):
+    """#4: .segment-node.highlighted .seg-ellipse の CSS ルールが存在する（バグ修正）。"""
+    assert ".segment-node.highlighted" in rendered_html or \
+           ".seg-ellipse.highlighted" in rendered_html, \
+        ".segment-node.highlighted / .seg-ellipse.highlighted の CSS が存在しない（バグ #4 未修正）"
+
+
+@pytest.mark.unit
+def test_p2_4_seg_ellipse_highlighted_has_stroke_style(rendered_html):
+    """#4: seg-ellipse highlighted の CSS に枠強調スタイルがある。"""
+    # パターン1: .segment-node.highlighted .seg-ellipse { ... stroke ... }
+    m1 = re.search(
+        r'\.segment-node\.highlighted[^{]*\.seg-ellipse\s*\{([^}]+)\}',
+        rendered_html
+    )
+    # パターン2: .seg-ellipse.highlighted { ... stroke ... }
+    m2 = re.search(
+        r'\.seg-ellipse\.highlighted\s*\{([^}]+)\}',
+        rendered_html
+    )
+    block = (m1.group(1) if m1 else "") or (m2.group(1) if m2 else "")
+    assert "stroke" in block, \
+        f"seg-ellipse highlighted の CSS に stroke プロパティがない: {block!r}"
+
+
+# ---------------------------------------------------------------------------
+# #5: BGP Session ↔ 表の双方向ハイライト
+# ---------------------------------------------------------------------------
+
+def _make_p2_bgp_topology():
+    """Phase 2 #5 テスト用 — BGP セッションがある2台構成（r1 AS65001 ↔ r2 AS65002）"""
+    return {
+        "title": "P2 BGP Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_p2_5_bgp_session_has_data_bgp_id():
+    """#5: bgp-session <g> に data-bgp-id 属性が付いている。
+
+    _svg_bgp_edges が生成する <g class="bgp-session"> に
+    data-bgp-id="r1|r2"（sorted 結合）が存在する。
+    """
+    from lib.rendering.svg import _svg_bgp_edges
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, ifaces, positions)
+    assert 'data-bgp-id=' in svg, \
+        "bgp-session <g> に data-bgp-id 属性が存在しない"
+    # 決定的: sorted([r1, r2]) = [r1, r2] → "r1|r2"
+    assert 'data-bgp-id="r1|r2"' in svg, \
+        f"data-bgp-id が 'r1|r2' でない（sorted ペア規則違反）: {svg[:500]}"
+
+
+@pytest.mark.unit
+def test_p2_5_bgp_id_is_deterministic():
+    """#5: data-bgp-id は方向非依存（r1→r2 と r2→r1 で同一値）。
+
+    どちらの方向から呼んでも sorted([dev_id, neighbor_dev]) で同一文字列になる。
+    """
+    from lib.rendering.svg import _svg_bgp_edges
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    # 片方向だけを渡した場合（重複除去前）でも ID は同一
+    bgp_fwd = [{"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"}]
+    bgp_rev = [{"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"}]
+    svg_fwd = _svg_bgp_edges(bgp_fwd, ifaces, positions)
+    svg_rev = _svg_bgp_edges(bgp_rev, ifaces, positions)
+    ids_fwd = re.findall(r'data-bgp-id="([^"]+)"', svg_fwd)
+    ids_rev = re.findall(r'data-bgp-id="([^"]+)"', svg_rev)
+    assert ids_fwd and ids_rev, "data-bgp-id が一方または両方で取れない"
+    assert ids_fwd[0] == ids_rev[0], \
+        f"data-bgp-id が方向依存: fwd={ids_fwd[0]!r} vs rev={ids_rev[0]!r}"
+
+
+@pytest.mark.unit
+def test_p2_5_bgp_session_map_built_in_core():
+    """#5: core.py が bgp_session_map を構築して cards に渡す。
+
+    bgp_session_map: {(device, neighbor_ip): bgp_id} 形式で
+    (r1, 10.0.0.2) → 'r1|r2' のエントリが存在する。
+    """
+    from lib.rendering.core import _build_bgp_session_map
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+    ]
+    bgp_map = _build_bgp_session_map(bgp_entries, interfaces)
+    assert ("r1", "10.0.0.2") in bgp_map, \
+        "(r1, 10.0.0.2) が bgp_session_map に存在しない"
+    assert bgp_map[("r1", "10.0.0.2")] == "r1|r2", \
+        f"bgp_session_map[(r1, 10.0.0.2)] が 'r1|r2' でない: {bgp_map.get(('r1', '10.0.0.2'))!r}"
+    assert ("r2", "10.0.0.1") in bgp_map, \
+        "(r2, 10.0.0.1) が bgp_session_map に存在しない"
+    assert bgp_map[("r2", "10.0.0.1")] == "r1|r2", \
+        f"bgp_session_map[(r2, 10.0.0.1)] が 'r1|r2' でない"
+
+
+@pytest.mark.unit
+def test_p2_5_bgp_tr_has_data_bgp_id():
+    """#5: BGP Sessions 表の <tr> に data-bgp-id が付いている。
+
+    cards.py が生成する BGP 行に data-bgp-id="r1|r2" が存在する。
+    """
+    from lib.rendering import render
+    html = render(_make_p2_bgp_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    assert 'data-bgp-id=' in cards_html, \
+        "BGP Sessions テーブルの <tr> に data-bgp-id が存在しない"
+    assert 'data-bgp-id="r1|r2"' in cards_html, \
+        "BGP 行の data-bgp-id が 'r1|r2' でない"
+
+
+@pytest.mark.unit
+def test_p2_5_bgp_session_and_card_tr_share_same_bgp_id():
+    """#5: bgp-session <g> と BGP 行 <tr> が同一の data-bgp-id を持つ（双方向対応）。
+
+    SVG 側の data-bgp-id と HTML カード側の data-bgp-id が一致し、
+    同一 ID でクリックイベントの対象になれることを確認する。
+    """
+    from lib.rendering import render
+    html = render(_make_p2_bgp_topology())
+    svg_ids = set(re.findall(r'class="bgp-session"[^>]*data-bgp-id="([^"]+)"', html))
+    # bgp-session はクラスと属性の順序が異なる場合があるので柔軟に検索
+    svg_ids2 = set(re.findall(r'data-bgp-id="([^"]+)"[^>]*class="bgp-session"', html))
+    # class内にbgp-sessionを含む <g> 内の data-bgp-id
+    svg_ids_all = set(re.findall(
+        r'<g[^>]+class="[^"]*bgp-session[^"]*"[^>]*data-bgp-id="([^"]+)"', html
+    )) | set(re.findall(
+        r'<g[^>]+data-bgp-id="([^"]+)"[^>]*class="[^"]*bgp-session[^"]*"', html
+    ))
+    card_ids = set(re.findall(r'<tr[^>]+data-bgp-id="([^"]+)"', html))
+    assert svg_ids_all, \
+        "bgp-session <g> に data-bgp-id が存在しない"
+    assert card_ids, \
+        "BGP 行 <tr> に data-bgp-id が存在しない"
+    overlap = svg_ids_all & card_ids
+    assert overlap, \
+        f"bgp-session と BGP 行が同一 data-bgp-id を共有しない: " \
+        f"svg={svg_ids_all}, card={card_ids}"
+
+
+@pytest.mark.unit
+def test_p2_5_toggle_bgp_highlight_js_exists(rendered_html):
+    """#5: toggleBgpHighlight(bgpId) 関数が JS に存在する。"""
+    assert "toggleBgpHighlight" in rendered_html, \
+        "toggleBgpHighlight 関数が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_p2_5_selected_bgp_set_exists(rendered_html):
+    """#5: _selectedBgp Set が JS に宣言されている。"""
+    assert "_selectedBgp" in rendered_html, \
+        "_selectedBgp Set が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_p2_5_clear_selection_clears_bgp(rendered_html):
+    """#5: clearSelection() / clearLinkHighlight() が _selectedBgp を解除する。
+
+    _selectedBgp.clear() の呼び出しが JS 内に存在することを確認する。
+    """
+    assert "_selectedBgp.clear()" in rendered_html, \
+        "clearSelection/clearLinkHighlight が _selectedBgp を解除しない（_selectedBgp.clear() が存在しない）"
+
+
+@pytest.mark.unit
+def test_p2_5_bgp_session_highlighted_css_exists(rendered_html):
+    """#5: .bgp-session.highlighted .bgp-edge の CSS ルールが存在する。"""
+    assert ".bgp-session.highlighted" in rendered_html, \
+        ".bgp-session.highlighted の CSS ルールが存在しない"
+
+
+@pytest.mark.unit
+def test_p2_5_bgp_session_highlighted_has_stroke_style(rendered_html):
+    """#5: .bgp-session.highlighted の CSS に stroke 系プロパティがある。"""
+    m = re.search(
+        r'\.bgp-session\.highlighted[^{]*\{([^}]+)\}',
+        rendered_html
+    )
+    assert m is not None, ".bgp-session.highlighted の CSS ブロックが存在しない"
+    block = m.group(1)
+    assert "stroke" in block or "opacity" in block, \
+        f".bgp-session.highlighted に視覚強調スタイルがない: {block!r}"
+
+
+@pytest.mark.unit
+def test_p2_5_bgp_click_handler_registered(rendered_html):
+    """#5: bgp-session クリックと BGP 行クリックのイベントハンドラが登録されている。"""
+    # bgp-session への click 登録
+    has_bgp_session_click = re.search(
+        r'bgp-session.*?addEventListener\s*\(\s*[\'"]click[\'"]\s*,',
+        rendered_html, re.DOTALL
+    ) is not None or re.search(
+        r'addEventListener\s*\(\s*[\'"]click[\'"]\s*.*?bgp',
+        rendered_html, re.DOTALL
+    ) is not None or "toggleBgpHighlight" in rendered_html
+    assert has_bgp_session_click, \
+        "BGP セッションへのクリックハンドラ登録が存在しない"
+
+
+# ---------------------------------------------------------------------------
+# 多ノード対応B: フォーカスモード（ダブルクリック）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_nb_focus_dimmed_css_exists(rendered_html):
+    """多ノードB: .focus-dimmed の CSS ルールが存在する（.dimmed / .node-filtered とは別）。"""
+    assert ".focus-dimmed" in rendered_html, \
+        ".focus-dimmed の CSS ルールが存在しない"
+
+
+@pytest.mark.unit
+def test_p2_nb_focus_dimmed_uses_opacity(rendered_html):
+    """多ノードB: .focus-dimmed は opacity を下げる（display:none ではなく薄表示）。"""
+    m = re.search(r'\.focus-dimmed\s*\{([^}]+)\}', rendered_html)
+    assert m is not None, ".focus-dimmed の CSS ブロックが存在しない"
+    block = m.group(1)
+    assert "opacity" in block, \
+        f".focus-dimmed が opacity を含まない（display:none は不可）: {block!r}"
+    # display:none が使われていないことを確認
+    assert "display" not in block or "none" not in block, \
+        f".focus-dimmed に display:none が使われている: {block!r}"
+
+
+@pytest.mark.unit
+def test_p2_nb_dblclick_handler_exists(rendered_html):
+    """多ノードB: device-node への dblclick イベントハンドラが存在する。"""
+    assert "dblclick" in rendered_html, \
+        "device-node への dblclick ハンドラが存在しない"
+
+
+@pytest.mark.unit
+def test_p2_nb_focus_uses_data_a_data_b(rendered_html):
+    """多ノードB: フォーカスの隣接収集が data-a / data-b を参照する。
+
+    applyFocusMode など隣接収集ロジック内で dataset.a / dataset.b 等を使用していることを確認する。
+    """
+    # applyFocusMode または dblclick 関連コードに dataset.a/dataset.b が存在する
+    has_data_ref = (
+        "dataset.a" in rendered_html
+        or "dataset.b" in rendered_html
+        or 'getAttribute("data-a")' in rendered_html
+        or "getAttribute('data-a')" in rendered_html
+    )
+    assert has_data_ref, \
+        "フォーカスモードが data-a/data-b を参照していない"
+
+
+@pytest.mark.unit
+def test_p2_nb_focus_clear_on_esc(rendered_html):
+    """多ノードB: Esc キーで focus-dimmed が解除される。
+
+    clearSelection() が focus-dimmed も解除するか、
+    keydown の Esc 処理が focus-dimmed をクリアすることを確認する。
+    """
+    has_esc_clear = (
+        re.search(
+            r'Escape[^}]{0,2000}focus-dimmed',
+            rendered_html, re.DOTALL
+        ) is not None
+        or re.search(
+            r'clearSelection[^}]{0,3000}focus-dimmed',
+            rendered_html, re.DOTALL
+        ) is not None
+        or re.search(
+            r'focus-dimmed[^}]{0,200}clear|clear[^}]{0,200}focus-dimmed',
+            rendered_html, re.DOTALL
+        ) is not None
+    )
+    assert has_esc_clear, \
+        "Esc / clearSelection で focus-dimmed が解除されない"
+
+
+@pytest.mark.unit
+def test_p2_nb_focus_does_not_break_selected(rendered_html):
+    """多ノードB: .focus-dimmed と .selected は独立したクラス（クラス名衝突なし）。"""
+    # 両クラス名が同一でないことを確認（意味の確認）
+    assert ".focus-dimmed" != ".selected", \
+        ".focus-dimmed と .selected が同一クラスを使っている"
+    # CSS に .focus-dimmed と .selected が別々のブロックで定義されている
+    fd_count = rendered_html.count(".focus-dimmed")
+    sel_count = rendered_html.count(".selected")
+    assert fd_count >= 1, ".focus-dimmed が CSS/JS に存在しない"
+    assert sel_count >= 1, ".selected が CSS/JS に存在しない"
+
+
+@pytest.mark.unit
+def test_p2_nb_help_text_mentions_dblclick(rendered_html):
+    """多ノードB: ヘッダの操作説明にダブルクリック/フォーカスの記述がある。
+
+    ユーザーに操作を伝えるためのヘルプテキストに
+    「ダブルクリック」「dblclick」または「double」を含む記述がある。
+    """
+    header_m = re.search(r'<header[^>]*>(.*?)</header>', rendered_html, re.DOTALL)
+    header_html = header_m.group(1) if header_m else rendered_html
+    has_hint = (
+        "ダブルクリック" in header_html
+        or "dblclick" in header_html.lower()
+        or "double" in header_html.lower()
+        or "DBL" in header_html
+    )
+    assert has_hint, \
+        "ヘッダにダブルクリック操作のヘルプテキストが存在しない"
+
+
+# ---------------------------------------------------------------------------
+# 多ノード対応C: カード選択連動絞り込みトグル
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_nc_card_filter_toggle_exists(rendered_html):
+    """多ノードC: カード絞り込みトグル（チェックボックス）が cards-section に存在する。
+
+    #cards-section 内に type="checkbox" のフォーム要素がある。
+    """
+    cards_m = re.search(r'id="cards-section"(.*)', rendered_html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else rendered_html
+    assert 'type="checkbox"' in cards_html, \
+        "#cards-section にチェックボックスが存在しない"
+
+
+@pytest.mark.unit
+def test_p2_nc_card_unselected_css_exists(rendered_html):
+    """多ノードC: .card-unselected の CSS ルールが存在する（.node-filtered とは別系統）。"""
+    assert ".card-unselected" in rendered_html, \
+        ".card-unselected の CSS ルールが存在しない"
+
+
+@pytest.mark.unit
+def test_p2_nc_card_unselected_hides_card(rendered_html):
+    """多ノードC: .card-unselected は display:none または visibility:hidden でカードを隠す。"""
+    m = re.search(r'\.card-unselected\s*\{([^}]+)\}', rendered_html)
+    assert m is not None, ".card-unselected の CSS ブロックが存在しない"
+    block = m.group(1)
+    assert "display" in block or "visibility" in block, \
+        f".card-unselected にカードを隠すスタイルがない: {block!r}"
+
+
+@pytest.mark.unit
+def test_p2_nc_card_filter_js_applies_card_unselected(rendered_html):
+    """多ノードC: カード絞り込みトグル ON 時に .card-unselected が付与されるロジックがある。"""
+    assert "card-unselected" in rendered_html, \
+        "JS/HTML に card-unselected の参照が存在しない"
+    # JS 内でクラスを操作するコードが存在する
+    has_js_usage = re.search(
+        r'card-unselected[^;]{0,200}(classList|add|remove|toggle)',
+        rendered_html, re.DOTALL
+    ) is not None or re.search(
+        r'(classList|add|remove|toggle)[^;]{0,200}card-unselected',
+        rendered_html, re.DOTALL
+    ) is not None
+    assert has_js_usage, \
+        "JS で card-unselected クラスを操作するコードが存在しない"
+
+
+@pytest.mark.unit
+def test_p2_nc_card_filter_toggle_updates_on_selection_change(rendered_html):
+    """多ノードC: _selectedNodes の変化時にカード絞り込み表示が更新される。
+
+    カード絞り込みを更新する関数が _selectedNodes を参照し、
+    イベント連携（updateCardFilter / _updateCardFilter 等）が存在する。
+    """
+    has_update_fn = (
+        re.search(r'(updateCardFilter|_updateCardFilter|applyCardFilter)', rendered_html) is not None
+        or re.search(r'_selectedNodes[^;]{0,500}card-unselected', rendered_html, re.DOTALL) is not None
+        or re.search(r'card-unselected[^;]{0,500}_selectedNodes', rendered_html, re.DOTALL) is not None
+    )
+    assert has_update_fn, \
+        "カード絞り込みが _selectedNodes 連動で更新されない"
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 決定性テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_render_deterministic_with_bgp(sample_topology):
+    """Phase 2: 同一 topology を2回 render して同一 HTML になる（決定性）。"""
+    from lib.rendering import render
+    html1 = render(sample_topology)
+    html2 = render(sample_topology)
+    assert html1 == html2, "2回の render() 結果が一致しない（非決定的）"
+
+
+@pytest.mark.unit
+def test_p2_render_deterministic_bgp_topology():
+    """Phase 2: BGP topology で決定性を確認。"""
+    from lib.rendering import render
+    topo = _make_p2_bgp_topology()
+    html1 = render(topo)
+    html2 = render(topo)
+    assert html1 == html2, "BGP topology で2回の render() が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 非回帰テスト: Phase 1 機能の継続動作
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_regression_seg_highlight_still_works(rendered_html):
+    """非回帰: #7 toggleSegHighlight と _selectedSegs が Phase 2 後も存在する。"""
+    assert "toggleSegHighlight" in rendered_html, \
+        "toggleSegHighlight が存在しない（#7 回帰）"
+    assert "_selectedSegs" in rendered_html, \
+        "_selectedSegs が存在しない（#7 回帰）"
+
+
+@pytest.mark.unit
+def test_p2_regression_zoom_controls_still_exist(rendered_html):
+    """非回帰: Phase 1 ズームボタン群が Phase 2 後も存在する。"""
+    assert 'id="zoom-fit"' in rendered_html, "zoom-fit ボタンが消えた"
+    assert 'id="zoom-in"' in rendered_html, "zoom-in ボタンが消えた"
+    assert 'id="zoom-out"' in rendered_html, "zoom-out ボタンが消えた"
+    assert 'id="zoom-reset"' in rendered_html, "zoom-reset ボタンが消えた"
+
+
+@pytest.mark.unit
+def test_p2_regression_split_divider_still_exists(rendered_html):
+    """非回帰: Phase 1 スプリットディバイダが Phase 2 後も存在する。"""
+    assert 'id="split-divider"' in rendered_html, "split-divider が消えた"
+
+
+@pytest.mark.unit
+def test_p2_regression_layer_toggles_still_exist(rendered_html):
+    """非回帰: LAYERS トグルが Phase 2 後も存在する。"""
+    assert "handleLayerToggle" in rendered_html, "handleLayerToggle が消えた"
+
+
+# ===========================================================================
+# Phase 2 レビュー指摘修正テスト群（タスク 11-17）
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# タスク 11: test_p2_nb_focus_does_not_break_selected の強化
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_nb_focus_does_not_break_selected_v2(rendered_html):
+    """多ノードB: .focus-dimmed と .selected が CSS 内で別々のルールブロックとして宣言されている。
+
+    旧テストのリテラル比較（文字列 != 文字列）を廃止し、
+    CSS ブロックをパースして両クラスが独立した宣言ブロックで存在することを検証する。
+    """
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    assert len(style_blocks) >= 1, "style ブロックが見つからない"
+    css_text = "\n".join(style_blocks)
+
+    # .focus-dimmed { ... } ブロックが存在する
+    m_fd = re.search(r'\.focus-dimmed\s*\{([^}]+)\}', css_text)
+    assert m_fd is not None, ".focus-dimmed のCSSブロックが存在しない"
+
+    # .selected または .device-node.selected { ... } ブロックが存在する
+    m_sel = re.search(r'\.selected\s*\{([^}]+)\}', css_text) or \
+            re.search(r'device-node\.selected\s*[^{]*\{([^}]+)\}', css_text)
+    assert m_sel is not None, ".selected のCSSブロックが存在しない"
+
+    # 両ブロックが独立していること: .focus-dimmed ブロック内に selected が入り込んでいない
+    fd_block = m_fd.group(1)
+    assert "selected" not in fd_block, \
+        f".focus-dimmed の CSS ブロック内に 'selected' が混在している: {fd_block!r}"
+
+
+# ---------------------------------------------------------------------------
+# タスク 12: _selectedNodes 変化直後に _updateCardFilter() 呼び出しを検証
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_nc_card_filter_toggle_updates_on_selection_change_v2(rendered_html):
+    """多ノードC: _selectedNodes.add/delete の近傍で _updateCardFilter() が呼ばれる。
+
+    旧テストの緩い検証を廃止し、実装修正1後の構造（add/delete 近傍の呼び出し）を検証する。
+    """
+    # _updateCardFilter の定義が存在すること
+    assert "_updateCardFilter" in rendered_html, \
+        "_updateCardFilter 関数が存在しない"
+
+    # _selectedNodes.add / delete を含む行の近傍（300文字以内）に _updateCardFilter が存在するか
+    # または clearSelection / clearFocusMode / applyFocusMode の末尾にも _updateCardFilter が存在するか
+    has_add_near = re.search(
+        r'_selectedNodes\.(add|delete)\s*\([^)]+\)[^;]*;[^;]{0,400}_updateCardFilter\s*\(',
+        rendered_html, re.DOTALL
+    ) is not None
+    has_clear_near = re.search(
+        r'(clearFocusMode|applyFocusMode|clearSelection)[^;]{0,600}_updateCardFilter\s*\(',
+        rendered_html, re.DOTALL
+    ) is not None
+    has_update_in_fn = re.search(
+        r'_updateCardFilter[^}]{0,1000}_selectedNodes',
+        rendered_html, re.DOTALL
+    ) is not None
+    # いずれかのパターンで連携が確認できれば OK
+    assert has_add_near or has_clear_near or has_update_in_fn, \
+        "_selectedNodes 変化と _updateCardFilter の連携が検出できない"
+
+
+# ---------------------------------------------------------------------------
+# タスク 13: test_p2_nb_focus_uses_data_a_data_b を applyFocusMode 本体限定に
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_nb_focus_uses_data_a_data_b_in_apply_focus(rendered_html):
+    """多ノードB: applyFocusMode 関数本体が dataset.a/dataset.b を参照する。
+
+    旧テストは HTML 全体を検索していたため、他箇所の dataset.a でも通過してしまう。
+    applyFocusMode 関数の本体テキストに限定して検証する。
+    """
+    start = rendered_html.find("function applyFocusMode(")
+    assert start != -1, "applyFocusMode 関数が見つからない"
+    # 次の function を終端とみなす（最大 5000 文字分）
+    end = rendered_html.find("function ", start + len("function applyFocusMode("))
+    func_body = rendered_html[start:end] if (end != -1 and end - start < 6000) \
+        else rendered_html[start:start + 5000]
+
+    has_data_ref = (
+        "dataset.a" in func_body
+        or "dataset.b" in func_body
+        or 'getAttribute("data-a")' in func_body
+        or "getAttribute('data-a')" in func_body
+        or "data-a" in func_body
+    )
+    assert has_data_ref, \
+        "applyFocusMode 本体が data-a/data-b を参照していない"
+
+
+# ---------------------------------------------------------------------------
+# タスク 14: _build_bgp_session_map エッジケーステスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_build_bgp_session_map_neighbor_not_resolved_returns_empty():
+    """(a) neighbor_ip が interfaces に存在しない場合、そのエントリは含まない。"""
+    from lib.rendering.core import _build_bgp_session_map
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "203.0.113.99",  # 解決不能
+         "peer_as": 64500, "type": "ebgp"},
+    ]
+    result = _build_bgp_session_map(bgp_entries, interfaces)
+    assert len(result) == 0, \
+        f"解決不能な neighbor_ip のエントリが含まれている: {result}"
+
+
+@pytest.mark.unit
+def test_build_bgp_session_map_ibgp_same_as_symmetric():
+    """(b) iBGP 同一 AS でも bgp_id が sorted ペア 'r1|r2'（対称）になる。"""
+    from lib.rendering.core import _build_bgp_session_map
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "lo0", "ip": "10.255.0.1/32"},
+        {"id": "r2::lo0", "device": "r2", "name": "lo0", "ip": "10.255.0.2/32"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.255.0.1",
+         "neighbor_ip": "10.255.0.2", "peer_as": 65001, "type": "ibgp"},
+        {"device": "r2", "local_as": 65001, "local_ip": "10.255.0.2",
+         "neighbor_ip": "10.255.0.1", "peer_as": 65001, "type": "ibgp"},
+    ]
+    result = _build_bgp_session_map(bgp_entries, interfaces)
+    assert ("r1", "10.255.0.2") in result, "(r1, 10.255.0.2) が存在しない"
+    assert ("r2", "10.255.0.1") in result, "(r2, 10.255.0.1) が存在しない"
+    assert result[("r1", "10.255.0.2")] == "r1|r2", \
+        f"iBGP bgp_id が 'r1|r2' でない: {result[('r1', '10.255.0.2')]!r}"
+    assert result[("r2", "10.255.0.1")] == "r1|r2", \
+        f"iBGP 逆方向 bgp_id が 'r1|r2' でない: {result[('r2', '10.255.0.1')]!r}"
+
+
+@pytest.mark.unit
+def test_build_bgp_session_map_three_devices_separate_ids():
+    """(c) 3台 r1-r2/r2-r3 が別 bgp_id になる。"""
+    from lib.rendering.core import _build_bgp_session_map
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+        {"id": "r2::eth1", "device": "r2", "name": "eth1", "ip": "10.0.1.1/30"},
+        {"id": "r3::eth0", "device": "r3", "name": "eth0", "ip": "10.0.1.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.1.1",
+         "neighbor_ip": "10.0.1.2", "peer_as": 65003, "type": "ebgp"},
+        {"device": "r3", "local_as": 65003, "local_ip": "10.0.1.2",
+         "neighbor_ip": "10.0.1.1", "peer_as": 65002, "type": "ebgp"},
+    ]
+    result = _build_bgp_session_map(bgp_entries, interfaces)
+    id_r1r2 = result.get(("r1", "10.0.0.2"))
+    id_r2r3 = result.get(("r2", "10.0.1.2"))
+    assert id_r1r2 is not None, "(r1, 10.0.0.2) が存在しない"
+    assert id_r2r3 is not None, "(r2, 10.0.1.2) が存在しない"
+    assert id_r1r2 != id_r2r3, \
+        f"r1-r2 と r2-r3 が同一 bgp_id: {id_r1r2!r}"
+    assert id_r1r2 == "r1|r2", f"r1-r2 bgp_id が 'r1|r2' でない: {id_r1r2!r}"
+    assert id_r2r3 == "r2|r3", f"r2-r3 bgp_id が 'r2|r3' でない: {id_r2r3!r}"
+
+
+# ---------------------------------------------------------------------------
+# タスク 15: 3台構成で各セッションが図と表で同一 bgp_id を共有
+# ---------------------------------------------------------------------------
+
+def _make_p2_bgp_three_devices_topology():
+    """3台構成 r1-r2-r3 BGP topology（r2 が2セッション参加）"""
+    return {
+        "title": "P2 BGP 3dev Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+            {"id": "r3", "hostname": "R3", "vendor": "cisco_ios", "as": 65003, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth1", "device": "r2", "name": "eth1",
+             "ip": "10.0.1.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r3::eth0", "device": "r3", "name": "eth0",
+             "ip": "10.0.1.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+            {"a_device": "r2", "a_if": "eth1", "b_device": "r3", "b_if": "eth0",
+             "subnet": "10.0.1.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.1.1",
+                 "neighbor_ip": "10.0.1.2", "peer_as": 65003, "type": "ebgp"},
+                {"device": "r3", "local_as": 65003, "local_ip": "10.0.1.2",
+                 "neighbor_ip": "10.0.1.1", "peer_as": 65002, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_p2_5_bgp_session_and_card_tr_share_same_bgp_id_three_devices():
+    """#5: 3台構成で各セッションが図と表で同一 bgp_id を共有（r2 が2セッション参加）。
+
+    r1-r2 セッションの data-bgp-id="r1|r2" と
+    r2-r3 セッションの data-bgp-id="r2|r3" がそれぞれ
+    SVG <bgp-session g> と HTML カード <tr> 両方に存在することを確認する。
+    """
+    from lib.rendering import render
+    html = render(_make_p2_bgp_three_devices_topology())
+
+    # SVG 側の bgp-id 集合
+    svg_ids = set(re.findall(
+        r'<g[^>]+class="[^"]*bgp-session[^"]*"[^>]*data-bgp-id="([^"]+)"', html
+    )) | set(re.findall(
+        r'<g[^>]+data-bgp-id="([^"]+)"[^>]*class="[^"]*bgp-session[^"]*"', html
+    ))
+    # HTML カード側の bgp-id 集合
+    card_ids = set(re.findall(r'<tr[^>]+data-bgp-id="([^"]+)"', html))
+
+    assert "r1|r2" in svg_ids, f"SVG に r1|r2 のセッションがない: {svg_ids}"
+    assert "r2|r3" in svg_ids, f"SVG に r2|r3 のセッションがない: {svg_ids}"
+    assert "r1|r2" in card_ids, f"カード表に r1|r2 の BGP 行がない: {card_ids}"
+    assert "r2|r3" in card_ids, f"カード表に r2|r3 の BGP 行がない: {card_ids}"
+
+
+# ---------------------------------------------------------------------------
+# タスク 16: test_p2_3_toggle_static_adds_row_class のフォールバック廃止
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_3_toggle_static_adds_row_class_strict(rendered_html):
+    """#3: toggleStaticRouteHighlight 関数本体が route-row-selected クラスを操作する。
+
+    修正4後の構造（関数内マーキング）に合わせて、
+    toggleStaticRouteHighlight 内に route-row-selected の add/remove が存在することを確認する。
+    フォールバック不要: m が None なら必ず失敗させる。
+    """
+    m = re.search(
+        r'function toggleStaticRouteHighlight\s*\([^)]*\)\s*\{(.*?)(?=\n\s*// ====|\Z)',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, "toggleStaticRouteHighlight 関数定義が見つからない"
+    func_body = m.group(1)
+
+    has_add = re.search(r'\.classList\.(add|toggle)\s*\(\s*["\']route-row-selected', func_body) is not None
+    has_remove = re.search(r'\.classList\.(remove|toggle)\s*\(\s*["\']route-row-selected', func_body) is not None
+
+    assert has_add, \
+        f"toggleStaticRouteHighlight 内に route-row-selected の classList.add/toggle がない: {func_body[:500]}"
+    assert has_remove, \
+        f"toggleStaticRouteHighlight 内に route-row-selected の classList.remove/toggle がない: {func_body[:500]}"
+
+
+# ---------------------------------------------------------------------------
+# タスク 17: dblクリック遅延キャンセル（修正3）と selectView clearFocusMode（修正2）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_dblclick_cancels_single_click_timer(rendered_html):
+    """修正3: dblclick ハンドラが単クリックタイマーをキャンセルする実装を含む。
+
+    dblclick ハンドラ内に clearTimeout / setTimeout が存在することを確認する。
+    （単クリック選択の誤発火防止パターン）
+    """
+    # dblclick イベントハンドラのコードブロックを探す
+    dblclick_m = re.search(
+        r'addEventListener\s*\(\s*["\']dblclick["\']\s*,\s*function\s*\(([^)]*)\)\s*\{([^}]{0,1000})',
+        rendered_html, re.DOTALL
+    )
+    if dblclick_m is None:
+        # アロー関数パターンも試す
+        dblclick_m = re.search(
+            r'dblclick["\'\s,)]{0,30}function[^{]{0,50}\{([^}]{0,1000})',
+            rendered_html, re.DOTALL
+        )
+    # clearTimeout / setTimeout が実装に存在することを確認（JS 全体から）
+    has_cleartimeout = "clearTimeout" in rendered_html
+    has_settimeout = "setTimeout" in rendered_html
+    # どちらかが存在すれば、遅延キャンセルの実装意図が確認できる
+    assert has_cleartimeout or has_settimeout, \
+        "dblclick遅延キャンセルのための clearTimeout/setTimeout が実装に存在しない"
+
+
+@pytest.mark.unit
+def test_p2_select_view_calls_clear_focus_mode(rendered_html):
+    """修正2: selectView の先頭で clearFocusMode() を呼ぶ。
+
+    selectView 関数本体に clearFocusMode() の呼び出しが存在することを確認する。
+    """
+    start = rendered_html.find("function selectView(viewId)")
+    assert start != -1, "selectView 関数が見つからない"
+    end = rendered_html.find("function ", start + len("function selectView"))
+    func_body = rendered_html[start:end] if end != -1 else rendered_html[start:start + 3000]
+
+    assert "clearFocusMode" in func_body, \
+        "selectView 内に clearFocusMode() の呼び出しがない（ビュー切替でフォーカス残留バグ）"

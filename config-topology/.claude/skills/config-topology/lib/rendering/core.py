@@ -9,7 +9,7 @@ import math
 
 from lib.rendering.cards import _device_cards
 from lib.rendering.layout import _compute_canvas
-from lib.rendering.svg import _esc, _make_iface_by_device, _make_link_id
+from lib.rendering.svg import _build_ip_to_device, _esc, _make_iface_by_device, _make_link_id
 from lib.rendering.template import _layer_toggles, _node_filter_ui, build_html
 from lib.rendering.views import (
     _bgp_has_resolved_edges,
@@ -175,6 +175,45 @@ def _build_static_route_map(
     return result
 
 
+def _build_bgp_session_map(
+    bgp_entries: list[dict],
+    interfaces: list[dict],
+) -> dict[tuple[str, str], str]:
+    """BGP エントリから (device, neighbor_ip) → bgp_id マップを構築する。
+
+    bgp_id は両端 device id を sorted して '|' で結合した決定的な値。
+    ``_svg_bgp_edges`` の bgp_id 計算と同じ規則（sorted ペア）を使用する。
+    ip_to_device 逆引きには ``svg._build_ip_to_device`` を共用しており、
+    ``_svg_bgp_edges`` と挙動が同一であることを保証する。
+
+    neighbor_ip に対応する device が interfaces から逆引きできない場合は
+    そのエントリをスキップする（bgp-session <g> が生成されないため不要）。
+
+    Args:
+        bgp_entries: routing["bgp"] のエントリリスト
+        interfaces:  topology の interfaces リスト
+
+    Returns:
+        ``{(device_id, neighbor_ip): bgp_id}`` 辞書（安定順序）。
+    """
+    # ip_only -> device_id 逆引き（svg._build_ip_to_device と同じ規則を共有）
+    ip_to_device = _build_ip_to_device(interfaces)
+
+    result: dict[tuple[str, str], str] = {}
+    for entry in sorted(bgp_entries, key=lambda e: (e.get("device", ""), e.get("neighbor_ip", ""))):
+        dev_id = entry.get("device", "")
+        neighbor_ip = entry.get("neighbor_ip", "")
+        if not (dev_id and neighbor_ip):
+            continue
+        neighbor_dev = ip_to_device.get(neighbor_ip)
+        if not neighbor_dev or neighbor_dev == dev_id:
+            continue
+        bgp_id = "|".join(sorted([dev_id, neighbor_dev]))
+        result[(dev_id, neighbor_ip)] = bgp_id
+
+    return result
+
+
 def _build_iface_seg_id(segments: list[dict]) -> dict[str, str]:
     """iface_id -> seg_id マップを構築する。
 
@@ -334,12 +373,21 @@ def render(topology: dict) -> str:
         interfaces,
     )
 
+    # ---------------------------------------------------------------------------
+    # #5: BGP セッションマップ（BGP 行に data-bgp-id を付与するため）
+    # ---------------------------------------------------------------------------
+    bgp_session_map = _build_bgp_session_map(
+        routing.get("bgp", []),
+        interfaces,
+    )
+
     # 機器カード
     cards_html = _device_cards(
         devices, interfaces, routing,
         iface_link_id=iface_link_id,
         iface_seg_id=iface_seg_id,
         static_route_map=static_route_map,
+        bgp_session_map=bgp_session_map,
     )
 
     # データのある routing キーを一度だけ計算し、トグルと CSS 両方に使用

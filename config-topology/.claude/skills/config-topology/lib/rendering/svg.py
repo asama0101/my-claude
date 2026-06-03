@@ -401,13 +401,13 @@ def _svg_bgp_edges(
     interfaces: list[dict],
     positions: dict,
 ) -> str:
-    """BGP ピアリングエッジを生成する（ebgp=青、ibgp=橙）"""
-    # local_ip -> device_id マップ（各 IF の IP から /prefix を除去して検索）
-    ip_to_device: dict[str, str] = {}
-    for iface in interfaces:
-        if iface.get("ip"):
-            ip_only = iface["ip"].split("/")[0]
-            ip_to_device[ip_only] = iface["device"]
+    """BGP ピアリングエッジを生成する（ebgp=青、ibgp=橙）。
+
+    data-bgp-id 属性: 両端 device id を sorted して '|' で結合した決定的な値。
+    例: r1 と r2 のセッションなら "r1|r2"（どちらの方向から呼んでも同一）。
+    """
+    # local_ip -> device_id 逆引き（共通ヘルパーを使用）
+    ip_to_device = _build_ip_to_device(interfaces)
 
     parts = []
     # 重複エッジ防止（双方向のペアを1本に）
@@ -474,9 +474,13 @@ def _svg_bgp_edges(
                 f'class="bgp-badge layer-bgp">{_esc(bgp_type)} {local_as}↔{peer_as}</text>'
             )
 
+        # #5: 決定的 bgp-id（両端 device id を sorted して結合）
+        bgp_id = "|".join(sorted([dev_id, neighbor_dev]))
+
         parts.append(
             f'<g class="bgp-session" data-type="{_esc(bgp_type)}" '
-            f'data-a="{_esc(dev_id)}" data-b="{_esc(neighbor_dev)}">'
+            f'data-a="{_esc(dev_id)}" data-b="{_esc(neighbor_dev)}" '
+            f'data-bgp-id="{_esc(bgp_id)}">'
             f'<path d="M{x1:.1f},{y1:.1f} Q{mx:.1f},{my:.1f} {x2:.1f},{y2:.1f}" '
             f'class="{css_class}" fill="none"/>'
             f'<title>{title_text}</title>'
@@ -557,6 +561,24 @@ def _make_iface_by_device(interfaces: list[dict]) -> dict[str, list[dict]]:
     result: dict[str, list[dict]] = {}
     for iface in interfaces:
         result.setdefault(iface["device"], []).append(iface)
+    return result
+
+
+def _build_ip_to_device(interfaces: list[dict]) -> dict[str, str]:
+    """interfaces から ip_only -> device_id 逆引きマップを構築する。
+
+    Args:
+        interfaces: topology の interfaces リスト
+
+    Returns:
+        ``{ip_only: device_id}`` 辞書。iface["ip"].split("/")[0] -> iface["device"] の形式。
+        ip を持たないエントリはスキップする。
+    """
+    result: dict[str, str] = {}
+    for iface in interfaces:
+        if iface.get("ip"):
+            ip_only = iface["ip"].split("/")[0]
+            result[ip_only] = iface["device"]
     return result
 
 

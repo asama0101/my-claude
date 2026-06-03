@@ -13,6 +13,7 @@ def _device_cards(
     iface_link_id: dict[str, str] | None = None,
     iface_seg_id: dict[str, str] | None = None,
     static_route_map: dict[tuple[str, str], dict] | None = None,
+    bgp_session_map: dict[tuple[str, str], str] | None = None,
 ) -> str:
     """機器ごとのカード HTML を生成する（図の下に表示）
 
@@ -27,6 +28,8 @@ def _device_cards(
                           セグメントメンバーの IF 行 <tr> に ``data-seg-id`` を付与する。
         static_route_map: ``{(device, prefix): {route_edge_id, nexthop_device_id}}`` マップ（#6）。
                           static 行に ``data-route-edge`` / ``data-route-nexthop-device`` を付与する。
+        bgp_session_map:  ``{(device, neighbor_ip): bgp_id}`` マップ（#5）。
+                          BGP Sessions 行に ``data-bgp-id`` を付与する。
     """
     if iface_link_id is None:
         iface_link_id = {}
@@ -34,6 +37,8 @@ def _device_cards(
         iface_seg_id = {}
     if static_route_map is None:
         static_route_map = {}
+    if bgp_session_map is None:
+        bgp_session_map = {}
 
     # device_id -> interfaces マップ
     iface_by_device: dict[str, list[dict]] = {}
@@ -84,12 +89,15 @@ def _device_cards(
             )
         if_rows = "".join(if_row_parts)
 
-        # BGP サマリー
+        # BGP サマリー（#5: data-bgp-id 付与）
         bgp_row_parts = []
         for b in bgp_by_device.get(dev_id, []):
+            neighbor_ip = b.get("neighbor_ip", "")
+            bgp_id = bgp_session_map.get((dev_id, neighbor_ip), "")
+            tr_bgp_attrs = f' data-bgp-id="{_esc(bgp_id)}"' if bgp_id else ""
             bgp_row_parts.append(
-                f"<tr>"
-                f"<td>{_esc(b.get('neighbor_ip', ''))}</td>"
+                f"<tr{tr_bgp_attrs}>"
+                f"<td>{_esc(neighbor_ip)}</td>"
                 f"<td>{_esc(b.get('peer_as', ''))}</td>"
                 f"<td>{_esc(b.get('type', ''))}</td>"
                 f"</tr>"
