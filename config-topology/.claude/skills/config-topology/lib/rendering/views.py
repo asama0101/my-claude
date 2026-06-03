@@ -14,6 +14,8 @@ from lib.rendering.layout import (
     OSPF_AREA_LABEL_FORMAT,
 )
 from lib.rendering.svg import (
+    _build_ip_to_iface_id,
+    _chip_positions,
     _esc,
     _svg_bgp_as_groups,
     _svg_bgp_edges,
@@ -71,9 +73,20 @@ def _build_bgp_layout(
     if est_n <= 1:
         return _compute_layout(bgp_devices, []), bgp_devices
 
+    # チップ数に基づく node_sizes（1行=チップあり、0=チップなし）
+    bgp_chip_ids = _build_bgp_chip_iface_ids(bgp_entries, interfaces)
+    iface_by_device_tmp: dict[str, list[dict]] = {}
+    for iface in interfaces:
+        iface_by_device_tmp.setdefault(iface["device"], []).append(iface)
+    node_sizes: dict[str, int] = {
+        dev_id: (1 if any(i["id"] in bgp_chip_ids for i in iface_by_device_tmp.get(dev_id, [])) else 0)
+        for dev_id in node_ids
+    }
+
     positions = _layout_force_directed(
         node_ids, edge_list, width=est_w, height=est_h,
-        iterations=_adaptive_iter(est_n)
+        iterations=_adaptive_iter(est_n),
+        node_sizes=node_sizes,
     )
     return positions, bgp_devices
 
@@ -138,9 +151,23 @@ def _build_ospf_layout(
     # ここに到達する時点で est_n >= 2 が保証される
     est_w, est_h = _canvas_size_for_nodes(est_n)
 
+    # チップ数に基づく node_sizes（デバイスのみ; セグメントノードは 0）
+    ospf_chip_ids = _build_ospf_chip_iface_ids(links, segments, interfaces or [], ospf_device_ids)
+    iface_by_device_tmp: dict[str, list[dict]] = {}
+    for iface in (interfaces or []):
+        iface_by_device_tmp.setdefault(iface["device"], []).append(iface)
+    node_sizes: dict[str, int] = {
+        dev_id: (1 if any(i["id"] in ospf_chip_ids for i in iface_by_device_tmp.get(dev_id, [])) else 0)
+        for dev_id in [d["id"] for d in ospf_devices]
+    }
+    # セグメントノードのサイズは 0（楕円）
+    for seg in ospf_segments:
+        node_sizes[seg["id"]] = 0
+
     positions = _layout_force_directed(
         node_ids, edge_list, width=est_w, height=est_h,
-        iterations=_adaptive_iter(est_n)
+        iterations=_adaptive_iter(est_n),
+        node_sizes=node_sizes,
     )
     return positions, ospf_devices, ospf_segments
 
@@ -296,6 +323,25 @@ def _build_connected_iface_ids(
     return connected
 
 
+def _build_physical_chip_iface_ids(
+    interfaces: list[dict],
+    links: list[dict],
+    segments: list[dict],
+) -> set[str]:
+    """Physical ビュー用チップ集合を返す（接続IF + Loopback）。
+
+    iteration-3 #2 と同じ選定ロジックを集中管理する。
+    devices パラメータは不要（interfaces/links/segments のみ使用）。
+    """
+    from lib.rendering.svg import _is_loopback
+    connected = _build_connected_iface_ids(links, segments, interfaces)
+    result: set[str] = set()
+    for iface in interfaces:
+        if iface["id"] in connected or _is_loopback(iface.get("name", "")):
+            result.add(iface["id"])
+    return result
+
+
 def _build_view_physical(
     devices: list[dict],
     interfaces: list[dict],
@@ -308,12 +354,35 @@ def _build_view_physical(
 
     ノードは show_interfaces=True でチップ型（接続IF/Loopback のみ）。
     iteration-3 #2: 接続IF/Loopback のみをチップとして表示し、全 IF はカード表に残す。
+    iteration-4 #6: チップアンカー（リンク端点をチップ座標に接続）。
     """
-    # 接続 iface-id 集合を計算（iteration-3 #2）
+    # 接続 iface-id 集合を計算（iteration-3 #2 / iteration-4 #6 で共用）
     connected_iface_ids = _build_connected_iface_ids(links, segments, interfaces)
 
+    # Physical チップ集合（接続IF + Loopback）
+    phys_chip_ids = _build_physical_chip_iface_ids(interfaces, links, segments)
+
+    # チップ座標マップを構築（全デバイス分）
+    all_chip_positions: dict[str, tuple[float, float]] = {}
+    for dev in devices:
+        dev_pos = positions.get(dev["id"])
+        if dev_pos is None:
+            continue
+        dev_ifaces = iface_by_device.get(dev["id"], [])
+        dev_chip_ids = {i["id"] for i in dev_ifaces if i["id"] in phys_chip_ids}
+        if dev_chip_ids:
+            cp = _chip_positions(dev, dev_chip_ids, dev_ifaces, dev_pos[0], dev_pos[1])
+            all_chip_positions.update(cp)
+
+    # name_to_iface_id マップ（_svg_links のチップアンカー用）
+    name_to_iface_id = {(i["device"], i["name"]): i["id"] for i in interfaces}
+
     seg_edges = _svg_segment_edges(segments, interfaces, positions)
-    links_str = _svg_links(links, positions)
+    links_str = _svg_links(
+        links, positions,
+        chip_positions=all_chip_positions,
+        name_to_iface_id=name_to_iface_id,
+    )
     segs_str = _svg_segments(segments, positions)
     # Physical ビューのみ show_interfaces=True（BGP/OSPF ビューはデフォルトのコンパクト）
     nodes_str = _svg_nodes(
@@ -330,6 +399,31 @@ def _build_view_physical(
     )
 
 
+def _build_bgp_chip_iface_ids(
+    bgp_entries: list[dict],
+    interfaces: list[dict],
+) -> set[str]:
+    """BGP ビュー用チップ集合を返す（BGP セッション関与 IF のみ）。
+
+    各エントリの local_ip / neighbor_ip にマッチする IF を集める。
+    - local_ip → 当該デバイスの IF
+    - neighbor_ip → 逆引きで隣接デバイスの IF
+    決定的（IP ソート）。Loopback IF は BGP セッション参加 IP に一致しない限り含まれない。
+    """
+    # ip_only -> iface_id マップ（共通ヘルパーを使用）
+    ip_to_iface_id = _build_ip_to_iface_id(interfaces)
+
+    result: set[str] = set()
+    for entry in bgp_entries:
+        local_ip = (entry.get("local_ip") or "").split("/")[0]
+        neighbor_ip = (entry.get("neighbor_ip") or "").split("/")[0]
+        if local_ip and local_ip in ip_to_iface_id:
+            result.add(ip_to_iface_id[local_ip])
+        if neighbor_ip and neighbor_ip in ip_to_iface_id:
+            result.add(ip_to_iface_id[neighbor_ip])
+    return result
+
+
 def _build_view_bgp(
     devices: list[dict],
     interfaces: list[dict],
@@ -340,11 +434,36 @@ def _build_view_bgp(
     """BGP ビュー SVG コンテンツを生成する。
 
     描画順: AS 枠（背面）→ BGP エッジ → ノード（前面）
+    iteration-4 #6: BGP セッション関与 IF のみチップ表示、エッジ端点をチップにアンカー。
     """
     positions_bgp, bgp_devices = _build_bgp_layout(devices, bgp_entries, interfaces)
-    as_groups_str = _svg_bgp_as_groups(bgp_devices, positions_bgp)
-    bgp_str = _svg_bgp_edges(bgp_entries, interfaces, positions_bgp)
-    nodes_str = _svg_nodes(bgp_devices, positions_bgp, iface_by_device)
+
+    # BGP チップ集合（セッション関与 IF のみ）
+    bgp_chip_ids = _build_bgp_chip_iface_ids(bgp_entries, interfaces)
+
+    # チップ座標マップを構築（BGP 参加デバイス分）
+    all_chip_positions: dict[str, tuple[float, float]] = {}
+    bgp_node_sizes: dict[str, int] = {}
+    for dev in bgp_devices:
+        dev_pos = positions_bgp.get(dev["id"])
+        if dev_pos is None:
+            continue
+        dev_ifaces = iface_by_device.get(dev["id"], [])
+        dev_chip_ids = {i["id"] for i in dev_ifaces if i["id"] in bgp_chip_ids}
+        if dev_chip_ids:
+            cp = _chip_positions(dev, dev_chip_ids, dev_ifaces, dev_pos[0], dev_pos[1])
+            all_chip_positions.update(cp)
+            bgp_node_sizes[dev["id"]] = 1 if dev_chip_ids else 0
+
+    as_groups_str = _svg_bgp_as_groups(bgp_devices, positions_bgp, node_sizes=bgp_node_sizes)
+    bgp_str = _svg_bgp_edges(
+        bgp_entries, interfaces, positions_bgp,
+        chip_positions=all_chip_positions,
+    )
+    nodes_str = _svg_nodes(
+        bgp_devices, positions_bgp, iface_by_device,
+        chip_iface_ids=bgp_chip_ids,
+    )
     bbox = _make_bbox_str(positions_bgp)
     inner = "\n".join(filter(None, [as_groups_str, bgp_str, nodes_str]))
     return (
@@ -352,6 +471,49 @@ def _build_view_bgp(
         f'{inner}\n'
         f'</g>'
     )
+
+
+def _build_ospf_chip_iface_ids(
+    links: list[dict],
+    segments: list[dict],
+    interfaces: list[dict],
+    ospf_device_ids: set[str],
+) -> set[str]:
+    """OSPF ビュー用チップ集合を返す（リンク端点 IF + セグメントメンバー）。
+
+    - OSPF p2p リンクの a_if / b_if（ospf_area 付き or 両端 OSPF 参加）
+    - OSPF セグメントのメンバー iface_id
+    interfaces から (device, name) -> iface_id を解決する。
+    決定的。
+    """
+    name_to_id = {(i["device"], i["name"]): i["id"] for i in interfaces}
+    result: set[str] = set()
+
+    # p2p リンク端点（ospf_area があるか両端が OSPF 参加のリンク）
+    for lk in links:
+        is_ospf_link = (
+            lk.get("ospf_area") is not None or
+            (lk["a_device"] in ospf_device_ids and lk["b_device"] in ospf_device_ids)
+        )
+        if is_ospf_link:
+            a_if = lk.get("a_if") or ""
+            b_if = lk.get("b_if") or ""
+            if a_if:
+                iid = name_to_id.get((lk["a_device"], a_if))
+                if iid:
+                    result.add(iid)
+            if b_if:
+                iid = name_to_id.get((lk["b_device"], b_if))
+                if iid:
+                    result.add(iid)
+
+    # セグメントメンバー
+    for seg in segments:
+        if seg.get("ospf_area") is not None:
+            for member_iface_id in seg.get("members", []):
+                result.add(member_iface_id)
+
+    return result
 
 
 def _build_view_ospf(
@@ -371,6 +533,8 @@ def _build_view_ospf(
 
     OSPF 参加セグメント（ospf_area 付き）を楕円ノードとして描画し、
     メンバー機器へ seg-edge を引き「area {area} · {subnet}」ラベルを表示する。
+
+    iteration-4 #6: OSPF 参加 IF のみチップ表示、エッジ端点をチップにアンカー。
     """
     if segments is None:
         segments = []
@@ -381,13 +545,47 @@ def _build_view_ospf(
         devices, ospf_entries, links, segments, interfaces
     )
 
-    # OSPF エッジ（同一リンクの両端が OSPF 参加）
+    # OSPF 参加デバイス集合
     ospf_device_ids: set[str] = set(d["id"] for d in ospf_devices)
+
+    # OSPF チップ集合（p2p リンク端点 + セグメントメンバー）
+    ospf_chip_ids = _build_ospf_chip_iface_ids(
+        links, segments, interfaces, ospf_device_ids
+    )
+
+    # チップ座標マップを構築（OSPF 参加デバイス分）
+    all_chip_positions: dict[str, tuple[float, float]] = {}
+    for dev in ospf_devices:
+        dev_pos = positions_ospf.get(dev["id"])
+        if dev_pos is None:
+            continue
+        dev_ifaces = iface_by_device.get(dev["id"], [])
+        dev_chip_ids = {i["id"] for i in dev_ifaces if i["id"] in ospf_chip_ids}
+        if dev_chip_ids:
+            cp = _chip_positions(dev, dev_chip_ids, dev_ifaces, dev_pos[0], dev_pos[1])
+            all_chip_positions.update(cp)
+
+    # name_to_iface_id マップ（OSPF p2p リンクのチップアンカー用）
+    name_to_iface_id = {(i["device"], i["name"]): i["id"] for i in interfaces}
+
+    # OSPF エッジ（同一リンクの両端が OSPF 参加）— チップアンカー対応
     parts = []
     for lk in sorted(links, key=lambda l: (l["a_device"], l["b_device"])):
         if lk["a_device"] in ospf_device_ids and lk["b_device"] in ospf_device_ids:
-            x1, y1 = positions_ospf.get(lk["a_device"], (0, 0))
-            x2, y2 = positions_ospf.get(lk["b_device"], (0, 0))
+            # チップアンカー
+            a_pos = positions_ospf.get(lk["a_device"], (0.0, 0.0))
+            b_pos = positions_ospf.get(lk["b_device"], (0.0, 0.0))
+            a_if = lk.get("a_if") or ""
+            b_if = lk.get("b_if") or ""
+            if all_chip_positions:
+                a_iface_id = name_to_iface_id.get((lk["a_device"], a_if))
+                b_iface_id = name_to_iface_id.get((lk["b_device"], b_if))
+                if a_iface_id and a_iface_id in all_chip_positions:
+                    a_pos = all_chip_positions[a_iface_id]
+                if b_iface_id and b_iface_id in all_chip_positions:
+                    b_pos = all_chip_positions[b_iface_id]
+            x1, y1 = a_pos
+            x2, y2 = b_pos
             subnet = _esc(lk["subnet"])
             ospf_area = lk.get("ospf_area")
             # リンク中点（Physical ビューの link-label と同様の手法）
@@ -419,13 +617,17 @@ def _build_view_ospf(
             )
     edges_str = "\n".join(parts)
 
-    # OSPF 参加セグメント描画
+    # OSPF 参加セグメント描画（チップアンカー対応）
     ospf_seg_edges_str = _svg_ospf_segment_edges(
-        ospf_segments, interfaces, positions_ospf
+        ospf_segments, interfaces, positions_ospf,
+        chip_positions=all_chip_positions,
     )
     ospf_segs_str = _svg_ospf_segments(ospf_segments, positions_ospf)
 
-    nodes_str = _svg_nodes(ospf_devices, positions_ospf, iface_by_device)
+    nodes_str = _svg_nodes(
+        ospf_devices, positions_ospf, iface_by_device,
+        chip_iface_ids=ospf_chip_ids,
+    )
     bbox = _make_bbox_str(positions_ospf)
     inner = "\n".join(filter(None, [
         ospf_seg_edges_str, edges_str, ospf_segs_str, nodes_str

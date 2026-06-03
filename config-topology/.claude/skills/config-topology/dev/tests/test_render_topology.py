@@ -8155,3 +8155,942 @@ def test_p2_select_view_calls_clear_focus_mode(rendered_html):
 
     assert "clearFocusMode" in func_body, \
         "selectView 内に clearFocusMode() の呼び出しがない（ビュー切替でフォーカス残留バグ）"
+
+
+# ===========================================================================
+# Phase 3 テスト群 — #6: 全ビューで IF チップ接続
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# テスト用トポロジーヘルパー
+# ---------------------------------------------------------------------------
+
+def _make_p3_bgp_topology():
+    """Phase 3 #6 テスト用 BGP トポロジー（3台・eBGP 2セッション）。
+
+    r1(AS65001) --ebgp-- r2(AS65002) --ebgp-- r3(AS65003)
+    - r1::eth0 (10.0.12.1/30) <-> r2::eth0 (10.0.12.2/30)
+    - r2::eth1 (10.0.23.1/30) <-> r3::eth0 (10.0.23.2/30)
+    - r1 Loopback0 (10.255.1.1/32)
+    - BGP: r1 local_ip=10.0.12.1 neighbor=10.0.12.2, r2 local_ip=10.0.23.1 neighbor=10.0.23.2
+    """
+    return {
+        "title": "P3 BGP Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+            {"id": "r3", "hostname": "R3", "vendor": "cisco_ios", "as": 65003, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.12.1/30", "vlan": None, "description": "to-R2", "shutdown": False},
+            {"id": "r1::lo0", "device": "r1", "name": "Loopback0",
+             "ip": "10.255.1.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.12.2/30", "vlan": None, "description": "to-R1", "shutdown": False},
+            {"id": "r2::eth1", "device": "r2", "name": "eth1",
+             "ip": "10.0.23.1/30", "vlan": None, "description": "to-R3", "shutdown": False},
+            {"id": "r3::eth0", "device": "r3", "name": "eth0",
+             "ip": "10.0.23.2/30", "vlan": None, "description": "to-R2", "shutdown": False},
+            # r3 は BGP 非関与の IF を持つ（BGP チップ集合に含まれないことを検証）
+            {"id": "r3::eth1", "device": "r3", "name": "eth1",
+             "ip": "192.168.3.1/24", "vlan": None, "description": "LAN", "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.12.0/30", "kind": "inferred-subnet"},
+            {"a_device": "r2", "a_if": "eth1", "b_device": "r3", "b_if": "eth0",
+             "subnet": "10.0.23.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "peer_as": 65002,
+                 "local_ip": "10.0.12.1", "neighbor_ip": "10.0.12.2", "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "peer_as": 65001,
+                 "local_ip": "10.0.12.2", "neighbor_ip": "10.0.12.1", "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "peer_as": 65003,
+                 "local_ip": "10.0.23.1", "neighbor_ip": "10.0.23.2", "type": "ebgp"},
+                {"device": "r3", "local_as": 65003, "peer_as": 65002,
+                 "local_ip": "10.0.23.2", "neighbor_ip": "10.0.23.1", "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+def _make_p3_ospf_topology():
+    """Phase 3 #6 テスト用 OSPF トポロジー（3台・p2p リンク + セグメント）。
+
+    r1 --ospf(area 0)-- r2 --ospf(area 0)-- r3
+    - r1::eth0 (10.0.12.1/30) <-> r2::eth0 (10.0.12.2/30)  ospf_area=0
+    - r2::eth1 参加セグメント（10.10.0.0/24）  ospf_area=0
+    - r1 は OSPF 非参加 IF（eth1）を持つ（OSPF チップ集合に含まれないことを検証）
+    """
+    return {
+        "title": "P3 OSPF Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r3", "hostname": "R3", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.12.1/30", "vlan": None, "description": "to-R2", "shutdown": False},
+            {"id": "r1::eth1", "device": "r1", "name": "eth1",
+             "ip": "192.168.1.1/24", "vlan": None, "description": "LAN", "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.12.2/30", "vlan": None, "description": "to-R1", "shutdown": False},
+            {"id": "r2::eth1", "device": "r2", "name": "eth1",
+             "ip": "10.10.0.2/24", "vlan": None, "description": "seg", "shutdown": False},
+            {"id": "r3::eth0", "device": "r3", "name": "eth0",
+             "ip": "10.10.0.3/24", "vlan": None, "description": "seg", "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.12.0/30", "kind": "inferred-subnet", "ospf_area": 0},
+        ],
+        "segments": [
+            {"id": "seg-10.10.0.0/24", "subnet": "10.10.0.0/24",
+             "members": ["r2::eth1", "r3::eth0"], "ospf_area": 0},
+        ],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                {"device": "r1", "area": 0, "process_id": 1},
+                {"device": "r2", "area": 0, "process_id": 1},
+                {"device": "r3", "area": 0, "process_id": 1},
+            ],
+            "static": [],
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# #6-A: _chip_positions 純粋ヘルパー（新設）のテスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p3_chip_positions_deterministic():
+    """#6: _chip_positions が同一引数で毎回同一座標を返す（決定性）。"""
+    from lib.rendering.svg import _chip_positions
+    dev = {"id": "r1", "hostname": "R1"}
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+         "shutdown": False, "description": None},
+        {"id": "r1::eth1", "device": "r1", "name": "eth1", "ip": "10.0.1.1/30",
+         "shutdown": False, "description": None},
+    ]
+    chip_ids = {"r1::eth0", "r1::eth1"}
+    result1 = _chip_positions(dev, chip_ids, ifaces, 100.0, 200.0)
+    result2 = _chip_positions(dev, chip_ids, ifaces, 100.0, 200.0)
+    assert result1 == result2, "_chip_positions が非決定的"
+
+
+@pytest.mark.unit
+def test_p3_chip_positions_sorted_by_name():
+    """#6: _chip_positions は IF を name ソート順でインデックス付けする。
+
+    eth0 が eth1 より小さい name → eth0 が k=0、eth1 が k=1。
+    """
+    from lib.rendering.svg import _chip_positions, _IF_CHIP_OFFSET_X, _IF_CHIP_GAP, _IF_CHIP_OFFSET_Y, _NODE_HEADER_H
+    from lib.rendering.layout import _node_size_for
+    dev = {"id": "r1", "hostname": "R1"}
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+         "shutdown": False, "description": None},
+        {"id": "r1::eth1", "device": "r1", "name": "eth1", "ip": "10.0.1.1/30",
+         "shutdown": False, "description": None},
+    ]
+    chip_ids = {"r1::eth0", "r1::eth1"}
+    nx, ny = 50.0, 80.0  # ノード左上 (nx, ny)
+
+    result = _chip_positions(dev, chip_ids, ifaces, nx + 60, ny + _node_size_for(2)[1] / 2)
+    # eth0(k=0) の cx = nx + _IF_CHIP_OFFSET_X + 0 * _IF_CHIP_GAP
+    # cy = ny + _NODE_HEADER_H + _IF_CHIP_OFFSET_Y
+    expected_cx_eth0 = nx + _IF_CHIP_OFFSET_X
+    expected_cx_eth1 = nx + _IF_CHIP_OFFSET_X + _IF_CHIP_GAP
+
+    assert "r1::eth0" in result
+    assert "r1::eth1" in result
+    cx0, _ = result["r1::eth0"]
+    cx1, _ = result["r1::eth1"]
+    assert abs(cx0 - expected_cx_eth0) < 0.5, \
+        f"eth0(k=0) の cx が期待値 {expected_cx_eth0} と不一致: {cx0}"
+    assert abs(cx1 - expected_cx_eth1) < 0.5, \
+        f"eth1(k=1) の cx が期待値 {expected_cx_eth1} と不一致: {cx1}"
+    # eth0 は eth1 より左（cx が小さい）
+    assert cx0 < cx1, "name ソート順で eth0 が eth1 より左にならない"
+
+
+@pytest.mark.unit
+def test_p3_chip_positions_only_requested_ids():
+    """#6: _chip_positions は chip_ids に含まれる IF のみ座標を返す。"""
+    from lib.rendering.svg import _chip_positions
+    dev = {"id": "r1", "hostname": "R1"}
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+         "shutdown": False, "description": None},
+        {"id": "r1::eth1", "device": "r1", "name": "eth1", "ip": "10.0.1.1/30",
+         "shutdown": False, "description": None},
+        {"id": "r1::eth2", "device": "r1", "name": "eth2", "ip": None,
+         "shutdown": False, "description": None},
+    ]
+    # eth1 だけを chip 化する
+    result = _chip_positions(dev, {"r1::eth1"}, ifaces, 100.0, 200.0)
+    assert "r1::eth1" in result, "chip_ids に含まれる eth1 が結果にない"
+    assert "r1::eth0" not in result, "chip_ids に含まれない eth0 が結果に混入"
+    assert "r1::eth2" not in result, "chip_ids に含まれない eth2 が結果に混入"
+
+
+@pytest.mark.unit
+def test_p3_chip_positions_empty_returns_empty():
+    """#6: chip_ids が空集合のとき _chip_positions は空辞書を返す。"""
+    from lib.rendering.svg import _chip_positions
+    dev = {"id": "r1", "hostname": "R1"}
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+         "shutdown": False, "description": None},
+    ]
+    result = _chip_positions(dev, set(), ifaces, 100.0, 200.0)
+    assert result == {}, f"空集合のとき空辞書を返すべき: {result}"
+
+
+# ---------------------------------------------------------------------------
+# #6-B: data-iface-id 属性のテスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p3_chip_has_data_iface_id():
+    """#6: IF チップの <g> に data-iface-id 属性が付与される。"""
+    from lib.rendering.svg import _svg_nodes
+    dev_list = [{"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None}]
+    pos = {"r1": (100.0, 100.0)}
+    ibd = {
+        "r1": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "shutdown": False, "description": None},
+        ]
+    }
+    svg = _svg_nodes(
+        dev_list, pos, ibd,
+        show_interfaces=True,
+        chip_iface_ids={"r1::eth0"},
+    )
+    assert 'data-iface-id="r1::eth0"' in svg, \
+        f"IF チップに data-iface-id が付与されない: {svg[:500]}"
+
+
+@pytest.mark.unit
+def test_p3_chip_data_iface_id_correct_id():
+    """#6: data-iface-id の値が iface["id"] と一致する（iface name ではない）。"""
+    from lib.rendering.svg import _svg_nodes
+    dev_list = [{"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None}]
+    pos = {"r1": (100.0, 100.0)}
+    ibd = {
+        "r1": [
+            {"id": "r1::GigabitEthernet0/0", "device": "r1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.1/30", "shutdown": False, "description": None},
+        ]
+    }
+    svg = _svg_nodes(
+        dev_list, pos, ibd,
+        show_interfaces=True,
+        chip_iface_ids={"r1::GigabitEthernet0/0"},
+    )
+    # iface id（r1::GigabitEthernet0/0）が data-iface-id に入る
+    assert 'data-iface-id="r1::GigabitEthernet0/0"' in svg, \
+        f"data-iface-id が iface id と不一致: {svg[:500]}"
+    # 古い data-if 属性も残っていてよい（後方互換）
+    assert 'data-if="GigabitEthernet0/0"' in svg, \
+        "data-if 属性（IF 名）が失われた（後方互換が壊れている）"
+
+
+# ---------------------------------------------------------------------------
+# #6-C: ビュー別チップ集合（BGP ビュー）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p3_bgp_view_shows_chips_for_bgp_ifaces():
+    """#6: BGP ビューのノードに BGP セッション関与 IF のチップが出る。"""
+    from lib.rendering import render
+    html = render(_make_p3_bgp_topology())
+    bgp_view = _extract_bgp_view(html)
+    assert bgp_view, "BGP ビューが生成されない"
+
+    # r1 は BGP 関与 IF = eth0 (10.0.12.1) のみ → data-iface-id="r1::eth0" が存在すること
+    assert 'data-iface-id="r1::eth0"' in bgp_view, \
+        "BGP ビューで r1::eth0 の data-iface-id チップが存在しない"
+    # r2 は eth0(to-r1) と eth1(to-r3) の両方が BGP 関与
+    assert 'data-iface-id="r2::eth0"' in bgp_view, \
+        "BGP ビューで r2::eth0 の data-iface-id チップが存在しない"
+    assert 'data-iface-id="r2::eth1"' in bgp_view, \
+        "BGP ビューで r2::eth1 の data-iface-id チップが存在しない"
+
+
+@pytest.mark.unit
+def test_p3_bgp_view_excludes_non_bgp_ifaces():
+    """#6: BGP ビューのノードに BGP 非関与 IF のチップが出ない。
+
+    r3::eth1 (LAN 192.168.3.1/24) は BGP セッションに関与しないため、
+    BGP ビューのチップに含まれない。
+    """
+    from lib.rendering import render
+    html = render(_make_p3_bgp_topology())
+    bgp_view = _extract_bgp_view(html)
+    assert bgp_view, "BGP ビューが生成されない"
+    assert 'data-iface-id="r3::eth1"' not in bgp_view, \
+        "BGP 非関与 IF（r3::eth1）が BGP ビューのチップに含まれている"
+
+
+@pytest.mark.unit
+def test_p3_bgp_session_edge_anchors_to_chip():
+    """#6: BGP セッション線の端点座標が、ノード中心ではなくチップ座標に一致する。
+
+    r1(eth0=10.0.12.1) <-> r2(eth0=10.0.12.2) のセッション。
+    BGP path の M{x1},{y1} の x1,y1 が r1 のノード中心ではなく
+    r1::eth0 チップの cx,cy に一致すること。
+    """
+    from lib.rendering.svg import _svg_bgp_edges, _chip_positions, _IF_CHIP_OFFSET_X
+    from lib.rendering.layout import _node_size_for, _NODE_HEADER_H
+
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0",
+         "ip": "10.0.12.1/30", "shutdown": False, "description": None},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0",
+         "ip": "10.0.12.2/30", "shutdown": False, "description": None},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "peer_as": 65002,
+         "local_ip": "10.0.12.1", "neighbor_ip": "10.0.12.2", "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+
+    # chip_positions: r1 の eth0 チップ座標を計算
+    chip_iface_ids_r1 = {"r1::eth0"}
+    chip_iface_ids_r2 = {"r2::eth0"}
+    all_ifaces_r1 = [i for i in interfaces if i["device"] == "r1"]
+    all_ifaces_r2 = [i for i in interfaces if i["device"] == "r2"]
+
+    r1_dev = {"id": "r1", "hostname": "R1"}
+    r2_dev = {"id": "r2", "hostname": "R2"}
+    r1_pos = positions["r1"]
+    r2_pos = positions["r2"]
+
+    r1_chips = _chip_positions(r1_dev, chip_iface_ids_r1, all_ifaces_r1, r1_pos[0], r1_pos[1])
+    r2_chips = _chip_positions(r2_dev, chip_iface_ids_r2, all_ifaces_r2, r2_pos[0], r2_pos[1])
+
+    all_chip_positions = {**r1_chips, **r2_chips}
+
+    svg = _svg_bgp_edges(
+        bgp_entries, interfaces, positions,
+        chip_positions=all_chip_positions,
+    )
+
+    # r1::eth0 の期待チップ座標
+    exp_cx, exp_cy = r1_chips["r1::eth0"]
+
+    # BGP path の開始点 M{x1},{y1} を取り出す
+    m = re.search(r'<path[^>]+d="M([\d.]+),([\d.]+)', svg)
+    assert m is not None, f"BGP path が見つからない: {svg[:300]}"
+    path_x1 = float(m.group(1))
+    path_y1 = float(m.group(2))
+
+    assert abs(path_x1 - exp_cx) < 1.0, \
+        f"BGP path 始点 x={path_x1} がチップ cx={exp_cx} に一致しない"
+    assert abs(path_y1 - exp_cy) < 1.0, \
+        f"BGP path 始点 y={path_y1} がチップ cy={exp_cy} に一致しない"
+
+
+@pytest.mark.unit
+def test_p3_bgp_edge_fallback_to_node_center_when_no_local_ip():
+    """#6: BGP エントリの local_ip が None のとき、A側端点をノード中心にフォールバック。"""
+    from lib.rendering.svg import _svg_bgp_edges
+
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "lo0",
+         "ip": "10.255.1.1/32", "shutdown": False, "description": None},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0",
+         "ip": "10.0.12.2/30", "shutdown": False, "description": None},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "peer_as": 65002,
+         "local_ip": None, "neighbor_ip": "10.0.12.2", "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+
+    # chip_positions: r1 は local_ip なしでチップ未設定
+    chip_positions = {
+        "r2::eth0": (500.0 - 60 + 8, 300.0 - 25 + 12),  # 近似値
+    }
+
+    svg = _svg_bgp_edges(
+        bgp_entries, interfaces, positions,
+        chip_positions=chip_positions,
+    )
+
+    # A 側（r1）は local_ip なしのためノード中心 (200.0, 300.0) が始点になる
+    m = re.search(r'<path[^>]+d="M([\d.]+),([\d.]+)', svg)
+    assert m is not None, f"BGP path が見つからない: {svg[:300]}"
+    path_x1 = float(m.group(1))
+    path_y1 = float(m.group(2))
+
+    assert abs(path_x1 - 200.0) < 1.0, \
+        f"local_ip=None 時 A 側始点 x={path_x1} がノード中心 200.0 にフォールバックしない"
+    assert abs(path_y1 - 300.0) < 1.0, \
+        f"local_ip=None 時 A 側始点 y={path_y1} がノード中心 300.0 にフォールバックしない"
+
+
+# ---------------------------------------------------------------------------
+# #6-D: ビュー別チップ集合（OSPF ビュー）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p3_ospf_view_shows_chips_for_ospf_ifaces():
+    """#6: OSPF ビューのノードに OSPF 参加 IF のチップが出る。"""
+    from lib.rendering import render
+    html = render(_make_p3_ospf_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが生成されない"
+
+    # r1::eth0 は OSPF p2p リンク参加 → チップあり
+    assert 'data-iface-id="r1::eth0"' in ospf_view, \
+        "OSPF ビューで r1::eth0 の data-iface-id チップが存在しない"
+    # r2::eth1 は OSPF セグメントメンバー → チップあり
+    assert 'data-iface-id="r2::eth1"' in ospf_view, \
+        "OSPF ビューで r2::eth1 の data-iface-id チップが存在しない"
+
+
+@pytest.mark.unit
+def test_p3_ospf_view_excludes_non_ospf_ifaces():
+    """#6: OSPF ビューのノードに OSPF 非参加 IF のチップが出ない。
+
+    r1::eth1 (LAN 192.168.1.1/24) は OSPF に参加しないため、
+    OSPF ビューのチップに含まれない。
+    """
+    from lib.rendering import render
+    html = render(_make_p3_ospf_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが生成されない"
+    assert 'data-iface-id="r1::eth1"' not in ospf_view, \
+        "OSPF 非参加 IF（r1::eth1）が OSPF ビューのチップに含まれている"
+
+
+@pytest.mark.unit
+def test_p3_ospf_p2p_link_anchors_to_chip():
+    """#6: OSPF p2p リンクの端点がチップ座標にアンカーされる。
+
+    r1::eth0 <-> r2::eth0 のリンク。
+    Physical の _svg_links と同様のパターンで chip_positions を受け取る。
+    """
+    from lib.rendering.svg import _svg_links, _chip_positions
+
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0",
+         "ip": "10.0.12.1/30", "shutdown": False, "description": None},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0",
+         "ip": "10.0.12.2/30", "shutdown": False, "description": None},
+    ]
+    links = [
+        {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+         "subnet": "10.0.12.0/30", "kind": "inferred-subnet"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+
+    r1_dev = {"id": "r1", "hostname": "R1"}
+    r2_dev = {"id": "r2", "hostname": "R2"}
+
+    r1_chips = _chip_positions(r1_dev, {"r1::eth0"}, [interfaces[0]], positions["r1"][0], positions["r1"][1])
+    r2_chips = _chip_positions(r2_dev, {"r2::eth0"}, [interfaces[1]], positions["r2"][0], positions["r2"][1])
+    all_chip_pos = {**r1_chips, **r2_chips}
+
+    # iface name -> iface_id マップ（リンクの a_if/b_if から iface_id を解決するため）
+    name_to_iface_id = {(i["device"], i["name"]): i["id"] for i in interfaces}
+
+    svg = _svg_links(links, positions, chip_positions=all_chip_pos, name_to_iface_id=name_to_iface_id)
+
+    # r1::eth0 のチップ座標が line の x1,y1 に使われているはず
+    exp_x1, exp_y1 = r1_chips["r1::eth0"]
+    m = re.search(r'<line[^>]+x1="([\d.]+)"[^>]+y1="([\d.]+)"', svg)
+    assert m is not None, f"line 要素が見つからない: {svg[:300]}"
+    line_x1 = float(m.group(1))
+    line_y1 = float(m.group(2))
+
+    assert abs(line_x1 - exp_x1) < 1.0, \
+        f"p2p リンク x1={line_x1} がチップ cx={exp_x1} にアンカーされない"
+    assert abs(line_y1 - exp_y1) < 1.0, \
+        f"p2p リンク y1={line_y1} がチップ cy={exp_y1} にアンカーされない"
+
+
+@pytest.mark.unit
+def test_p3_ospf_segment_edge_anchors_to_chip():
+    """#6: OSPF セグメントエッジの機器側端点がチップ座標にアンカーされる。"""
+    from lib.rendering.svg import _svg_ospf_segment_edges, _chip_positions
+
+    interfaces = [
+        {"id": "r2::eth1", "device": "r2", "name": "eth1",
+         "ip": "10.10.0.2/24", "shutdown": False, "description": None},
+        {"id": "r3::eth0", "device": "r3", "name": "eth0",
+         "ip": "10.10.0.3/24", "shutdown": False, "description": None},
+    ]
+    segments = [
+        {"id": "seg1", "subnet": "10.10.0.0/24",
+         "members": ["r2::eth1", "r3::eth0"], "ospf_area": 0},
+    ]
+    positions = {
+        "seg1": (350.0, 200.0),
+        "r2": (200.0, 300.0),
+        "r3": (500.0, 300.0),
+    }
+
+    r2_dev = {"id": "r2", "hostname": "R2"}
+    r3_dev = {"id": "r3", "hostname": "R3"}
+    r2_chips = _chip_positions(r2_dev, {"r2::eth1"}, [interfaces[0]], positions["r2"][0], positions["r2"][1])
+    r3_chips = _chip_positions(r3_dev, {"r3::eth0"}, [interfaces[1]], positions["r3"][0], positions["r3"][1])
+    all_chip_pos = {**r2_chips, **r3_chips}
+
+    svg = _svg_ospf_segment_edges(
+        segments, interfaces, positions,
+        chip_positions=all_chip_pos,
+    )
+
+    # r2::eth1 のチップ座標 (cx, cy) が line の x2,y2 に使われているはず
+    # (seg が x1,y1; device が x2,y2)
+    exp_x2, exp_y2 = r2_chips["r2::eth1"]
+    # r2 に対応する line を探す（data-device="r2"）
+    m = re.search(r'<line[^>]+data-device="r2"[^>]*x2="([\d.]+)"[^>]*y2="([\d.]+)"'
+                  r'|<line[^>]+x2="([\d.]+)"[^>]+y2="([\d.]+)"[^>]+data-device="r2"',
+                  svg)
+    if m is None:
+        # より柔軟なパターン: data-device="r2" の line 全体から x2/y2 を取る
+        m2 = re.search(r'<line([^>]*data-device="r2"[^>]*)>', svg)
+        assert m2 is not None, f"r2 に対応する seg-edge line が見つからない: {svg[:500]}"
+        line_tag = m2.group(1)
+        mx2 = re.search(r'x2="([\d.]+)"', line_tag)
+        my2 = re.search(r'y2="([\d.]+)"', line_tag)
+        assert mx2 and my2, f"x2/y2 が line タグに見つからない: {line_tag}"
+        line_x2, line_y2 = float(mx2.group(1)), float(my2.group(1))
+    else:
+        line_x2 = float(m.group(1) or m.group(3))
+        line_y2 = float(m.group(2) or m.group(4))
+
+    assert abs(line_x2 - exp_x2) < 1.0, \
+        f"seg-edge x2={line_x2} が r2::eth1 チップ cx={exp_x2} にアンカーされない"
+    assert abs(line_y2 - exp_y2) < 1.0, \
+        f"seg-edge y2={line_y2} が r2::eth1 チップ cy={exp_y2} にアンカーされない"
+
+
+@pytest.mark.unit
+def test_p3_link_anchor_fallback_when_no_chip():
+    """#6: chip_positions に端点の iface_id がない場合、ノード中心にフォールバックする。"""
+    from lib.rendering.svg import _svg_links
+
+    links = [
+        {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+         "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+
+    # chip_positions が None → ノード中心を使う
+    svg = _svg_links(links, positions, chip_positions=None, name_to_iface_id=None)
+
+    m = re.search(r'<line[^>]+x1="([\d.]+)"[^>]+y1="([\d.]+)"', svg)
+    assert m is not None, "line 要素が見つからない"
+    assert abs(float(m.group(1)) - 200.0) < 1.0, "chip なしのとき x1 がノード中心にならない"
+    assert abs(float(m.group(2)) - 300.0) < 1.0, "chip なしのとき y1 がノード中心にならない"
+
+
+# ---------------------------------------------------------------------------
+# #6-E: AS グループ枠が実ノード高を反映するテスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p3_as_group_uses_real_node_height():
+    """#6: _svg_bgp_as_groups が node_sizes を受け取り、実ノード高で bounding box を計算する。
+
+    チップあり（n_ifaces=2）のノードは固定 _NODE_HEIGHT より高い。
+    node_sizes を渡したとき、枠の高さが固定高より大きくなる（_NODE_HEIGHT のみ使った場合と異なる）。
+    """
+    from lib.rendering.svg import _svg_bgp_as_groups
+    from lib.rendering.layout import _NODE_HEIGHT, _node_size_for
+
+    devs = [
+        {"id": "r1", "hostname": "R1", "as": 65001},
+        {"id": "r2", "hostname": "R2", "as": 65001},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+
+    # node_sizes なし（固定 _NODE_HEIGHT）
+    svg_fixed = _svg_bgp_as_groups(devs, positions, node_sizes=None)
+    # node_sizes あり（n_ifaces=3 → 高さが増加）
+    node_sizes = {"r1": 3, "r2": 3}
+    svg_real = _svg_bgp_as_groups(devs, positions, node_sizes=node_sizes)
+
+    # 高さ（rect の height 属性）を比較
+    m_fixed = re.search(r'<rect[^>]+class="as-group"[^>]+height="([\d.]+)"'
+                        r'|height="([\d.]+)"[^>]+class="as-group"', svg_fixed)
+    m_real = re.search(r'<rect[^>]+class="as-group"[^>]+height="([\d.]+)"'
+                       r'|height="([\d.]+)"[^>]+class="as-group"', svg_real)
+
+    assert m_fixed is not None, f"固定高の AS 枠 height が見つからない: {svg_fixed[:300]}"
+    assert m_real is not None, f"実ノード高の AS 枠 height が見つからない: {svg_real[:300]}"
+
+    h_fixed = float(m_fixed.group(1) or m_fixed.group(2))
+    h_real = float(m_real.group(1) or m_real.group(2))
+
+    _, tall_h = _node_size_for(3)
+    assert tall_h > _NODE_HEIGHT, "テスト前提: n_ifaces=3 のノードが _NODE_HEIGHT より高くない"
+    assert h_real > h_fixed, \
+        f"実ノード高の枠({h_real}) が固定高の枠({h_fixed}) より大きくならない"
+
+
+# ---------------------------------------------------------------------------
+# #6-F: 決定性・非回帰テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p3_bgp_render_deterministic():
+    """#6: BGP チップ付きビューの render が決定的（2回一致）。"""
+    from lib.rendering import render
+    topo = _make_p3_bgp_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "BGP チップ付きビューが非決定的"
+
+
+@pytest.mark.unit
+def test_p3_ospf_render_deterministic():
+    """#6: OSPF チップ付きビューの render が決定的（2回一致）。"""
+    from lib.rendering import render
+    topo = _make_p3_ospf_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "OSPF チップ付きビューが非決定的"
+
+
+@pytest.mark.unit
+def test_p3_physical_chip_still_has_data_if_attr():
+    """#6: Physical ビューの既存 data-if 属性が引き続き存在する（後方互換・非回帰）。"""
+    from lib.rendering import render
+    html = render(_make_chip_topology())
+    phys = _extract_physical_view(html)
+    # data-if 属性が引き続き存在すること
+    data_if_attrs = re.findall(r'data-if="([^"]+)"', phys)
+    assert len(data_if_attrs) >= 1, \
+        "Physical ビューで data-if 属性が消えた（後方互換が壊れている）"
+
+
+@pytest.mark.unit
+def test_p3_physical_view_chip_has_data_iface_id():
+    """#6: Physical ビューのチップにも data-iface-id が付与される（汎用化の副産物）。"""
+    from lib.rendering import render
+    html = render(_make_chip_topology())
+    phys = _extract_physical_view(html)
+    # data-iface-id 属性が存在すること
+    data_iface_id_attrs = re.findall(r'data-iface-id="([^"]+)"', phys)
+    assert len(data_iface_id_attrs) >= 1, \
+        "Physical ビューでチップに data-iface-id が付与されない"
+
+
+@pytest.mark.unit
+def test_p3_bgp_no_overlap_after_chip_resize():
+    """#6: BGP レイアウトでチップ有りのノードが重ならない。
+
+    ノードが n_ifaces 分だけ高くなった後も重なりゼロを保証する。
+    全ノードペアの中心間距離 > min_sep（各ノードサイズの対角長の和 / 2 + マージン）。
+    Task #8: 実際のチップ数に基づいた node_size を使用する。
+    """
+    import math as _math
+    from lib.rendering.views import _build_bgp_layout, _build_bgp_chip_iface_ids
+    from lib.rendering.layout import _node_size_for
+
+    topo = _make_p3_bgp_topology()
+    devices = topo["devices"]
+    bgp_entries = topo["routing"]["bgp"]
+    interfaces = topo["interfaces"]
+
+    positions, bgp_devices = _build_bgp_layout(devices, bgp_entries, interfaces)
+
+    # BGP チップ集合を取得（実際のチップ数を算出する）
+    bgp_chip_ids = _build_bgp_chip_iface_ids(bgp_entries, interfaces)
+    iface_by_device: dict = {}
+    for iface in interfaces:
+        iface_by_device.setdefault(iface["device"], []).append(iface)
+
+    # 全ペアが重ならないことを確認（実チップ数に基づくノードサイズ）
+    dev_ids = sorted(d["id"] for d in bgp_devices)
+    for i in range(len(dev_ids)):
+        for j in range(i + 1, len(dev_ids)):
+            di, dj = dev_ids[i], dev_ids[j]
+            if di not in positions or dj not in positions:
+                continue
+            xi, yi = positions[di]
+            xj, yj = positions[dj]
+            dist = _math.sqrt((xi - xj) ** 2 + (yi - yj) ** 2)
+            # 実チップ数を取得してノードサイズを計算
+            di_chips = {i["id"] for i in iface_by_device.get(di, []) if i["id"] in bgp_chip_ids}
+            dj_chips = {i["id"] for i in iface_by_device.get(dj, []) if i["id"] in bgp_chip_ids}
+            n_chips_i = 1 if di_chips else 0
+            n_chips_j = 1 if dj_chips else 0
+            wi, hi = _node_size_for(n_chips_i)
+            wj, hj = _node_size_for(n_chips_j)
+            min_sep = (_math.sqrt(wi**2 + hi**2) / 2 + _math.sqrt(wj**2 + hj**2) / 2 + 10)
+            assert dist >= min_sep - 0.5, \
+                f"BGP ノード {di} と {dj} が重なっている: dist={dist:.1f} < min_sep={min_sep:.1f}"
+
+
+def _make_p3_bgp_dense_topology():
+    """Task #8: BGP dense フィクスチャ（4台・各2チップ以上・重なり検証用）。
+
+    r1(AS65001) --ebgp-- r2(AS65002) --ebgp-- r3(AS65003) --ebgp-- r4(AS65004)
+    各デバイスに BGP セッション参加 IF が 2 本以上ある。
+    """
+    return {
+        "title": "P3 BGP Dense Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+            {"id": "r3", "hostname": "R3", "vendor": "cisco_ios", "as": 65003, "sections": []},
+            {"id": "r4", "hostname": "R4", "vendor": "cisco_ios", "as": 65004, "sections": []},
+        ],
+        "interfaces": [
+            # r1: 2本の BGP セッション参加 IF
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.12.1/30", "vlan": None, "description": "to-R2", "shutdown": False},
+            {"id": "r1::eth1", "device": "r1", "name": "eth1",
+             "ip": "10.0.14.1/30", "vlan": None, "description": "to-R4", "shutdown": False},
+            # r2: 2本の BGP セッション参加 IF
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.12.2/30", "vlan": None, "description": "to-R1", "shutdown": False},
+            {"id": "r2::eth1", "device": "r2", "name": "eth1",
+             "ip": "10.0.23.1/30", "vlan": None, "description": "to-R3", "shutdown": False},
+            # r3: 2本の BGP セッション参加 IF
+            {"id": "r3::eth0", "device": "r3", "name": "eth0",
+             "ip": "10.0.23.2/30", "vlan": None, "description": "to-R2", "shutdown": False},
+            {"id": "r3::eth1", "device": "r3", "name": "eth1",
+             "ip": "10.0.34.1/30", "vlan": None, "description": "to-R4", "shutdown": False},
+            # r4: 2本の BGP セッション参加 IF
+            {"id": "r4::eth0", "device": "r4", "name": "eth0",
+             "ip": "10.0.34.2/30", "vlan": None, "description": "to-R3", "shutdown": False},
+            {"id": "r4::eth1", "device": "r4", "name": "eth1",
+             "ip": "10.0.14.2/30", "vlan": None, "description": "to-R1", "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.12.0/30", "kind": "inferred-subnet"},
+            {"a_device": "r2", "a_if": "eth1", "b_device": "r3", "b_if": "eth0",
+             "subnet": "10.0.23.0/30", "kind": "inferred-subnet"},
+            {"a_device": "r3", "a_if": "eth1", "b_device": "r4", "b_if": "eth0",
+             "subnet": "10.0.34.0/30", "kind": "inferred-subnet"},
+            {"a_device": "r4", "a_if": "eth1", "b_device": "r1", "b_if": "eth1",
+             "subnet": "10.0.14.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "peer_as": 65002,
+                 "local_ip": "10.0.12.1", "neighbor_ip": "10.0.12.2", "type": "ebgp"},
+                {"device": "r1", "local_as": 65001, "peer_as": 65004,
+                 "local_ip": "10.0.14.1", "neighbor_ip": "10.0.14.2", "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "peer_as": 65001,
+                 "local_ip": "10.0.12.2", "neighbor_ip": "10.0.12.1", "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "peer_as": 65003,
+                 "local_ip": "10.0.23.1", "neighbor_ip": "10.0.23.2", "type": "ebgp"},
+                {"device": "r3", "local_as": 65003, "peer_as": 65002,
+                 "local_ip": "10.0.23.2", "neighbor_ip": "10.0.23.1", "type": "ebgp"},
+                {"device": "r3", "local_as": 65003, "peer_as": 65004,
+                 "local_ip": "10.0.34.1", "neighbor_ip": "10.0.34.2", "type": "ebgp"},
+                {"device": "r4", "local_as": 65004, "peer_as": 65003,
+                 "local_ip": "10.0.34.2", "neighbor_ip": "10.0.34.1", "type": "ebgp"},
+                {"device": "r4", "local_as": 65004, "peer_as": 65001,
+                 "local_ip": "10.0.14.2", "neighbor_ip": "10.0.14.1", "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_p3_bgp_no_overlap_dense_4nodes():
+    """Task #8: 4台・各2チップ BGP dense フィクスチャでもノードが重ならない。
+
+    bgp_node_sizes が 1 (row count) に修正された後、force-directed への
+    node_sizes 伝達が正しく機能していることを検証する。
+    """
+    import math as _math
+    from lib.rendering.views import _build_bgp_layout, _build_bgp_chip_iface_ids
+    from lib.rendering.layout import _node_size_for
+
+    topo = _make_p3_bgp_dense_topology()
+    devices = topo["devices"]
+    bgp_entries = topo["routing"]["bgp"]
+    interfaces = topo["interfaces"]
+
+    positions, bgp_devices = _build_bgp_layout(devices, bgp_entries, interfaces)
+
+    bgp_chip_ids = _build_bgp_chip_iface_ids(bgp_entries, interfaces)
+    iface_by_device: dict = {}
+    for iface in interfaces:
+        iface_by_device.setdefault(iface["device"], []).append(iface)
+
+    dev_ids = sorted(d["id"] for d in bgp_devices)
+    for i in range(len(dev_ids)):
+        for j in range(i + 1, len(dev_ids)):
+            di, dj = dev_ids[i], dev_ids[j]
+            if di not in positions or dj not in positions:
+                continue
+            xi, yi = positions[di]
+            xj, yj = positions[dj]
+            dist = _math.sqrt((xi - xj) ** 2 + (yi - yj) ** 2)
+            di_chips = {iface["id"] for iface in iface_by_device.get(di, []) if iface["id"] in bgp_chip_ids}
+            dj_chips = {iface["id"] for iface in iface_by_device.get(dj, []) if iface["id"] in bgp_chip_ids}
+            n_chips_i = 1 if di_chips else 0
+            n_chips_j = 1 if dj_chips else 0
+            wi, hi = _node_size_for(n_chips_i)
+            wj, hj = _node_size_for(n_chips_j)
+            min_sep = (_math.sqrt(wi**2 + hi**2) / 2 + _math.sqrt(wj**2 + hj**2) / 2 + 10)
+            assert dist >= min_sep - 0.5, \
+                f"Dense BGP ノード {di} と {dj} が重なっている: dist={dist:.1f} < min_sep={min_sep:.1f}"
+
+
+@pytest.mark.unit
+def test_p3_chip_positions_cy_uses_node_cy():
+    """Task #9: _chip_positions の cy 座標が node_cy を起点として計算される。
+
+    ny = node_cy - node_h/2 として cy = ny + _NODE_HEADER_H + _IF_CHIP_OFFSET_Y
+    """
+    from lib.rendering.svg import _chip_positions, _IF_CHIP_OFFSET_Y, _NODE_HEADER_H
+    from lib.rendering.layout import _node_size_for
+
+    dev = {"id": "r1", "hostname": "R1"}
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+         "shutdown": False, "description": None},
+    ]
+    chip_ids = {"r1::eth0"}
+    node_cx, node_cy = 200.0, 300.0
+
+    result = _chip_positions(dev, chip_ids, ifaces, node_cx, node_cy)
+    assert "r1::eth0" in result
+
+    _, cy = result["r1::eth0"]
+
+    # node_h は _node_size_for(1) で計算（チップあり=1行分）
+    _w, node_h = _node_size_for(1)
+    ny = node_cy - node_h / 2
+    expected_cy = ny + _NODE_HEADER_H + _IF_CHIP_OFFSET_Y
+
+    assert abs(cy - expected_cy) < 0.5, \
+        f"chip cy={cy:.2f} が期待値 {expected_cy:.2f} と不一致 (node_cy={node_cy})"
+
+
+@pytest.mark.unit
+def test_p3_bgp_view_excludes_loopback_chips():
+    """Task #11: BGP ビューのチップから Loopback IF が除外される。
+
+    r1::lo0 (Loopback0) は BGP セッション参加 IF ではないため
+    BGP チップ集合に含まれない。
+    """
+    from lib.rendering.views import _build_bgp_chip_iface_ids
+
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0",
+         "ip": "10.0.12.1/30", "vlan": None, "description": None, "shutdown": False},
+        {"id": "r1::lo0", "device": "r1", "name": "Loopback0",
+         "ip": "10.255.1.1/32", "vlan": None, "description": None, "shutdown": False},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "peer_as": 65002,
+         "local_ip": "10.0.12.1", "neighbor_ip": "10.0.12.2", "type": "ebgp"},
+    ]
+
+    chip_ids = _build_bgp_chip_iface_ids(bgp_entries, interfaces)
+
+    assert "r1::eth0" in chip_ids, \
+        "BGP セッション参加 IF (r1::eth0) がチップ集合に含まれない"
+    assert "r1::lo0" not in chip_ids, \
+        "Loopback0 (r1::lo0) が BGP チップ集合に含まれている（除外されるべき）"
+
+
+@pytest.mark.unit
+def test_p3_ospf_segment_edge_has_seg_id():
+    """Task #12: _svg_ospf_segment_edges の <line> に data-seg-id 属性が付与される。
+
+    Physical の _svg_segment_edges と同等のパリティ確認。
+    """
+    from lib.rendering.svg import _svg_ospf_segment_edges
+
+    interfaces = [
+        {"id": "r2::eth1", "device": "r2", "name": "eth1",
+         "ip": "10.10.0.2/24", "shutdown": False, "description": None},
+    ]
+    segments = [
+        {"id": "seg-10.10.0.0/24", "subnet": "10.10.0.0/24",
+         "members": ["r2::eth1"], "ospf_area": 0},
+    ]
+    positions = {
+        "seg-10.10.0.0/24": (350.0, 200.0),
+        "r2": (200.0, 300.0),
+    }
+
+    svg = _svg_ospf_segment_edges(segments, interfaces, positions)
+
+    # data-seg-id 属性が存在すること
+    assert 'data-seg-id=' in svg, \
+        f"_svg_ospf_segment_edges の <line> に data-seg-id 属性がない: {svg[:300]}"
+    # 値が seg_id と一致すること
+    m = re.search(r'data-seg-id="([^"]+)"', svg)
+    assert m is not None, f"data-seg-id 属性値が取得できない: {svg}"
+    assert m.group(1) == "seg-10.10.0.0/24", \
+        f"data-seg-id の値 {m.group(1)!r} が seg_id と不一致"
+
+
+@pytest.mark.unit
+def test_p3_physical_chip_iface_ids_connected_if():
+    """Task #13: _build_physical_chip_iface_ids が接続 IF を返す。"""
+    from lib.rendering.views import _build_physical_chip_iface_ids
+
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0",
+         "ip": "10.0.12.1/30", "vlan": None, "description": None, "shutdown": False},
+        {"id": "r1::eth1", "device": "r1", "name": "eth1",
+         "ip": "192.168.1.1/24", "vlan": None, "description": "LAN", "shutdown": False},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0",
+         "ip": "10.0.12.2/30", "vlan": None, "description": None, "shutdown": False},
+    ]
+    links = [
+        {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+         "subnet": "10.0.12.0/30", "kind": "inferred-subnet"},
+    ]
+    segments: list = []
+
+    chip_ids = _build_physical_chip_iface_ids(interfaces, links, segments)
+
+    assert "r1::eth0" in chip_ids, "接続 IF (r1::eth0) がチップ集合に含まれない"
+    assert "r2::eth0" in chip_ids, "接続 IF (r2::eth0) がチップ集合に含まれない"
+    assert "r1::eth1" not in chip_ids, "非接続・非 Loopback の r1::eth1 がチップ集合に含まれる"
+
+
+@pytest.mark.unit
+def test_p3_physical_chip_iface_ids_loopback():
+    """Task #13: _build_physical_chip_iface_ids が Loopback IF を返す。"""
+    from lib.rendering.views import _build_physical_chip_iface_ids
+
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "Loopback0",
+         "ip": "10.255.1.1/32", "vlan": None, "description": None, "shutdown": False},
+        {"id": "r1::eth0", "device": "r1", "name": "eth0",
+         "ip": "192.168.1.1/24", "vlan": None, "description": "LAN", "shutdown": False},
+    ]
+    links: list = []
+    segments: list = []
+
+    chip_ids = _build_physical_chip_iface_ids(interfaces, links, segments)
+
+    assert "r1::lo0" in chip_ids, "Loopback0 (r1::lo0) がチップ集合に含まれない"
+    assert "r1::eth0" not in chip_ids, "非接続・非 Loopback の eth0 がチップ集合に含まれる"

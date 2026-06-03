@@ -109,6 +109,60 @@ def _is_loopback(name: str) -> bool:
     return False
 
 
+def _chip_positions(
+    dev: dict,
+    chip_iface_ids: set[str],
+    ifaces: list[dict],
+    node_cx: float,
+    node_cy: float,
+) -> dict[str, tuple[float, float]]:
+    """チップ集合の座標マップを返す純粋ヘルパー（iteration-4 #6）。
+
+    描画と座標供給で共用する。IF を name ソート順でインデックス付けして
+    ``{iface_id: (cx, cy)}`` を返す（決定的）。
+
+    座標計算:
+        ny = node_cy - node_h / 2  （node_cy を起点にノード上端を算出）
+        cy = ny + _NODE_HEADER_H + _IF_CHIP_OFFSET_Y
+        cx = nx + _IF_CHIP_OFFSET_X + k * _IF_CHIP_GAP  （k は name ソート順インデックス）
+        node_h は _node_size_for(1) から取得（チップあり=1行分固定）。
+
+    Args:
+        dev:            device 辞書（id を持つ）
+        chip_iface_ids: このノードで描画するチップの iface_id 集合
+        ifaces:         このデバイスの全 IF リスト（名前解決・ソートに使用）
+        node_cx:        ノード中心 x 座標
+        node_cy:        ノード中心 y 座標（ny 算出に使用: ny = node_cy - node_h / 2）
+
+    Returns:
+        ``{iface_id: (cx, cy)}`` — chip_iface_ids に含まれる IF のみ。
+    """
+    if not chip_iface_ids:
+        return {}
+
+    # chip_iface_ids に含まれる IF のみ name ソート
+    chip_ifaces = sorted(
+        (i for i in ifaces if i["id"] in chip_iface_ids),
+        key=lambda i: i["name"],
+    )
+    if not chip_ifaces:
+        return {}
+
+    # ノード矩形の左端・上端を計算（node_cx/ny は中心座標）
+    # _svg_nodes と同じく「チップあり=1行分」で高さを算出（横1行配置の設計）
+    _w, node_h = _node_size_for(1)
+    nx = node_cx - _NODE_WIDTH / 2
+    ny = node_cy - node_h / 2
+    chip_start_y = ny + _NODE_HEADER_H
+
+    result: dict[str, tuple[float, float]] = {}
+    for k, iface in enumerate(chip_ifaces):
+        cx = nx + _IF_CHIP_OFFSET_X + k * _IF_CHIP_GAP
+        cy = chip_start_y + _IF_CHIP_OFFSET_Y
+        result[iface["id"]] = (cx, cy)
+    return result
+
+
 def _svg_if_chip(
     nx: float,
     chip_start_y: float,
@@ -119,6 +173,7 @@ def _svg_if_chip(
 
     チップは小さな circle で表現し、<title> に「IF名 IP（desc）」を持つ。
     shutdown の場合は if-chip-shutdown クラスを追加。
+    iteration-4 #6: data-iface-id 属性を付与（チップアンカー・将来連動用）。
 
     Args:
         nx:           ノード矩形の左端 x 座標
@@ -131,6 +186,7 @@ def _svg_if_chip(
     cy = chip_start_y + _IF_CHIP_OFFSET_Y
 
     if_name = iface.get("name", "")
+    if_id = iface.get("id", "")
     if_ip = iface.get("ip") or ""
     desc = iface.get("description") or ""
 
@@ -145,7 +201,7 @@ def _svg_if_chip(
     css_cls = "if-chip if-chip-shutdown" if iface.get("shutdown") else "if-chip"
 
     return (
-        f'<g class="{css_cls}" data-if="{_esc(if_name)}">'
+        f'<g class="{css_cls}" data-if="{_esc(if_name)}" data-iface-id="{_esc(if_id)}">'
         f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{_IF_CHIP_R}"/>'
         f'<title>{title_text}</title>'
         f'</g>'
@@ -159,6 +215,7 @@ def _svg_nodes(
     *,
     show_interfaces: bool = False,
     connected_iface_ids: set[str] | None = None,
+    chip_iface_ids: set[str] | None = None,
 ) -> str:
     """機器ノードの SVG 要素を生成する。
 
@@ -166,16 +223,20 @@ def _svg_nodes(
     接続IF/Loopback のみを小さなチップ（circle）で表示する（iteration-3 #2）。
     全 IF の詳細はカード表に残る。
 
-    show_interfaces=False（デフォルト）のとき、従来通り hostname + AS/vendor のコンパクト表示。
+    show_interfaces=False（デフォルト）かつ chip_iface_ids が指定された場合も
+    チップ表示を行う（BGP/OSPF 等ビュー用）。iteration-4 #6。
 
     Args:
         devices:             デバイスリスト
         positions:           デバイスID → (x, y) 座標辞書
         iface_by_device:     デバイスID → IF リスト辞書
-        show_interfaces:     True のとき Physical ビュー用チップ表示
+        show_interfaces:     True のとき Physical ビュー用チップ表示（connected_iface_ids + Loopback）
         connected_iface_ids: リンク/セグメント端点の iface-id 集合（Physical ビュー用）。
                              None のとき空集合扱い＝Loopback のみを chip 表示する。
                              Physical ビューでは必ず集合を渡すこと。
+        chip_iface_ids:      全ビューで描画するチップの iface-id 集合（iteration-4 #6）。
+                             指定時は connected_iface_ids/show_interfaces を上書きしてこちらを優先。
+                             None のとき show_interfaces/connected_iface_ids の従来動作を踏襲。
     """
     if iface_by_device is None:
         iface_by_device = {}
@@ -193,31 +254,37 @@ def _svg_nodes(
 
         search_val = _esc(_build_search_attr(dev, iface_by_device.get(dev["id"], [])))
 
-        # ノード高さを分岐前に確定して nx/ny を共通計算
-        if show_interfaces:
-            all_ifaces = sorted(iface_by_device.get(dev["id"], []), key=lambda i: i["name"])
-            # 表示対象: 接続IF + Loopback のみ（iteration-3 #2）
+        all_ifaces = sorted(iface_by_device.get(dev["id"], []), key=lambda i: i["name"])
+
+        # ---- チップ集合を決定 ----
+        # chip_iface_ids が明示的に渡された場合はそちらを優先（BGP/OSPF ビュー用）
+        if chip_iface_ids is not None:
+            # このデバイスの chip_iface_ids に含まれる IF
+            chip_ifaces = [i for i in all_ifaces if i["id"] in chip_iface_ids]
+        elif show_interfaces:
+            # Physical ビュー: 接続IF + Loopback（従来通り）
             chip_ifaces = [
                 iface for iface in all_ifaces
                 if iface["id"] in connected_iface_ids or _is_loopback(iface.get("name", ""))
             ]
-            # チップは横1行に並べるため高さは固定（チップあり=1行分、なし=0行分）
-            n_chip = 1 if chip_ifaces else 0
         else:
             chip_ifaces = []
-            n_chip = 0
 
-        _w, node_h = _node_size_for(n_chip) if show_interfaces else (float(_NODE_WIDTH), float(_NODE_HEIGHT))
+        use_chips = bool(chip_ifaces)
+        # チップは横1行: n_chip = チップ有無（1 or 0）のみで高さを計算（従来通り）
+        n_chip = 1 if use_chips else 0
+
+        if use_chips:
+            _w, node_h = _node_size_for(n_chip)
+        else:
+            _w, node_h = float(_NODE_WIDTH), float(_NODE_HEIGHT)
         nx = x - _NODE_WIDTH / 2
         ny = y - node_h / 2
 
-        if show_interfaces:
-            # ----- Physical ビュー: チップ型ノード（iteration-3 #2）-----
-            # hostname は上部中央（太字）
+        if use_chips:
+            # ----- チップ型ノード（iteration-3 #2 / iteration-4 #6）-----
             label_y = ny + 14
             sublabel_y = ny + 26
-
-            # チップ開始 y 座標（ヘッダー領域直下）
             chip_start_y = ny + _NODE_HEADER_H
 
             chips_str = "\n".join(
@@ -239,7 +306,7 @@ def _svg_nodes(
                 + f'\n</g>'
             )
         else:
-            # ----- BGP/OSPF 等: 従来通りコンパクト表示 -----
+            # ----- コンパクト表示 -----
             parts.append(
                 f'<g class="device-node" data-device="{dev_id}" '
                 f'data-search="{search_val}" '
@@ -276,23 +343,51 @@ def _svg_segments(segments: list[dict], positions: dict) -> str:
     return "\n".join(parts)
 
 
-def _svg_links(links: list[dict], positions: dict) -> str:
+def _svg_links(
+    links: list[dict],
+    positions: dict,
+    chip_positions: dict[str, tuple[float, float]] | None = None,
+    name_to_iface_id: dict[tuple[str, str], str] | None = None,
+) -> str:
     """リンクエッジの SVG 要素を生成する（Physical ビュー用）。
 
     常時テキストラベルは持たない（iteration-3 #1）。
     subnet/IF 名は hover の <title> で参照できる程度に留める。
     各 <g class="link-edge"> と <line class="link-line"> に ``data-link-id`` を付与する。
     link-id は ``_make_link_id(a_device, a_if, b_device, b_if)`` で導出（決定的・対称）。
+
+    iteration-4 #6: chip_positions と name_to_iface_id が渡された場合、
+    端点の iface_id に対応するチップ座標を線の端点に使用する。
+    チップが無い端点はノード中心にフォールバックする。
+
+    Args:
+        links:             リンクリスト
+        positions:         デバイスID → (cx, cy) 座標辞書
+        chip_positions:    iface_id → (cx, cy) チップ座標辞書（None のときフォールバック）
+        name_to_iface_id:  (device_id, if_name) → iface_id マップ（None のときフォールバック）
     """
     parts = []
     for link in sorted(links, key=lambda l: (l["a_device"], l["b_device"])):
         a_dev = link["a_device"]
         b_dev = link["b_device"]
-        x1, y1 = positions.get(a_dev, (0, 0))
-        x2, y2 = positions.get(b_dev, (0, 0))
-        subnet = _esc(link.get("subnet", ""))
         a_if_raw = link.get("a_if") or ""
         b_if_raw = link.get("b_if") or ""
+
+        # チップアンカー: iface_id からチップ座標を解決
+        a_pos = positions.get(a_dev, (0.0, 0.0))
+        b_pos = positions.get(b_dev, (0.0, 0.0))
+        if chip_positions is not None and name_to_iface_id is not None:
+            a_iface_id = name_to_iface_id.get((a_dev, a_if_raw))
+            b_iface_id = name_to_iface_id.get((b_dev, b_if_raw))
+            if a_iface_id and a_iface_id in chip_positions:
+                a_pos = chip_positions[a_iface_id]
+            if b_iface_id and b_iface_id in chip_positions:
+                b_pos = chip_positions[b_iface_id]
+
+        x1, y1 = a_pos
+        x2, y2 = b_pos
+
+        subnet = _esc(link.get("subnet", ""))
         a_if = _esc(a_if_raw)
         b_if = _esc(b_if_raw)
         # 決定的 link-id（両端点をソートして結合）
@@ -370,11 +465,22 @@ def _svg_ospf_segment_edges(
     segments: list[dict],
     interfaces: list[dict],
     positions: dict,
+    chip_positions: dict[str, tuple[float, float]] | None = None,
 ) -> str:
     """OSPF 参加セグメントからメンバー機器への接続エッジを生成する。
 
     Physical ビューの _svg_segment_edges と同様だが、layer-ospf クラスを付与する。
     ospf_area が付いているセグメントのみを対象とする。
+
+    iteration-4 #6: chip_positions が渡された場合、機器側端点を
+    メンバー iface_id のチップ座標にアンカーする。
+    チップが無い場合はノード中心にフォールバック。
+
+    Args:
+        segments:       セグメントリスト
+        interfaces:     topology の interfaces リスト
+        positions:      ノードID → (cx, cy) 座標辞書
+        chip_positions: iface_id → (cx, cy) チップ座標辞書（None のときフォールバック）
     """
     iface_map = {iface["id"]: iface["device"] for iface in interfaces}
 
@@ -387,11 +493,15 @@ def _svg_ospf_segment_edges(
         for member_iface_id in sorted(seg.get("members", [])):
             dev_id = iface_map.get(member_iface_id)
             if dev_id and dev_id in positions:
-                dx, dy = positions[dev_id]
+                # チップアンカー: メンバー iface_id のチップ座標を使用
+                if chip_positions is not None and member_iface_id in chip_positions:
+                    dx, dy = chip_positions[member_iface_id]
+                else:
+                    dx, dy = positions[dev_id]
                 parts.append(
                     f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
                     f'class="seg-edge layer-ospf" data-seg="{seg_id}" '
-                    f'data-device="{_esc(dev_id)}"/>'
+                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}"/>'
                 )
     return "\n".join(parts)
 
@@ -400,14 +510,30 @@ def _svg_bgp_edges(
     bgp_entries: list[dict],
     interfaces: list[dict],
     positions: dict,
+    chip_positions: dict[str, tuple[float, float]] | None = None,
 ) -> str:
     """BGP ピアリングエッジを生成する（ebgp=青、ibgp=橙）。
 
     data-bgp-id 属性: 両端 device id を sorted して '|' で結合した決定的な値。
     例: r1 と r2 のセッションなら "r1|r2"（どちらの方向から呼んでも同一）。
+
+    iteration-4 #6: chip_positions が渡された場合、
+    BGP セッション端点を該当チップ座標にアンカーする。
+    - A 側: local_ip → iface_id → chip_positions
+    - B 側: neighbor_ip → iface_id → chip_positions
+    チップが無い端点はノード中心にフォールバック（local_ip 欠損時も含む）。
+
+    Args:
+        bgp_entries:    BGP エントリリスト
+        interfaces:     topology の interfaces リスト
+        positions:      デバイスID → (cx, cy) 座標辞書
+        chip_positions: iface_id → (cx, cy) チップ座標辞書（None のときフォールバック）
     """
     # local_ip -> device_id 逆引き（共通ヘルパーを使用）
     ip_to_device = _build_ip_to_device(interfaces)
+
+    # ip_only -> iface_id マップ（チップアンカー用: 共通ヘルパーを使用）
+    ip_to_iface_id: dict[str, str] = _build_ip_to_iface_id(interfaces) if chip_positions is not None else {}
 
     parts = []
     # 重複エッジ防止（双方向のペアを1本に）
@@ -430,8 +556,22 @@ def _svg_bgp_edges(
         if dev_id not in positions or neighbor_dev not in positions:
             continue
 
+        # デフォルト: ノード中心
         x1, y1 = positions[dev_id]
         x2, y2 = positions[neighbor_dev]
+
+        # チップアンカー（iteration-4 #6）
+        if chip_positions is not None:
+            local_ip_raw = entry.get("local_ip") or ""
+            # A 側: local_ip → iface_id → chip_pos
+            if local_ip_raw:
+                a_iface_id = ip_to_iface_id.get(local_ip_raw)
+                if a_iface_id and a_iface_id in chip_positions:
+                    x1, y1 = chip_positions[a_iface_id]
+            # B 側: neighbor_ip → iface_id → chip_pos
+            b_iface_id = ip_to_iface_id.get(neighbor_ip)
+            if b_iface_id and b_iface_id in chip_positions:
+                x2, y2 = chip_positions[b_iface_id]
 
         css_class = f"bgp-edge bgp-{_esc(bgp_type)} layer-bgp"
         peer_as = _esc(entry.get("peer_as", ""))
@@ -494,6 +634,7 @@ def _svg_bgp_as_groups(
     bgp_devices: list[dict],
     positions: dict[str, tuple[float, float]],
     padding: float = _AS_GROUP_PADDING,
+    node_sizes: dict[str, int] | None = None,
 ) -> str:
     """BGP ビュー用 AS グルーピング枠を生成する。
 
@@ -504,6 +645,16 @@ def _svg_bgp_as_groups(
     描画順はノードの背面になるよう呼び出し側で先に出力すること。
 
     決定性: AS 番号昇順・同一 AS 内はデバイス ID 昇順でソートして処理する。
+
+    iteration-4 #6: node_sizes={device_id: n_ifaces} を渡すことで
+    実ノード高（チップ有り時は _node_size_for(n_ifaces)[1]）を使って
+    bounding box を計算する。None のとき固定 _NODE_HEIGHT を使用（従来動作）。
+
+    Args:
+        bgp_devices:  BGP 参加デバイスリスト
+        positions:    デバイスID → (cx, cy) 座標辞書
+        padding:      枠とノード矩形間のパディング（px）
+        node_sizes:   デバイスID → n_ifaces マップ（None のとき固定高）
     """
     # device["as"] を local_as として使用（build 済みなので信頼する）
     # asn -> [device_id, ...] のマップを AS 番号昇順で構築
@@ -515,19 +666,32 @@ def _svg_bgp_as_groups(
         if dev["id"] in positions:
             asn_to_devs[asn].append(dev["id"])
 
+    _nsizes = node_sizes or {}
+
     parts = []
     for asn in sorted(asn_to_devs.keys()):
         dev_ids = asn_to_devs[asn]
         if not dev_ids:
             continue
 
-        # bounding box を計算（ノード中心座標から node-rect の左上/右下を算出）
+        # bounding box を計算（実ノード高対応: iteration-4 #6）
         xs = [positions[d][0] for d in dev_ids]
         ys = [positions[d][1] for d in dev_ids]
+
+        # 各デバイスの実ノード高を使って上下端を個別計算
+        tops = []
+        bottoms = []
+        for d in dev_ids:
+            cy = positions[d][1]
+            n_if = _nsizes.get(d, 0)
+            _w, node_h = _node_size_for(n_if)
+            tops.append(cy - node_h / 2)
+            bottoms.append(cy + node_h / 2)
+
         min_x = min(xs) - _NODE_WIDTH / 2 - padding
-        min_y = min(ys) - _NODE_HEIGHT / 2 - padding
+        min_y = min(tops) - padding
         max_x = max(xs) + _NODE_WIDTH / 2 + padding
-        max_y = max(ys) + _NODE_HEIGHT / 2 + padding
+        max_y = max(bottoms) + padding
 
         rect_w = max_x - min_x
         rect_h = max_y - min_y
@@ -579,6 +743,26 @@ def _build_ip_to_device(interfaces: list[dict]) -> dict[str, str]:
         if iface.get("ip"):
             ip_only = iface["ip"].split("/")[0]
             result[ip_only] = iface["device"]
+    return result
+
+
+def _build_ip_to_iface_id(interfaces: list[dict]) -> dict[str, str]:
+    """interfaces から ip_only -> iface_id 逆引きマップを構築する。
+
+    _build_ip_to_device と対称なヘルパー。チップアンカー解決に使用する。
+
+    Args:
+        interfaces: topology の interfaces リスト
+
+    Returns:
+        ``{ip_only: iface_id}`` 辞書。iface["ip"].split("/")[0] -> iface["id"] の形式。
+        ip を持たないエントリはスキップする。
+    """
+    result: dict[str, str] = {}
+    for iface in interfaces:
+        if iface.get("ip"):
+            ip_only = iface["ip"].split("/")[0]
+            result[ip_only] = iface["id"]
     return result
 
 
