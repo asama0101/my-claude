@@ -31,10 +31,18 @@ _CSS = """\
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html, body {
+      height: 100%;
+    }
+
     body {
       font-family: var(--font-main);
       background: #f3f4f6;
       color: #111827;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
     }
 
     header {
@@ -135,13 +143,36 @@ _CSS = """\
       font-size: 0.75rem;
     }
 
+    /* 上下スプリットペインコンテナ（ヘッダ等固定UI の下に残り高さを分割） */
+    #split-pane-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
     #svg-container {
       overflow: auto;
-      max-height: 70vh;
+      flex: 1;
+      min-height: 120px;
       background: #fff;
-      border-bottom: 1px solid var(--color-card-border);
       cursor: grab;
       position: relative;
+    }
+
+    /* 上下ペイン境界バー（ドラッグで高さ可変） */
+    #split-divider {
+      height: 6px;
+      background: #e5e7eb;
+      border-top: 1px solid #d1d5db;
+      border-bottom: 1px solid #d1d5db;
+      cursor: row-resize;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    #split-divider:hover {
+      background: #93c5fd;
     }
 
     #svg-container:active {
@@ -248,6 +279,8 @@ _CSS = """\
     /* カード */
     #cards-section {
       padding: 20px;
+      overflow: auto;
+      min-height: 80px;
     }
 
     #cards-section h2 {
@@ -428,27 +461,32 @@ _CSS = """\
       box-shadow: 0 0 6px rgba(5,150,105,0.4);
     }
 
-    /* Device Details トグルボタン（iteration-3 #8） */
-    #cards-toggle-btn {
-      padding: 4px 12px;
-      font-size: 0.85rem;
+    /* ズーム操作ボタン群（図ペイン右上に重ねる） */
+    #zoom-controls {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 4px;
+      z-index: 10;
+    }
+
+    .zoom-btn {
+      padding: 4px 8px;
+      font-size: 0.8rem;
       font-weight: 600;
       border: 1px solid var(--color-card-border);
       border-radius: 4px;
-      background: var(--color-card-bg);
+      background: rgba(255, 255, 255, 0.92);
       color: #374151;
       cursor: pointer;
+      line-height: 1;
     }
 
-    #cards-toggle-btn:hover {
-      background: #e5e7eb;
-    }
-
-    .cards-controls {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
+    .zoom-btn:hover {
+      background: #e0e7ff;
+      border-color: #6366f1;
+      color: #3730a3;
     }
 
     /* BGP ビュー AS グルーピング枠（iteration-3 Batch2 #4: 視認性改善） */
@@ -572,6 +610,11 @@ _JS = """\
       const svg = document.getElementById('topology-svg');
       const vp = document.getElementById('viewport');
 
+      // ズーム定数（重複排除: wheel/ボタン/zoomFit のクランプをここで一元管理）
+      var ZOOM_STEP = 1.2;
+      var ZOOM_MIN = 0.2;
+      var ZOOM_MAX = 5.0;
+
       let scale = 1.0;
       let translateX = 0;
       let translateY = 0;
@@ -587,14 +630,16 @@ _JS = """\
       // ズーム（マウスホイール）
       container.addEventListener('wheel', function(e) {
         e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        scale = Math.max(0.2, Math.min(5.0, scale * delta));
+        const delta = e.deltaY > 0 ? (1 / ZOOM_STEP) : ZOOM_STEP;
+        scale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, scale * delta));
         applyTransform();
       }, { passive: false });
 
       // パン（マウスドラッグ）
       container.addEventListener('mousedown', function(e) {
+        // ノード/リンク/ズームボタン上のクリックは pan を発火させない
         if (e.target.closest('.device-node') || e.target.closest('.link-edge')) return;
+        if (e.target.closest('#zoom-controls')) return;
         isDragging = true;
         dragStart = { x: e.clientX, y: e.clientY };
         translateStart = { x: translateX, y: translateY };
@@ -612,16 +657,53 @@ _JS = """\
         isDragging = false;
       });
 
+      // ズームボタン群のクリックハンドラ
+      var zoomFitBtn = document.getElementById('zoom-fit');
+      var zoomInBtn = document.getElementById('zoom-in');
+      var zoomOutBtn = document.getElementById('zoom-out');
+      var zoomResetBtn = document.getElementById('zoom-reset');
+
+      function zoomFit() {
+        // コンテナ寸法0ガード: レイアウト前やテスト環境では 0 になる場合がある
+        var cw = container.clientWidth;
+        var ch = container.clientHeight;
+        if (cw === 0 || ch === 0) {
+          scale = 1.0; translateX = 0; translateY = 0;
+          applyTransform();
+          return;
+        }
+        // viewBox の全4要素（minX minY W H）を parse して centering を補正
+        var vb = svg.getAttribute('viewBox');
+        if (vb) {
+          var parts = vb.split(/\s+/);
+          if (parts.length === 4) {
+            var vbX = parseFloat(parts[0]);  // min-x（0 以外になりうる）
+            var vbY = parseFloat(parts[1]);  // min-y（0 以外になりうる）
+            var vbW = parseFloat(parts[2]);
+            var vbH = parseFloat(parts[3]);
+            if (vbW > 0 && vbH > 0) {
+              var fitScale = Math.min(cw / vbW, ch / vbH, ZOOM_MAX);
+              scale = Math.max(ZOOM_MIN, fitScale);
+              // vbX/vbY を考慮した centering（min-x/min-y が 0 でも安全）
+              translateX = (cw - vbW * scale) / 2 - vbX * scale;
+              translateY = (ch - vbH * scale) / 2 - vbY * scale;
+              applyTransform();
+              return;
+            }
+          }
+        }
+        // フォールバック: リセット
+        scale = 1.0; translateX = 0; translateY = 0;
+        applyTransform();
+      }
+
       // キーボード
       document.addEventListener('keydown', function(e) {
         if (e.key === 'f' || e.key === 'F') {
-          // 全体表示（リセット）
-          scale = 1.0;
-          translateX = 0;
-          translateY = 0;
-          applyTransform();
+          // F = 全体表示（zoomFit）: HTML ヘルプ表記と実挙動を一致させる
+          zoomFit();
         } else if (e.key === 'Escape') {
-          // 選択/ハイライト解除 + 表示リセット
+          // Esc = 選択/ハイライト解除 + 等倍リセット
           clearSelection();
           scale = 1.0;
           translateX = 0;
@@ -631,6 +713,70 @@ _JS = """\
       });
 
       applyTransform();
+
+      if (zoomFitBtn) zoomFitBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        zoomFit();
+      });
+      if (zoomInBtn) zoomInBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        scale = Math.min(ZOOM_MAX, scale * ZOOM_STEP);
+        applyTransform();
+      });
+      if (zoomOutBtn) zoomOutBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        scale = Math.max(ZOOM_MIN, scale / ZOOM_STEP);
+        applyTransform();
+      });
+      if (zoomResetBtn) zoomResetBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        scale = 1.0; translateX = 0; translateY = 0;
+        applyTransform();
+      });
+
+      // Phase2 向けにズーム制御を window に露出（selectView 等から呼べるよう）
+      window._zoomFit = zoomFit;
+      window._zoomReset = function() { scale = 1.0; translateX = 0; translateY = 0; applyTransform(); };
+    })();
+
+    // ============================================================
+    // 上下スプリットディバイダ ドラッグリサイズ
+    // ============================================================
+    (function() {
+      var divider = document.getElementById('split-divider');
+      var svgContainer = document.getElementById('svg-container');
+      if (!divider || !svgContainer) return;
+
+      var isDraggingDivider = false;
+      var dragStartY = 0;
+      var startHeight = 0;
+
+      divider.addEventListener('mousedown', function(e) {
+        isDraggingDivider = true;
+        dragStartY = e.clientY;
+        startHeight = svgContainer.offsetHeight;
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      document.addEventListener('mousemove', function(e) {
+        if (!isDraggingDivider) return;
+        var delta = e.clientY - dragStartY;
+        var newHeight = startHeight + delta;
+        // minH: 図ペインの最小高（SVG が潰れないよう 120px を確保）
+        var minH = 120;
+        // maxH: ヘッダ(~50px) + タブ(~38px) + サーチ(~40px) + フィルタ(~36px) ≈ 200px を
+        //        下ペインに残し、上ペインが window 全高を超えないよう制限。
+        //        さらに maxH >= minH+1 を保証し、上ペインが 0 になるのを防ぐ。
+        var maxH = Math.max(minH + 1, window.innerHeight - 200);
+        newHeight = Math.max(minH, Math.min(maxH, newHeight));
+        svgContainer.style.flex = 'none';
+        svgContainer.style.height = newHeight + 'px';
+      });
+
+      document.addEventListener('mouseup', function() {
+        isDraggingDivider = false;
+      });
     })();
 
     // ============================================================
@@ -947,25 +1093,6 @@ _JS = """\
     })();
 
     // ============================================================
-    // Device Details 折りたたみトグル（iteration-3 #8）
-    // ============================================================
-    function toggleCards() {
-      var section = document.getElementById('cards-section');
-      var btn = document.getElementById('cards-toggle-btn');
-      if (!section) return;
-      var grid = section.querySelector('.cards-grid');
-      if (!grid) return;
-      var isHidden = grid.style.display === 'none';
-      if (isHidden) {
-        grid.style.display = '';
-        if (btn) btn.textContent = 'Device Details ▾';
-      } else {
-        grid.style.display = 'none';
-        if (btn) btn.textContent = 'Device Details ▸';
-      }
-    }
-
-    // ============================================================
     // #6: Static Route 行クリック -> 経路エッジ + next-hop 機器 ハイライト
     // ============================================================
     function toggleStaticRouteHighlight(routeEdgeId, nexthopDeviceId) {
@@ -1201,37 +1328,48 @@ def build_html(
 
   {node_filter_html}
 
-  <div id="svg-container" style="width:100%;height:{svg_height}px;">
-    <svg id="topology-svg"
-         width="100%" height="100%"
-         viewBox="{vb_min_x:.1f} {vb_min_y:.1f} {svg_width} {svg_height}"
-         xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <marker id="arrow" markerWidth="8" markerHeight="8"
-                refX="6" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L8,3 z" fill="#6b7280"/>
-        </marker>
-      </defs>
-      <!-- ズーム/パン用グループ -->
-      <g id="viewport">
-        {all_views_svg}
-      </g>
-    </svg>
-  </div>
-
-  <!-- LAYERS トグル（cards-section 直前、iteration-3 #3） -->
-  <div class="controls" id="layers-controls">
-    <span class="controls-label">Layers:</span>
-    {toggles_html}
-  </div>
-
-  <div id="cards-section">
-    <div class="cards-controls">
-      <h2>Device Details</h2>
-      <button id="cards-toggle-btn" onclick="toggleCards()">Device Details ▾</button>
+  <!-- 上下スプリットペインコンテナ -->
+  <div id="split-pane-container">
+    <!-- 上ペイン: 図 -->
+    <div id="svg-container">
+      <svg id="topology-svg"
+           width="100%" height="100%"
+           viewBox="{vb_min_x:.1f} {vb_min_y:.1f} {svg_width} {svg_height}"
+           xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8"
+                  refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#6b7280"/>
+          </marker>
+        </defs>
+        <!-- ズーム/パン用グループ -->
+        <g id="viewport">
+          {all_views_svg}
+        </g>
+      </svg>
+      <!-- ズーム操作ボタン群（図ペイン右上） -->
+      <div id="zoom-controls">
+        <button id="zoom-fit" class="zoom-btn" title="全体表示">⛶ fit</button>
+        <button id="zoom-in" class="zoom-btn" title="拡大">+</button>
+        <button id="zoom-out" class="zoom-btn" title="縮小">−</button>
+        <button id="zoom-reset" class="zoom-btn" title="等倍リセット">1:1</button>
+      </div>
     </div>
-    <div class="cards-grid">
-      {cards_html}
+
+    <!-- 境界ディバイダ（ドラッグで上下ペイン高を可変） -->
+    <div id="split-divider"></div>
+
+    <!-- 下ペイン: Device Details -->
+    <div id="cards-section">
+      <!-- LAYERS トグル（Device Details 見出し付近） -->
+      <div class="controls" id="layers-controls" style="padding:6px 0 10px;border:none;">
+        <span class="controls-label">Layers:</span>
+        {toggles_html}
+      </div>
+      <h2>Device Details</h2>
+      <div class="cards-grid">
+        {cards_html}
+      </div>
     </div>
   </div>
 

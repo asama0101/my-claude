@@ -5515,16 +5515,17 @@ def test_i3_chip_deterministic():
 
 @pytest.mark.unit
 def test_i3_layers_toggle_near_cards_section(rendered_html):
-    """#3: LAYERS トグルの DOM が cards-section より前かつ cards-section 近傍にある。
-    コントロールバー（.controls）の中にある古い位置ではなく、cards-section 付近に移設される。"""
-    # cards-section の直前（最後の id/class 付き要素）に toggle が存在すること
-    # 具体的には id="cards-section" の直前の 2000 文字以内に layer-toggle が存在する
+    """#3/#Phase1-B: LAYERS トグルの DOM が cards-section 内またはその近傍にある。
+    Phase 1 で LAYERS トグルは cards-section 内部（上部）に移動された。"""
+    # cards-section の開始から内部 2000 文字以内に layer-toggle が存在すること
     cards_pos = rendered_html.find('id="cards-section"')
     assert cards_pos > 0, "cards-section が見つからない"
-    # cards-section の直前 2000 文字以内に layer-toggle が存在すること
+    # cards-section の直前 2000 文字以内 OR 直後 2000 文字以内（内部含む）
     pre_cards = rendered_html[max(0, cards_pos - 2000):cards_pos]
-    assert 'layer-toggle' in pre_cards or 'data-layer=' in pre_cards, \
-        "LAYERS トグルが cards-section の直前（2000文字以内）に存在しない"
+    post_cards = rendered_html[cards_pos:cards_pos + 2000]
+    assert ('layer-toggle' in pre_cards or 'data-layer=' in pre_cards or
+            'layer-toggle' in post_cards or 'data-layer=' in post_cards), \
+        "LAYERS トグルが cards-section の前後（2000文字以内）に存在しない"
 
 
 @pytest.mark.unit
@@ -5562,15 +5563,19 @@ def test_i3_diagram_pane_has_overflow_css(rendered_html):
 
 @pytest.mark.unit
 def test_i3_diagram_pane_has_max_height_css(rendered_html):
-    """#8: SVG コンテナ（#svg-container）に max-height CSS が設定されている。"""
+    """#8/#Phase1-A: SVG コンテナの高さ制御が行われている。
+    Phase 1 で max-height:70vh は廃止され、flex レイアウトで高さを制御する。
+    代わりに min-height または flex: 1 が CSS に含まれること。"""
     style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
     combined_style = "\n".join(style_blocks)
-    has_max_height = (
-        re.search(r'#svg-container\s*\{[^}]*max-height\s*:', combined_style) is not None or
-        re.search(r'#diagram-pane\s*\{[^}]*max-height\s*:', combined_style) is not None
+    # Phase 1: max-height は廃止、min-height または flex 制御に変更
+    has_height_control = (
+        re.search(r'#svg-container\s*\{[^}]*min-height\s*:', combined_style) is not None or
+        re.search(r'#svg-container\s*\{[^}]*flex\s*:', combined_style) is not None or
+        re.search(r'#svg-container\s*\{[^}]*height\s*:', combined_style) is not None
     )
-    assert has_max_height, \
-        "#svg-container または #diagram-pane の CSS に max-height が設定されていない"
+    assert has_height_control, \
+        "#svg-container の CSS に高さ制御（min-height/flex/height）が設定されていない"
 
 
 @pytest.mark.unit
@@ -5587,32 +5592,24 @@ def test_i3_cards_section_default_visible(rendered_html):
 
 @pytest.mark.unit
 def test_i3_cards_toggle_button_exists(rendered_html):
-    """#8: cards-section を折りたたむためのトグルボタンが存在する。"""
-    # 'Device Details' または 'cards' に関連するボタン/チェックボックスが存在すること
-    has_toggle = (
-        re.search(r'onclick="[^"]*card[^"]*"', rendered_html, re.IGNORECASE) is not None or
-        re.search(r'onclick="toggleCards', rendered_html) is not None or
-        re.search(r'id="toggle-cards"', rendered_html) is not None or
-        re.search(r'data-toggle="cards"', rendered_html) is not None
-    )
-    assert has_toggle, \
-        "cards-section 折りたたみトグルボタン（toggleCards 等）が存在しない"
+    """#8/#Phase1-B: cards-section の表示制御が行われている。
+    Phase 1 で折りたたみトグルボタンは廃止され、常時表示（スプリットペイン）になった。
+    代わりに cards-section が DOM に存在することを確認する。"""
+    # Phase 1 以降: 折りたたみは廃止、cards-section が常時表示される
+    assert 'id="cards-section"' in rendered_html, \
+        "cards-section が存在しない"
 
 
 @pytest.mark.unit
-def test_i3_cards_toggle_js_function_exists(rendered_html):
-    """#8: JS に cards 折りたたみ関数（toggleCards 等）が定義されている。"""
-    script_blocks = re.findall(r'<script[^>]*>(.*?)</script>', rendered_html, re.DOTALL | re.IGNORECASE)
-    # application/json スクリプトを除外
-    js_blocks = [b for b in script_blocks if 'application/json' not in b[:50]]
-    combined_js = "\n".join(js_blocks)
-    has_toggle_fn = (
-        'toggleCards' in combined_js or
-        re.search(r'function\s+\w*[Cc]ard[Ss]', combined_js) is not None or
-        re.search(r'cards.*toggle|toggle.*cards', combined_js, re.IGNORECASE) is not None
-    )
-    assert has_toggle_fn, \
-        "JS に cards 折りたたみ関数が定義されていない"
+def test_i3_cards_toggle_js_function_removed_in_phase1(rendered_html):
+    """#8/#Phase1-B: toggleCards 関数が Phase1 で廃止されていることを確認（HIGH H-1 名称・内容整合）
+
+    旧テスト名 test_i3_cards_toggle_js_function_exists は「存在する」と名乗りながら
+    廃止確認していた（名前と内容の乖離）。Phase1 後は toggleCards が存在しないことを
+    明示的に検証する（test_p1b_toggle_cards_function_removed と同趣旨の確認）。
+    """
+    assert "toggleCards" not in rendered_html, \
+        "toggleCards 関数が JS に残存している（Phase1 で廃止されるべき）"
 
 
 # ===========================================================================
@@ -6826,6 +6823,387 @@ def test_hm4_highlight_operations_present(rendered_html):
     )
     assert has_helper or has_inline, \
         "ハイライト操作ヘルパーもインライン実装も見つからない"
+
+
+# ===========================================================================
+# Phase 1 — 画面レイアウト刷新＋ズーム操作UI（iteration-4）
+# A: 上下スプリット＋境界ドラッグ
+# B: 折りたたみトグルの廃止
+# C: ズーム操作UI
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# A: 上下スプリット構造
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1a_split_divider_exists(rendered_html):
+    """Phase1-A: HTML に id="split-divider" が含まれる（上下ペイン境界バー）"""
+    assert 'id="split-divider"' in rendered_html, \
+        "split-divider 要素が存在しない"
+
+
+@pytest.mark.unit
+def test_p1a_svg_container_no_max_height_70vh(rendered_html):
+    """Phase1-A: #svg-container の max-height:70vh が撤去されている"""
+    # CSS から max-height: 70vh が消えていること
+    assert "max-height: 70vh" not in rendered_html and "max-height:70vh" not in rendered_html, \
+        "#svg-container の max-height:70vh が残存している"
+
+
+@pytest.mark.unit
+def test_p1a_split_divider_css_cursor_row_resize(rendered_html):
+    """Phase1-A: #split-divider に cursor:row-resize スタイルが適用される"""
+    assert "row-resize" in rendered_html, \
+        "split-divider に cursor:row-resize が設定されていない"
+
+
+@pytest.mark.unit
+def test_p1a_layout_height_100vh_or_dvh(rendered_html):
+    """Phase1-A: ルートレイアウトが height:100vh（または 100dvh）系で高さ制御されている"""
+    assert "100vh" in rendered_html or "100dvh" in rendered_html, \
+        "height:100vh/100dvh がレイアウトに存在しない"
+
+
+@pytest.mark.unit
+def test_p1a_split_divider_js_mousedown(rendered_html):
+    """Phase1-A: split-divider 専用 mousedown ハンドラが JS に存在する（HIGH H-3）
+
+    冗長アサーションを排除し、split-divider 要素への addEventListener('mousedown' を
+    具体的に検証する。divider.addEventListener('mousedown' パターンを確認。
+    """
+    # split-divider 要素の取得と addEventListener 登録の両方が存在すること
+    assert 'getElementById(\'split-divider\')' in rendered_html or \
+           'getElementById("split-divider")' in rendered_html, \
+        "split-divider 要素の取得コードが JS に存在しない"
+    # divider への mousedown リスナー登録が存在すること
+    assert re.search(
+        r"divider\.addEventListener\(['\"]mousedown['\"]",
+        rendered_html
+    ) is not None, "split-divider の mousedown addEventListener が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_p1a_cards_section_overflow_auto(rendered_html):
+    """Phase1-A: #cards-section が overflow:auto（独立スクロール）を持つ（CRIT-2 具体化）
+
+    <style> ブロック内の #cards-section ルールに overflow: auto が含まれることを
+    正規表現で限定検証する（HTML 全体の `overflow:auto` 存在に依存しない）。
+    """
+    assert 'id="cards-section"' in rendered_html, "#cards-section 要素が存在しない"
+    # <style> タグ内の CSS を抽出
+    style_match = re.search(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    assert style_match is not None, "<style> ブロックが存在しない"
+    css_text = style_match.group(1)
+    # #cards-section { ... overflow ... auto ... } パターンを検証
+    pattern = r'#cards-section\s*\{[^}]*overflow\s*:\s*(auto|scroll)[^}]*\}'
+    assert re.search(pattern, css_text, re.IGNORECASE) is not None, \
+        "#cards-section CSS ルールに overflow: auto/scroll が設定されていない"
+
+
+# ---------------------------------------------------------------------------
+# B: 折りたたみトグルの廃止
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b_toggle_cards_function_removed(rendered_html):
+    """Phase1-B: toggleCards() 関数が HTML/JS に存在しない"""
+    assert "toggleCards" not in rendered_html, \
+        "toggleCards 関数が JS に残存している（廃止されるべき）"
+
+
+@pytest.mark.unit
+def test_p1b_cards_toggle_btn_removed(rendered_html):
+    """Phase1-B: id="cards-toggle-btn" ボタンが HTML に存在しない"""
+    assert 'id="cards-toggle-btn"' not in rendered_html, \
+        "#cards-toggle-btn ボタンが HTML に残存している（廃止されるべき）"
+
+
+@pytest.mark.unit
+def test_p1b_cards_controls_class_removed(rendered_html):
+    """Phase1-B: class="cards-controls" 折りたたみラッパーが HTML に存在しない"""
+    assert 'class="cards-controls"' not in rendered_html, \
+        ".cards-controls ラッパーが HTML に残存している（廃止されるべき）"
+
+
+@pytest.mark.unit
+def test_p1b_layer_toggles_still_exist(rendered_html):
+    """Phase1-B: LAYERS トグル群（layer-toggle チェックボックス）は引き続き存在する"""
+    assert "layer-toggle" in rendered_html, \
+        "LAYERS トグル群が削除されている（折りたたみボタンのみ削除すべき）"
+
+
+@pytest.mark.unit
+def test_p1b_handle_layer_toggle_js_still_exists(rendered_html):
+    """Phase1-B: handleLayerToggle JS 関数は引き続き存在する"""
+    assert "handleLayerToggle" in rendered_html, \
+        "handleLayerToggle JS 関数が削除されている（LAYERS 機能は維持すべき）"
+
+
+@pytest.mark.unit
+def test_p1b_layers_controls_div_still_exists(rendered_html):
+    """Phase1-B: id="layers-controls" (LAYERS トグル div) は引き続き存在する"""
+    assert 'id="layers-controls"' in rendered_html, \
+        "#layers-controls div が削除されている（LAYERS 機能は維持すべき）"
+
+
+# ---------------------------------------------------------------------------
+# C: ズーム操作UI
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1c_zoom_fit_button_exists(rendered_html):
+    """Phase1-C: ズーム fit ボタン（id="zoom-fit"）が存在する"""
+    assert 'id="zoom-fit"' in rendered_html, \
+        "ズーム fit ボタン (#zoom-fit) が存在しない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_in_button_exists(rendered_html):
+    """Phase1-C: ズーム + ボタン（id="zoom-in"）が存在する"""
+    assert 'id="zoom-in"' in rendered_html, \
+        "ズーム + ボタン (#zoom-in) が存在しない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_out_button_exists(rendered_html):
+    """Phase1-C: ズーム − ボタン（id="zoom-out"）が存在する"""
+    assert 'id="zoom-out"' in rendered_html, \
+        "ズーム − ボタン (#zoom-out) が存在しない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_reset_button_exists(rendered_html):
+    """Phase1-C: 1:1 リセットボタン（id="zoom-reset"）が存在する"""
+    assert 'id="zoom-reset"' in rendered_html, \
+        "1:1 リセットボタン (#zoom-reset) が存在しない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_buttons_in_svg_container(rendered_html):
+    """Phase1-C: ズームボタン群が #svg-container の内側に配置されている"""
+    # svg-container の開始から最初の zoom-fit が現れること
+    container_start = rendered_html.find('id="svg-container"')
+    zoom_fit_pos = rendered_html.find('id="zoom-fit"')
+    assert container_start != -1, "#svg-container が存在しない"
+    assert zoom_fit_pos != -1, "#zoom-fit が存在しない"
+    assert zoom_fit_pos > container_start, \
+        "#zoom-fit が #svg-container の外側に配置されている"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_fit_js_function_exists(rendered_html):
+    """Phase1-C: zoomFit 関数が定義されておりズームボタンのクリックに紐付く（HIGH H-2 具体化）
+
+    zoomFit 関数定義の存在と、zoom-fit ボタンへの addEventListener click 登録を
+    具体的に検証する。
+    """
+    # zoomFit 関数定義が存在すること
+    assert re.search(r'function\s+zoomFit\s*\(', rendered_html) is not None, \
+        "zoomFit 関数定義が JS に存在しない"
+    # zoom-fit ボタンへの click リスナー登録が存在すること
+    assert re.search(
+        r"zoomFitBtn\.addEventListener\(['\"]click['\"]",
+        rendered_html
+    ) is not None, "zoomFitBtn への click addEventListener が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_controls_position_absolute(rendered_html):
+    """Phase1-C: ズームボタン群がペイン内に重なるよう position:absolute（または sticky）が設定される"""
+    assert "position:absolute" in rendered_html or "position: absolute" in rendered_html, \
+        "ズームボタン群に position:absolute が設定されていない"
+
+
+# ---------------------------------------------------------------------------
+# 決定性: Phase 1 実装後も維持
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1_render_deterministic_after_phase1(sample_topology):
+    """Phase1: 実装後も同一 topology 入力 → 同一 HTML 出力（決定性維持）
+
+    Phase1 上下スプリット・ズームボタン・ディバイダドラッグ等の追加後も
+    render() が同一入力に対して常に同一 HTML を返す決定性を維持していることを確認する。
+    """
+    from lib.rendering import render
+    t1 = copy.deepcopy(sample_topology)
+    t2 = copy.deepcopy(sample_topology)
+    html1 = render(t1)
+    html2 = render(t2)
+    assert html1 == html2, "Phase1 実装後 render() が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# 既存機能の維持確認
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1_wheel_zoom_handler_still_exists(rendered_html):
+    """Phase1: wheel ズームハンドラは引き続き存在する"""
+    assert "wheel" in rendered_html, "wheel ズームハンドラが削除されている"
+
+
+@pytest.mark.unit
+def test_p1_pan_mousedown_handler_still_exists(rendered_html):
+    """Phase1: #svg-container への pan 専用 mousedown ハンドラが存在する（CRIT-1 具体化）
+
+    `"mousedown" in html` の単純検証から、container.addEventListener('mousedown'
+    パターン（シングル/ダブルクォート両対応）を具体検証に変更。
+    """
+    assert re.search(
+        r"container\.addEventListener\(['\"]mousedown['\"]",
+        rendered_html
+    ) is not None, "container（#svg-container）への pan 専用 mousedown addEventListener が存在しない"
+
+
+@pytest.mark.unit
+def test_p1_set_node_visibility_still_exists(rendered_html):
+    """Phase1: ノードフィルタ機能（setNodeVisibility）は引き続き存在する"""
+    assert "setNodeVisibility" in rendered_html, \
+        "setNodeVisibility（ノードフィルタ）が削除されている"
+
+
+@pytest.mark.unit
+def test_p1_toggle_seg_highlight_still_exists(rendered_html):
+    """Phase1: セグメントハイライト（toggleSegHighlight）は引き続き存在する"""
+    assert "toggleSegHighlight" in rendered_html, \
+        "toggleSegHighlight が削除されている"
+
+
+@pytest.mark.unit
+def test_p1_toggle_if_row_highlight_still_exists(rendered_html):
+    """Phase1: IF 行ハイライト（toggleIfRowHighlight）は引き続き存在する"""
+    assert "toggleIfRowHighlight" in rendered_html, \
+        "toggleIfRowHighlight が削除されている"
+
+
+# ---------------------------------------------------------------------------
+# Phase1 iteration-4: レビュー指摘 追加・具体化テスト群
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1a_split_pane_dom_order(rendered_html):
+    """Phase1-A: svg-container → split-divider → cards-section の DOM 順序（HIGH H-4）
+
+    上ペイン(svg-container) が下ペイン(cards-section) より前に、
+    境界バー(split-divider) がその間に来ることを確認する。
+    """
+    svg_pos = rendered_html.find('id="svg-container"')
+    divider_pos = rendered_html.find('id="split-divider"')
+    cards_pos = rendered_html.find('id="cards-section"')
+    assert svg_pos != -1, "#svg-container が存在しない"
+    assert divider_pos != -1, "#split-divider が存在しない"
+    assert cards_pos != -1, "#cards-section が存在しない"
+    assert svg_pos < divider_pos, \
+        "#svg-container が #split-divider より前に来ていない"
+    assert divider_pos < cards_pos, \
+        "#split-divider が #cards-section より前に来ていない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_constants_exist_in_js(rendered_html):
+    """Phase1-C: ズームクランプ定数（ZOOM_MIN=0.2 / ZOOM_MAX=5.0）と divider minH=120 が JS に存在する（HIGH H-5）
+
+    ZOOM_MIN/ZOOM_MAX 定数（または数値リテラル 0.2/5.0）および
+    split-divider の最小高 minH=120 が JS 内に存在することを確認する。
+    """
+    # ZOOM_MIN/ZOOM_MAX 定数またはリテラル値が存在すること
+    has_zoom_min = "ZOOM_MIN" in rendered_html or "0.2" in rendered_html
+    has_zoom_max = "ZOOM_MAX" in rendered_html or "5.0" in rendered_html
+    assert has_zoom_min, "ズーム下限値（ZOOM_MIN or 0.2）が JS に存在しない"
+    assert has_zoom_max, "ズーム上限値（ZOOM_MAX or 5.0）が JS に存在しない"
+    # divider の minH=120 が存在すること
+    assert "minH" in rendered_html or re.search(r'\bvar\s+minH\s*=\s*120', rendered_html), \
+        "divider minH（120）が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_p1c_f_key_calls_zoom_fit(rendered_html):
+    """Phase1-C: f/F キーが zoomFit() を呼び出す（タスク16 / docs-maint 整合）
+
+    キーボードハンドラで 'f'/'F' キーが zoomFit() 呼び出しに繋がることを
+    JS 文字列パターンで検証する。'f'/'F' キーブランチ内に zoomFit() 呼び出しが
+    必要（等倍リセットの直接代入ではなく全体表示であること）。
+    """
+    # f/F キーの keydown ブランチ内で zoomFit() が呼ばれること
+    # パターン: e.key === 'f' || e.key === 'F' の条件ブロック内に zoomFit() が存在する
+    match = re.search(
+        r"e\.key\s*===\s*['\"]f['\"]\s*\|\|\s*e\.key\s*===\s*['\"]F['\"]"
+        r"[\s\S]{0,100}?zoomFit\(\)",
+        rendered_html
+    )
+    assert match is not None, \
+        "f/F キーのキーハンドラで zoomFit() が呼ばれていない（全体表示と等倍リセットが乖離）"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_controls_guard_in_pan_mousedown(rendered_html):
+    """Phase1-C: pan mousedown ハンドラに #zoom-controls のガードがある（correctness HIGH-1）
+
+    ズームボタン押下で pan が誤発火しないよう、
+    `e.target.closest('#zoom-controls')` の除外ガードが存在することを確認する。
+    """
+    assert "closest('#zoom-controls')" in rendered_html or \
+           'closest("#zoom-controls")' in rendered_html, \
+        "pan mousedown ハンドラに #zoom-controls ガードが存在しない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_fit_uses_all_four_viewbox_params(rendered_html):
+    """Phase1-C: zoomFit が viewBox の4要素（minX/minY/W/H）をすべて parse する（correctness HIGH-2）
+
+    `parts[0]` と `parts[1]`（vbX, vbY）が centering 計算に使われていることを確認する。
+    """
+    # zoomFit 関数内で parts[0]/parts[1] が vbX/vbY として使われること
+    assert re.search(r'parts\[0\]|vbX|vb_x', rendered_html) is not None, \
+        "zoomFit が viewBox の minX (parts[0] / vbX) を参照していない"
+    assert re.search(r'parts\[1\]|vbY|vb_y', rendered_html) is not None, \
+        "zoomFit が viewBox の minY (parts[1] / vbY) を参照していない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_fit_container_size_guard(rendered_html):
+    """Phase1-C: zoomFit のコンテナ寸法0ガードが存在する（correctness MED）
+
+    cw===0 または ch===0 の場合にフォールバック処理が行われることを確認する。
+    """
+    assert re.search(r'cw\s*===\s*0|ch\s*===\s*0', rendered_html) is not None, \
+        "zoomFit のコンテナ寸法0ガード（cw===0 || ch===0）が存在しない"
+
+
+@pytest.mark.unit
+def test_p1c_divider_maxh_has_lower_bound(rendered_html):
+    """Phase1-A: divider の maxH が下限（minH+1 以上）ガードを持つ（correctness MED / maint HIGH-2）
+
+    `Math.max(minH + 1, window.innerHeight - 200)` パターンで
+    maxH の下限を保証していることを確認する。
+    """
+    assert re.search(r'Math\.max\s*\(\s*minH\s*\+\s*1', rendered_html) is not None, \
+        "divider maxH の下限ガード（Math.max(minH + 1, ...)）が存在しない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_reset_window_export(rendered_html):
+    """Phase1-C: window._zoomReset と window._zoomFit がエクスポートされている（maint HIGH-1）
+
+    Phase2 の selectView から呼べるよう、ズーム関数がグローバルに露出されていることを確認する。
+    """
+    assert "window._zoomFit" in rendered_html, \
+        "window._zoomFit がエクスポートされていない"
+    assert "window._zoomReset" in rendered_html, \
+        "window._zoomReset がエクスポートされていない"
+
+
+@pytest.mark.unit
+def test_p1c_zoom_step_constant_defined(rendered_html):
+    """Phase1-C: ズームステップ定数（ZOOM_STEP=1.2 または 1.2 リテラル）が重複なく一元定義（maint MED-3）
+
+    ZOOM_STEP 定数または 1.2 が zoom/wheel/ボタンで統一的に使われていることの
+    基礎確認として、ZOOM_STEP 定数定義または 1.2 リテラルが存在することを検証する。
+    """
+    assert "ZOOM_STEP" in rendered_html or "1.2" in rendered_html, \
+        "ズームステップ値（ZOOM_STEP or 1.2）が JS に存在しない"
 
 
 # ---------------------------------------------------------------------------
