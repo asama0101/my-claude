@@ -535,10 +535,9 @@ _CSS = """\
       color: #3730a3;
     }
 
-    /* BGP ビュー AS グルーピング枠（iteration-3 Batch2 #4: 視認性改善） */
+    /* BGP ビュー AS グルーピング枠（iteration-3 Batch2 #4: 視認性改善）
+       色（fill/stroke）は svg のインライン style で AS 別に付与するためここでは省略 */
     .as-group {
-      fill: rgba(219, 234, 254, 0.35);
-      stroke: #3b82f6;
       stroke-width: 2;
       stroke-dasharray: none;
     }
@@ -546,13 +545,11 @@ _CSS = """\
     .as-group-label {
       font-size: 15px;
       font-weight: 700;
-      fill: #1e3a5f;
       pointer-events: none;
       font-family: var(--font-mono);
     }
 
     .as-group-label-bg {
-      fill: #3b82f6;
       opacity: 0.85;
     }
 

@@ -698,6 +698,35 @@ def _svg_bgp_edges(
     return "\n".join(parts)
 
 
+_AS_COLOR_PALETTE = [
+    # (stroke, fill_rgba)  — 6色・色覚配慮・判別しやすい固定パレット
+    # Phase 1C #5: AS番号ごとに決定的色分け（asn % len(_AS_COLOR_PALETTE) で循環）
+    # label_bg は常に stroke と同色のため 2 要素に簡素化。
+    # _as_color() 内で label_bg = stroke として展開する。
+    ("#2563eb", "rgba(219,234,254,0.35)"),   # 青系  (index 0)
+    ("#16a34a", "rgba(187,247,208,0.35)"),   # 緑系  (index 1)
+    ("#d97706", "rgba(254,243,199,0.35)"),   # 橙系  (index 2)
+    ("#9333ea", "rgba(243,232,255,0.35)"),   # 紫系  (index 3)
+    ("#0891b2", "rgba(207,250,254,0.35)"),   # 水色系 (index 4)
+    ("#dc2626", "rgba(254,226,226,0.35)"),   # 赤系  (index 5)
+]
+
+
+def _as_color(asn: int) -> tuple[str, str, str]:
+    """AS番号から (stroke, fill_rgba, label_bg) 色タプルを返す（決定的・循環）。
+
+    ``asn % len(_AS_COLOR_PALETTE)`` でパレットインデックスを決定する。
+    同一 asn は常に同じ色（決定的）。asn が len を超えると循環する。
+    label_bg は stroke と同色（_AS_COLOR_PALETTE は 2 要素で管理）。
+
+    前提: asn は int（parser が int を保証する）。
+    """
+    idx = asn % len(_AS_COLOR_PALETTE)
+    stroke, fill_rgba = _AS_COLOR_PALETTE[idx]
+    label_bg = stroke  # ラベルチップ背景は枠線と同色
+    return stroke, fill_rgba, label_bg
+
+
 def _svg_bgp_as_groups(
     bgp_devices: list[dict],
     positions: dict[str, tuple[float, float]],
@@ -717,6 +746,10 @@ def _svg_bgp_as_groups(
     iteration-4 #6: node_sizes={device_id: n_ifaces} を渡すことで
     実ノード高（チップ有り時は _node_size_for(n_ifaces)[1]）を使って
     bounding box を計算する。None のとき固定 _NODE_HEIGHT を使用（従来動作）。
+
+    Phase 1C #5: AS番号ごとに決定的に異なる色を割当（_AS_COLOR_PALETTE 固定パレット循環）。
+    枠線(stroke)・淡塗り(fill)・ラベルチップ背景(label-bg) に AS別インライン style を適用。
+    ラベル文字は白固定（全背景色で可読コントラスト確保）。
 
     Args:
         bgp_devices:  BGP 参加デバイスリスト
@@ -741,6 +774,9 @@ def _svg_bgp_as_groups(
         dev_ids = asn_to_devs[asn]
         if not dev_ids:
             continue
+
+        # Phase 1C #5: AS番号から決定的色を取得（色は svg のインライン style で AS 別に付与）
+        stroke_color, fill_color, label_bg_color = _as_color(asn)
 
         # bounding box を計算（実ノード高対応: iteration-4 #6）
         xs = [positions[d][0] for d in dev_ids]
@@ -784,12 +820,15 @@ def _svg_bgp_as_groups(
             f'<g class="as-group-container" data-as="{_esc(asn)}">'
             f'<rect x="{min_x:.1f}" y="{min_y:.1f}" '
             f'width="{rect_w:.1f}" height="{rect_h:.1f}" '
-            f'rx="{_AS_GROUP_RX}" ry="{_AS_GROUP_RY}" class="as-group"/>'
+            f'rx="{_AS_GROUP_RX}" ry="{_AS_GROUP_RY}" class="as-group" '
+            f'style="stroke:{stroke_color};fill:{fill_color};"/>'
             f'<rect x="{chip_x:.1f}" y="{chip_y:.1f}" '
             f'width="{chip_w:.1f}" height="{chip_h:.1f}" '
-            f'rx="4" ry="4" class="as-group-label-bg"/>'
+            f'rx="4" ry="4" class="as-group-label-bg" '
+            f'style="fill:{label_bg_color};"/>'
             f'<text x="{chip_x + 5:.1f}" y="{text_y:.1f}" '
-            f'text-anchor="start" class="as-group-label">'
+            f'text-anchor="start" class="as-group-label" '
+            f'style="fill:#ffffff;">'
             f'{chip_text}</text>'
             f'</g>'
         )

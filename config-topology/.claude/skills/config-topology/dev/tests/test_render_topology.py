@@ -11463,3 +11463,468 @@ def test_p1b_ospf_card_row_count_exact():
     rows_with_id = re.findall(r'<tr[^>]+data-ospf-id="[^"]*"', html)
     assert len(rows_with_id) == 7, \
         f"data-ospf-id 付き OSPF 行が 7 件でない: {len(rows_with_id)} 件（期待: ==7）"
+
+
+# ===========================================================================
+# Phase 1C — #3 ノード間隔縮小 / #5 AS枠番号ごと色分け
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# #3: ノード間隔縮小
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_1c3_canvas_factor_smaller_than_iteration4():
+    """#3: _CANVAS_FACTOR_W / _CANVAS_FACTOR_H が iteration-4 #9 の値（11/9）より小さい"""
+    from lib.rendering.layout import _CANVAS_FACTOR_W, _CANVAS_FACTOR_H
+    # iteration-4 #9 で 11/9 に縮小済み。Phase 1C でさらに縮小する
+    assert _CANVAS_FACTOR_W < 11, (
+        f"_CANVAS_FACTOR_W={_CANVAS_FACTOR_W} が iteration-4 値 11 以上（さらなる縮小がされていない）"
+    )
+    assert _CANVAS_FACTOR_H < 9, (
+        f"_CANVAS_FACTOR_H={_CANVAS_FACTOR_H} が iteration-4 値 9 以上（さらなる縮小がされていない）"
+    )
+
+
+@pytest.mark.unit
+def test_1c3_canvas_smaller_than_iteration4_values():
+    """#3: 係数縮小後の _canvas_size_for_nodes(10) が iteration-4 係数(11/9)より小さい"""
+    from lib.rendering.layout import (
+        _canvas_size_for_nodes,
+        _NODE_WIDTH, _NODE_HEIGHT, _CANVAS_SCALE_EXP,
+        _MIN_CANVAS_W, _MIN_CANVAS_H,
+    )
+    n = 10
+    w_new, h_new = _canvas_size_for_nodes(n)
+
+    # iteration-4 #9 時点の係数(11/9)で手計算した値
+    w_old = max(_MIN_CANVAS_W, n * (_NODE_WIDTH + 20) ** _CANVAS_SCALE_EXP * 11)
+    h_old = max(_MIN_CANVAS_H, n * (_NODE_HEIGHT + 20) ** _CANVAS_SCALE_EXP * 9)
+
+    assert w_new < w_old and h_new < h_old, (
+        f"Phase 1C 縮小後({w_new:.0f}x{h_new:.0f})が iteration-4 値({w_old:.0f}x{h_old:.0f})より"
+        f"幅・高さともに小さくなっていない"
+    )
+
+
+@pytest.mark.unit
+def test_1c3_no_overlap_dense_fixture():
+    """#3: 係数縮小後も密集 fixture（10ノード・固定小キャンバス）で重なりゼロ"""
+    from lib.rendering.layout import _layout_force_directed, _node_size_for
+    n = 10
+    node_ids = [f"r{i}" for i in range(n)]
+    edges = [(f"r{i}", f"r{i+1}") for i in range(n - 1)]
+    node_sizes = {f"r{i}": 2 for i in range(n)}  # 各ノード 2 IF（実寸反映）
+
+    # 固定の小キャンバス（自明 PASS を防ぐ: 新係数での自動キャンバスより十分小さい）
+    w, h = 800, 500
+    pos = _layout_force_directed(
+        node_ids, edges, width=w, height=h,
+        iterations=300, node_sizes=node_sizes
+    )
+
+    for i, na in enumerate(node_ids):
+        for j, nb in enumerate(node_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(node_sizes[na])
+            wb, hb = _node_size_for(node_sizes[nb])
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            min_sep_x = (wa + wb) / 2 + 5
+            min_sep_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= min_sep_x or dy >= min_sep_y
+            assert no_overlap, (
+                f"密集キャンバス ({w}x{h}) でノード {na} と {nb} が重なっている "
+                f"(dx={dx:.1f} min_sep_x={min_sep_x:.1f}, dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
+            )
+
+
+@pytest.mark.unit
+def test_1c3_min_canvas_respected():
+    """#3: 縮小後も _canvas_size_for_nodes(0)/(1) が _MIN_CANVAS_W/H を下回らない"""
+    from lib.rendering.layout import _canvas_size_for_nodes, _MIN_CANVAS_W, _MIN_CANVAS_H
+    for n in (0, 1):
+        w, h = _canvas_size_for_nodes(n)
+        assert w >= _MIN_CANVAS_W, f"n={n}: キャンバス幅 {w} < _MIN_CANVAS_W {_MIN_CANVAS_W}"
+        assert h >= _MIN_CANVAS_H, f"n={n}: キャンバス高 {h} < _MIN_CANVAS_H {_MIN_CANVAS_H}"
+
+
+@pytest.mark.unit
+def test_1c3_deterministic(sample_topology):
+    """#3: 係数縮小後も render() が決定的（2回一致）"""
+    from lib.rendering import render
+    import copy
+    html1 = render(copy.deepcopy(sample_topology))
+    html2 = render(copy.deepcopy(sample_topology))
+    assert html1 == html2, "Phase 1C 係数縮小後の render() が非決定的"
+
+
+@pytest.mark.unit
+def test_1c3_existing_bgp_no_overlap(sample_topology):
+    """#3: 係数縮小後も既存 BGP トポロジーでノード重なりゼロ（回帰保護）"""
+    from lib.rendering.views import _build_bgp_layout
+    from lib.rendering.layout import _node_size_for
+    import copy
+
+    topo = copy.deepcopy(sample_topology)
+    pos, _bgp_devices = _build_bgp_layout(
+        topo["devices"], topo["routing"].get("bgp", []), topo["interfaces"]
+    )
+    iface_count: dict[str, int] = {}
+    for iface in topo["interfaces"]:
+        iface_count[iface["device"]] = iface_count.get(iface["device"], 0) + 1
+
+    dev_ids = [d["id"] for d in topo["devices"] if d["id"] in pos]
+    for i, na in enumerate(dev_ids):
+        for j, nb in enumerate(dev_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(iface_count.get(na, 0))
+            wb, hb = _node_size_for(iface_count.get(nb, 0))
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            needed_x = (wa + wb) / 2 + 5
+            needed_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= needed_x or dy >= needed_y
+            assert no_overlap, (
+                f"BGP ビューでノード {na} と {nb} が重なっている "
+                f"(dx={dx:.1f} needed_x={needed_x:.1f}, dy={dy:.1f} needed_y={needed_y:.1f})"
+            )
+
+
+# ---------------------------------------------------------------------------
+# #5: AS枠番号ごと色分け
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_1c5_multi_as_three_different_colors():
+    """#5: multi-as-area (AS65000/65100/65200) で as-group の stroke/fill 色が3種別"""
+    from lib.rendering import render
+
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    # BGP ビューを抽出
+    bgp_start = html.find('class="view view-bgp"')
+    assert bgp_start != -1, "BGP ビューが見つからない"
+    next_view = html.find('class="view view-', bgp_start + 20)
+    bgp_view = html[bgp_start:next_view] if next_view != -1 else html[bgp_start:]
+
+    # as-group-container の data-as 属性で各 AS を取得
+    containers = re.findall(r'<g[^>]*class="as-group-container"[^>]*data-as="([^"]+)"', bgp_view)
+    assert len(containers) == 3, (
+        f"BGP ビューに as-group-container が {len(containers)} 個（期待: AS65000/65100/65200 の 3個）"
+    )
+
+    # 各 as-group-container 内の stroke 色を収集（インライン style から）
+    # stroke="..." または style="...stroke:...;" のパターンを取得
+    stroke_colors = set()
+    fill_colors = set()
+    for asn_str in containers:
+        # 当該 AS の as-group-container を取り出す
+        pat = (
+            r'<g[^>]*class="as-group-container"[^>]*data-as="' + re.escape(asn_str) + r'"[^>]*>'
+            r'.*?</g>'
+        )
+        m = re.search(pat, bgp_view, re.DOTALL)
+        assert m is not None, f"AS {asn_str} の as-group-container が見つからない"
+        container_html = m.group(0)
+
+        # as-group <rect> のインライン style から stroke と fill を取得
+        rect_m = re.search(r'class="as-group"[^>]*style="([^"]*)"', container_html)
+        if rect_m is None:
+            rect_m = re.search(r'style="([^"]*)"[^>]*class="as-group"', container_html)
+        assert rect_m is not None, (
+            f"AS {asn_str}: as-group <rect> にインライン style が見つからない（#5 未実装）"
+        )
+        style = rect_m.group(1)
+        stroke_m = re.search(r'stroke:\s*([^;]+)', style)
+        fill_m = re.search(r'fill:\s*([^;]+)', style)
+        assert stroke_m, f"AS {asn_str}: as-group style に stroke が見つからない"
+        assert fill_m, f"AS {asn_str}: as-group style に fill が見つからない"
+        stroke_colors.add(stroke_m.group(1).strip())
+        fill_colors.add(fill_m.group(1).strip())
+
+    assert len(stroke_colors) == 3, (
+        f"3 AS で stroke 色が {len(stroke_colors)} 種のみ（3種別でない）: {stroke_colors}"
+    )
+    assert len(fill_colors) == 3, (
+        f"3 AS で fill 色が {len(fill_colors)} 種のみ（3種別でない）: {fill_colors}"
+    )
+
+
+@pytest.mark.unit
+def test_1c5_same_as_same_color():
+    """#5: 同一 AS 番号のノードは常に同一色（1 AS = 1色）"""
+    from lib.rendering import render
+
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    bgp_start = html.find('class="view view-bgp"')
+    assert bgp_start != -1
+    next_view = html.find('class="view view-', bgp_start + 20)
+    bgp_view = html[bgp_start:next_view] if next_view != -1 else html[bgp_start:]
+
+    # AS65000 の as-group-container は 1個のみであること（同一 AS は1枠に統合）
+    as65000_containers = re.findall(
+        r'<g[^>]*class="as-group-container"[^>]*data-as="65000"',
+        bgp_view
+    )
+    assert len(as65000_containers) == 1, (
+        f"AS65000 の as-group-container が {len(as65000_containers)} 個（1個であるべき）"
+    )
+
+
+@pytest.mark.unit
+def test_1c5_color_deterministic():
+    """#5: AS枠色分けが決定的（2回 render して同一 HTML）"""
+    from lib.rendering import render
+    import copy
+
+    topo = _make_multi_as_area_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "Phase 1C AS枠色分けの render() が非決定的"
+
+
+@pytest.mark.unit
+def test_1c5_palette_cycles_deterministically():
+    """#5: AS数がパレット数を超える場合も決定的（循環）。N+1 AS で N+1 色 or 循環色を確認"""
+    from lib.rendering.svg import _svg_bgp_as_groups
+
+    # パレット数 N を実際の実装から取得（または十分大きな AS 数でテスト）
+    # 8 AS を用意（パレット N=6〜8 程度を想定。実装後に循環が正しく機能するか確認）
+    n_as = 9  # パレット最大値 8 を超える数
+    devs = [
+        {"id": f"r{i}", "hostname": f"R{i}", "as": 65000 + i * 100, "sections": []}
+        for i in range(n_as)
+    ]
+    positions = {f"r{i}": (float(100 + i * 150), 300.0) for i in range(n_as)}
+
+    svg1 = _svg_bgp_as_groups(devs, positions)
+    svg2 = _svg_bgp_as_groups(devs, positions)
+    assert svg1 == svg2, "AS数>パレット時の _svg_bgp_as_groups が非決定的"
+    # 9つの as-group-container が存在すること
+    containers = re.findall(r'class="as-group-container"', svg1)
+    assert len(containers) == n_as, (
+        f"as-group-container が {len(containers)} 個（期待: {n_as}）"
+    )
+
+
+@pytest.mark.unit
+def test_1c5_label_bg_color_applied():
+    """#5: ラベルチップ背景（as-group-label-bg）にも AS 別色が適用されている"""
+    from lib.rendering import render
+
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    bgp_start = html.find('class="view view-bgp"')
+    assert bgp_start != -1
+    next_view = html.find('class="view view-', bgp_start + 20)
+    bgp_view = html[bgp_start:next_view] if next_view != -1 else html[bgp_start:]
+
+    # as-group-label-bg の <rect> に style 属性があること（色指定）
+    # インライン style か class のいずれかで色が指定される
+    label_bg_elements = re.findall(r'class="as-group-label-bg"[^/]*/>', bgp_view)
+    assert len(label_bg_elements) >= 3, (
+        f"as-group-label-bg 要素が {len(label_bg_elements)} 個（期待: >=3）"
+    )
+    # 少なくとも color/fill に関する style 属性が存在すること
+    has_style = any("style=" in e or "fill=" in e for e in label_bg_elements)
+    assert has_style, (
+        "as-group-label-bg 要素に color/fill スタイルが存在しない（#5 未実装）"
+    )
+
+
+@pytest.mark.unit
+def test_1c5_existing_single_as_still_has_group():
+    """#5: 1 AS しかない既存 topology でも as-group が生成される（回帰保護）"""
+    from lib.rendering import render
+
+    # 既存 examples topology は基本的に1つか2つの AS
+    # iBGP 2ノード（同一AS）の minimal topology
+    topo = {
+        "title": "single-as",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "as": 65001, "vendor": "cisco_ios", "sections": []},
+            {"id": "r2", "hostname": "R2", "as": 65001, "vendor": "cisco_ios", "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::lo0", "device": "r1", "name": "lo0", "ip": "10.0.0.1/32",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::lo0", "device": "r2", "name": "lo0", "ip": "10.0.0.2/32",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "peer_as": 65001,
+                 "local_ip": None, "neighbor_ip": "10.0.0.2", "type": "ibgp"},
+                {"device": "r2", "local_as": 65001, "peer_as": 65001,
+                 "local_ip": None, "neighbor_ip": "10.0.0.1", "type": "ibgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+    html = render(topo)
+    assert 'class="as-group"' in html or 'class="as-group-container"' in html, (
+        "1 AS topology で as-group が生成されない（回帰）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# タスク6: test_1c5_label_bg_color_applied（強化版: 3色すべて異なる fill を検証）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_1c5_label_bg_three_distinct_fill_colors():
+    """#5 T6: as-group-label-bg の fill が 3 AS で 3 種すべて異なることを色値で検証。
+    「style= があれば PASS」という vacuous な検証を廃止し、実際の色値を比較する。"""
+    from lib.rendering import render
+
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    bgp_start = html.find('class="view view-bgp"')
+    assert bgp_start != -1, "BGP ビューが見つからない"
+    next_view = html.find('class="view view-', bgp_start + 20)
+    bgp_view = html[bgp_start:next_view] if next_view != -1 else html[bgp_start:]
+
+    # 各 AS の as-group-container から as-group-label-bg の fill 色を取得
+    containers_asn = re.findall(r'<g[^>]*class="as-group-container"[^>]*data-as="([^"]+)"', bgp_view)
+    assert len(containers_asn) == 3, f"as-group-container が {len(containers_asn)} 個（期待: 3）"
+
+    fill_colors = []
+    for asn_str in containers_asn:
+        pat = (
+            r'<g[^>]*class="as-group-container"[^>]*data-as="' + re.escape(asn_str) + r'"[^>]*>'
+            r'.*?</g>'
+        )
+        m = re.search(pat, bgp_view, re.DOTALL)
+        assert m is not None, f"AS {asn_str} の as-group-container が見つからない"
+        container_html = m.group(0)
+
+        # as-group-label-bg の <rect> の fill 色を取得（インライン style）
+        label_bg_m = re.search(r'class="as-group-label-bg"[^>]*style="([^"]*)"', container_html)
+        if label_bg_m is None:
+            label_bg_m = re.search(r'style="([^"]*)"[^>]*class="as-group-label-bg"', container_html)
+        assert label_bg_m is not None, (
+            f"AS {asn_str}: as-group-label-bg にインライン style が見つからない"
+        )
+        fill_m = re.search(r'fill:\s*([^;]+)', label_bg_m.group(1))
+        assert fill_m is not None, f"AS {asn_str}: as-group-label-bg の style に fill が見つからない"
+        fill_colors.append(fill_m.group(1).strip())
+
+    assert len(set(fill_colors)) == 3, (
+        f"3 AS の as-group-label-bg fill が {len(set(fill_colors))} 種のみ（3種別でない）: {fill_colors}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# タスク7: _as_color 単体テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_as_color_index0_returns_first_palette_entry():
+    """T7: _as_color(0) が _AS_COLOR_PALETTE[0] の stroke/fill_rgba を返す。
+    _AS_COLOR_PALETTE は 2 要素 (stroke, fill_rgba)。label_bg は stroke と同値。"""
+    from lib.rendering.svg import _as_color, _AS_COLOR_PALETTE
+    stroke, fill_rgba, label_bg = _as_color(0)
+    expected_stroke, expected_fill = _AS_COLOR_PALETTE[0]
+    assert stroke == expected_stroke, f"index 0 の stroke が不一致: {stroke!r} != {expected_stroke!r}"
+    assert fill_rgba == expected_fill, f"index 0 の fill_rgba が不一致"
+    assert label_bg == expected_stroke, f"index 0 の label_bg が stroke と異なる"
+
+
+@pytest.mark.unit
+def test_as_color_index1_returns_second_palette_entry():
+    """T7: _as_color(1) が _AS_COLOR_PALETTE[1] の要素を返す"""
+    from lib.rendering.svg import _as_color, _AS_COLOR_PALETTE
+    stroke, fill_rgba, label_bg = _as_color(1)
+    expected_stroke, expected_fill = _AS_COLOR_PALETTE[1]
+    assert stroke == expected_stroke
+    assert fill_rgba == expected_fill
+    assert label_bg == expected_stroke  # label_bg == stroke
+
+
+@pytest.mark.unit
+def test_as_color_last_index_returns_last_palette_entry():
+    """T7: _as_color(len-1) が _AS_COLOR_PALETTE[-1] の要素を返す"""
+    from lib.rendering.svg import _as_color, _AS_COLOR_PALETTE
+    n = len(_AS_COLOR_PALETTE)
+    stroke, fill_rgba, label_bg = _as_color(n - 1)
+    expected_stroke, expected_fill = _AS_COLOR_PALETTE[n - 1]
+    assert stroke == expected_stroke
+    assert fill_rgba == expected_fill
+    assert label_bg == expected_stroke  # label_bg == stroke
+
+
+@pytest.mark.unit
+def test_as_color_returns_three_element_tuple():
+    """T7: _as_color は常に 3 要素タプルを返す"""
+    from lib.rendering.svg import _as_color
+    result = _as_color(0)
+    assert isinstance(result, tuple), f"タプルでない: {type(result)}"
+    assert len(result) == 3, f"要素数が {len(result)}（期待: 3）"
+
+
+@pytest.mark.unit
+def test_as_color_wraps_at_palette_length():
+    """T7: _as_color(len) が循環して index 0 と同一色を返す"""
+    from lib.rendering.svg import _as_color, _AS_COLOR_PALETTE
+    n = len(_AS_COLOR_PALETTE)
+    assert _as_color(n) == _as_color(0), (
+        f"_as_color({n}) が _as_color(0) と異なる（循環しない）"
+    )
+
+
+@pytest.mark.unit
+def test_as_color_docstring_mentions_modulo():
+    """T7: _as_color の docstring に asn % len(_AS_COLOR_PALETTE) の説明があること（設計記録）"""
+    from lib.rendering.svg import _as_color
+    doc = _as_color.__doc__ or ""
+    # "% len" または "modulo" または "循環" など循環の仕組みが記述されているか
+    has_cyclic_desc = "% len" in doc or "循環" in doc or "modulo" in doc or "% N" in doc
+    assert has_cyclic_desc, (
+        f"_as_color docstring に循環の仕組み（% len(...) 等）が記述されていない:\n{doc}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# タスク8: test_1c5_palette_cycles_deterministically（強化版: 循環を色値で検証）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_1c5_palette_cycle_index0_equals_index_len():
+    """T8: index 0 の AS と index len の AS が同じ stroke 色（循環の核心を色値で検証）。"""
+    from lib.rendering.svg import _svg_bgp_as_groups, _AS_COLOR_PALETTE
+
+    n = len(_AS_COLOR_PALETTE)
+    # AS番号: 65000 (asn % n == 0), 65000+n (asn % n == 0) → 同色のはず
+    asn0 = 65000          # 65000 % n == 65000 % n
+    asn_wrap = 65000 + n  # (65000 + n) % n == 65000 % n → 同じ index
+    devs = [
+        {"id": "r0", "hostname": "R0", "as": asn0, "sections": []},
+        {"id": "r1", "hostname": "R1", "as": asn_wrap, "sections": []},
+    ]
+    positions = {"r0": (100.0, 300.0), "r1": (300.0, 300.0)}
+
+    svg = _svg_bgp_as_groups(devs, positions)
+
+    # 2つの as-group の stroke 色を取得
+    stroke_colors = re.findall(r'class="as-group"[^>]*style="[^"]*stroke:\s*([^;]+)', svg)
+    assert len(stroke_colors) == 2, f"as-group が {len(stroke_colors)} 個（期待: 2）"
+
+    assert stroke_colors[0].strip() == stroke_colors[1].strip(), (
+        f"asn={asn0} と asn={asn_wrap} の stroke 色が異なる（循環していない）: "
+        f"{stroke_colors[0]!r} != {stroke_colors[1]!r}"
+    )
