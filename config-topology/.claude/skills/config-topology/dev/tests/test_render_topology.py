@@ -6026,18 +6026,18 @@ def _make_p2p_static_topology():
     }
 
 
-# ---- #6-1: _build_static_route_map のユニットテスト -----------------------
+# ---- #2/#6: _build_static_route_map のユニットテスト -----------------------
 
 @pytest.mark.unit
 def test_i3b3_6_build_static_route_map_exists():
-    """#6: _build_static_route_map 関数が core.py に存在する"""
+    """#2: _build_static_route_map 関数が core.py に存在する"""
     from lib.rendering.core import _build_static_route_map
     assert callable(_build_static_route_map)
 
 
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_p2p_finds_link():
-    """#6: p2p リンク上の next_hop -> route_edge_id が link_id になる"""
+    """#2: p2p リンク上の next_hop -> route_edge_id が link_id になる"""
     from lib.rendering.core import _build_static_route_map
     from lib.rendering.svg import _make_link_id
     topo = _make_p2p_static_topology()
@@ -6059,7 +6059,7 @@ def test_i3b3_6_static_route_map_p2p_finds_link():
 
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_p2p_reverse():
-    """#6: p2p リンクの逆方向も正しく解決される"""
+    """#2: p2p リンクの逆方向も正しく解決される"""
     from lib.rendering.core import _build_static_route_map
     from lib.rendering.svg import _make_link_id
     topo = _make_p2p_static_topology()
@@ -6079,7 +6079,7 @@ def test_i3b3_6_static_route_map_p2p_reverse():
 
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_segment_finds_seg():
-    """#6: セグメント上の next_hop -> route_edge_id が seg-id になる"""
+    """#2: セグメント上の next_hop -> route_edge_id が seg-id になる"""
     from lib.rendering.core import _build_static_route_map
     topo = _make_segment_static_topology()
     route_map = _build_static_route_map(
@@ -6099,7 +6099,7 @@ def test_i3b3_6_static_route_map_segment_finds_seg():
 
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_unknown_nexthop_no_entry():
-    """#6: 経路不明の next_hop はマップにないか route_edge_id=None"""
+    """#2: 経路不明の next_hop はマップにないか route_edge_id=None"""
     from lib.rendering.core import _build_static_route_map
     topo = _make_segment_static_topology()
     route_map = _build_static_route_map(
@@ -6117,7 +6117,7 @@ def test_i3b3_6_static_route_map_unknown_nexthop_no_entry():
 
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_deterministic():
-    """#6: _build_static_route_map は決定的"""
+    """#2: _build_static_route_map は決定的"""
     from lib.rendering.core import _build_static_route_map
     topo = _make_p2p_static_topology()
     m1 = _build_static_route_map(
@@ -6127,11 +6127,11 @@ def test_i3b3_6_static_route_map_deterministic():
     assert m1 == m2, "route_map が非決定的"
 
 
-# ---- #6-2: cards.py の data-route-edge / data-route-nexthop-device ---------
+# ---- #2/#6-2: cards.py の data-route-edge / data-route-nexthop-device ------
 
 @pytest.mark.unit
 def test_i3b3_6_static_row_has_data_route_edge_when_resolved():
-    """#6: 経路解決済み static 行に data-route-edge が付く（p2p）"""
+    """#2: 経路解決済み static 行に data-route-edge が付く（p2p）"""
     from lib.rendering import render
     html = render(_make_p2p_static_topology())
     cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
@@ -6142,7 +6142,7 @@ def test_i3b3_6_static_row_has_data_route_edge_when_resolved():
 
 @pytest.mark.unit
 def test_i3b3_6_static_row_has_data_route_nexthop_device():
-    """#6: 経路解決済み static 行に data-route-nexthop-device が付く"""
+    """#2: 経路解決済み static 行に data-route-nexthop-device が付く"""
     from lib.rendering import render
     html = render(_make_p2p_static_topology())
     cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
@@ -6153,7 +6153,7 @@ def test_i3b3_6_static_row_has_data_route_nexthop_device():
 
 @pytest.mark.unit
 def test_i3b3_6_static_row_segment_has_data_route_edge():
-    """#6: セグメント経路 static 行に正しい data-route-edge (seg-id) が付く"""
+    """#2: セグメント経路 static 行に正しい data-route-edge (seg-id) が付く"""
     from lib.rendering import render
     html = render(_make_segment_static_topology())
     cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
@@ -6164,7 +6164,7 @@ def test_i3b3_6_static_row_segment_has_data_route_edge():
 
 @pytest.mark.unit
 def test_i3b3_6_static_row_unresolved_no_data_route_edge():
-    """#6: 経路不明の static 行には data-route-edge が付かない（または空）"""
+    """#2: 経路不明の static 行には data-route-edge が付かない（または空）"""
     from lib.rendering import render
     html = render(_make_segment_static_topology())
     cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
@@ -6181,45 +6181,48 @@ def test_i3b3_6_static_row_unresolved_no_data_route_edge():
                 f"解決不能 next_hop の行に非空の data-route-edge がある: {edge_id!r}"
 
 
-# ---- #6-3: JS ハンドラの存在（構造テスト）-----------------------------------
+# ---- #2/#6-3: JS ハンドラの存在（構造テスト）---------------------------------
 
 @pytest.mark.unit
 def test_i3b3_6_js_toggle_static_route_highlight_exists(rendered_html):
-    """#6: JS に toggleStaticRouteHighlight 関数が存在する"""
+    """#2: JS に toggleStaticRouteHighlight 関数が存在する"""
     assert "toggleStaticRouteHighlight" in rendered_html, \
         "toggleStaticRouteHighlight 関数が見つからない"
 
 
 @pytest.mark.unit
-def test_i3b3_6_js_toggle_static_uses_route_edge(rendered_html):
-    """#6: toggleStaticRouteHighlight が data-route-edge を参照する"""
+def test_i3b3_6_js_toggle_static_uses_route_id(rendered_html):
+    """#2: toggleStaticRouteHighlight が data-route-id を参照する（#2 で route-id ベースに更新）"""
     func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
     assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
-    assert "route-edge" in func_body or "routeEdge" in func_body, \
-        "toggleStaticRouteHighlight が route_edge を参照していない"
+    assert "route-id" in func_body or "routeId" in func_body, \
+        "toggleStaticRouteHighlight が data-route-id を参照していない"
 
 
 @pytest.mark.unit
 def test_i3b3_6_js_toggle_static_uses_nexthop_device(rendered_html):
-    """#6: toggleStaticRouteHighlight が nexthop device を highlighted にする"""
+    """#2: toggleStaticRouteHighlight（または _applyStaticRowHighlights）が nexthop device を参照する"""
     func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
-    assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
-    assert "nexthop" in func_body.lower() or "nexthopdevice" in func_body.lower(), \
-        "toggleStaticRouteHighlight が nexthop_device を参照していない"
+    # _applyStaticRowHighlights も確認（新方式では再計算関数が分離されている）
+    apply_body = _extract_js_function(rendered_html, "_applyStaticRowHighlights")
+    combined = (func_body or "") + (apply_body or "")
+    assert "nexthop" in combined.lower() or "nexthopdevice" in combined.lower() \
+           or "route-nexthop" in combined.lower(), \
+        "toggleStaticRouteHighlight/_applyStaticRowHighlights が nexthop_device を参照していない"
 
 
 @pytest.mark.unit
 def test_i3b3_6_js_toggle_static_uses_highlighted(rendered_html):
-    """#6: toggleStaticRouteHighlight が highlighted クラスを操作する"""
-    func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
-    assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
-    assert "highlighted" in func_body, \
-        "toggleStaticRouteHighlight が highlighted を操作していない"
+    """#2: _applyStaticRowHighlights が highlighted クラスを操作する"""
+    apply_body = _extract_js_function(rendered_html, "_applyStaticRowHighlights")
+    assert apply_body, "_applyStaticRowHighlights 関数が見つからない"
+    assert "highlighted" in apply_body, \
+        "_applyStaticRowHighlights が highlighted を操作していない"
 
 
 @pytest.mark.unit
 def test_i3b3_6_esc_clears_static_highlight(rendered_html):
-    """#6: clearLinkHighlight が highlighted を解除する（Esc で全解除）"""
+    """#2: clearLinkHighlight が highlighted を解除する（Esc で全解除）"""
     clear_body = _extract_js_function(rendered_html, "clearLinkHighlight")
     assert clear_body, "clearLinkHighlight 関数が見つからない"
     assert "highlighted" in clear_body, \
@@ -6228,7 +6231,7 @@ def test_i3b3_6_esc_clears_static_highlight(rendered_html):
 
 @pytest.mark.unit
 def test_i3b3_6_static_row_no_crash_unresolved():
-    """#6: 経路不明の static 行があっても render が例外を投げない"""
+    """#2: 経路不明の static 行があっても render が例外を投げない"""
     from lib.rendering import render
     try:
         html = render(_make_segment_static_topology())
@@ -6239,13 +6242,13 @@ def test_i3b3_6_static_row_no_crash_unresolved():
 
 @pytest.mark.unit
 def test_i3b3_6_render_deterministic_with_static_routes():
-    """#6: static route マップ追加後も決定性が維持される"""
+    """#2: static route マップ追加後も決定性が維持される"""
     from lib.rendering import render
     import copy
     topo = _make_p2p_static_topology()
     h1 = render(copy.deepcopy(topo))
     h2 = render(copy.deepcopy(topo))
-    assert h1 == h2, "#6 追加後の render() が非決定的"
+    assert h1 == h2, "#2 追加後の render() が非決定的"
 
 
 # ===========================================================================
@@ -6694,16 +6697,17 @@ def test_th3_clear_highlight_protects_static_route_edges(rendered_html):
 
 @pytest.mark.unit
 def test_th4_toggle_static_manages_nexthop_node(rendered_html):
-    """TH4: toggleStaticRouteHighlight が nexthop ノードを集合で管理している"""
-    func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
-    assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
+    """#2: _applyStaticRowHighlights が nexthop ノードを集合で管理している（#2 で再計算関数に分離）"""
+    # #2 では _applyStaticRowHighlights が nexthop ノードを管理する
+    apply_body = _extract_js_function(rendered_html, "_applyStaticRowHighlights")
+    assert apply_body, "_applyStaticRowHighlights 関数が見つからない"
     has_management = (
-        "_selectedStaticNodes" in func_body
-        or "route-target" in func_body
-        or "_selectedNodes" in func_body
+        "_selectedStaticNodes" in apply_body
+        or "route-target" in apply_body
+        or "_selectedNodes" in apply_body
     )
     assert has_management, \
-        "toggleStaticRouteHighlight が nexthop ノードを集合で管理していない"
+        "_applyStaticRowHighlights が nexthop ノードを集合で管理していない"
 
 
 # ---------------------------------------------------------------------------
@@ -6776,12 +6780,12 @@ def test_hc1_clear_highlight_excludes_static_edges(rendered_html):
 
 @pytest.mark.unit
 def test_hc2_toggle_static_uses_dedicated_node_set(rendered_html):
-    """HC2: toggleStaticRouteHighlight が nexthop ノードを _selectedStaticNodes/route-target で管理"""
-    func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
-    assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
-    uses_dedicated = "_selectedStaticNodes" in func_body or "route-target" in func_body
+    """HC2: _applyStaticRowHighlights が nexthop ノードを _selectedStaticNodes/route-target で管理（#2 で移設）"""
+    apply_body = _extract_js_function(rendered_html, "_applyStaticRowHighlights")
+    assert apply_body, "_applyStaticRowHighlights 関数が見つからない"
+    uses_dedicated = "_selectedStaticNodes" in apply_body or "route-target" in apply_body
     assert uses_dedicated, \
-        "nexthop ノードを手動選択と分離していない（_selectedStaticNodes or route-target が必要）"
+        "_applyStaticRowHighlights がnexthopノードを手動選択と分離していない（_selectedStaticNodes or route-target が必要）"
 
 
 # ---------------------------------------------------------------------------
@@ -7616,39 +7620,44 @@ def test_p2_5_bgp_click_handler_registered(rendered_html):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-def test_p2_nb_focus_dimmed_css_exists(rendered_html):
-    """多ノードB: .focus-dimmed の CSS ルールが存在する（.dimmed / .node-filtered とは別）。"""
-    assert ".focus-dimmed" in rendered_html, \
-        ".focus-dimmed の CSS ルールが存在しない"
+def test_p2_nb_focus_dimmed_css_removed(rendered_html):
+    """#6 撤去後: .focus-dimmed の CSS ルールが HTML から削除されている。
+    (旧テスト test_p2_nb_focus_dimmed_css_exists を撤去後の否定条件に更新)
+    正式版: test_p1a6_focus_dimmed_css_removed（p1a6 テスト群に移行済み）
+    """
+    assert ".focus-dimmed" not in rendered_html, \
+        ".focus-dimmed CSS ルールが残存している（フォーカスモード撤去済みのはず）"
 
 
 @pytest.mark.unit
-def test_p2_nb_focus_dimmed_uses_opacity(rendered_html):
-    """多ノードB: .focus-dimmed は opacity を下げる（display:none ではなく薄表示）。"""
+def test_p2_nb_focus_dimmed_no_css_block(rendered_html):
+    """#6 撤去後: .focus-dimmed の CSS ブロックが HTML に存在しない（block レベルの追加検証）。
+    (旧テスト test_p2_nb_focus_dimmed_uses_opacity を撤去後の否定条件に更新)
+    p1a6 正式版に加えて block レベルの検証を提供する（非重複の追加条件）。
+    """
     m = re.search(r'\.focus-dimmed\s*\{([^}]+)\}', rendered_html)
-    assert m is not None, ".focus-dimmed の CSS ブロックが存在しない"
-    block = m.group(1)
-    assert "opacity" in block, \
-        f".focus-dimmed が opacity を含まない（display:none は不可）: {block!r}"
-    # display:none が使われていないことを確認
-    assert "display" not in block or "none" not in block, \
-        f".focus-dimmed に display:none が使われている: {block!r}"
+    assert m is None, ".focus-dimmed の CSS ブロックが残存している（フォーカスモード撤去済みのはず）"
 
 
 @pytest.mark.unit
-def test_p2_nb_dblclick_handler_exists(rendered_html):
-    """多ノードB: device-node への dblclick イベントハンドラが存在する。"""
-    assert "dblclick" in rendered_html, \
-        "device-node への dblclick ハンドラが存在しない"
+def test_p2_nb_dblclick_handler_removed(rendered_html):
+    """#6 撤去後: device-node への dblclick イベントハンドラが削除されている。
+    (旧テスト test_p2_nb_dblclick_handler_exists を撤去後の否定条件に更新)
+    正式版: test_p1a6_dblclick_handler_removed（p1a6 テスト群に移行済み）
+    """
+    assert "dblclick" not in rendered_html, \
+        "dblclick ハンドラが残存している（フォーカスモード撤去済みのはず）"
 
 
 @pytest.mark.unit
 def test_p2_nb_focus_uses_data_a_data_b(rendered_html):
-    """多ノードB: フォーカスの隣接収集が data-a / data-b を参照する。
+    """リンク/BGP ハイライトが data-a / data-b 属性を参照している。
 
-    applyFocusMode など隣接収集ロジック内で dataset.a / dataset.b 等を使用していることを確認する。
+    フォーカスモード（#6）撤去後は applyFocusMode / dblclick は存在しないが、
+    リンクエッジ・BGP セッションは data-a / data-b 属性でハイライト対象を特定している。
+    この属性参照が引き続き存在することを確認する。
     """
-    # applyFocusMode または dblclick 関連コードに dataset.a/dataset.b が存在する
+    # リンク/BGP ハイライト関連コードで dataset.a/dataset.b または getAttribute が使われる
     has_data_ref = (
         "dataset.a" in rendered_html
         or "dataset.b" in rendered_html
@@ -7656,64 +7665,47 @@ def test_p2_nb_focus_uses_data_a_data_b(rendered_html):
         or "getAttribute('data-a')" in rendered_html
     )
     assert has_data_ref, \
-        "フォーカスモードが data-a/data-b を参照していない"
+        "リンク/BGP ハイライトが data-a/data-b 属性を参照していない"
 
 
 @pytest.mark.unit
-def test_p2_nb_focus_clear_on_esc(rendered_html):
-    """多ノードB: Esc キーで focus-dimmed が解除される。
-
-    clearSelection() が focus-dimmed も解除するか、
-    keydown の Esc 処理が focus-dimmed をクリアすることを確認する。
+def test_p2_nb_esc_clears_selection(rendered_html):
+    """#6 撤去後: Esc キーで clearSelection() が呼ばれる（フォーカスモードは廃止）。
+    (旧テスト test_p2_nb_focus_clear_on_esc を clearSelection 確認に更新)
     """
-    has_esc_clear = (
-        re.search(
-            r'Escape[^}]{0,2000}focus-dimmed',
-            rendered_html, re.DOTALL
-        ) is not None
-        or re.search(
-            r'clearSelection[^}]{0,3000}focus-dimmed',
-            rendered_html, re.DOTALL
-        ) is not None
-        or re.search(
-            r'focus-dimmed[^}]{0,200}clear|clear[^}]{0,200}focus-dimmed',
-            rendered_html, re.DOTALL
-        ) is not None
-    )
+    # Esc（Escape）キーハンドラで clearSelection が呼ばれていること
+    has_esc_clear = re.search(
+        r'Escape[^}]{0,2000}clearSelection',
+        rendered_html, re.DOTALL
+    ) is not None or re.search(
+        r"'Escape'[^;]{0,500}clearSelection|\"Escape\"[^;]{0,500}clearSelection",
+        rendered_html, re.DOTALL
+    ) is not None
     assert has_esc_clear, \
-        "Esc / clearSelection で focus-dimmed が解除されない"
+        "Esc キーで clearSelection() が呼ばれていない"
 
 
 @pytest.mark.unit
-def test_p2_nb_focus_does_not_break_selected(rendered_html):
-    """多ノードB: .focus-dimmed と .selected は独立したクラス（クラス名衝突なし）。"""
-    # 両クラス名が同一でないことを確認（意味の確認）
-    assert ".focus-dimmed" != ".selected", \
-        ".focus-dimmed と .selected が同一クラスを使っている"
-    # CSS に .focus-dimmed と .selected が別々のブロックで定義されている
-    fd_count = rendered_html.count(".focus-dimmed")
+def test_p2_nb_selected_css_exists(rendered_html):
+    """#6 撤去後: .selected CSS ルールが引き続き存在する（フォーカスモード撤去後も選択機能は維持）。
+    (旧テスト test_p2_nb_focus_does_not_break_selected を .selected 存在確認のみに簡素化)
+    """
     sel_count = rendered_html.count(".selected")
-    assert fd_count >= 1, ".focus-dimmed が CSS/JS に存在しない"
     assert sel_count >= 1, ".selected が CSS/JS に存在しない"
 
 
 @pytest.mark.unit
-def test_p2_nb_help_text_mentions_dblclick(rendered_html):
-    """多ノードB: ヘッダの操作説明にダブルクリック/フォーカスの記述がある。
-
-    ユーザーに操作を伝えるためのヘルプテキストに
-    「ダブルクリック」「dblclick」または「double」を含む記述がある。
+def test_p2_nb_help_text_no_dblclick_hint(rendered_html):
+    """#6 撤去後: ヘッダのヘルプテキストにダブルクリック/隣接フォーカスの記述が存在しない。
+    (旧テスト test_p2_nb_help_text_mentions_dblclick を撤去後の否定条件に更新)
+    正式版: test_p1a6_help_text_no_double_click_hint（p1a6 テスト群に移行済み）
     """
     header_m = re.search(r'<header[^>]*>(.*?)</header>', rendered_html, re.DOTALL)
     header_html = header_m.group(1) if header_m else rendered_html
-    has_hint = (
-        "ダブルクリック" in header_html
-        or "dblclick" in header_html.lower()
-        or "double" in header_html.lower()
-        or "DBL" in header_html
-    )
-    assert has_hint, \
-        "ヘッダにダブルクリック操作のヘルプテキストが存在しない"
+    assert "ダブルクリック" not in header_html, \
+        "ヘッダに「ダブルクリック」ヘルプテキストが残存している"
+    assert "隣接フォーカス" not in header_html, \
+        "ヘッダに「隣接フォーカス」ヘルプテキストが残存している"
 
 
 # ---------------------------------------------------------------------------
@@ -7848,29 +7840,22 @@ def test_p2_regression_layer_toggles_still_exist(rendered_html):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-def test_p2_nb_focus_does_not_break_selected_v2(rendered_html):
-    """多ノードB: .focus-dimmed と .selected が CSS 内で別々のルールブロックとして宣言されている。
-
-    旧テストのリテラル比較（文字列 != 文字列）を廃止し、
-    CSS ブロックをパースして両クラスが独立した宣言ブロックで存在することを検証する。
+def test_p2_nb_selected_css_block_exists(rendered_html):
+    """#6 撤去後: .selected の CSS ブロックが引き続き存在する（選択機能は維持）。
+    (旧テスト test_p2_nb_focus_does_not_break_selected_v2 をフォーカス不要の形に更新)
     """
     style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
     assert len(style_blocks) >= 1, "style ブロックが見つからない"
     css_text = "\n".join(style_blocks)
 
-    # .focus-dimmed { ... } ブロックが存在する
+    # .focus-dimmed { ... } ブロックが存在しないこと（撤去済み）
     m_fd = re.search(r'\.focus-dimmed\s*\{([^}]+)\}', css_text)
-    assert m_fd is not None, ".focus-dimmed のCSSブロックが存在しない"
+    assert m_fd is None, ".focus-dimmed のCSSブロックが残存している（撤去済みのはず）"
 
-    # .selected または .device-node.selected { ... } ブロックが存在する
+    # .selected または .device-node.selected { ... } ブロックが存在すること
     m_sel = re.search(r'\.selected\s*\{([^}]+)\}', css_text) or \
             re.search(r'device-node\.selected\s*[^{]*\{([^}]+)\}', css_text)
-    assert m_sel is not None, ".selected のCSSブロックが存在しない"
-
-    # 両ブロックが独立していること: .focus-dimmed ブロック内に selected が入り込んでいない
-    fd_block = m_fd.group(1)
-    assert "selected" not in fd_block, \
-        f".focus-dimmed の CSS ブロック内に 'selected' が混在している: {fd_block!r}"
+    assert m_sel is not None, ".selected のCSSブロックが存在しない（選択機能が壊れている）"
 
 
 # ---------------------------------------------------------------------------
@@ -7888,13 +7873,13 @@ def test_p2_nc_card_filter_toggle_updates_on_selection_change_v2(rendered_html):
         "_updateCardFilter 関数が存在しない"
 
     # _selectedNodes.add / delete を含む行の近傍（300文字以内）に _updateCardFilter が存在するか
-    # または clearSelection / clearFocusMode / applyFocusMode の末尾にも _updateCardFilter が存在するか
+    # または clearSelection の末尾にも _updateCardFilter が存在するか
     has_add_near = re.search(
         r'_selectedNodes\.(add|delete)\s*\([^)]+\)[^;]*;[^;]{0,400}_updateCardFilter\s*\(',
         rendered_html, re.DOTALL
     ) is not None
     has_clear_near = re.search(
-        r'(clearFocusMode|applyFocusMode|clearSelection)[^;]{0,600}_updateCardFilter\s*\(',
+        r'clearSelection[^;]{0,600}_updateCardFilter\s*\(',
         rendered_html, re.DOTALL
     ) is not None
     has_update_in_fn = re.search(
@@ -7911,28 +7896,13 @@ def test_p2_nc_card_filter_toggle_updates_on_selection_change_v2(rendered_html):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-def test_p2_nb_focus_uses_data_a_data_b_in_apply_focus(rendered_html):
-    """多ノードB: applyFocusMode 関数本体が dataset.a/dataset.b を参照する。
-
-    旧テストは HTML 全体を検索していたため、他箇所の dataset.a でも通過してしまう。
-    applyFocusMode 関数の本体テキストに限定して検証する。
+def test_p2_nb_apply_focus_mode_removed(rendered_html):
+    """#6 撤去後: applyFocusMode 関数が HTML から存在しない。
+    (旧テスト test_p2_nb_focus_uses_data_a_data_b_in_apply_focus を撤去後の否定条件に更新)
+    正式版: test_p1a6_apply_focus_mode_removed（p1a6 テスト群に移行済み）
     """
-    start = rendered_html.find("function applyFocusMode(")
-    assert start != -1, "applyFocusMode 関数が見つからない"
-    # 次の function を終端とみなす（最大 5000 文字分）
-    end = rendered_html.find("function ", start + len("function applyFocusMode("))
-    func_body = rendered_html[start:end] if (end != -1 and end - start < 6000) \
-        else rendered_html[start:start + 5000]
-
-    has_data_ref = (
-        "dataset.a" in func_body
-        or "dataset.b" in func_body
-        or 'getAttribute("data-a")' in func_body
-        or "getAttribute('data-a')" in func_body
-        or "data-a" in func_body
-    )
-    assert has_data_ref, \
-        "applyFocusMode 本体が data-a/data-b を参照していない"
+    assert "applyFocusMode" not in rendered_html, \
+        "applyFocusMode 関数が残存している（フォーカスモード撤去済みのはず）"
 
 
 # ---------------------------------------------------------------------------
@@ -8117,44 +8087,39 @@ def test_p2_3_toggle_static_adds_row_class_strict(rendered_html):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-def test_p2_dblclick_cancels_single_click_timer(rendered_html):
-    """修正3: dblclick ハンドラが単クリックタイマーをキャンセルする実装を含む。
+def test_p2_click_no_timer_delay(rendered_html):
+    """#6 撤去後: _clickTimer 変数が存在せず、click ハンドラに setTimeout 遅延がない。
+    (旧テスト test_p2_dblclick_cancels_single_click_timer を撤去後の否定条件に更新)
 
-    dblclick ハンドラ内に clearTimeout / setTimeout が存在することを確認する。
-    （単クリック選択の誤発火防止パターン）
+    旧実装（過広）: clearTimeout/setTimeout が HTML 全体に存在しないことを確認。
+    新実装（実効）: _clickTimer 変数不在 + device-node クリックハンドラ内の
+    250ms 遅延タイマーが存在しないことを具体的に検証する。
+    正式版: test_p1a6_click_timer_removed + test_p1a6_node_click_no_settimeout_delay（p1a6 群）
     """
-    # dblclick イベントハンドラのコードブロックを探す
-    dblclick_m = re.search(
-        r'addEventListener\s*\(\s*["\']dblclick["\']\s*,\s*function\s*\(([^)]*)\)\s*\{([^}]{0,1000})',
+    # _clickTimer 変数が存在しないこと（旧 dblclick 遅延実装の核心）
+    assert "_clickTimer" not in rendered_html, \
+        "_clickTimer が残存している（単クリック即時化済みのはず）"
+    # device-node click ハンドラ内での 250ms setTimeout 遅延がないこと
+    has_250ms_delay = re.search(
+        r"addEventListener\s*\(\s*'click'[^)]*\)[^{]*\{[^}]{0,2000}setTimeout[^,]*,\s*250",
         rendered_html, re.DOTALL
-    )
-    if dblclick_m is None:
-        # アロー関数パターンも試す
-        dblclick_m = re.search(
-            r'dblclick["\'\s,)]{0,30}function[^{]{0,50}\{([^}]{0,1000})',
-            rendered_html, re.DOTALL
-        )
-    # clearTimeout / setTimeout が実装に存在することを確認（JS 全体から）
-    has_cleartimeout = "clearTimeout" in rendered_html
-    has_settimeout = "setTimeout" in rendered_html
-    # どちらかが存在すれば、遅延キャンセルの実装意図が確認できる
-    assert has_cleartimeout or has_settimeout, \
-        "dblclick遅延キャンセルのための clearTimeout/setTimeout が実装に存在しない"
+    ) is not None
+    assert not has_250ms_delay, \
+        "click ハンドラ内に 250ms setTimeout 遅延が残存している"
 
 
 @pytest.mark.unit
-def test_p2_select_view_calls_clear_focus_mode(rendered_html):
-    """修正2: selectView の先頭で clearFocusMode() を呼ぶ。
-
-    selectView 関数本体に clearFocusMode() の呼び出しが存在することを確認する。
+def test_p2_select_view_no_clear_focus_mode(rendered_html):
+    """#6 撤去後: selectView の先頭で clearFocusMode() を呼ばない。
+    (旧テスト test_p2_select_view_calls_clear_focus_mode を撤去後の否定条件に更新)
     """
     start = rendered_html.find("function selectView(viewId)")
     assert start != -1, "selectView 関数が見つからない"
     end = rendered_html.find("function ", start + len("function selectView"))
     func_body = rendered_html[start:end] if end != -1 else rendered_html[start:start + 3000]
 
-    assert "clearFocusMode" in func_body, \
-        "selectView 内に clearFocusMode() の呼び出しがない（ビュー切替でフォーカス残留バグ）"
+    assert "clearFocusMode" not in func_body, \
+        "selectView 内に clearFocusMode() の呼び出しが残っている（フォーカスモード撤去済みのはず）"
 
 
 # ===========================================================================
@@ -10250,3 +10215,476 @@ def test_i4cr_physical_chip_iface_ids_equals_connected_plus_loopback():
 
     assert phys_chip_ids == expected, \
         f"_build_physical_chip_iface_ids と 手動計算の差分: {phys_chip_ids ^ expected}"
+
+
+# ===========================================================================
+# Phase 1A #6: フォーカスモード撤去
+# ===========================================================================
+
+@pytest.mark.unit
+def test_p1a6_focus_dimmed_css_removed(rendered_html):
+    """\
+    #6: .focus-dimmed CSS ルールが HTML から削除されている。
+    フォーカスモード撤去後は .focus-dimmed を使うコードが存在しないこと。
+    """
+    assert ".focus-dimmed" not in rendered_html, \
+        ".focus-dimmed CSS ルールが残存している（フォーカスモード撤去済みのはず）"
+
+
+@pytest.mark.unit
+def test_p1a6_apply_focus_mode_removed(rendered_html):
+    """\
+    #6: applyFocusMode 関数が JS から削除されている。
+    """
+    assert "applyFocusMode" not in rendered_html, \
+        "applyFocusMode 関数が残存している（フォーカスモード撤去済みのはず）"
+
+
+@pytest.mark.unit
+def test_p1a6_clear_focus_mode_removed(rendered_html):
+    """\
+    #6: clearFocusMode 関数が JS から削除されている。
+    """
+    assert "clearFocusMode" not in rendered_html, \
+        "clearFocusMode 関数が残存している（フォーカスモード撤去済みのはず）"
+
+
+@pytest.mark.unit
+def test_p1a6_focus_device_var_removed(rendered_html):
+    """\
+    #6: _focusDevice 変数が JS から削除されている。
+    """
+    assert "_focusDevice" not in rendered_html, \
+        "_focusDevice 変数が残存している（フォーカスモード撤去済みのはず）"
+
+
+@pytest.mark.unit
+def test_p1a6_dblclick_handler_removed(rendered_html):
+    """\
+    #6: device-node の dblclick イベントハンドラが削除されている。
+    """
+    assert "dblclick" not in rendered_html, \
+        "dblclick ハンドラが残存している（フォーカスモード撤去済みのはず）"
+
+
+@pytest.mark.unit
+def test_p1a6_help_text_no_double_click_hint(rendered_html):
+    """\
+    #6: ヘッダのヘルプテキストに「ダブルクリック」「隣接フォーカス」が含まれない。
+    """
+    header_m = re.search(r'<header[^>]*>(.*?)</header>', rendered_html, re.DOTALL)
+    header_html = header_m.group(1) if header_m else rendered_html
+    assert "ダブルクリック" not in header_html, \
+        "ヘッダに「ダブルクリック」ヘルプテキストが残存している"
+    assert "隣接フォーカス" not in header_html, \
+        "ヘッダに「隣接フォーカス」ヘルプテキストが残存している"
+
+
+@pytest.mark.unit
+def test_p1a6_click_timer_removed(rendered_html):
+    """\
+    #6: _clickTimer の setTimeout 遅延ロジックが削除されている。
+    単クリック選択は即時実行に戻されているため _clickTimer が存在しない。
+    """
+    assert "_clickTimer" not in rendered_html, \
+        "_clickTimer が残存している（単クリック即時化済みのはず）"
+
+
+@pytest.mark.unit
+def test_p1a6_node_click_no_settimeout_delay(rendered_html):
+    """\
+    #6: ノードの click ハンドラで 250ms setTimeout 遅延が使われていない。
+    単クリック選択は即時実行のため、click ハンドラ内の setTimeout(func, 250) が存在しないこと。
+    """
+    # click ハンドラ周辺（device-node の addEventListener('click'…）で
+    # 250 ms の遅延タイマーが使われていないことを確認する
+    has_250ms_delay = re.search(
+        r"addEventListener\s*\(\s*'click'[^)]*\)[^{]*\{[^}]{0,2000}setTimeout[^,]*,\s*250",
+        rendered_html, re.DOTALL
+    ) is not None
+    assert not has_250ms_delay, \
+        "click ハンドラ内に 250ms setTimeout 遅延が残存している"
+
+
+@pytest.mark.unit
+def test_p1a6_clear_selection_no_focus_mode_call(rendered_html):
+    """\
+    #6: clearSelection() 関数本体が clearFocusMode() を呼ばない。
+    フォーカスモード撤去後は clearSelection は _selectedNodes・clearLinkHighlight・
+    _updateCardFilter のみを呼ぶ。
+    """
+    start = rendered_html.find("function clearSelection(")
+    assert start != -1, "clearSelection 関数が見つからない"
+    end = rendered_html.find("\n    function ", start + 1)
+    func_body = rendered_html[start:end] if end != -1 else rendered_html[start:start + 1000]
+    assert "clearFocusMode" not in func_body, \
+        "clearSelection 内に clearFocusMode() の呼び出しが残っている"
+
+
+@pytest.mark.unit
+def test_p1a6_update_card_filter_no_focus_device(rendered_html):
+    """\
+    #6: _updateCardFilter() 関数本体が _focusDevice を参照しない。
+    フォーカスモード撤去後はカード絞り込みは _selectedNodes のみに基づく。
+    """
+    start = rendered_html.find("function _updateCardFilter(")
+    assert start != -1, "_updateCardFilter 関数が見つからない"
+    end = rendered_html.find("\n    function ", start + 1)
+    func_body = rendered_html[start:end] if end != -1 else rendered_html[start:start + 1000]
+    assert "_focusDevice" not in func_body, \
+        "_updateCardFilter 内に _focusDevice の参照が残っている"
+
+
+# ===========================================================================
+# Phase 1A #2: Static 行ごと独立・複数累積マーク
+# ===========================================================================
+
+@pytest.mark.unit
+def test_p1a2_static_tr_has_data_route_id():
+    """\
+    #2: cards.py が各 static <tr> に data-route-id を付与する。
+    data-route-id は "{device}::{prefix}::{idx}" 形式の一意 ID（ECMP一意化対応）。
+    """
+    from lib.rendering import render
+    html = render(_make_p2p_static_topology())
+    cards_m = re.search(r'id="cards-section"(.*)', html, re.DOTALL)
+    cards_html = cards_m.group(1) if cards_m else html
+    # r1 のデフォルトルート行に data-route-id が存在すること（インデックス付き形式）
+    assert 'data-route-id="r1::0.0.0.0/0::0"' in cards_html, \
+        "r1::0.0.0.0/0::0 の static 行に data-route-id が付与されていない（ECMP一意化後フォーマット）"
+
+
+@pytest.mark.unit
+def test_p1a2_static_tr_data_route_id_unique():
+    """\
+    #2: 同一 device の複数 static 行で data-route-id が一意になる（ECMP含む）。
+    """
+    from lib.rendering import render
+    topo = _make_segment_static_topology()
+    # sw1 と sw2 は同じ prefix "10.0.0.0/8" だが別デバイスなので別 ID になる
+    html = render(topo)
+    assert 'data-route-id="sw1::10.0.0.0/8::0"' in html, \
+        "sw1::10.0.0.0/8::0 の static 行に data-route-id が付与されていない（ECMP一意化後フォーマット）"
+    assert 'data-route-id="sw2::10.0.0.0/8::0"' in html, \
+        "sw2::10.0.0.0/8::0 の static 行に data-route-id が付与されていない（ECMP一意化後フォーマット）"
+
+
+@pytest.mark.unit
+def test_p1a2_toggle_static_row_by_route_id_exists(rendered_html):
+    """\
+    #2: JS に toggleStaticRowById（または同等の data-route-id 単行選択）関数/ロジックが存在する。
+    data-route-id を使って1行のみをトグルするコードが存在すること。
+    """
+    assert "data-route-id" in rendered_html, \
+        "JS/HTML に data-route-id の参照が存在しない"
+    # 1行特定ロジック: CSS.escape + data-route-id セレクタが存在すること
+    has_single_row = re.search(
+        r"""tr\[data-route-id=['"]?[^'"]*['"]?\]|querySelector.*data-route-id|CSS\.escape.*route-id|route-id.*CSS\.escape""",
+        rendered_html
+    ) is not None
+    assert has_single_row, \
+        "data-route-id で1行を特定する querySelector/CSS.escape ロジックが存在しない"
+
+
+@pytest.mark.unit
+def test_p1a2_old_bulk_toggle_via_route_edge_removed(rendered_html):
+    """\
+    #2: toggleStaticRouteHighlight 内で querySelectorAll("tr[data-route-edge='X']") による
+    全行巻き込みトグルが廃止されている。
+    新方式では data-route-id で1行のみをトグルする。
+    """
+    func_body = _extract_js_function(rendered_html, "toggleStaticRouteHighlight")
+    if func_body is None:
+        # 関数が丸ごと廃止されている場合も許容（新関数に置き換えられた）
+        return
+    # 旧実装: querySelectorAll("tr[data-route-edge=...") で全行に route-row-selected を付ける
+    has_bulk = re.search(
+        r"""querySelectorAll\s*\(\s*["']tr\[data-route-edge""",
+        func_body
+    ) is not None
+    assert not has_bulk, \
+        "toggleStaticRouteHighlight が tr[data-route-edge] の全行巻き込みトグルをまだ行っている"
+
+
+@pytest.mark.unit
+def test_p1a2_selected_static_rows_set_exists(rendered_html):
+    """\
+    #2: JS に _selectedStaticRows セット（行 ID 集合）が存在する。
+    """
+    assert "_selectedStaticRows" in rendered_html, \
+        "_selectedStaticRows セットが JS に存在しない"
+
+
+@pytest.mark.unit
+def test_p1a2_clear_selection_clears_static_rows(rendered_html):
+    """\
+    #2: clearSelection() / clearLinkHighlight() が _selectedStaticRows と
+    .route-row-selected を解除する。
+    """
+    # clearLinkHighlight または clearSelection に _selectedStaticRows.clear() が存在すること
+    clear_body = _extract_js_function(rendered_html, "clearLinkHighlight")
+    sel_body = _extract_js_function(rendered_html, "clearSelection")
+    combined = (clear_body or "") + (sel_body or "")
+    assert "_selectedStaticRows" in combined, \
+        "clearLinkHighlight / clearSelection が _selectedStaticRows を参照していない"
+
+
+@pytest.mark.unit
+def test_p1a2_accumulated_rows_recalculate_edge_highlight(rendered_html):
+    """\
+    #2: _selectedStaticRows の和から経路エッジ/next-hop ハイライトを再計算するロジックが存在する。
+    選択行の data-route-edge の和集合を使って highlighted を付与すること。
+    """
+    # _selectedStaticRows を参照してエッジに highlighted を付けるコードが存在すること
+    has_recalc = re.search(
+        r'_selectedStaticRows[^;]{0,2000}(highlighted|route-edge)',
+        rendered_html, re.DOTALL
+    ) is not None or re.search(
+        r'(highlighted|route-edge)[^;]{0,2000}_selectedStaticRows',
+        rendered_html, re.DOTALL
+    ) is not None
+    assert has_recalc, \
+        "_selectedStaticRows からエッジ highlighted を再計算するロジックが存在しない"
+
+
+# ===========================================================================
+# Phase 1A #4: iBGP ハイライト色判別性
+# ===========================================================================
+
+@pytest.mark.unit
+def test_p1a4_ibgp_highlight_color_differs_from_default(rendered_html):
+    """\
+    #4: BGP セッションのハイライト stroke 色が既定 iBGP 色 (#d97706) と異なる。
+    .bgp-session.highlighted .bgp-edge の stroke は #d97706 以外の値である。
+    """
+    # CSS ブロックを抽出
+    m = re.search(
+        r'\.bgp-session\.highlighted\s+\.bgp-edge\s*\{([^}]+)\}',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, \
+        ".bgp-session.highlighted .bgp-edge の CSS ブロックが存在しない"
+    block = m.group(1)
+    # stroke プロパティが存在すること
+    assert "stroke" in block, \
+        ".bgp-session.highlighted .bgp-edge に stroke プロパティがない"
+    # 既定 iBGP 色 #d97706 が直接使われていないこと
+    # (CSS変数 --color-bgp-ibgp は使えないが、#d97706 をそのまま書くのも不可)
+    assert "#d97706" not in block, \
+        ".bgp-session.highlighted .bgp-edge の stroke が既定 iBGP 色 #d97706 のままで判別不能"
+
+
+@pytest.mark.unit
+def test_p1a4_ibgp_highlight_color_differs_from_general_highlight(rendered_html):
+    """\
+    #4: --color-bgp-highlight 変数の定義値が iBGP 既定色 (#d97706) とも
+    汎用ハイライト色 (#f59e0b) とも異なること（直接値検証・vacuous pass 不可）。
+
+    CSS 変数 --color-bgp-highlight が :root に定義され、その値が
+    #d97706（iBGP既定アンバー）でも #f59e0b（汎用ハイライトアンバー）でもないことを
+    regex で直接確認する。
+    """
+    # :root に --color-bgp-highlight が定義されていること
+    m_var = re.search(
+        r'--color-bgp-highlight\s*:\s*(#[0-9a-fA-F]{3,8})',
+        rendered_html
+    )
+    assert m_var is not None, \
+        "--color-bgp-highlight が :root に定義されていない（改名後の専用変数が必要）"
+    actual_color = m_var.group(1).lower()
+    assert actual_color != "#d97706", \
+        f"--color-bgp-highlight の値 {actual_color} が iBGP 既定色 #d97706 と同一で判別不能"
+    assert actual_color != "#f59e0b", \
+        f"--color-bgp-highlight の値 {actual_color} が汎用ハイライト色 #f59e0b と同一で判別不能"
+
+
+@pytest.mark.unit
+def test_p1a4_ibgp_highlight_stroke_width_increased(rendered_html):
+    """\
+    #4: .bgp-session.highlighted .bgp-edge の stroke-width が .bgp-edge の基本値 (2) より大きい。
+    ハイライト時は線幅を増やして視認性を向上させる。
+    """
+    m = re.search(
+        r'\.bgp-session\.highlighted\s+\.bgp-edge\s*\{([^}]+)\}',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, ".bgp-session.highlighted .bgp-edge の CSS ブロックが存在しない"
+    block = m.group(1)
+    # stroke-width が存在し、値が 2 より大きいこと
+    sw_m = re.search(r'stroke-width\s*:\s*(\d+(?:\.\d+)?)', block)
+    assert sw_m is not None, ".bgp-session.highlighted .bgp-edge に stroke-width が存在しない"
+    stroke_width = float(sw_m.group(1))
+    assert stroke_width > 2, \
+        f".bgp-session.highlighted .bgp-edge の stroke-width={stroke_width} が基本値 2 以下（判別不能）"
+
+
+@pytest.mark.unit
+def test_p1a4_ibgp_highlight_css_deterministic():
+    """\
+    #4: iBGP ハイライト CSS 変更後も render() が決定的である。
+    """
+    from lib.rendering import render
+    import copy
+    topo = _make_ibgp_topology()
+    h1 = render(copy.deepcopy(topo))
+    h2 = render(copy.deepcopy(topo))
+    assert h1 == h2, "iBGP ハイライト CSS 変更後に render() が非決定的"
+
+
+# ===========================================================================
+# Phase 1A #2: ECMP 同一 next-hop 向け static 2行 — 振る舞いテスト
+# ===========================================================================
+
+def _make_two_routes_same_nexthop():
+    """#2 ECMP テスト用: r1 が r2 向けに2つの異なる prefix を持つ topology。
+
+    r1 は 192.168.1.0/24 と 192.168.2.0/24 の両方を next_hop=10.0.0.2（r2）へ向ける。
+    同じ next-hop / route-edge を共有する2行で ECMP 一意化の振る舞いを検証する。
+    """
+    return {
+        "title": "ECMP Two Routes Same Nexthop",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [],
+            "ospf": [],
+            "static": [
+                {"device": "r1", "prefix": "192.168.1.0/24", "next_hop": "10.0.0.2"},
+                {"device": "r1", "prefix": "192.168.2.0/24", "next_hop": "10.0.0.2"},
+            ],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_p1a2_ecmp_two_rows_have_unique_data_route_ids():
+    """\
+    #2 ECMP: 同一 device・異なる prefix の2行が一意な data-route-id を持つ。
+
+    r1 の 192.168.1.0/24 と 192.168.2.0/24 はそれぞれ異なる data-route-id を持つ。
+    フォーマット: "{device}::{prefix}::{idx}"（ECMP一意化対応）
+    """
+    from lib.rendering import render
+    html = render(_make_two_routes_same_nexthop())
+
+    # HTML全体で r1 の static route data-route-id を収集（cards-section 限定より確実）
+    ids = re.findall(r'data-route-id="r1::([^"]+)"', html)
+    assert len(ids) >= 2, \
+        f"r1 の static 行 data-route-id が2つ未満: {ids}"
+
+    # 2つの ID が異なること（一意化の確認）
+    assert len(set(ids)) == len(ids), \
+        f"r1 の static 行 data-route-id に重複がある: {ids}"
+
+    # 両方のprefixが含まれること
+    assert any("192.168.1.0/24" in eid for eid in ids), \
+        f"r1::192.168.1.0/24 の route ID が存在しない: {ids}"
+    assert any("192.168.2.0/24" in eid for eid in ids), \
+        f"r1::192.168.2.0/24 の route ID が存在しない: {ids}"
+
+
+@pytest.mark.unit
+def test_p1a2_ecmp_one_row_click_does_not_select_other_row():
+    """\
+    #2 ECMP (a): 1行クリックで他行が route-row-selected にならない。
+
+    toggleStaticRouteHighlight は data-route-id で単一行を querySelector するため、
+    別 route-id を持つ行には影響しない設計になっていること。
+
+    検証方針: toggleStaticRouteHighlight 関数本体に
+    - querySelector('tr[data-route-id=...') が存在する（1行限定取得）
+    - querySelectorAll('tr[data-route-id="..."]') のような値指定での全行取得がない
+      ※ querySelectorAll('tr[data-route-id]')（属性存在確認）はイベント登録に使われるので許容
+    """
+    from lib.rendering import render
+    html = render(_make_two_routes_same_nexthop())
+
+    # toggleStaticRouteHighlight 関数本体を抽出
+    func_body = _extract_js_function(html, "toggleStaticRouteHighlight")
+    assert func_body is not None and func_body != "", \
+        "toggleStaticRouteHighlight 関数が存在しない"
+
+    # 関数内で querySelector('tr[data-route-id=..."] で1行のみ特定していること
+    has_single_query = re.search(
+        r'querySelector\s*\(\s*[\'"]tr\[data-route-id',
+        func_body
+    ) is not None
+    assert has_single_query, \
+        "toggleStaticRouteHighlight が querySelector('tr[data-route-id...') で1行のみ選択していない"
+
+    # querySelectorAll で 値指定の全行巻き込みがないことを確認
+    # querySelectorAll('tr[data-route-id]') はイベント登録コードに存在するが、
+    # querySelectorAll('tr[data-route-id="..."]') のような値指定全行選択がないことを検証
+    has_value_bulk_select = re.search(
+        r"""querySelectorAll\s*\(\s*['"]\s*tr\[data-route-id\s*=\s*""",
+        func_body
+    ) is not None
+    assert not has_value_bulk_select, \
+        "toggleStaticRouteHighlight が querySelectorAll で値指定による複数行一括選択をしている（ECMP一意化の意図に反する）"
+
+
+@pytest.mark.unit
+def test_p1a2_ecmp_apply_static_row_highlights_uses_foreach_and_highlighted():
+    """\
+    #2 ECMP (c): _applyStaticRowHighlights が _selectedStaticRows.forEach と
+    highlighted を両方含む（選択行セットから再計算するロジックの構造確認）。
+    """
+    from lib.rendering import render
+    html = render(_make_two_routes_same_nexthop())
+
+    # _applyStaticRowHighlights 関数本体を抽出
+    func_body = _extract_js_function(html, "_applyStaticRowHighlights")
+    assert func_body is not None, "_applyStaticRowHighlights 関数が存在しない"
+
+    # _selectedStaticRows.forEach が存在すること
+    assert "_selectedStaticRows.forEach" in func_body, \
+        "_applyStaticRowHighlights 内に _selectedStaticRows.forEach が存在しない"
+
+    # highlighted クラス操作が存在すること
+    has_highlighted = (
+        "classList.add('highlighted')" in func_body
+        or 'classList.add("highlighted")' in func_body
+        or re.search(r'classList\.add\(["\']highlighted', func_body) is not None
+    )
+    assert has_highlighted, \
+        "_applyStaticRowHighlights 内に highlighted クラス付与ロジックが存在しない"
+
+
+@pytest.mark.unit
+def test_p1a2_ecmp_clear_selection_removes_all_route_row_selected():
+    """\
+    #2 ECMP: clearLinkHighlight が _selectedStaticRows をクリアし、
+    全 .route-row-selected を解除するロジックを持つ。
+    （最後の1行解除で共有 route-edge の消灯が保証されることを JS 構造で確認）
+    """
+    from lib.rendering import render
+    html = render(_make_two_routes_same_nexthop())
+
+    clear_body = _extract_js_function(html, "clearLinkHighlight")
+    assert clear_body is not None, "clearLinkHighlight 関数が存在しない"
+
+    # _selectedStaticRows.clear() が存在すること
+    assert "_selectedStaticRows.clear()" in clear_body, \
+        "clearLinkHighlight 内に _selectedStaticRows.clear() が存在しない"
+
+    # route-row-selected の classList.remove が存在すること
+    has_remove = re.search(
+        r'classList\.remove\(["\']route-row-selected',
+        clear_body
+    ) is not None
+    assert has_remove, \
+        "clearLinkHighlight 内に route-row-selected の classList.remove が存在しない"

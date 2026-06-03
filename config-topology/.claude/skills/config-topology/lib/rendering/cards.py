@@ -26,7 +26,7 @@ def _device_cards(
                           None の場合は付与しない（後方互換）。
         iface_seg_id:     ``{iface_id: seg_id}`` マップ（#7）。
                           セグメントメンバーの IF 行 <tr> に ``data-seg-id`` を付与する。
-        static_route_map: ``{(device, prefix): {route_edge_id, nexthop_device_id}}`` マップ（#6）。
+        static_route_map: ``{(device, prefix): {route_edge_id, nexthop_device_id}}`` マップ（#2/#6）。
                           static 行に ``data-route-edge`` / ``data-route-nexthop-device`` を付与する。
         bgp_session_map:  ``{(device, neighbor_ip): bgp_id}`` マップ（#5）。
                           BGP Sessions 行に ``data-bgp-id`` を付与する。
@@ -116,15 +116,17 @@ def _device_cards(
             )
         ospf_rows = "".join(ospf_row_parts)
 
-        # static サマリー（#6: data-route-edge / data-route-nexthop-device 付与）
+        # static サマリー（#2/#6: data-route-id で1行特定・data-route-edge / data-route-nexthop-device 付与）
         static_row_parts = []
-        for s in static_by_device.get(dev_id, []):
+        for idx, s in enumerate(static_by_device.get(dev_id, [])):
             prefix = s.get("prefix", "")
             next_hop = s.get("next_hop", "")
             route_info = static_route_map.get((dev_id, prefix), {})
             route_edge_id = route_info.get("route_edge_id") or ""
             nexthop_device_id = route_info.get("nexthop_device_id") or ""
-            tr_attrs = ""
+            # #2: 行ごと一意 ID（"{device}::{prefix}::{idx}" 形式。同 prefix ECMP でも衝突しない）
+            route_id = f"{dev_id}::{prefix}::{idx}"
+            tr_attrs = f' data-route-id="{_esc(route_id)}"'
             if route_edge_id:
                 tr_attrs += f' data-route-edge="{_esc(route_edge_id)}"'
             if nexthop_device_id:
