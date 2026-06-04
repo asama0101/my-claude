@@ -557,9 +557,21 @@ def _resolve_ospf_area_for_device(
             except ValueError:
                 continue
 
+    # クエリ subnet の af を判定（af ガード比較に使用）
+    subnet_af = "v6" if subnet_network.version == 6 else "v4"
+
     for entry in dev.ospf:
         net_str = entry.network
         area = entry.area
+
+        # af ガード: entry の af とクエリ subnet の af を突き合わせ、不一致はスキップ。
+        # OspfNetwork.af はパーサーが常に設定する（既定 "v4"）ため entry_af is None は
+        # 実際には発生しない。is not None チェックは念のための防御的ガード。
+        # 通常は af 一致判定のみが機能し、
+        # OSPFv3(af=v6) は v4 subnet に、OSPFv2(af=v4) は v6 subnet にマッチしない。
+        entry_af = getattr(entry, "af", None)
+        if entry_af is not None and entry_af != subnet_af:
+            continue
 
         # IOS パス: CIDR として解釈を試みる
         try:
@@ -578,7 +590,7 @@ def _resolve_ospf_area_for_device(
         # ユニット表記（ge-0/0/0.0）のドット以降を除去してベース IF 名を得る
         base_if = net_str.split(".")[0]
         # dev の interfaces から name が base_if に一致するものを探す
-        # if_name_to_network はバージョン一致 IF のみ含むので版不一致は自動除外
+        # af ガードで entry_af == subnet_af が保証済みのため版不一致は発生しない
         resolved_network = if_name_to_network.get(base_if)
         if resolved_network is not None and resolved_network == subnet_network:
             return area

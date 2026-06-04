@@ -614,22 +614,26 @@ def _build_view_ospf(
         x1, y1 = a_pos
         x2, y2 = b_pos
 
-        # Phase 3H: 統合エントリの全 subnet を取得（sorted 決定的）
+        # 統合エントリの全 subnet を取得（物理接続の line 描画・data-subnet に使用）
         subnets = lk.get("subnets") or [lk.get("subnet", "")]
         primary_subnet_raw = subnets[0] if subnets else lk.get("subnet", "")
         primary_subnet = _esc(primary_subnet_raw)
 
         ospf_area = lk.get("ospf_area")
 
-        # Phase 3H: data-ospf-id は全 subnet を空白区切りで列挙（双方向連動）
-        # 統合エッジが v4/v6 両行の ospf_id と対応できるよう複数値を保持する。
-        # NOTE: lk.get("ospf_network") は _merge_links_by_link_id で最初の link の
-        # ospf_network を保持しているため、subnets の各要素に適用すると全て
-        # v4 ospf_network で上書きされ v6 id が欠落する。
-        # そのため各 subnet を個別に _normalize_subnet() で正規化する。
+        # ospf_subnets: OSPF 参加 subnet のみ（_merge_links_by_link_id で計算済み）
+        # フォールバック: キー欠如（旧形式データ）のみ subnets を使用。
+        # 空リスト（[]）は OSPF 非参加を意味するためそのまま維持する。
+        # _merge_links_by_link_id は常に ospf_subnets を書き込むため is None は旧形式のみ。
+        ospf_subnets = lk.get("ospf_subnets")
+        if ospf_subnets is None:          # 旧形式データのみフォールバック
+            ospf_subnets = subnets
+
+        # data-ospf-id は OSPF 参加 subnet のみを空白区切りで列挙（双方向連動）
+        # ospf_subnets を個別に _normalize_subnet() で正規化する。
         ospf_ids = [
             _normalize_subnet(s)
-            for s in subnets
+            for s in ospf_subnets
         ]
         ospf_ids = sorted(set(oid for oid in ospf_ids if oid))  # 決定的・重複除去
         if ospf_ids:
@@ -643,9 +647,10 @@ def _build_view_ospf(
 
         if ospf_area is not None:
             # A5: dual-stack 時は v4/v6 subnet を別 tspan 行で表示
-            if len(subnets) > 1:
-                v4_subnets = [s for s in subnets if s and ":" not in s]
-                v6_subnets = [s for s in subnets if s and ":" in s]
+            # ospf_subnets（OSPF 参加のみ）を使うため v4 のみ OSPF 参加の場合は1行
+            if len(ospf_subnets) > 1:
+                v4_subnets = [s for s in ospf_subnets if s and ":" not in s]
+                v6_subnets = [s for s in ospf_subnets if s and ":" in s]
                 is_dual_stack_ospf = bool(v4_subnets and v6_subnets)
                 if is_dual_stack_ospf:
                     # 1行目: "area X · v4subnet"、2行目以降: v6subnet
@@ -665,7 +670,7 @@ def _build_view_ospf(
                         f'</text>'
                     )
                 else:
-                    subnets_label = " / ".join(_esc(s) for s in subnets if s)
+                    subnets_label = " / ".join(_esc(s) for s in ospf_subnets if s)
                     label_line1 = OSPF_AREA_LABEL_FORMAT.format(
                         area=_esc(ospf_area), subnet=subnets_label
                     )
@@ -674,8 +679,10 @@ def _build_view_ospf(
                         f'class="link-label layer-ospf">{label_line1}</text>'
                     )
             else:
+                # 単一 OSPF 参加 subnet（v6 のみ OSPF 参加 or single-stack）
+                ospf_primary = _esc(ospf_subnets[0]) if ospf_subnets else primary_subnet
                 label_line1 = OSPF_AREA_LABEL_FORMAT.format(
-                    area=_esc(ospf_area), subnet=primary_subnet
+                    area=_esc(ospf_area), subnet=ospf_primary
                 )
                 label_elem = (
                     f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '

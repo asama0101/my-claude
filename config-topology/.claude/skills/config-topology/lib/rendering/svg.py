@@ -429,6 +429,8 @@ def _merge_links_by_link_id(links: list[dict]) -> list[dict]:
     merged: OrderedDict[str, dict] = OrderedDict()
     # link_id → ospf_area 集合（複数 area 集約用）
     merged_areas: dict[str, set[str]] = {}
+    # link_id → OSPF 参加 subnet 集合（ospf_area を持つリンクの subnet のみ）
+    merged_ospf_subnets: dict[str, set[str]] = {}
 
     for link in sorted(links, key=lambda l: (l.get("a_device", ""), l.get("a_if", ""), l.get("subnet", ""))):
         a_dev = link.get("a_device", "")
@@ -446,6 +448,8 @@ def _merge_links_by_link_id(links: list[dict]) -> list[dict]:
             entry["_link_id"] = lid
             merged[lid] = entry
             merged_areas[lid] = {ospf_area} if ospf_area is not None else set()
+            # ospf_subnets: このリンクが OSPF 参加なら subnet を収集
+            merged_ospf_subnets[lid] = {subnet} if (ospf_area is not None and subnet) else set()
         else:
             # 同一 link_id: subnet を追加（重複除去）
             if subnet and subnet not in merged[lid]["subnets"]:
@@ -453,12 +457,18 @@ def _merge_links_by_link_id(links: list[dict]) -> list[dict]:
             # ospf_area を収集（後でまとめて集約）
             if ospf_area is not None:
                 merged_areas[lid].add(ospf_area)
+                # OSPF 参加 subnet として追加
+                if subnet:
+                    merged_ospf_subnets[lid].add(subnet)
 
     # subnets を sorted で決定的に固定（IPv4 before IPv6 は自然ソートで概ね担保される）
     # ospf_area を集約してエントリに書き戻す
+    # ospf_subnets も sorted で決定的に固定
     result = []
     for lid, entry in merged.items():
         entry["subnets"] = sorted(entry["subnets"])
+        # ospf_subnets: OSPF 参加 subnet のみ（sorted 決定的）
+        entry["ospf_subnets"] = sorted(merged_ospf_subnets.get(lid, set()))
         areas = merged_areas.get(lid, set())
         if areas:
             if len(areas) == 1:

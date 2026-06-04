@@ -13327,3 +13327,123 @@ def test_roundA_a7_deterministic(sample_topology):
     html1 = render(copy.deepcopy(sample_topology))
     html2 = render(copy.deepcopy(sample_topology))
     assert html1 == html2, "A7 係数縮小後の render() が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# 修正1: ospf_subnets=[] の OSPF 非参加リンクに data-ospf-id が付かない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fix1_ospf_non_participant_link_no_data_ospf_id():
+    """修正1: OSPF 非参加リンク（ospf_area=None）が両端 OSPF 参加デバイス間にある場合、
+    data-ospf-id が付かない。
+
+    バグシナリオ:
+    両端が OSPF 参加デバイスで当該リンクは ospf_area=None（OSPF 非参加）のとき、
+    _build_view_ospf 内の _merge_links_by_link_id が ospf_subnets=[] を設定する。
+    views.py の 'or subnets' が空リストをフォールバックして subnets 全体（['10.0.1.0/30']）を
+    ospf_subnets として扱い、data-ospf-id="10.0.1.0/30" が誤付与される。
+    is None 判定への修正後は [] のままフォールバックせず data-ospf-id が付かない。
+    """
+    from lib.rendering.views import _build_view_ospf
+
+    devices = [
+        {"id": "R1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        {"id": "R2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+    ]
+    # R1, R2 を別サブネットで OSPF 参加デバイスとして登録（ospf_device_ids に含める）
+    ospf_entries = [
+        {"device": "R1", "process": 1, "area": "0", "subnet": "10.0.0.0/30"},
+        {"device": "R2", "process": 1, "area": "0", "subnet": "10.0.0.0/30"},
+    ]
+    # OSPF 非参加リンク（両端は OSPF 参加デバイス、ospf_area=None）
+    # _build_view_ospf 内で _merge_links_by_link_id を経て ospf_subnets=[] になる
+    # 修正前: views.py の 'or subnets' で ['10.0.1.0/30'] にフォールバック → 誤 data-ospf-id
+    # 修正後: ospf_subnets=[] は is None=False → フォールバックしない → data-ospf-id なし
+    links = [
+        {
+            "a_device": "R1", "a_if": "GigabitEthernet0/0",
+            "b_device": "R2", "b_if": "GigabitEthernet0/0",
+            "subnet": "10.0.1.0/30",
+            "ospf_area": None,  # OSPF 非参加
+        },
+    ]
+    iface_by_device = {
+        "R1": [{"id": "R1::GigabitEthernet0/0", "device": "R1",
+                "name": "GigabitEthernet0/0", "ip": "10.0.1.1/30"}],
+        "R2": [{"id": "R2::GigabitEthernet0/0", "device": "R2",
+                "name": "GigabitEthernet0/0", "ip": "10.0.1.2/30"}],
+    }
+
+    svg = _build_view_ospf(devices, ospf_entries, links, iface_by_device)
+
+    # OSPF 非参加リンク（ospf_area=None, _merge_links_by_link_id 後 ospf_subnets=[]）は
+    # data-ospf-id を持たないこと
+    ospf_ids = re.findall(r'data-ospf-id="([^"]+)"', svg)
+    assert not any("10.0.1.0" in oid for oid in ospf_ids), (
+        f"OSPF 非参加リンク（ospf_area=None）に誤って data-ospf-id が付いた"
+        f"（or subnets 誤フォールバック）: found={ospf_ids}"
+    )
+
+
+@pytest.mark.unit
+def test_fix1_ospf_non_participant_merged_link_no_data_ospf_id():
+    """修正1: _merge_links_by_link_id 経由のマージ済みリンクで ospf_subnets=[] 時に
+    data-ospf-id が付かないことを end-to-end で確認する。
+
+    両端 OSPF 機器だが当該リンクは OSPF 非参加というシナリオ:
+    R1-R2 間に v4/v6 の 2 リンクがあり、v4 のみ OSPF 参加、
+    v6 は OSPF 非参加（ospf_area なし）。マージ後 ospf_subnets=[v4_subnet] となり
+    v6_subnet が data-ospf-id に入らないことを確認。
+    """
+    from lib.rendering.svg import _merge_links_by_link_id
+    from lib.rendering.views import _build_view_ospf
+
+    raw_links = [
+        {
+            "a_device": "R1", "a_if": "GigabitEthernet0/0",
+            "b_device": "R2", "b_if": "GigabitEthernet0/0",
+            "subnet": "10.0.0.0/30",
+            "ospf_area": "0",   # v4 は OSPF 参加
+        },
+        {
+            "a_device": "R1", "a_if": "GigabitEthernet0/0",
+            "b_device": "R2", "b_if": "GigabitEthernet0/0",
+            "subnet": "2001:db8::/127",
+            "ospf_area": None,  # v6 は OSPF 非参加
+        },
+    ]
+    merged = _merge_links_by_link_id(raw_links)
+    assert len(merged) == 1, "同一 IF ペアは1エントリに統合されるべき"
+
+    lk = merged[0]
+    # マージ後: v4 が OSPF 参加なので ospf_subnets=["10.0.0.0/30"]（v6 は含まれない）
+    assert lk["ospf_subnets"] == ["10.0.0.0/30"], (
+        f"ospf_subnets が期待値 ['10.0.0.0/30'] と異なる: {lk['ospf_subnets']!r}"
+    )
+
+    devices = [
+        {"id": "R1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        {"id": "R2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+    ]
+    ospf_entries = [
+        {"device": "R1", "process": 1, "area": "0", "subnet": "10.0.0.0/30"},
+        {"device": "R2", "process": 1, "area": "0", "subnet": "10.0.0.0/30"},
+    ]
+    iface_by_device = {
+        "R1": [{"id": "R1::GigabitEthernet0/0", "device": "R1",
+                "name": "GigabitEthernet0/0", "ip": "10.0.0.1/30"}],
+        "R2": [{"id": "R2::GigabitEthernet0/0", "device": "R2",
+                "name": "GigabitEthernet0/0", "ip": "10.0.0.2/30"}],
+    }
+
+    svg = _build_view_ospf(devices, ospf_entries, merged, iface_by_device)
+
+    # v4 subnet（OSPF 参加）は data-ospf-id に含まれること
+    assert 'data-ospf-id="10.0.0.0/30"' in svg, \
+        "OSPF 参加 v4 subnet が data-ospf-id に含まれない（regression）"
+
+    # v6 subnet（OSPF 非参加）は data-ospf-id に含まれないこと
+    # ospf_subnets=[v4_only] なので v6 は入らないはず
+    assert "2001:db8::" not in svg.split('data-ospf-id="')[1] if 'data-ospf-id="' in svg else True, \
+        "OSPF 非参加 v6 subnet が data-ospf-id に誤って含まれた"

@@ -1707,3 +1707,283 @@ set routing-options rib inet6.0 static route 2001:db8::1/32 next-hop 2001:db8:1:
         # strict=False で正規化: 2001:db8::1/32 → 2001:db8::/32
         assert v6_static[0].prefix == "2001:db8::/32", \
             f"prefix={v6_static[0].prefix!r} が正規化されていない（期待: '2001:db8::/32'）"
+
+
+# ================================================================
+# セクション 18: OSPFv3-only 参加リンクでの v4 subnet 誤付与バグ回帰防止
+# ================================================================
+
+_FIXTURE_DIR_DUALSTACK_OSPF = os.path.join(
+    os.path.dirname(__file__), "..", "evals", "inputs", "dualstack-ospf"
+)
+
+
+class TestOSPFv3AfGuard:
+    """OSPFv3(af=v6) エントリが v4 subnet の ospf_area 解決に使われないことを保証する。
+
+    バグ概要:
+      v6routing fixture で IOS-R1/JUNOS-R1 は OSPFv3 のみ参加（v4 OSPF なし）。
+      build_topology._resolve_ospf_area_for_device が entry の af を見ていないため、
+      JunOS の ospf3 エントリ (network="ge-0/0/0", af="v6") が v4 subnet の照会でも
+      IF 名 → v4 network として解決されてしまい、v4 link に ospf_area が誤付与される。
+
+    修正:
+      _resolve_ospf_area_for_device の JunOS パスで entry の af と subnet の af を突合し、
+      不一致なら continue する（af ガード）。
+    """
+
+    @pytest.mark.unit
+    def test_junos_ospfv3_does_not_resolve_v4_subnet(self):
+        """JunOS の af=v6 OSPFv3 エントリが v4 subnet に誤解決しない（af ガード）。"""
+        from lib.parsers.base import Device, Interface, OspfNetwork
+        from scripts.build_topology import _resolve_ospf_area_for_device
+        import ipaddress
+
+        # JunOS: ge-0/0/0 に v4/v6 両アドレス、ospf3(af=v6) のみ
+        dev = Device(
+            hostname="JUNOS-R1", vendor="juniper_junos", asn=65200,
+            interfaces=[Interface(
+                name="ge-0/0/0", ip="10.1.0.2/30", description=None,
+                addresses=[
+                    {"af": "v4", "ip": "10.1.0.2", "prefix": 30},
+                    {"af": "v6", "ip": "2001:db8:1::0", "prefix": 127},
+                ]
+            )],
+            bgp=[], static=[],
+            ospf=[OspfNetwork(process=None, network="ge-0/0/0", area="0.0.0.0", af="v6")],
+        )
+
+        v4_subnet = ipaddress.ip_network("10.1.0.0/30", strict=False)
+        area = _resolve_ospf_area_for_device(dev, v4_subnet)
+        assert area is None, (
+            f"JunOS af=v6 OSPFv3 エントリが v4 subnet を誤解決: area={area!r}。"
+            "af ガードが実装されていない。"
+        )
+
+    @pytest.mark.unit
+    def test_junos_ospfv3_correctly_resolves_v6_subnet(self):
+        """JunOS の af=v6 OSPFv3 エントリが v6 subnet を正しく解決する（af ガード後も動作）。"""
+        from lib.parsers.base import Device, Interface, OspfNetwork
+        from scripts.build_topology import _resolve_ospf_area_for_device
+        import ipaddress
+
+        dev = Device(
+            hostname="JUNOS-R1", vendor="juniper_junos", asn=65200,
+            interfaces=[Interface(
+                name="ge-0/0/0", ip="10.1.0.2/30", description=None,
+                addresses=[
+                    {"af": "v4", "ip": "10.1.0.2", "prefix": 30},
+                    {"af": "v6", "ip": "2001:db8:1::0", "prefix": 127},
+                ]
+            )],
+            bgp=[], static=[],
+            ospf=[OspfNetwork(process=None, network="ge-0/0/0", area="0.0.0.0", af="v6")],
+        )
+
+        v6_subnet = ipaddress.ip_network("2001:db8:1::/127", strict=False)
+        area = _resolve_ospf_area_for_device(dev, v6_subnet)
+        # 正規化は _normalize_ospf_area で行われるが、
+        # _resolve_ospf_area_for_device 自体は raw area を返す（"0.0.0.0"）
+        assert area == "0.0.0.0", (
+            f"JunOS af=v6 OSPFv3 エントリが v6 subnet を正しいエリア '0.0.0.0' で解決できない: got {area!r}"
+        )
+
+    @pytest.mark.unit
+    def test_ios_ospfv3_if_name_fallback_does_not_resolve_v4(self):
+        """IOS ospfv3 の IF 名 fallback エントリが v4 subnet を誤解決しない（af ガード）。
+
+        cisco_ios.py パーサーは v6 アドレス不明時に IF 名を network として格納（fallback）。
+        この fallback エントリ(af=v6)が v4 subnet 照会で解決されてはいけない。
+        """
+        from lib.parsers.base import Device, Interface, OspfNetwork
+        from scripts.build_topology import _resolve_ospf_area_for_device
+        import ipaddress
+
+        # IOS: IF 名 fallback エントリ（v6 アドレス未解決ケース）
+        dev = Device(
+            hostname="IOS-R1", vendor="cisco_ios", asn=None,
+            interfaces=[Interface(
+                name="GigabitEthernet0/0", ip="10.1.0.1/30", description=None,
+                addresses=[{"af": "v4", "ip": "10.1.0.1", "prefix": 30}]
+            )],
+            bgp=[], static=[],
+            ospf=[OspfNetwork(process=10, network="GigabitEthernet0/0", area="0", af="v6")],
+        )
+
+        v4_subnet = ipaddress.ip_network("10.1.0.0/30", strict=False)
+        area = _resolve_ospf_area_for_device(dev, v4_subnet)
+        assert area is None, (
+            f"IOS ospfv3 IF 名 fallback が v4 subnet を誤解決: area={area!r}。"
+            "af ガードが JunOS パスだけでなく実際のパスにも必要。"
+        )
+
+    @pytest.mark.integration
+    def test_v6routing_v4_link_has_no_ospf_area(self):
+        """v6routing fixture（OSPFv3 のみ）で build 後、v4 リンクに ospf_area が付かない。
+
+        これがバグの根本: v4 link (10.1.0.0/30) に ospf_area='0' が誤付与されていた。
+        修正後は v4 link に ospf_area フィールドが存在しないこと。
+        """
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        fixture_files = [
+            os.path.join(FIXTURE_DIR, "iosR.cfg"),
+            os.path.join(FIXTURE_DIR, "junosR.conf"),
+        ]
+        devices = parse_paths(fixture_files)
+        topo = build(devices, generated_from=fixture_files)
+
+        v4_links = [lk for lk in topo["links"] if ":" not in lk.get("subnet", "")]
+        ospf_v4_links = [lk for lk in v4_links if "ospf_area" in lk]
+        assert not ospf_v4_links, (
+            f"v6routing (OSPFv3 のみ) の v4 link に ospf_area が誤付与されている: "
+            f"{ospf_v4_links}。"
+            "af ガードが実装されていない。"
+        )
+
+    @pytest.mark.integration
+    def test_v6routing_v6_link_still_has_ospf_area(self):
+        """v6routing fixture で build 後、v6 リンクには正しく ospf_area が付く（非回帰）。"""
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        fixture_files = [
+            os.path.join(FIXTURE_DIR, "iosR.cfg"),
+            os.path.join(FIXTURE_DIR, "junosR.conf"),
+        ]
+        devices = parse_paths(fixture_files)
+        topo = build(devices, generated_from=fixture_files)
+
+        v6_links_with_area = [
+            lk for lk in topo["links"]
+            if ":" in lk.get("subnet", "") and "ospf_area" in lk
+        ]
+        assert v6_links_with_area, (
+            "v6routing の v6 link に ospf_area が付いていない。"
+            "af ガード導入後も v6 OSPF は正常動作すること。"
+        )
+
+    @pytest.mark.integration
+    def test_v6routing_ospf_html_label_no_v4_subnet(self):
+        """v6routing render 後 OSPF ビューのラベル/data-ospf-id に v4 subnet が含まれない。
+
+        修正前: 誤って ospf_area が付いた v4 link も OSPF ビューに描画される。
+        修正後: OSPF ビューに v4 subnet (10.1.0.0/30) が出力されない。
+        """
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        from lib.rendering import render
+        import re
+        fixture_files = [
+            os.path.join(FIXTURE_DIR, "iosR.cfg"),
+            os.path.join(FIXTURE_DIR, "junosR.conf"),
+        ]
+        devices = parse_paths(fixture_files)
+        topo = build(devices, generated_from=fixture_files)
+        html = render(topo)
+
+        # OSPF ビュー部分を抽出
+        m_start = re.search(r'<g[^>]+class="view view-ospf"', html)
+        if not m_start:
+            pytest.skip("OSPF ビューが生成されない（OSPF エントリが両端に揃っていない）")
+        start = m_start.start()
+        m_end = re.search(r'<g[^>]+class="view view-(?!ospf)[^"]*"', html[start + 1:])
+        ospf_section = html[start: start + 1 + m_end.start()] if m_end else html[start:]
+
+        # data-ospf-id に v4 subnet が含まれないこと
+        # （data-subnet は物理接続識別子として使われるため許容）
+        import re as _re
+        ospf_id_vals = _re.findall(r'data-ospf-id="([^"]+)"', ospf_section)
+        for val in ospf_id_vals:
+            assert "10.1.0.0/30" not in val, (
+                f"OSPF ビューの data-ospf-id に v4 subnet '10.1.0.0/30' が含まれている: {val!r}。"
+                "OSPFv3 のみの構成で v4 subnet が OSPF data-ospf-id に誤表示されている。"
+            )
+        # OSPF ラベル（area label text）に v4 subnet が含まれないこと
+        area_labels = _re.findall(r'class="link-label layer-ospf">([^<]+)', ospf_section)
+        # tspan 内テキストも収集
+        tspan_texts = _re.findall(r'<tspan[^>]*>([^<]+)</tspan>', ospf_section)
+        all_label_texts = area_labels + tspan_texts
+        for label in all_label_texts:
+            assert "10.1.0.0/30" not in label, (
+                f"OSPF ビューのラベルに v4 subnet '10.1.0.0/30' が含まれている: {label!r}。"
+                "OSPFv3 のみの構成で v4 subnet が OSPF ラベルに誤表示されている。"
+            )
+
+
+class TestDualStackOspfFixture:
+    """dualstack-ospf フィクスチャ: v4 OSPFv2 + v6 OSPFv3 の真の dual-stack OSPF 構成。
+
+    このフィクスチャは v4 OSPFv2(router ospf + network文) と
+    v6 OSPFv3(ipv6 ospf area + ipv6 router ospf) の両方が有効な構成。
+    build 後に v4 link と v6 link の両方に ospf_area が付き、
+    OSPF ビューが dual-stack 2行ラベルになることを確認する。
+    """
+
+    @pytest.fixture(scope="class")
+    def dso_topo(self):
+        """dualstack-ospf fixture から build した topology dict を返す。"""
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        if not os.path.isdir(_FIXTURE_DIR_DUALSTACK_OSPF):
+            pytest.skip("dualstack-ospf フィクスチャが存在しない")
+        files = sorted([
+            os.path.join(_FIXTURE_DIR_DUALSTACK_OSPF, fn)
+            for fn in os.listdir(_FIXTURE_DIR_DUALSTACK_OSPF)
+            if fn.endswith(".cfg")
+        ])
+        if not files:
+            pytest.skip("dualstack-ospf フィクスチャにファイルがない")
+        devices = parse_paths(files)
+        return build(devices, generated_from=files)
+
+    @pytest.mark.integration
+    def test_dso_v4_link_has_ospf_area(self, dso_topo):
+        """dualstack-ospf の v4 リンクに ospf_area が付く（OSPFv2 参加）。"""
+        v4_ospf_links = [
+            lk for lk in dso_topo["links"]
+            if ":" not in lk.get("subnet", "") and "ospf_area" in lk
+        ]
+        assert v4_ospf_links, (
+            "dualstack-ospf の v4 link に ospf_area が付いていない。"
+            "OSPFv2(router ospf + network) が正しく解決されていない。"
+        )
+
+    @pytest.mark.integration
+    def test_dso_v6_link_has_ospf_area(self, dso_topo):
+        """dualstack-ospf の v6 リンクに ospf_area が付く（OSPFv3 参加）。"""
+        v6_ospf_links = [
+            lk for lk in dso_topo["links"]
+            if ":" in lk.get("subnet", "") and "ospf_area" in lk
+        ]
+        assert v6_ospf_links, (
+            "dualstack-ospf の v6 link に ospf_area が付いていない。"
+            "OSPFv3(ipv6 ospf area) が正しく解決されていない。"
+        )
+
+    @pytest.mark.integration
+    def test_dso_render_contains_both_subnets_in_ospf_view(self, dso_topo):
+        """dualstack-ospf render 後 OSPF ビューに v4/v6 両 subnet が含まれる。"""
+        from lib.rendering import render
+        import re
+        html = render(dso_topo)
+
+        m_start = re.search(r'<g[^>]+class="view view-ospf"', html)
+        if not m_start:
+            pytest.skip("OSPF ビューが生成されない")
+        start = m_start.start()
+        m_end = re.search(r'<g[^>]+class="view view-(?!ospf)[^"]*"', html[start + 1:])
+        ospf_section = html[start: start + 1 + m_end.start()] if m_end else html[start:]
+
+        # v4 subnet が OSPF ビューに含まれること
+        v4_links = [lk for lk in dso_topo["links"] if ":" not in lk.get("subnet", "") and "ospf_area" in lk]
+        for lk in v4_links[:1]:  # 最初の1件で確認
+            assert lk["subnet"] in ospf_section, (
+                f"dualstack-ospf OSPF ビューに v4 subnet {lk['subnet']!r} がない"
+            )
+
+        # v6 subnet が OSPF ビューに含まれること
+        v6_links = [lk for lk in dso_topo["links"] if ":" in lk.get("subnet", "") and "ospf_area" in lk]
+        for lk in v6_links[:1]:
+            assert lk["subnet"] in ospf_section or lk["subnet"].split("/")[0] in ospf_section, (
+                f"dualstack-ospf OSPF ビューに v6 subnet {lk['subnet']!r} がない"
+            )
