@@ -3,6 +3,8 @@ rendering/views.py — ビュー別 SVG 生成モジュール
 """
 from __future__ import annotations
 
+import re
+
 from lib.rendering.layout import (
     _adaptive_iter,
     _canvas_size_for_nodes,
@@ -889,9 +891,20 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         is_unused = (not ip) and (st_lower in ("down", "admin-down"))
         unused_attr = ' data-unused="1"' if is_unused else ""
 
-        # 検索用テキスト（device / IF 名 / IP / description）
-        # Phase 3I [MEDIUM]: ip には v6-only IF の v6 アドレスも含まれるため検索対応済み
-        search_text = f"{hostname} {name} {ip} {description}".lower()
+        # 検索用テキスト（device / IF 名 / 全 IP / description）
+        # dual-stack IF の場合、ip 変数は v4 primary のみ保持している。
+        # addresses リストから link-local を除いた全アドレスを追加して v6 を検索可能にする。
+        extra_ips: list[str] = []
+        for addr in (iface.get("addresses") or []):
+            if addr.get("scope") == "link-local":
+                continue
+            ip_str = addr.get("ip", "")
+            if ip_str and ip_str not in ip:
+                extra_ips.append(ip_str)
+        extra_ips_str = " ".join(extra_ips)
+        search_text = f"{hostname} {name} {ip} {extra_ips_str} {description}".lower().strip()
+        # 連続スペースを除去（extra_ips_str が空のとき余分なスペースが生じる）
+        search_text = re.sub(r" {2,}", " ", search_text)
 
         # MTU は数値 or 空
         mtu_str = str(mtu) if mtu is not None else ""

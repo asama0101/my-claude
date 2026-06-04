@@ -12796,3 +12796,255 @@ def test_vlan_sw_deterministic():
     # trunk の list は sorted されて "10,20,30" になる
     assert ">10,20,30<" in r1 or ">10,20,30 <" in r1, \
         f"trunk list が sorted/カンマ結合されていない: {r1[:500]!r}"
+
+
+# ---- T-SEARCH-V6: dual-stack IF の data-search に v6 アドレスが含まれる ----
+
+def _make_dual_stack_iface(iface_id: str, name: str, v4_ip: str, v4_prefix: int,
+                             v6_ip: str, v6_prefix: int) -> dict:
+    """dual-stack IF（v4 primary + v6 GUA）を構築するヘルパー。
+
+    addresses リストに v4/v6 を格納する。link-local は含まない。
+    """
+    return {
+        "id": iface_id,
+        "device": iface_id.split("::")[0],
+        "name": name,
+        "ip": f"{v4_ip}/{v4_prefix}",
+        "vlan": None,
+        "description": None,
+        "shutdown": False,
+        "admin_status": "up",
+        "addresses": [
+            {"af": "v4", "ip": v4_ip, "prefix": v4_prefix, "scope": None, "secondary": False},
+            {"af": "v6", "ip": v6_ip, "prefix": v6_prefix, "scope": None},
+        ],
+    }
+
+
+def _make_v4_only_iface(iface_id: str, name: str, v4_ip: str, v4_prefix: int) -> dict:
+    """single-stack v4 のみ IF を構築するヘルパー。"""
+    return {
+        "id": iface_id,
+        "device": iface_id.split("::")[0],
+        "name": name,
+        "ip": f"{v4_ip}/{v4_prefix}",
+        "vlan": None,
+        "description": None,
+        "shutdown": False,
+        "admin_status": "up",
+        "addresses": [
+            {"af": "v4", "ip": v4_ip, "prefix": v4_prefix, "scope": None, "secondary": False},
+        ],
+    }
+
+
+@pytest.mark.unit
+def test_search_attr_dual_stack_contains_v4():
+    """_build_search_attr: dual-stack IF の data-search に v4 ホスト部が含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1"}
+    iface = _make_dual_stack_iface(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.1.0.1", 30,
+        "2001:db8:1::1", 64,
+    )
+    result = _build_search_attr(dev, [iface])
+    assert "10.1.0.1" in result, \
+        f"v4 アドレスが data-search に含まれていない: {result!r}"
+
+
+@pytest.mark.unit
+def test_search_attr_dual_stack_contains_v6():
+    """_build_search_attr: dual-stack IF（ip=v4プライマリ）の data-search に v6 ホスト部が含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1"}
+    iface = _make_dual_stack_iface(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.1.0.1", 30,
+        "2001:db8:1::1", 64,
+    )
+    result = _build_search_attr(dev, [iface])
+    assert "2001:db8:1::1" in result, \
+        f"v6 アドレスが data-search に含まれていない: {result!r}"
+
+
+@pytest.mark.unit
+def test_search_attr_dual_stack_contains_hostname():
+    """_build_search_attr: dual-stack IF でも hostname（小文字）が data-search に含まれる（既存維持）。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1"}
+    iface = _make_dual_stack_iface(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.1.0.1", 30,
+        "2001:db8:1::1", 64,
+    )
+    result = _build_search_attr(dev, [iface])
+    assert "r1" in result, \
+        f"hostname が data-search に含まれていない: {result!r}"
+
+
+@pytest.mark.unit
+def test_search_attr_v4_only_no_v6():
+    """_build_search_attr: single-stack(v4 のみ) の場合は v6 アドレスが含まれない（従来通り）。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1"}
+    iface = _make_v4_only_iface("r1::eth0", "GigabitEthernet0/0", "10.1.0.1", 30)
+    result = _build_search_attr(dev, [iface])
+    assert "10.1.0.1" in result, \
+        f"v4 アドレスが data-search に含まれていない: {result!r}"
+    assert "2001:" not in result, \
+        f"v4 only IF に v6 アドレスが混入: {result!r}"
+
+
+@pytest.mark.unit
+def test_search_attr_dual_stack_no_link_local():
+    """_build_search_attr: link-local (fe80::) は data-search に含まれない。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1"}
+    iface = {
+        "id": "r1::eth0",
+        "device": "r1",
+        "name": "GigabitEthernet0/0",
+        "ip": "10.1.0.1/30",
+        "addresses": [
+            {"af": "v4", "ip": "10.1.0.1", "prefix": 30, "scope": None, "secondary": False},
+            {"af": "v6", "ip": "2001:db8:1::1", "prefix": 64, "scope": None},
+            {"af": "v6", "ip": "fe80::1", "prefix": 64, "scope": "link-local"},
+        ],
+    }
+    result = _build_search_attr(dev, [iface])
+    assert "2001:db8:1::1" in result, \
+        f"GUA v6 が含まれていない: {result!r}"
+    assert "fe80" not in result, \
+        f"link-local が data-search に混入: {result!r}"
+
+
+@pytest.mark.unit
+def test_search_attr_dual_stack_multiple_ifaces():
+    """_build_search_attr: 複数 dual-stack IF がある場合、全 v4/v6 ホスト部を含む。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1"}
+    iface1 = _make_dual_stack_iface(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.1.0.1", 30,
+        "2001:db8:1::1", 64,
+    )
+    iface2 = _make_dual_stack_iface(
+        "r1::eth1", "GigabitEthernet0/1",
+        "10.2.0.1", 30,
+        "2001:db8:2::1", 64,
+    )
+    result = _build_search_attr(dev, [iface1, iface2])
+    assert "10.1.0.1" in result
+    assert "2001:db8:1::1" in result
+    assert "10.2.0.1" in result
+    assert "2001:db8:2::1" in result
+
+
+@pytest.mark.unit
+def test_search_attr_dual_stack_deterministic():
+    """_build_search_attr: 同一入力で2回呼び出して同一結果（決定性）。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1"}
+    iface = _make_dual_stack_iface(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.1.0.1", 30,
+        "2001:db8:1::1", 64,
+    )
+    r1 = _build_search_attr(dev, [iface])
+    r2 = _build_search_attr(dev, [iface])
+    assert r1 == r2, f"非決定的: {r1!r} vs {r2!r}"
+
+
+@pytest.mark.unit
+def test_search_attr_no_double_space():
+    """_build_search_attr: 余分な空白や重複トークンが生じない。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1"}
+    iface = _make_dual_stack_iface(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.1.0.1", 30,
+        "2001:db8:1::1", 64,
+    )
+    result = _build_search_attr(dev, [iface])
+    assert "  " not in result, f"連続スペースあり: {result!r}"
+    tokens = result.split(" ")
+    assert len(tokens) == len(set(tokens)), f"重複トークンあり: {tokens!r}"
+
+
+@pytest.mark.unit
+def test_ifinv_data_search_dual_stack_contains_v6():
+    """_build_ifinv_table: dual-stack IF 行の data-search に v6 アドレストークンが含まれる。"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    iface = _make_dual_stack_iface(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.1.0.1", 30,
+        "2001:db8:1::1", 64,
+    )
+    result = _build_ifinv_table(devices, [iface])
+    # data-search 属性を抽出して v6 が含まれることを確認
+    search_matches = re.findall(r'data-search="([^"]*)"', result)
+    all_search = " ".join(search_matches)
+    assert "2001:db8:1::1" in all_search, \
+        f"ifinv data-search に v6 アドレスが含まれていない: {all_search!r}"
+
+
+@pytest.mark.unit
+def test_ifinv_data_search_dual_stack_contains_v4():
+    """_build_ifinv_table: dual-stack IF 行の data-search に v4 ホスト部も含まれる（既存維持）。"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    iface = _make_dual_stack_iface(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.1.0.1", 30,
+        "2001:db8:1::1", 64,
+    )
+    result = _build_ifinv_table(devices, [iface])
+    search_matches = re.findall(r'data-search="([^"]*)"', result)
+    all_search = " ".join(search_matches)
+    assert "10.1.0.1" in all_search, \
+        f"ifinv data-search に v4 アドレスが含まれていない: {all_search!r}"
+
+
+@pytest.mark.unit
+def test_ifinv_data_search_v4_only_no_v6():
+    """_build_ifinv_table: single-stack(v4 のみ) IF 行の data-search に v6 が混入しない（従来通り）。"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    iface = _make_v4_only_iface("r1::eth0", "GigabitEthernet0/0", "10.1.0.1", 30)
+    result = _build_ifinv_table(devices, [iface])
+    search_matches = re.findall(r'data-search="([^"]*)"', result)
+    all_search = " ".join(search_matches)
+    assert "10.1.0.1" in all_search
+    assert "2001:" not in all_search, \
+        f"v4 only IF に v6 が混入: {all_search!r}"
+
+
+@pytest.mark.unit
+def test_ifinv_data_search_no_link_local():
+    """_build_ifinv_table: link-local アドレスが data-search に含まれない。"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    iface = {
+        "id": "r1::eth0",
+        "device": "r1",
+        "name": "GigabitEthernet0/0",
+        "ip": "10.1.0.1/30",
+        "vlan": None,
+        "description": None,
+        "shutdown": False,
+        "admin_status": "up",
+        "addresses": [
+            {"af": "v4", "ip": "10.1.0.1", "prefix": 30, "scope": None, "secondary": False},
+            {"af": "v6", "ip": "2001:db8:1::1", "prefix": 64, "scope": None},
+            {"af": "v6", "ip": "fe80::1", "prefix": 64, "scope": "link-local"},
+        ],
+    }
+    result = _build_ifinv_table(devices, [iface])
+    search_matches = re.findall(r'data-search="([^"]*)"', result)
+    all_search = " ".join(search_matches)
+    assert "2001:db8:1::1" in all_search
+    assert "fe80" not in all_search, \
+        f"link-local が data-search に混入: {all_search!r}"

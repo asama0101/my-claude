@@ -71,12 +71,28 @@ def _make_link_id(a_device: str, a_if: str, b_device: str, b_if: str) -> str:
 
 
 def _build_search_attr(dev: dict, interfaces_for_dev: list[dict]) -> str:
-    """device ノードの data-search 属性値を構築する（hostname小文字 + IP群）"""
+    """device ノードの data-search 属性値を構築する（hostname小文字 + 全 IP ホスト部）。
+
+    addresses リストがある場合は v4/v6 全アドレス（link-local 除く）のホスト部を追加する。
+    addresses がない旧形式は ip フィールドにフォールバックする（後方互換）。
+    決定性: addresses 順でトークンを追加する。
+    """
     parts = [dev["hostname"].lower()]
     for iface in interfaces_for_dev:
-        ip = iface.get("ip")
-        if ip:
-            parts.append(ip.split("/")[0])
+        addresses = iface.get("addresses")
+        if addresses:
+            # addresses リストから v4/v6 全アドレスを追加（link-local 除く）
+            for addr in addresses:
+                if addr.get("scope") == "link-local":
+                    continue
+                ip_str = addr.get("ip", "")
+                if ip_str:
+                    parts.append(ip_str)
+        else:
+            # フォールバック: ip フィールドのホスト部のみ（旧形式後方互換）
+            ip = iface.get("ip")
+            if ip:
+                parts.append(ip.split("/")[0])
     return " ".join(parts)
 
 
