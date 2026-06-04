@@ -19,6 +19,8 @@ from lib.rendering.svg import (
     _chip_positions,
     _esc,
     _is_loopback,
+    _make_link_id,
+    _merge_links_by_link_id,
     _normalize_subnet,
     _svg_bgp_as_groups,
     _svg_bgp_edges,
@@ -583,57 +585,90 @@ def _build_view_ospf(
     name_to_iface_id = {(i["device"], i["name"]): i["id"] for i in interfaces}
 
     # OSPF エッジ（同一リンクの両端が OSPF 参加）— チップアンカー対応
-    parts = []
-    for lk in sorted(links, key=lambda l: (l["a_device"], l["b_device"])):
-        if lk["a_device"] in ospf_device_ids and lk["b_device"] in ospf_device_ids:
-            # チップアンカー
-            a_pos = positions_ospf.get(lk["a_device"], (0.0, 0.0))
-            b_pos = positions_ospf.get(lk["b_device"], (0.0, 0.0))
-            a_if = lk.get("a_if") or ""
-            b_if = lk.get("b_if") or ""
-            if all_chip_positions:
-                a_iface_id = name_to_iface_id.get((lk["a_device"], a_if))
-                b_iface_id = name_to_iface_id.get((lk["b_device"], b_if))
-                if a_iface_id and a_iface_id in all_chip_positions:
-                    a_pos = all_chip_positions[a_iface_id]
-                if b_iface_id and b_iface_id in all_chip_positions:
-                    b_pos = all_chip_positions[b_iface_id]
-            x1, y1 = a_pos
-            x2, y2 = b_pos
-            subnet_raw = lk.get("subnet", "")
-            subnet = _esc(subnet_raw)
-            ospf_area = lk.get("ospf_area")
-            # #1B: ospf_id を算出（ospf_network または subnet から正規化）
-            ospf_id = _normalize_subnet(lk.get("ospf_network") or subnet_raw)
-            ospf_id_attr = f' data-ospf-id="{_esc(ospf_id)}"' if ospf_id else ""
-            # リンク中点（Physical ビューの link-label と同様の手法）
-            mx = (x1 + x2) / 2
-            my = (y1 + y2) / 2 - 15
+    # Phase 3H: 同一 link_id の v4/v6 エントリを1エッジに統合（dual-stack 重複防止）
+    # OSPF 参加リンクのみ抽出
+    ospf_links = [
+        lk for lk in links
+        if lk["a_device"] in ospf_device_ids and lk["b_device"] in ospf_device_ids
+    ]
+    # 同一 IF ペアを統合（v4/v6 → 1エントリ、subnets リストに両方を格納）
+    merged_ospf_links = _merge_links_by_link_id(ospf_links)
 
-            if ospf_area is not None:
+    parts = []
+    for lk in sorted(merged_ospf_links, key=lambda l: (l.get("a_device", ""), l.get("b_device", ""))):
+        # チップアンカー
+        a_pos = positions_ospf.get(lk["a_device"], (0.0, 0.0))
+        b_pos = positions_ospf.get(lk["b_device"], (0.0, 0.0))
+        a_if = lk.get("a_if") or ""
+        b_if = lk.get("b_if") or ""
+        if all_chip_positions:
+            a_iface_id = name_to_iface_id.get((lk["a_device"], a_if))
+            b_iface_id = name_to_iface_id.get((lk["b_device"], b_if))
+            if a_iface_id and a_iface_id in all_chip_positions:
+                a_pos = all_chip_positions[a_iface_id]
+            if b_iface_id and b_iface_id in all_chip_positions:
+                b_pos = all_chip_positions[b_iface_id]
+        x1, y1 = a_pos
+        x2, y2 = b_pos
+
+        # Phase 3H: 統合エントリの全 subnet を取得（sorted 決定的）
+        subnets = lk.get("subnets") or [lk.get("subnet", "")]
+        primary_subnet_raw = subnets[0] if subnets else lk.get("subnet", "")
+        primary_subnet = _esc(primary_subnet_raw)
+
+        ospf_area = lk.get("ospf_area")
+
+        # Phase 3H: data-ospf-id は全 subnet を空白区切りで列挙（双方向連動）
+        # 統合エッジが v4/v6 両行の ospf_id と対応できるよう複数値を保持する。
+        # NOTE: lk.get("ospf_network") は _merge_links_by_link_id で最初の link の
+        # ospf_network を保持しているため、subnets の各要素に適用すると全て
+        # v4 ospf_network で上書きされ v6 id が欠落する。
+        # そのため各 subnet を個別に _normalize_subnet() で正規化する。
+        ospf_ids = [
+            _normalize_subnet(s)
+            for s in subnets
+        ]
+        ospf_ids = sorted(set(oid for oid in ospf_ids if oid))  # 決定的・重複除去
+        if ospf_ids:
+            ospf_id_attr = f' data-ospf-id="{_esc(" ".join(ospf_ids))}"'
+        else:
+            ospf_id_attr = ""
+
+        # リンク中点
+        mx = (x1 + x2) / 2
+        my = (y1 + y2) / 2 - 15
+
+        if ospf_area is not None:
+            # Phase 3H: 統合エッジのラベルに全 subnet を「/」区切りで表示（dual-stack 対応）
+            if len(subnets) > 1:
+                subnets_label = " / ".join(_esc(s) for s in subnets if s)
                 label_line1 = OSPF_AREA_LABEL_FORMAT.format(
-                    area=_esc(ospf_area), subnet=subnet
-                )
-                label_elem = (
-                    f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
-                    f'class="link-label layer-ospf">{label_line1}</text>'
+                    area=_esc(ospf_area), subnet=subnets_label
                 )
             else:
-                # ospf_area 欠如: subnet のみ表示（後方互換）
-                label_elem = (
-                    f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
-                    f'class="link-label layer-ospf">{subnet}</text>'
+                label_line1 = OSPF_AREA_LABEL_FORMAT.format(
+                    area=_esc(ospf_area), subnet=primary_subnet
                 )
-
-            parts.append(
-                f'<g class="link-edge" data-subnet="{subnet}" '
-                f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
-                f'{ospf_id_attr}>'
-                f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-                f'class="link-line layer-ospf"/>'
-                f'{label_elem}'
-                f'</g>'
+            label_elem = (
+                f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
+                f'class="link-label layer-ospf">{label_line1}</text>'
             )
+        else:
+            # ospf_area 欠如: subnet のみ表示（後方互換）
+            label_elem = (
+                f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
+                f'class="link-label layer-ospf">{primary_subnet}</text>'
+            )
+
+        parts.append(
+            f'<g class="link-edge" data-subnet="{primary_subnet}" '
+            f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
+            f'{ospf_id_attr}>'
+            f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+            f'class="link-line layer-ospf"/>'
+            f'{label_elem}'
+            f'</g>'
+        )
     edges_str = "\n".join(parts)
 
     # OSPF 参加セグメント描画（チップアンカー対応）

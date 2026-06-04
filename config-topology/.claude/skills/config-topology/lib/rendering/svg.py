@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import html
 import ipaddress
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from typing import Any
 
 from lib.rendering.layout import (
@@ -388,6 +388,79 @@ def _svg_segments(segments: list[dict], positions: dict) -> str:
     return "\n".join(parts)
 
 
+def _merge_links_by_link_id(links: list[dict]) -> list[dict]:
+    """同一 link_id を持つリンク（dual-stack の v4/v6 エントリ）を1エントリに統合する。
+
+    Phase 3H: dual-stack エッジ統合（描画層のみ）。
+    - link_id は ``_make_link_id(a_device, a_if, b_device, b_if)`` で算出
+    - 同一 link_id のリンクは同一 IF ペア（v4/v6 両方）= 描画時に重なる
+    - 統合後エントリの "subnet" は最初のリンクの subnet を保持
+    - 統合後エントリに "subnets" フィールドで全 subnet をリスト化（sorted 決定的）
+    - single-stack（link_id が唯一）は従来通り1エントリ = 変化なし
+
+    ospf_area / ospf_network の引き継ぎ（Phase 3H レビュー修正）:
+    - base（最初のリンク）に ospf_area がない場合、後続エントリから補完する。
+    - v4/v6 で異なる ospf_area が存在する場合は数値昇順 '/' 区切りで集約する
+      （_annotate_links_with_ospf_area の集約方式と整合）。
+
+    Args:
+        links: リンクリスト（_infer_links_and_segments 等の出力）
+
+    Returns:
+        統合済みリンクリスト（決定的順序）
+    """
+    # link_id → 統合エントリ（最初の link をベースに subnets を蓄積）
+    merged: OrderedDict[str, dict] = OrderedDict()
+    # link_id → ospf_area 集合（複数 area 集約用）
+    merged_areas: dict[str, set[str]] = {}
+
+    for link in sorted(links, key=lambda l: (l.get("a_device", ""), l.get("a_if", ""), l.get("subnet", ""))):
+        a_dev = link.get("a_device", "")
+        a_if = link.get("a_if", "") or ""
+        b_dev = link.get("b_device", "")
+        b_if = link.get("b_if", "") or ""
+        lid = _make_link_id(a_dev, a_if, b_dev, b_if)
+        subnet = link.get("subnet", "")
+        ospf_area = link.get("ospf_area")
+
+        if lid not in merged:
+            # 初出: コピーして subnets フィールドを初期化
+            entry = dict(link)
+            entry["subnets"] = [subnet] if subnet else []
+            entry["_link_id"] = lid
+            merged[lid] = entry
+            merged_areas[lid] = {ospf_area} if ospf_area is not None else set()
+        else:
+            # 同一 link_id: subnet を追加（重複除去）
+            if subnet and subnet not in merged[lid]["subnets"]:
+                merged[lid]["subnets"].append(subnet)
+            # ospf_area を収集（後でまとめて集約）
+            if ospf_area is not None:
+                merged_areas[lid].add(ospf_area)
+
+    # subnets を sorted で決定的に固定（IPv4 before IPv6 は自然ソートで概ね担保される）
+    # ospf_area を集約してエントリに書き戻す
+    result = []
+    for lid, entry in merged.items():
+        entry["subnets"] = sorted(entry["subnets"])
+        areas = merged_areas.get(lid, set())
+        if areas:
+            if len(areas) == 1:
+                entry["ospf_area"] = next(iter(areas))
+            else:
+                # 複数 area: 数値昇順 '/' 区切りで集約（非数値は文字列昇順フォールバック）
+                def _area_sort_key(a: str) -> tuple:
+                    try:
+                        return (0, int(a), a)
+                    except (ValueError, TypeError):
+                        return (1, 0, a)
+                entry["ospf_area"] = "/".join(
+                    sorted(areas, key=_area_sort_key)
+                )
+        result.append(entry)
+    return result
+
+
 def _svg_links(
     links: list[dict],
     positions: dict,
@@ -401,6 +474,10 @@ def _svg_links(
     各 <g class="link-edge"> と <line class="link-line"> に ``data-link-id`` を付与する。
     link-id は ``_make_link_id(a_device, a_if, b_device, b_if)`` で導出（決定的・対称）。
 
+    Phase 3H: 同一 link_id のリンク（dual-stack v4/v6）を1エッジに統合。
+    統合エッジの <title> に全 subnet を「 / 」区切りで表示。
+    single-stack は従来通り1本（変化なし）。
+
     iteration-4 #6: chip_positions と name_to_iface_id が渡された場合、
     端点の iface_id に対応するチップ座標を線の端点に使用する。
     チップが無い端点はノード中心にフォールバックする。
@@ -411,8 +488,11 @@ def _svg_links(
         chip_positions:    iface_id → (cx, cy) チップ座標辞書（None のときフォールバック）
         name_to_iface_id:  (device_id, if_name) → iface_id マップ（None のときフォールバック）
     """
+    # Phase 3H: 同一 link_id のエントリ（v4/v6 dual-stack）を統合
+    merged_links = _merge_links_by_link_id(links)
+
     parts = []
-    for link in sorted(links, key=lambda l: (l["a_device"], l["b_device"])):
+    for link in sorted(merged_links, key=lambda l: (l.get("a_device", ""), l.get("b_device", ""))):
         a_dev = link["a_device"]
         b_dev = link["b_device"]
         a_if_raw = link.get("a_if") or ""
@@ -432,17 +512,25 @@ def _svg_links(
         x1, y1 = a_pos
         x2, y2 = b_pos
 
-        subnet = _esc(link.get("subnet", ""))
         a_if = _esc(a_if_raw)
         b_if = _esc(b_if_raw)
         # 決定的 link-id（両端点をソートして結合）
         link_id = _esc(_make_link_id(a_dev, a_if_raw, b_dev, b_if_raw))
+
+        # Phase 3H: 統合エントリの全 subnet を <title> に含める（決定的: sorted 済み）
+        subnets = link.get("subnets") or [link.get("subnet", "")]
+        # <title> 用: "subnet1 / subnet2 (a_if — b_if)"
+        title_subnets = " / ".join(_esc(s) for s in subnets if s)
+        title_text = f"{title_subnets} ({a_if} — {b_if})" if title_subnets else f"({a_if} — {b_if})"
+        # data-subnet は最初（primary）の subnet（後方互換）
+        primary_subnet = _esc(subnets[0]) if subnets else ""
+
         parts.append(
-            f'<g class="link-edge" data-subnet="{subnet}" '
+            f'<g class="link-edge" data-subnet="{primary_subnet}" '
             f'data-a="{_esc(a_dev)}" data-b="{_esc(b_dev)}" data-link-id="{link_id}">'
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
             f'class="link-line layer-physical" data-link-id="{link_id}"/>'
-            f'<title>{subnet} ({a_if} — {b_if})</title>'
+            f'<title>{title_text}</title>'
             f'</g>'
         )
     return "\n".join(parts)
@@ -863,6 +951,10 @@ def _build_ip_to_device(interfaces: list[dict]) -> dict[str, str]:
     Phase 3F 拡張: addresses リストが存在する場合は全アドレス（v4/v6）を登録する。
     addresses がない旧形式では ip フィールドにフォールバックする（後方互換）。
 
+    Phase 3H 拡張: IPv6 アドレスは raw 文字列に加え、ipaddress.ip_address() で
+    正規化した文字列も登録する（"2001:db8:1::" と "2001:db8:1::0" が同一アドレスを
+    指す short-form / full-form の差異を吸収する）。
+
     Args:
         interfaces: topology の interfaces リスト
 
@@ -880,6 +972,13 @@ def _build_ip_to_device(interfaces: list[dict]) -> dict[str, str]:
                 ip_str = addr.get("ip", "")
                 if ip_str:
                     result[ip_str] = dev_id
+                    # Phase 3H: v6 アドレスは正規化形式も登録（short-form/full-form 両対応）
+                    try:
+                        normalized = str(ipaddress.ip_address(ip_str))
+                        if normalized != ip_str:
+                            result[normalized] = dev_id
+                    except (ValueError, TypeError):
+                        pass
         else:
             # フォールバック: ip フィールドから登録（旧形式後方互換）
             if iface.get("ip"):
@@ -895,6 +994,9 @@ def _build_ip_to_iface_id(interfaces: list[dict]) -> dict[str, str]:
 
     Phase 3F 拡張: addresses リストが存在する場合は全アドレス（v4/v6）を登録する。
     addresses がない旧形式では ip フィールドにフォールバックする（後方互換）。
+
+    Phase 3H 拡張: IPv6 アドレスは raw 文字列に加え正規化形式も登録する
+    （_build_ip_to_device と対称）。
 
     Args:
         interfaces: topology の interfaces リスト
@@ -913,6 +1015,13 @@ def _build_ip_to_iface_id(interfaces: list[dict]) -> dict[str, str]:
                 ip_str = addr.get("ip", "")
                 if ip_str:
                     result[ip_str] = iface_id
+                    # Phase 3H: v6 アドレスは正規化形式も登録（short-form/full-form 両対応）
+                    try:
+                        normalized = str(ipaddress.ip_address(ip_str))
+                        if normalized != ip_str:
+                            result[normalized] = iface_id
+                    except (ValueError, TypeError):
+                        pass
         else:
             # フォールバック: ip フィールドから登録（旧形式後方互換）
             if iface.get("ip"):

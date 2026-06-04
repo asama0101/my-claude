@@ -1476,53 +1476,101 @@ _JS = """\
     // ============================================================
     // #1B: OSPF リンク/セグメント ↔ OSPF Networks 表の双方向ハイライト
     // ============================================================
-    function toggleOspfHighlight(ospfId) {
-      _toggleSelection(ospfId, _selectedOspf, 'data-ospf-id');
+    // Phase 3H: dual-stack 対応 token セレクタ版
+    // - 統合エッジ data-ospf-id は空白区切り複数 token（例: "10.0.0.0/30 2001:db8:1::/127"）
+    // - OSPF Networks 行は単一 token（例: "10.0.0.0/30" または "2001:db8:1::/127"）
+    //
+    // 双方向連動ルール:
+    // - 行（単一 id）クリック → [data-ospf-id~="id"] で token 照合し統合エッジをハイライト
+    // - 統合エッジ（複数 token）クリック → token を split して各行/要素を全ハイライト
+    // - single-stack（単一 token）は ~= でも完全一致と同等に動作するため非回帰
+
+    // _ospfHighlightToken: 単一 token id に対して [data-ospf-id~="id"] セレクタで
+    // ハイライト/解除を実行し、_selectedOspf Set を更新する。
+    // BGP/seg の _toggleSelection と独立した OSPF 専用実装。
+    function _ospfHighlightToken(id, on) {
+      if (!id) return;
+      var selector = '[data-ospf-id~="' + CSS.escape(id) + '"]';
+      document.querySelectorAll(selector).forEach(function(el) {
+        if (on) {
+          el.classList.add('highlighted');
+        } else {
+          el.classList.remove('highlighted');
+        }
+      });
+    }
+
+    // toggleOspfHighlight: ospfIdStr（空白区切り 1 or 複数 token）をトグルする。
+    // - 行クリック時は単一 token（ospfId = "10.0.0.0/30"）
+    // - エッジクリック時は複数 token（ospfId = "10.0.0.0/30 2001:db8:1::/127"）
+    // どちらの場合も token 単位で _selectedOspf を更新し ~= で双方向連動する。
+    function toggleOspfHighlight(ospfIdStr) {
+      if (!ospfIdStr) return;
+      var tokens = ospfIdStr.split(' ').filter(function(t) { return t.length > 0; });
+      if (tokens.length === 0) return;
+
+      // 全 token がハイライト済みかどうかを確認
+      var allHighlighted = tokens.every(function(t) { return _selectedOspf.has(t); });
+
+      if (allHighlighted) {
+        // トグル: 全 token を解除
+        tokens.forEach(function(t) {
+          _selectedOspf.delete(t);
+          _ospfHighlightToken(t, false);
+        });
+      } else {
+        // ハイライト: 全 token を追加
+        tokens.forEach(function(t) {
+          _selectedOspf.add(t);
+          _ospfHighlightToken(t, true);
+        });
+      }
     }
 
     // OSPF リンク・セグメント・OSPF Networks 行 クリックイベント登録
     (function() {
       // OSPF ビューの link-edge[data-ospf-id] クリック
+      // Phase 3H: data-ospf-id は複数 token になりうる（統合エッジ）
       document.querySelectorAll('.link-edge[data-ospf-id]').forEach(function(el) {
-        var ospfId = el.getAttribute('data-ospf-id');
-        if (!ospfId) return;
+        var ospfIdStr = el.getAttribute('data-ospf-id');
+        if (!ospfIdStr) return;
         el.style.cursor = 'pointer';
         el.addEventListener('click', function(e) {
           e.stopPropagation();
-          toggleOspfHighlight(ospfId);
+          toggleOspfHighlight(ospfIdStr);
         });
       });
 
-      // OSPF セグメントノード クリック
+      // OSPF セグメントノード クリック（セグメントは単一 token）
       document.querySelectorAll('.segment-node[data-ospf-id]').forEach(function(el) {
-        var ospfId = el.getAttribute('data-ospf-id');
-        if (!ospfId) return;
+        var ospfIdStr = el.getAttribute('data-ospf-id');
+        if (!ospfIdStr) return;
         el.style.cursor = 'pointer';
         el.addEventListener('click', function(e) {
           e.stopPropagation();
-          toggleOspfHighlight(ospfId);
+          toggleOspfHighlight(ospfIdStr);
         });
       });
 
-      // OSPF セグメントエッジ クリック
+      // OSPF セグメントエッジ クリック（セグメントは単一 token）
       document.querySelectorAll('.seg-edge[data-ospf-id]').forEach(function(el) {
-        var ospfId = el.getAttribute('data-ospf-id');
-        if (!ospfId) return;
+        var ospfIdStr = el.getAttribute('data-ospf-id');
+        if (!ospfIdStr) return;
         el.style.cursor = 'pointer';
         el.addEventListener('click', function(e) {
           e.stopPropagation();
-          toggleOspfHighlight(ospfId);
+          toggleOspfHighlight(ospfIdStr);
         });
       });
 
-      // OSPF Networks 行 <tr>[data-ospf-id] クリック
+      // OSPF Networks 行 <tr>[data-ospf-id] クリック（行は単一 token）
       document.querySelectorAll('tr[data-ospf-id]').forEach(function(row) {
-        var ospfId = row.getAttribute('data-ospf-id');
-        if (!ospfId) return;
+        var ospfIdStr = row.getAttribute('data-ospf-id');
+        if (!ospfIdStr) return;
         row.style.cursor = 'pointer';
         row.addEventListener('click', function(e) {
           e.stopPropagation();
-          toggleOspfHighlight(ospfId);
+          toggleOspfHighlight(ospfIdStr);
         });
       });
     })();

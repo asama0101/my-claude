@@ -11076,17 +11076,20 @@ def test_p1b_toggle_ospf_highlight_uses_data_ospf_id(rendered_html):
 
 
 @pytest.mark.unit
-def test_p1b_toggle_ospf_highlight_uses_toggle_selection(rendered_html):
-    """#1B: toggleOspfHighlight が _toggleSelection(_selectedOspf, 'data-ospf-id') を直接呼ぶ（BGP同型）。"""
+def test_p1b_toggle_ospf_highlight_uses_selected_ospf(rendered_html):
+    """#1B: toggleOspfHighlight が _selectedOspf と data-ospf-id を使う。
+
+    Phase 3H: dual-stack 対応のため OSPF は _toggleSelection から独立した
+    token セレクタ実装（~=）に変更された。BGP同型ではなく OSPF 専用ロジック。
+    _selectedOspf Set の使用と data-ospf-id 参照は維持される。
+    """
     func_body = _extract_js_function(rendered_html, "toggleOspfHighlight")
     assert func_body, "toggleOspfHighlight 関数が見つからない"
-    # 直接文字列として _toggleSelection 呼び出しと _selectedOspf が存在すること
-    assert "_toggleSelection" in func_body, \
-        "toggleOspfHighlight が _toggleSelection ヘルパーを呼んでいない"
+    # _selectedOspf と data-ospf-id が関数内に存在すること
     assert "_selectedOspf" in func_body, \
-        "toggleOspfHighlight の _toggleSelection 呼び出しに _selectedOspf が含まれていない"
+        "toggleOspfHighlight に _selectedOspf の参照がない"
     assert "data-ospf-id" in func_body, \
-        "toggleOspfHighlight の _toggleSelection 呼び出しに 'data-ospf-id' が含まれていない"
+        "toggleOspfHighlight に 'data-ospf-id' の参照がない"
 
 
 @pytest.mark.unit

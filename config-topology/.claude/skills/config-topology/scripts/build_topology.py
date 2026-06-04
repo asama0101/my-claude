@@ -369,6 +369,52 @@ def _make_id_to_device(
 
 
 # ================================================================
+# OSPF area 正規化
+# ================================================================
+
+def _normalize_ospf_area(area: str) -> str:
+    """OSPF area 表現を正規化して数値文字列（または元の文字列）で返す。
+
+    IOS は "area 0" を area="0" として保存し、
+    JunOS は "area 0.0.0.0" を area="0.0.0.0" として保存する。
+    両者は同一エリアを指すため、dotted-decimal 表現を整数文字列に変換して統一する。
+
+    変換ルール:
+    - "0.0.0.0" → "0"  (0 * 2^24 + 0 * 2^16 + 0 * 2^8 + 0 = 0)
+    - "0.0.0.1" → "1"
+    - "0.0.1.0" → "256"
+    - "0.0.0.0" 形式でないもの（例 "0", "1", "backbone"）はそのまま返す
+
+    Args:
+        area: OSPF area 文字列（例 "0", "0.0.0.0", "1", "backbone"）
+
+    Returns:
+        正規化した area 文字列。パース不能な場合は元の文字列をそのまま返す。
+    """
+    if not area:
+        return area
+
+    # 既に純粋な数値なら変換不要
+    if area.isdigit():
+        return area
+
+    # dotted-decimal パターン: "a.b.c.d" を整数変換
+    parts = area.split(".")
+    if len(parts) == 4:
+        try:
+            octets = [int(p) for p in parts]
+            # 各オクテットが 0-255 の範囲内であること
+            if all(0 <= o <= 255 for o in octets):
+                value = (octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]
+                return str(value)
+        except (ValueError, OverflowError):
+            pass
+
+    # パース不能: 元の文字列を返す（クラッシュしない）
+    return area
+
+
+# ================================================================
 # OSPF area 逆引き
 # ================================================================
 
@@ -504,7 +550,8 @@ def _annotate_links_with_ospf_area(
             continue
 
         # area を集約（決定的: 数値ソート → 数値でない混在なら lex ソート）
-        areas_set = {a for a in {area_a, area_b} if a is not None}
+        # Phase 3H: 集約前に各 area を正規化（"0.0.0.0" → "0" 等）
+        areas_set = {_normalize_ospf_area(a) for a in {area_a, area_b} if a is not None}
         if all(a.isdigit() for a in areas_set):
             areas = sorted(areas_set, key=int)
         else:
@@ -572,6 +619,9 @@ def _annotate_segments_with_ospf_area(
         # OSPF 非参加セグメントには付けない
         if not areas_set:
             continue
+
+        # Phase 3H: 集約前に各 area を正規化（"0.0.0.0" → "0" 等）
+        areas_set = {_normalize_ospf_area(a) for a in areas_set}
 
         # area を集約（決定的: 数値ソート → 数値でない混在なら lex ソート）
         if all(a.isdigit() for a in areas_set):
