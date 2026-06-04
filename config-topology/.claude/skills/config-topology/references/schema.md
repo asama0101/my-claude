@@ -113,10 +113,11 @@ topology/
 |-----------|----|------|
 | `device` | string | 機器 ID |
 | `local_as` | int | ローカル AS |
-| `local_ip` | string \| null | neighbor と同一サブネットにある自 IF の IP（解決できなければ null） |
-| `neighbor_ip` | string | ネイバー IP |
+| `local_ip` | string \| null | neighbor と同一サブネットにある自 IF の IP（解決できなければ null）。**Phase 3G**: v6 neighbor_ip に対しては v6 local_ip を返す |
+| `neighbor_ip` | string | ネイバー IP（v4 または v6） |
 | `peer_as` | int \| null | ピア AS |
 | `type` | string | `ebgp`（local_as ≠ peer_as）/ `ibgp`（一致）/ `unknown`（peer_as 不明） |
+| `af` | string | **Phase 3G** アドレスファミリ。`"v4"`（IPv4 BGP）/ `"v6"`（BGP IPv6 AF） |
 
 ### `ospf`（object[]）
 network 文 1 件につき 1 エントリ。
@@ -124,20 +125,27 @@ network 文 1 件につき 1 エントリ。
 |-----------|----|------|
 | `device` | string | 機器 ID |
 | `process` | int \| null | プロセス ID（JunOS は null 可） |
-| `network` | string | CIDR（IOS の wildcard は逆マスクして CIDR 化） |
+| `network` | string | CIDR（IOS の wildcard は逆マスクして CIDR 化）またはインターフェース名（JunOS v1）。IPv4 または IPv6 CIDR どちらも取り得る |
 | `area` | string | エリア（`"0"` など。文字列で保持） |
+| `af` | string | **Phase 3G** アドレスファミリ。`"v4"`（OSPFv2）/ `"v6"`（OSPFv3） |
 
 ### `static`（object[]）
 | フィールド | 型 | 説明 |
 |-----------|----|------|
 | `device` | string | 機器 ID |
-| `prefix` | string | 宛先 CIDR（`0.0.0.0/0` など） |
-| `next_hop` | string | ネクストホップ IP |
+| `prefix` | string | 宛先 CIDR（`0.0.0.0/0` や `::/0` など。IPv4/IPv6 どちらも取り得る） |
+| `next_hop` | string | ネクストホップ IP（v4 または v6） |
+| `af` | string | **Phase 3G** アドレスファミリ。`"v4"`（IPv4 static）/ `"v6"`（IPv6 static） |
 
 ## ID 採番規則
 - **device id**: `hostname` を小文字化し、英数字・ハイフン以外を `-` に置換。**最初の出現はサフィックスなし、2 番目は `-2`、3 番目は `-3`**（例: hostname が `R1`,`R1` → `r1`,`r1-2`）。さらに、既存の別 id（例 hostname `R1-2` 由来の `r1-2`）と衝突する場合は、衝突しない番号までカウントを繰り上げて一意性を保証する。空 hostname は `device`,`device-2`,...。
 - **interface id**: `"<device_id>::<name>"`（name は config 表記のまま）。
 - **segment id**: `"seg-" + subnet`（`.` と `/` を `_` に置換）。
+
+## 後方互換・移行メモ
+
+- **`af` フィールドなし旧 YAML**: `load_topology` は af フィールドを補完しない。利用側（render/build 等）が `entry.get("af", "v4")` で既定 v4 扱いする設計。`schema_version` は `"1.0"` に据え置き（af は addition-only の拡張フィールドであり、旧 YAML の読み書き互換性を破壊しない）。
+- **`schema_version` 据え置き方針**: フィールド追加（addition-only）は `schema_version` を上げない。スキーマ変更（既存フィールドの型変更・廃止等）のときのみバンプする。
 
 ## 拡張方法
 | 追加したいもの | 方法 | スキーマ影響 |

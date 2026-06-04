@@ -77,6 +77,40 @@ def _active_routing_keys(routing: dict) -> list[str]:
     )
 
 
+def _resolve_nexthop_device(
+    members: dict[str, str],
+    next_hop_raw: str,
+    next_hop_normalized: str,
+    next_hop_addr: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> str | None:
+    """members {ip_str: dev_id} から next_hop に対応するデバイス ID を返す。
+
+    文字列完全一致（高速パス）→ ipaddress 正規化比較の順で探索し、
+    v6 short-form 表記（"2001:db8:1::" == "2001:db8:1::0"）の不一致に対応する。
+
+    Args:
+        members: ``{ip_str: dev_id}`` 形式のマップ（リンク/セグメントのメンバー）
+        next_hop_raw: next_hop の生文字列（例 "2001:db8:1::"）
+        next_hop_normalized: str(ip_address(next_hop)) で正規化した文字列（例 "2001:db8:1::"）
+        next_hop_addr: ipaddress オブジェクト（比較用）
+
+    Returns:
+        対応する dev_id または None
+    """
+    # 高速パス: 文字列完全一致
+    dev = members.get(next_hop_raw) or members.get(next_hop_normalized)
+    if dev:
+        return dev
+    # フォールバック: ipaddress 正規化比較（short-form / long-form 差異を吸収）
+    for ip_key, dev_id in members.items():
+        try:
+            if ipaddress.ip_address(ip_key) == next_hop_addr:
+                return dev_id
+        except ValueError:
+            continue
+    return None
+
+
 def _build_static_route_map(
     static_entries: list[dict],
     links: list[dict],
@@ -96,8 +130,12 @@ def _build_static_route_map(
     """
     # iface_id -> {ip, device, name} マップ構築（セグメント走査用）
     iface_info: dict[str, dict] = {}
-    # HM1: (device, name) -> ip マップ構築（p2p リンク走査を O(1) 引きに）
-    dev_name_to_ip: dict[tuple[str, str], str] = {}
+    # iface_id -> list[str] マップ（セグメントの v6-only IF 解決用）
+    iface_id_to_ips: dict[str, list[str]] = {}
+    # HM1: (device, name) -> list[str] マップ構築（p2p リンク走査を O(1) 引きに）
+    # 修正1: addresses の v4/v6 エントリを全て登録し、v6-only IF の nexthop 機器解決に対応。
+    # v4 ip フィールドと addresses の両方を収集して重複排除する。
+    dev_name_to_ips: dict[tuple[str, str], list[str]] = {}
     for iface in interfaces:
         iface_info[iface["id"]] = {
             "ip": iface.get("ip") or "",
@@ -106,10 +144,22 @@ def _build_static_route_map(
         }
         dev = iface.get("device", "")
         name = iface.get("name", "")
+        if not (dev and name):
+            continue
+        ips: list[str] = []
+        # v4 ip フィールド（後方互換）
         ip_cidr = iface.get("ip") or ""
         ip_only = ip_cidr.split("/")[0]
-        if dev and name and ip_only:
-            dev_name_to_ip[(dev, name)] = ip_only
+        if ip_only:
+            ips.append(ip_only)
+        # addresses の各エントリ（v4/v6 両対応）
+        for addr in iface.get("addresses") or []:
+            addr_ip = addr.get("ip", "")
+            if addr_ip and addr_ip not in ips:
+                ips.append(addr_ip)
+        if ips:
+            dev_name_to_ips[(dev, name)] = ips
+            iface_id_to_ips[iface["id"]] = ips
 
     # p2p リンクのサブネット → (link_id, {dev: ip}) マップ
     # {subnet_str: {"link_id": str, "members": {ip: dev_id}}}
@@ -124,14 +174,12 @@ def _build_static_route_map(
         if not (a_dev and b_dev and subnet_str):
             continue
         lid = _make_link_id(a_dev, a_if_name, b_dev, b_if_name)
-        # HM1: (device,name)->ip マップ1回引きで両端 IP を収集
+        # HM1: (device,name)->ips マップで両端の全 IP を収集（v4/v6 両対応）
         members: dict[str, str] = {}
-        a_ip = dev_name_to_ip.get((a_dev, a_if_name))
-        if a_ip:
-            members[a_ip] = a_dev
-        b_ip = dev_name_to_ip.get((b_dev, b_if_name))
-        if b_ip:
-            members[b_ip] = b_dev
+        for ip in dev_name_to_ips.get((a_dev, a_if_name), []):
+            members[ip] = a_dev
+        for ip in dev_name_to_ips.get((b_dev, b_if_name), []):
+            members[ip] = b_dev
         link_subnet_map.append({
             "link_id": lid,
             "subnet": subnet_str,
@@ -147,14 +195,14 @@ def _build_static_route_map(
         subnet_str = seg.get("subnet") or ""
         if not (seg_id and subnet_str):
             continue
-        # メンバー IF から IP を収集
+        # メンバー IF から IP を収集（v4/v6 両対応: iface_id_to_ips を使用）
         members: dict[str, str] = {}
         for member_iface_id in seg.get("members", []):
             info = iface_info.get(member_iface_id, {})
-            ip_cidr = info.get("ip", "")
             dev = info.get("device", "")
-            if ip_cidr and dev:
-                ip = ip_cidr.split("/")[0]
+            if not dev:
+                continue
+            for ip in iface_id_to_ips.get(member_iface_id, []):
                 if ip:
                     members[ip] = dev
         seg_subnet_map.append({
@@ -180,6 +228,10 @@ def _build_static_route_map(
         except ValueError:
             continue
 
+        # next_hop を正規化した文字列（ip_address オブジェクトの str）
+        # 例: "2001:db8:1::" と "2001:db8:1::0" は同一アドレスなので正規化して比較
+        nh_addr_str = str(nh_addr)
+
         # p2p リンクを検索
         found = False
         for link_info in link_subnet_map:
@@ -189,7 +241,9 @@ def _build_static_route_map(
                 continue
             if nh_addr in net:
                 route_edge_id = link_info["link_id"]
-                nexthop_device_id = link_info["members"].get(next_hop)
+                nexthop_device_id = _resolve_nexthop_device(
+                    link_info["members"], next_hop, nh_addr_str, nh_addr
+                )
                 found = True
                 break
 
@@ -202,7 +256,9 @@ def _build_static_route_map(
                     continue
                 if nh_addr in net:
                     route_edge_id = seg_info["seg_id"]
-                    nexthop_device_id = seg_info["members"].get(next_hop)
+                    nexthop_device_id = _resolve_nexthop_device(
+                        seg_info["members"], next_hop, nh_addr_str, nh_addr
+                    )
                     found = True
                     break
 

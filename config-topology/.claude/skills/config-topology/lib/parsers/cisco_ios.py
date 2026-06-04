@@ -12,9 +12,14 @@ Cisco IOS / IOS-XE パーサ
   - shutdown → shutdown=True
   - no shutdown → shutdown=False
   - description X → description
-- router bgp <asn> → Device.asn。配下 neighbor <ip> remote-as <peer> → BgpNeighbor
-- router ospf <pid> 配下 network <addr> <wildcard> area <a> → OspfNetwork
-- ip route <prefix> <mask> <next_hop> → StaticRoute
+  - ipv6 ospf <pid> area <a> → OSPFv3 仮登録（パース後処理で OspfNetwork(af=v6) に変換）
+- router bgp <asn> → Device.asn。配下 neighbor <ip> remote-as <peer> → BgpNeighbor（v4/v6 仮登録）
+  - address-family ipv6 配下 neighbor <v6ip> activate → BgpNeighbor(af=v6) として確定
+- router ospf <pid> 配下 network <addr> <wildcard> area <a> → OspfNetwork(af=v4)
+- ipv6 router ospf <pid> ブロック: PID 宣言のみ（配下行 router-id 等は無視）。
+  OSPFv3 の確定は interface ブロックの `ipv6 ospf <pid> area <a>` で行う。
+- ip route <prefix> <mask> <next_hop> → StaticRoute(af=v4)
+- ipv6 route <prefix/len> <nexthop> → StaticRoute(af=v6, prefix=ipaddress 正規化済み CIDR)
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ import ipaddress
 import re
 
 from .base import (
-    ADMIN_DOWN, ADMIN_UP, AF_V6, L2, L3, SCOPE_LINK_LOCAL, SOURCE_PARSED,
+    ADMIN_DOWN, ADMIN_UP, AF_V4, AF_V6, L2, L3, SCOPE_LINK_LOCAL, SOURCE_PARSED,
     BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute,
     derive_ip_from_addresses, normalize_v6, sort_addresses,
 )
@@ -88,6 +93,14 @@ def parse(text: str) -> Device:
     - ip address（primary / secondary）と ipv6 address を addresses リストに収集
     - ip フィールドは addresses 中の最初の非 secondary v4 から派生（_derive_ip_from_addresses 相当）
     - addresses は (af 順, ipaddress オブジェクト, prefix) でソート（決定的）
+
+    Phase 3G 拡張:
+    - ipv6 router ospf N ブロック: PID 登録（ブロック内 router-id 等は無視）
+    - interface ブロック内 ipv6 ospf N area A: (if_name, pid, area) を仮収集
+    - パース後: 仮収集エントリを addresses から v6 サブネットに変換して OspfNetwork(af=v6) 生成
+    - router bgp <asn> ブロック内 address-family ipv6 / neighbor X activate: BgpNeighbor(af=v6) 生成
+      （neighbor X remote-as Y は v4/v6 ともに事前に仮登録し、activate 済み v6 のみ af=v6 で確定）
+    - ipv6 route PREFIX NEXTHOP: StaticRoute(af=v6) 生成
     """
     hostname = ""
     asn: int | None = None
@@ -95,6 +108,16 @@ def parse(text: str) -> Device:
     bgp_neighbors: list[BgpNeighbor] = []
     ospf_networks: list[OspfNetwork] = []
     static_routes: list[StaticRoute] = []
+
+    # Phase 3G: OSPFv3 仮収集バッファ
+    # key: if_name（config 上の名前）→ [(pid, area), ...]
+    # OSPFv3 確定は _ospfv3_if_buf で完結（_ospfv3_pids は不要のため削除）
+    _ospfv3_if_buf: dict[str, list[tuple[int, str]]] = {}
+    # Phase 3G: BGP ネイバー仮登録バッファ（router bgp ブロック内 neighbor <ip> remote-as <peer>）
+    # {neighbor_ip: peer_as}（v4/v6 両方を先に収集し、address-family ipv6 で activate 済みのみ v6 確定）
+    _bgp_pre: dict[str, int | None] = {}
+    # Phase 3G: address-family ipv6 で activate された v6 ネイバーの集合
+    _bgp_v6_activated: set[str] = set()
 
     lines = text.splitlines()
     i = 0
@@ -219,6 +242,12 @@ def parse(text: str) -> Device:
                 m_enc = re.match(r'^encapsulation\s+dot1[Qq]\s+(\d+)', inner_stripped, re.IGNORECASE)
                 if m_enc:
                     if_encapsulation = "dot1q"
+                # Phase 3G: ipv6 ospf <pid> area <area>（インターフェースブロック内）
+                m_v6ospf = re.match(r'^ipv6\s+ospf\s+(\d+)\s+area\s+(\S+)', inner_stripped, re.IGNORECASE)
+                if m_v6ospf:
+                    v6o_pid = int(m_v6ospf.group(1))
+                    v6o_area = m_v6ospf.group(2)
+                    _ospfv3_if_buf.setdefault(if_name, []).append((v6o_pid, v6o_area))
                 i += 1
             # l2_l3 判定（IOS: ip あり / no switchport が L3 判定で優先される）
             if if_has_ip_cmd or if_no_switchport:
@@ -254,17 +283,38 @@ def parse(text: str) -> Device:
         if m:
             asn = int(m.group(1))
             i += 1
+            # Phase 3G: address-family ipv6 内フラグ
+            _in_af_ipv6 = False
             while i < len(lines):
                 inner = lines[i]
                 inner_stripped = inner.strip()
                 if not inner or inner_stripped == "!" or (inner and not inner[0].isspace() and inner_stripped):
                     break
+                # address-family ipv6 開始
+                if re.match(r'^address-family\s+ipv6', inner_stripped, re.IGNORECASE):
+                    _in_af_ipv6 = True
+                    i += 1
+                    continue
+                # exit-address-family / address-family 切替: ipv6 AF 終了
+                if re.match(r'^exit-address-family', inner_stripped, re.IGNORECASE):
+                    _in_af_ipv6 = False
+                    i += 1
+                    continue
+                if re.match(r'^address-family\s+', inner_stripped, re.IGNORECASE):
+                    _in_af_ipv6 = False
+                    i += 1
+                    continue
+                # neighbor <ip> remote-as <peer>: グローバル（v4/v6）に仮登録
                 m2 = re.match(r'^neighbor\s+(\S+)\s+remote-as\s+(\d+)', inner_stripped)
                 if m2:
-                    bgp_neighbors.append(BgpNeighbor(
-                        neighbor_ip=m2.group(1),
-                        peer_as=int(m2.group(2)),
-                    ))
+                    _bgp_pre[m2.group(1)] = int(m2.group(2))
+                    i += 1
+                    continue
+                # address-family ipv6 内: neighbor <ip> activate → v6 として確定
+                if _in_af_ipv6:
+                    m_act = re.match(r'^neighbor\s+(\S+)\s+activate', inner_stripped)
+                    if m_act:
+                        _bgp_v6_activated.add(m_act.group(1))
                 i += 1
             continue
 
@@ -311,6 +361,37 @@ def parse(text: str) -> Device:
                 static_routes.append(StaticRoute(
                     prefix=prefix_cidr,
                     next_hop=next_hop,
+                    af=AF_V4,
+                ))
+            except ValueError:
+                pass
+            i += 1
+            continue
+
+        # Phase 3G: ipv6 router ospf <pid> ブロック（配下行は無視。インターフェース参照は interface ブロックで収集済み）
+        m = re.match(r'^ipv6\s+router\s+ospf\s+(\d+)', stripped, re.IGNORECASE)
+        if m:
+            i += 1
+            while i < len(lines):
+                inner = lines[i]
+                inner_stripped = inner.strip()
+                if not inner or inner_stripped == "!" or (inner and not inner[0].isspace() and inner_stripped):
+                    break
+                i += 1
+            continue
+
+        # Phase 3G: ipv6 route <prefix/len> <nexthop>
+        m = re.match(r'^ipv6\s+route\s+(\S+)\s+(\S+)', stripped, re.IGNORECASE)
+        if m:
+            v6_prefix = m.group(1)
+            v6_nexthop = m.group(2)
+            try:
+                # prefix 正規化: ipaddress でホストビット除去
+                v6_net = str(ipaddress.ip_network(v6_prefix, strict=False))
+                static_routes.append(StaticRoute(
+                    prefix=v6_net,
+                    next_hop=normalize_v6(v6_nexthop),
+                    af=AF_V6,
                 ))
             except ValueError:
                 pass
@@ -318,6 +399,58 @@ def parse(text: str) -> Device:
             continue
 
         i += 1
+
+    # Phase 3G: パース後処理 — BGP v4 確定（_bgp_pre のうち v6 activated 以外、v6 側と対称にソート）
+    for nbr_ip, peer_as in sorted(_bgp_pre.items()):
+        if nbr_ip not in _bgp_v6_activated:
+            bgp_neighbors.append(BgpNeighbor(
+                neighbor_ip=nbr_ip,
+                peer_as=peer_as,
+                af=AF_V4,
+            ))
+
+    # Phase 3G: パース後処理 — BGP v6 確定（address-family ipv6 で activate 済み）
+    for nbr_ip in sorted(_bgp_v6_activated):
+        peer_as = _bgp_pre.get(nbr_ip)
+        bgp_neighbors.append(BgpNeighbor(
+            neighbor_ip=normalize_v6(nbr_ip),
+            peer_as=peer_as,
+            af=AF_V6,
+        ))
+
+    # Phase 3G: パース後処理 — OSPFv3 確定
+    # _ospfv3_if_buf: {if_name: [(pid, area), ...]}
+    # IF の addresses から v6 グローバルアドレスを参照して v6 サブネットを導出
+    if_name_to_addrs: dict[str, list[dict]] = {iface.name: iface.addresses for iface in interfaces}
+    for if_name, pid_area_list in sorted(_ospfv3_if_buf.items()):
+        addrs = if_name_to_addrs.get(if_name, [])
+        # 非 link-local v6 アドレスを取得
+        v6_addrs = [
+            a for a in addrs
+            if a.get("af") == AF_V6 and a.get("scope") != "link-local"
+        ]
+        for pid, area in pid_area_list:
+            if v6_addrs:
+                # v6 アドレスからサブネット CIDR を導出（最初の1件を使用）
+                a = v6_addrs[0]
+                try:
+                    net_str = str(ipaddress.ip_interface(f"{a['ip']}/{a['prefix']}").network)
+                    ospf_networks.append(OspfNetwork(
+                        process=pid,
+                        network=net_str,
+                        area=area,
+                        af=AF_V6,
+                    ))
+                except (ValueError, KeyError):
+                    pass
+            else:
+                # v6 アドレスが不明な場合は IF 名を格納（JunOS 方式と同様の fallback）
+                ospf_networks.append(OspfNetwork(
+                    process=pid,
+                    network=if_name,
+                    area=area,
+                    af=AF_V6,
+                ))
 
     return Device(
         hostname=hostname,

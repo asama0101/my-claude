@@ -14,9 +14,11 @@ from lib.rendering.layout import (
     OSPF_AREA_LABEL_FORMAT,
 )
 from lib.rendering.svg import (
+    _build_ip_to_device,
     _build_ip_to_iface_id,
     _chip_positions,
     _esc,
+    _is_loopback,
     _normalize_subnet,
     _svg_bgp_as_groups,
     _svg_bgp_edges,
@@ -40,11 +42,8 @@ def _build_bgp_layout(
         bgp_device_ids.add(entry["device"])
 
     # neighbor_ip が解決できる device も含める
-    ip_to_device: dict[str, str] = {}
-    for iface in interfaces:
-        if iface.get("ip"):
-            ip_only = iface["ip"].split("/")[0]
-            ip_to_device[ip_only] = iface["device"]
+    # Phase 3G: v6 addresses 対応のため _build_ip_to_device を共用
+    ip_to_device = _build_ip_to_device(interfaces)
     for entry in bgp_entries:
         neighbor_ip = entry.get("neighbor_ip", "")
         nbr_dev = ip_to_device.get(neighbor_ip)
@@ -253,11 +252,12 @@ def _build_physical_layout(
 
 
 def _bgp_has_resolved_edges(bgp_entries: list[dict], interfaces: list[dict]) -> bool:
-    """BGP エントリに解決可能な neighbor（= 同トポロジー内の device）が存在するか"""
-    ip_to_device: dict[str, str] = {}
-    for iface in interfaces:
-        if iface.get("ip"):
-            ip_to_device[iface["ip"].split("/")[0]] = iface["device"]
+    """BGP エントリに解決可能な neighbor（= 同トポロジー内の device）が存在するか
+
+    Phase 3G: v6 BGP ネイバーに対応するため _build_ip_to_device を共用する。
+    （旧実装の ip フィールドのみの逆引きを addresses 対応に拡張）
+    """
+    ip_to_device = _build_ip_to_device(interfaces)
     for entry in bgp_entries:
         dev_id = entry.get("device", "")
         nbr = ip_to_device.get(entry.get("neighbor_ip", ""))
@@ -334,7 +334,6 @@ def _build_physical_chip_iface_ids(
     iteration-3 #2 と同じ選定ロジックを集中管理する。
     devices パラメータは不要（interfaces/links/segments のみ使用）。
     """
-    from lib.rendering.svg import _is_loopback
     connected = _build_connected_iface_ids(links, segments, interfaces)
     result: set[str] = set()
     for iface in interfaces:
@@ -414,8 +413,6 @@ def _build_bgp_chip_iface_ids(
        ケースを補完する）
     決定的（IP ソート）。
     """
-    from lib.rendering.svg import _is_loopback
-
     # ip_only -> iface_id マップ（共通ヘルパーを使用）
     ip_to_iface_id = _build_ip_to_iface_id(interfaces)
 

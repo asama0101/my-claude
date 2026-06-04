@@ -152,6 +152,7 @@ class Interface:
 class BgpNeighbor:
     neighbor_ip: str
     peer_as: int | None
+    af: str = AF_V4          # Phase 3G: address family ("v4" / "v6")
 
 
 @dataclass
@@ -159,12 +160,14 @@ class OspfNetwork:
     process: int | None
     network: str             # CIDR
     area: str
+    af: str = AF_V4          # Phase 3G: address family ("v4" = OSPFv2 / "v6" = OSPFv3)
 
 
 @dataclass
 class StaticRoute:
     prefix: str              # CIDR
     next_hop: str
+    af: str = AF_V4          # Phase 3G: address family ("v4" / "v6")
 
 
 @dataclass

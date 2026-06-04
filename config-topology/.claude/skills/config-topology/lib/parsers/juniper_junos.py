@@ -26,7 +26,7 @@ import ipaddress
 import re
 
 from .base import (
-    ADMIN_DOWN, ADMIN_UP, AF_V6, L2, L3, SCOPE_LINK_LOCAL,
+    ADMIN_DOWN, ADMIN_UP, AF_V4, AF_V6, L2, L3, SCOPE_LINK_LOCAL,
     BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute,
     derive_ip_from_addresses, normalize_v6, sort_addresses,
 )
@@ -207,18 +207,46 @@ def parse(text: str) -> Device:
         # set protocols bgp group <g> neighbor <ip> peer-as <peer>
         m = re.match(r'^protocols\s+bgp\s+group\s+\S+\s+neighbor\s+(\S+)\s+peer-as\s+(\d+)', rest)
         if m:
+            nbr_ip = m.group(1)
+            peer_as = int(m.group(2))
+            # Phase 3G: neighbor IP が v6 なら af=v6、それ以外は af=v4
+            try:
+                nbr_af = AF_V6 if ipaddress.ip_address(nbr_ip).version == 6 else AF_V4
+            except ValueError:
+                nbr_af = AF_V4
+            if nbr_af == AF_V6:
+                nbr_ip = normalize_v6(nbr_ip)
             bgp_neighbors.append(BgpNeighbor(
-                neighbor_ip=m.group(1),
-                peer_as=int(m.group(2)),
+                neighbor_ip=nbr_ip,
+                peer_as=peer_as,
+                af=nbr_af,
             ))
             continue
 
-        # set routing-options static route <prefix> next-hop <ip>
+        # set routing-options static route <prefix> next-hop <ip>（v4）
         m = re.match(r'^routing-options\s+static\s+route\s+(\S+)\s+next-hop\s+(\S+)', rest)
         if m:
             static_routes.append(StaticRoute(
                 prefix=m.group(1),
                 next_hop=m.group(2),
+                af=AF_V4,
+            ))
+            continue
+
+        # Phase 3G: set routing-options rib inet6.0 static route <prefix> next-hop <ip>
+        m = re.match(r'^routing-options\s+rib\s+inet6\.0\s+static\s+route\s+(\S+)\s+next-hop\s+(\S+)', rest)
+        if m:
+            v6_prefix_raw = m.group(1)
+            v6_nexthop = m.group(2)
+            try:
+                # 修正2: IOS と対称に ipaddress で正規化（ホストビット除去）
+                v6_prefix_normalized = str(ipaddress.ip_network(v6_prefix_raw, strict=False))
+            except ValueError:
+                continue
+            static_routes.append(StaticRoute(
+                prefix=v6_prefix_normalized,
+                next_hop=normalize_v6(v6_nexthop),
+                af=AF_V6,
             ))
             continue
 
@@ -232,6 +260,22 @@ def parse(text: str) -> Device:
                 process=None,
                 network=if_ref,   # v1: IF 名を格納（build_topology で IP から導出可能）
                 area=area,
+                af=AF_V4,
+            ))
+            continue
+
+        # Phase 3G: set protocols ospf3 area <a> interface <if>
+        m = re.match(r'^protocols\s+ospf3\s+area\s+(\S+)\s+interface\s+(\S+)', rest)
+        if m:
+            area = m.group(1)
+            if_ref = m.group(2)
+            # IF 参照をベース名に正規化（ge-0/0/0.0 → ge-0/0/0）
+            base_if = if_ref.split(".")[0]
+            ospf_networks.append(OspfNetwork(
+                process=None,
+                network=base_if,  # IF 名を格納（build_topology で IP から導出可能）
+                area=area,
+                af=AF_V6,
             ))
             continue
 

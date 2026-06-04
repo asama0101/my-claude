@@ -208,6 +208,7 @@ def build(
                 "process": entry.process,
                 "network": entry.network,
                 "area": entry.area,
+                "af": entry.af,  # Phase 3G: af フィールド（base.py デフォルト "v4"）
             })
 
     # --- Static ---
@@ -218,6 +219,7 @@ def build(
                 "device": dev_id,
                 "prefix": entry.prefix,
                 "next_hop": entry.next_hop,
+                "af": entry.af,  # Phase 3G: af フィールド（base.py デフォルト "v4"）
             })
 
     return {
@@ -389,17 +391,41 @@ def _resolve_ospf_area_for_device(
     # device の IF 名 → network の逆引きテーブルを構築
     # JunOS 解決に必要（IF 名からサブネットを算出するため）
     # IPv4/IPv6 混在対応: バージョンが一致する IF のみ登録
+    # Phase 3G: addresses リストの v6 エントリも登録（OSPFv3 の JunOS 解決に必要）
     if_name_to_network: dict[str, ipaddress.IPv4Network | ipaddress.IPv6Network] = {}
     for iface in dev.interfaces:
-        if iface.ip is None or iface.shutdown:
+        if iface.shutdown:
             continue
-        try:
-            iface_network = ipaddress.ip_interface(iface.ip).network
-            # バージョンが subnet_network と一致する IF のみ登録（版不一致でマッチさせない）
-            if iface_network.version == subnet_network.version:
-                if_name_to_network[iface.name] = iface_network
-        except ValueError:
-            continue
+        # v4: ip フィールドから（後方互換）
+        if iface.ip is not None:
+            try:
+                iface_network = ipaddress.ip_interface(iface.ip).network
+                if iface_network.version == subnet_network.version:
+                    if_name_to_network[iface.name] = iface_network
+            except ValueError:
+                pass
+        # Phase 3G: addresses から v6 エントリも登録（OSPFv3 向け）
+        for addr in getattr(iface, "addresses", []):
+            if addr.get("af") != "v6":
+                continue
+            ip_str = addr.get("ip", "")
+            prefix = addr.get("prefix", 0)
+            if not ip_str:
+                continue
+            # link-local は除外（OSPFv3 は GUA のみ対象）
+            if addr.get("scope") == "link-local":
+                continue
+            try:
+                v6_network = ipaddress.ip_interface(f"{ip_str}/{prefix}").network
+                if v6_network.version == subnet_network.version:
+                    # v4 登録済みかつ今回 v6 なら版不一致のため v6 で上書き
+                    # v6 のみの場合も登録（v4 IF のない IF に対応）
+                    if iface.name not in if_name_to_network:
+                        if_name_to_network[iface.name] = v6_network
+                    elif if_name_to_network[iface.name].version != v6_network.version:
+                        if_name_to_network[iface.name] = v6_network
+            except ValueError:
+                continue
 
     for entry in dev.ospf:
         net_str = entry.network
@@ -589,6 +615,7 @@ def _build_bgp(
                 "neighbor_ip": neighbor.neighbor_ip,
                 "peer_as": neighbor.peer_as,
                 "type": bgp_type,
+                "af": neighbor.af,  # Phase 3G: af フィールド（base.py デフォルト "v4"）
             })
 
     return bgp_out
@@ -599,26 +626,45 @@ def _resolve_local_ip(dev: Device, neighbor_ip: str) -> str | None:
 
     同一サブネットの IF が見つからなければ None を返す。
 
-    注意: 現状は Interface.ip（v4 CIDR）のみを参照する。
-    IPv6 BGP ネイバーの local_ip 解決は Phase 3G で対応予定
-    （IPv6 BGP では neighbor_ip が v6 アドレスになる場合があり、
-    addresses リストの v6 エントリとのマッチングが必要）。
+    Phase 3G 拡張:
+    - neighbor_ip の IP バージョン（v4/v6）を判定し、一致する版の IF アドレスを検索する。
+    - v4 の場合: Interface.ip（CIDR）を参照（従来通り）。
+    - v6 の場合: Interface.addresses リストの v6 エントリを参照し、
+      同一サブネットにある自 IF の v6 アドレス（ホスト部のみ）を返す。
     """
     try:
         neighbor_addr = ipaddress.ip_address(neighbor_ip)
     except ValueError:
         return None
 
-    for iface in dev.interfaces:
-        if iface.ip is None:
-            continue
-        try:
-            iface_net = ipaddress.ip_interface(iface.ip)
-        except ValueError:
-            continue
-        if neighbor_addr in iface_net.network:
-            # ホスト部のみ（プレフィックス長なし）
-            return str(iface_net.ip)
+    if neighbor_addr.version == 4:
+        # v4: 従来通り Interface.ip（CIDR）を参照
+        for iface in dev.interfaces:
+            if iface.ip is None:
+                continue
+            try:
+                iface_net = ipaddress.ip_interface(iface.ip)
+            except ValueError:
+                continue
+            if neighbor_addr in iface_net.network:
+                return str(iface_net.ip)
+    else:
+        # v6: addresses リストの v6 エントリを参照
+        for iface in dev.interfaces:
+            addresses = getattr(iface, "addresses", [])
+            for addr in addresses:
+                if addr.get("af") != "v6":
+                    continue
+                ip_str = addr.get("ip", "")
+                prefix = addr.get("prefix", 0)
+                if not ip_str:
+                    continue
+                try:
+                    iface_net = ipaddress.ip_interface(f"{ip_str}/{prefix}")
+                    if neighbor_addr in iface_net.network:
+                        return str(iface_net.ip)
+                except ValueError:
+                    continue
 
     return None
 

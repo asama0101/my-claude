@@ -82,9 +82,12 @@ class Device:
 - **l2_l3 判定（IOS）**: `ip address` あり または `no switchport` あり → L3。`switchport` あり → L2。それ以外 None。
   - IOS は ip あり／no switchport が L3 判定で優先され（switchport より先に評価）、switchport は L2 の根拠となる。
 - **admin_status 導出**: `shutdown` = True → `ADMIN_DOWN`、それ以外 → `ADMIN_UP`。
-- `router bgp <asn>` → asn。配下 `neighbor <ip> remote-as <peer>` → BgpNeighbor。
-- `router ospf <pid>` 配下 `network <addr> <wildcard> area <a>` → OspfNetwork（wildcard を逆マスクして CIDR 化）。
-- `ip route <prefix> <mask> <next_hop>` → StaticRoute（`0.0.0.0 0.0.0.0` → `0.0.0.0/0`）。
+- `router bgp <asn>` → asn。配下 `neighbor <ip> remote-as <peer>` → BgpNeighbor（v4/v6 仮登録）。
+  - **Phase 3G**: `address-family ipv6` 配下 `neighbor <v6ip> activate` → BgpNeighbor(af="v6")。グローバルスコープの `neighbor <ip> remote-as <peer>` のみで `activate` されていないネイバーは af="v4" として確定する。
+- `router ospf <pid>` 配下 `network <addr> <wildcard> area <a>` → OspfNetwork（af="v4"。wildcard を逆マスクして CIDR 化）。
+- **Phase 3G**: `ipv6 router ospf <pid>` ブロック: **PID 宣言のみ**。配下行（`router-id` 等）は無視する。OSPFv3 の確定は interface ブロック内の `ipv6 ospf <pid> area <a>` で行う（IOS の `_ospfv3_if_buf` で仮収集し、パース後処理で OspfNetwork(af="v6") に変換）。インターフェースブロック内の `ipv6 ospf <pid> area <a>` → OspfNetwork(af="v6", network=当該 IF の v6 GUA サブネット CIDR, process=pid, area=a)。v6 アドレスが不明な場合は IF 名を network に格納（JunOS fallback と同様）。
+- `ip route <prefix> <mask> <next_hop>` → StaticRoute(af="v4"。`0.0.0.0 0.0.0.0` → `0.0.0.0/0`）。
+- **Phase 3G**: `ipv6 route <prefix/len> <nexthop>` → StaticRoute(af="v6", prefix=ipaddress 正規化済み CIDR, next_hop=normalize_v6(nexthop))。
 - **detect**: `^hostname `・`^interface .*Ethernet`・`^!` 等の IOS 特徴で判定。非空行のうち `^set ` が **40% 超**を占める場合は JunOS とみなし false（registry は JunOS → IOS の順で試すため通常はこのガードに到達しない。閾値が JunOS の 50% とずれているのは、IOS の特徴行が無い純 set 形式を確実に JunOS 側へ寄せるための非対称な安全マージン）。
 
 ## Juniper JunOS（juniper_junos.py）— set 形式
@@ -106,9 +109,11 @@ class Device:
   - `switchport` フィールドは常に None（JunOS には IOS の switchport コマンドが存在しない。L2 は l2_l3='l2' で表現）。
 - **admin_status 導出**: `disable` あり → `ADMIN_DOWN`、それ以外 → `ADMIN_UP`。
 - `set routing-options autonomous-system <asn>` → asn。
-- `set protocols bgp group <g> neighbor <ip> peer-as <peer>` → BgpNeighbor。
-- `set ... ospf area <a> interface <if>` があれば OspfNetwork（area, network は IF の IP から導出可能なら CIDR、無理なら IF 名を network に格納）。v1 は best-effort。
-- `set routing-options static route <prefix> next-hop <ip>` → StaticRoute。
+- `set protocols bgp group <g> neighbor <ip> peer-as <peer>` → BgpNeighbor。neighbor_ip が v6 アドレスなら af="v6"（normalize_v6 で正規化）、v4 なら af="v4"。
+- `set ... ospf area <a> interface <if>` があれば OspfNetwork(af="v4")（area, network は IF の IP から導出可能なら CIDR、無理なら IF 名を network に格納）。v1 は best-effort。
+- **Phase 3G**: `set protocols ospf3 area <a> interface <if>` → OspfNetwork(af="v6", process=None, network=ベース IF 名, area=a)。IF 名のユニット表記（ge-0/0/0.0）はドット以降を除去してベース名を格納。build_topology の `_resolve_ospf_area_for_device` で v6 サブネットと照合。
+- `set routing-options static route <prefix> next-hop <ip>` → StaticRoute(af="v4")。
+- **Phase 3G**: `set routing-options rib inet6.0 static route <prefix> next-hop <ip>` → StaticRoute(af="v6", prefix=`ipaddress.ip_network(prefix, strict=False)` で正規化済み CIDR（ホストビット除去）, next_hop=normalize_v6(ip))。不正な prefix は try/except ValueError でスキップ。IOS の `ipv6 route` と対称の正規化を保証。
 - **detect**: 非空行の **過半数（50% 超）** が `^set ` で始まる。
 
 ## 新ベンダー追加手順（例: Cisco NX-OS）
