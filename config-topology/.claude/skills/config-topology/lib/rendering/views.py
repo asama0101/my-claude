@@ -858,7 +858,6 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         dev_id = iface.get("device", "")
         iface_id = iface.get("id", "")
         name = iface.get("name", "")
-        ip = iface.get("ip") or ""
         admin_status = iface.get("admin_status") or ""
         mtu = iface.get("mtu")
         vlan = iface.get("vlan")
@@ -866,12 +865,32 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         description = iface.get("description") or ""
         hostname = dev_hostname.get(dev_id, dev_id)
 
+        # Phase 3I [MEDIUM]: v6-only IF (ip=None) の IP列に先頭 v6 GUA を表示
+        # _get_display_ip と同じロジックをインラインで実装（views は cards に依存しない）
+        ip_v4 = iface.get("ip") or ""
+        if ip_v4:
+            ip = ip_v4
+        else:
+            # v6 GUA フォールバック
+            ip = ""
+            for addr in (iface.get("addresses") or []):
+                if addr.get("af") != "v6":
+                    continue
+                if addr.get("scope") == "link-local":
+                    continue
+                ip_str = addr.get("ip", "")
+                prefix = addr.get("prefix")
+                if ip_str:
+                    ip = f"{ip_str}/{prefix}" if prefix is not None else ip_str
+                    break
+
         # 未使用候補判定: IP 無し かつ down 系
         st_lower = admin_status.lower()
         is_unused = (not ip) and (st_lower in ("down", "admin-down"))
         unused_attr = ' data-unused="1"' if is_unused else ""
 
         # 検索用テキスト（device / IF 名 / IP / description）
+        # Phase 3I [MEDIUM]: ip には v6-only IF の v6 アドレスも含まれるため検索対応済み
         search_text = f"{hostname} {name} {ip} {description}".lower()
 
         # MTU は数値 or 空

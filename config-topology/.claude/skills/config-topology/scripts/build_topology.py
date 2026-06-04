@@ -200,14 +200,22 @@ def build(
     bgp_out = _build_bgp(devices, device_ids)
 
     # --- OSPF ---
+    # Phase 3I [HIGH1a]: area を _normalize_ospf_area で正規化（"0.0.0.0" → "0" 等）
+    # Phase 3I [HIGH1b]: network が非CIDR(IF名)の場合、device の IF addresses から CIDR を導出
     ospf_out: list[dict] = []
     for dev, dev_id in zip(devices, device_ids):
         for entry in dev.ospf:
+            # HIGH1a: area 正規化
+            normalized_area = _normalize_ospf_area(entry.area) if entry.area else entry.area
+
+            # HIGH1b: network が非CIDR(IF名)のとき addresses から CIDR を解決
+            resolved_network = _resolve_ospf_network_to_cidr(dev, entry.network, entry.af)
+
             ospf_out.append({
                 "device": dev_id,
                 "process": entry.process,
-                "network": entry.network,
-                "area": entry.area,
+                "network": resolved_network,
+                "area": normalized_area,
                 "af": entry.af,  # Phase 3G: af フィールド（base.py デフォルト "v4"）
             })
 
@@ -412,6 +420,82 @@ def _normalize_ospf_area(area: str) -> str:
 
     # パース不能: 元の文字列を返す（クラッシュしない）
     return area
+
+
+def _resolve_ospf_network_to_cidr(
+    dev: "Device",
+    network: str,
+    af: str,
+) -> str:
+    """OSPF エントリの network が非CIDR(IF名)の場合、addresses から CIDR を導出して返す。
+
+    Phase 3I [HIGH1b]: JunOS ospf3 は IF名（例 "ge-0/0/0.0"）を network として記録する。
+    _build_ospf_marking_map は CIDR を期待するため、IF名のままでは ospf_id が解決できない。
+
+    解決ルール:
+    - network が有効な CIDR（ip_network でパース可能）なら変更しない（IOS等 既にCIDR）
+    - network が非CIDR（IF名）の場合:
+        - ユニット表記（ge-0/0/0.0）はドット前のベース名（ge-0/0/0）で IF を特定
+        - dev の interfaces から name が一致する IF を探す
+        - af が "v6" なら addresses の先頭 v6 GUA（scope != link-local）から ip_interface.network を取得
+        - af が "v4" なら IF の ip フィールドから ip_interface.network を取得
+        - 解決できた場合はネットワークアドレス CIDR を返す
+        - 解決できない場合は元の文字列を返す（クラッシュしない）
+
+    Args:
+        dev:     Device オブジェクト（interfaces を参照）
+        network: OSPF エントリの network フィールド（CIDR または IF名）
+        af:      アドレスファミリ（"v4" or "v6"）
+
+    Returns:
+        CIDR 文字列（解決済み）または元の文字列（変更不能時）
+    """
+    if not network:
+        return network
+
+    # CIDR として解析可能なら変更不要
+    try:
+        ipaddress.ip_network(network, strict=False)
+        return network  # 既に CIDR
+    except ValueError:
+        pass
+
+    # 非CIDR: IF名として解釈（ユニット表記 ge-0/0/0.0 → ベース ge-0/0/0）
+    base_if = network.split(".")[0]
+
+    for iface in dev.interfaces:
+        if iface.name != base_if:
+            continue
+        if iface.shutdown:
+            continue  # shutdown IF は参照しない
+
+        if af == "v6":
+            # v6: addresses リストから先頭 GUA を取得
+            for addr in getattr(iface, "addresses", []):
+                if addr.get("af") != "v6":
+                    continue
+                if addr.get("scope") == "link-local":
+                    continue
+                ip_str = addr.get("ip", "")
+                prefix = addr.get("prefix", 0)
+                if not ip_str:
+                    continue
+                try:
+                    net = ipaddress.ip_interface(f"{ip_str}/{prefix}").network
+                    return str(net)
+                except ValueError:
+                    continue
+        else:
+            # v4: iface.ip フィールドから
+            if iface.ip is not None:
+                try:
+                    net = ipaddress.ip_interface(iface.ip).network
+                    return str(net)
+                except ValueError:
+                    pass
+
+    # 解決不能: 元の文字列を返す
+    return network
 
 
 # ================================================================

@@ -6,6 +6,41 @@ from __future__ import annotations
 from lib.rendering.svg import _esc
 
 
+def _get_display_ip(iface: dict) -> str:
+    """IF の表示用 IP 文字列を返す。
+
+    Phase 3I [MEDIUM]: v6-only IF（ip=None かつ addresses に v6 GUA あり）の場合、
+    addresses の先頭 v6 GUA（link-local 除く）を "ip/prefix" 形式で返す。
+    それ以外は iface["ip"] または "" を返す（後方互換）。
+
+    Args:
+        iface: インタフェース辞書
+
+    Returns:
+        表示用 IP 文字列（"a.b.c.d/prefix" または "addr::/prefix" または ""）
+    """
+    ip_val = iface.get("ip") or ""
+    if ip_val:
+        return ip_val
+
+    # ip が None/空: addresses から先頭 v6 GUA を取得
+    addresses = iface.get("addresses") or []
+    for addr in addresses:
+        if addr.get("af") != "v6":
+            continue
+        if addr.get("scope") == "link-local":
+            continue
+        ip_str = addr.get("ip", "")
+        prefix = addr.get("prefix")
+        if not ip_str:
+            continue
+        if prefix is not None:
+            return f"{ip_str}/{prefix}"
+        return ip_str
+
+    return ""
+
+
 def _device_cards(
     devices: list[dict],
     interfaces: list[dict],
@@ -91,10 +126,12 @@ def _device_cards(
             mtu_val = iface.get("mtu")
             mtu_str = str(mtu_val) if mtu_val is not None else ""
             speed_val = iface.get("speed", "")
+            # Phase 3I [MEDIUM]: v6-only IF (ip=None) の IP列に先頭 v6 GUA を表示
+            ip_display = _get_display_ip(iface)
             if_row_parts.append(
                 f"<tr{tr_attrs}>"
                 f"<td>{_esc(iface['name'])}{_esc(shutdown_mark)}</td>"
-                f"<td>{_esc(iface.get('ip', ''))}</td>"
+                f"<td>{_esc(ip_display)}</td>"
                 f"<td>{_esc(iface.get('description', ''))}</td>"
                 f"<td>{_esc(admin_status)}</td>"
                 f"<td>{_esc(mtu_str)}</td>"

@@ -676,6 +676,12 @@ def _svg_bgp_edges(
     data-bgp-id 属性: 両端 device id を sorted して '|' で結合した決定的な値。
     例: r1 と r2 のセッションなら "r1|r2"（どちらの方向から呼んでも同一）。
 
+    Phase 3I [HIGH3]: 同一機器ペアに v4/v6 両 BGP セッションがある場合、
+    統合エッジの <title>/badge に全 af セッションの local_ip↔neighbor_ip を併記する。
+    - 双方向エントリ（r1→r2, r2→r1）は1本に統合（従来通り）
+    - v4/v6 複数 af も1本に統合し、IP ペアを " / " 区切りで列挙
+    - single-stack は従来通り変化なし
+
     iteration-4 #6: chip_positions が渡された場合、
     BGP セッション端点を該当チップ座標にアンカーする。
     - A 側: local_ip → iface_id → chip_positions
@@ -694,34 +700,67 @@ def _svg_bgp_edges(
     # ip_only -> iface_id マップ（チップアンカー用: 共通ヘルパーを使用）
     ip_to_iface_id: dict[str, str] = _build_ip_to_iface_id(interfaces) if chip_positions is not None else {}
 
-    parts = []
-    # 重複エッジ防止（双方向のペアを1本に）
-    seen_pairs: set[frozenset] = set()
+    # Phase 3I [HIGH3]: ペアごとに全セッションを収集（v4/v6 統合用）
+    # pair(frozenset) → list[(dev_id, neighbor_dev, entry)]
+    pair_sessions: dict[frozenset, list[tuple[str, str, dict]]] = {}
+    pair_order: list[frozenset] = []  # 決定的順序保持
 
-    for entry in sorted(bgp_entries, key=lambda e: (e["device"], e["neighbor_ip"])):
+    for entry in sorted(bgp_entries, key=lambda e: (e["device"], e.get("neighbor_ip", ""))):
         dev_id = entry["device"]
         neighbor_ip = entry.get("neighbor_ip", "")
-        bgp_type = entry.get("type", "unknown")
 
         neighbor_dev = ip_to_device.get(neighbor_ip)
         if not neighbor_dev or neighbor_dev == dev_id:
             continue
 
+        if dev_id not in positions or neighbor_dev not in positions:
+            continue
+
         pair = frozenset([dev_id, neighbor_dev])
+
+        # 既にこのペアを「逆向き」として登録済みの場合も同じ pair に収集
+        # ペア内の「正規代表」は sorted で小さい方を先にする
+        canonical_dev, canonical_nbr = sorted([dev_id, neighbor_dev])
+        # 既登録エントリが逆向き（neighbor_dev が canonical_dev に該当）の場合は収集のみ
+        if pair not in pair_sessions:
+            pair_sessions[pair] = []
+            pair_order.append(pair)
+
+        # 重複（同じ dev_id + neighbor_ip の組）は skip
+        already_registered = any(
+            e.get("device") == entry.get("device") and
+            e.get("neighbor_ip") == entry.get("neighbor_ip")
+            for _, _, e in pair_sessions[pair]
+        )
+        if not already_registered:
+            pair_sessions[pair].append((dev_id, neighbor_dev, entry))
+
+    parts = []
+    seen_pairs: set[frozenset] = set()
+
+    for pair in pair_order:
         if pair in seen_pairs:
             continue
         seen_pairs.add(pair)
 
-        if dev_id not in positions or neighbor_dev not in positions:
+        sessions = pair_sessions[pair]
+        if not sessions:
             continue
+
+        # 代表エントリ（1件目）から dev_id/neighbor_dev/bgp_type/as 情報を取得
+        dev_id, neighbor_dev, repr_entry = sessions[0]
+        bgp_type = repr_entry.get("type", "unknown")
+        peer_as = _esc(repr_entry.get("peer_as", ""))
+        local_as = _esc(repr_entry.get("local_as", ""))
 
         # デフォルト: ノード中心
         x1, y1 = positions[dev_id]
         x2, y2 = positions[neighbor_dev]
 
-        # チップアンカー（iteration-4 #6）
+        # チップアンカー（代表エントリの local_ip を使用）
         if chip_positions is not None:
-            local_ip_raw = entry.get("local_ip") or ""
+            local_ip_raw = repr_entry.get("local_ip") or ""
+            neighbor_ip_raw = repr_entry.get("neighbor_ip") or ""
             # A 側: local_ip → iface_id → chip_pos
             if local_ip_raw:
                 a_iface_id = ip_to_iface_id.get(local_ip_raw)
@@ -729,8 +768,6 @@ def _svg_bgp_edges(
                     x1, y1 = chip_positions[a_iface_id]
             else:
                 # local_ip=null（iBGP Loopback 源）: 当該デバイスの Loopback チップを探す
-                # 複数 Loopback がある場合に備え iface_id 昇順ソートして先頭を選択（決定的）。
-                # 選んだ iface_id が chip_positions に存在することを確認してから使用する。
                 lb_candidates = sorted(
                     iface_id for iface_id in chip_positions
                     if iface_id.startswith(f"{dev_id}::")
@@ -739,30 +776,43 @@ def _svg_bgp_edges(
                 if lb_candidates:
                     x1, y1 = chip_positions[lb_candidates[0]]
             # B 側: neighbor_ip → iface_id → chip_pos
-            b_iface_id = ip_to_iface_id.get(neighbor_ip)
+            b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
             if b_iface_id and b_iface_id in chip_positions:
                 x2, y2 = chip_positions[b_iface_id]
 
         css_class = f"bgp-edge bgp-{_esc(bgp_type)} layer-bgp"
-        peer_as = _esc(entry.get("peer_as", ""))
-        local_as = _esc(entry.get("local_as", ""))
-        local_ip_raw = entry.get("local_ip") or ""
-        neighbor_ip_raw = entry.get("neighbor_ip") or ""
 
         # エッジを少しオフセットして重なりを防ぐ
         mx = (x1 + x2) / 2
         my = (y1 + y2) / 2 - 15
 
-        # #5: IP↔IP 表示テキストを構築
-        # local_ip が null の場合は neighbor_ip のみ表示
-        if local_ip_raw and neighbor_ip_raw:
-            ip_label = f"{_esc(local_ip_raw)}↔{_esc(neighbor_ip_raw)}"
-        elif neighbor_ip_raw:
-            ip_label = _esc(neighbor_ip_raw)
-        else:
-            ip_label = ""
+        # Phase 3I [HIGH3]: 全セッションの IP ペアを収集（決定的: af ソート v4→v6）
+        # 双方向エントリのうち dev_id が canonical 側のものだけを収集（重複防止）
+        canonical_dev, canonical_nbr = sorted([dev_id, neighbor_dev])
+        ip_pairs: list[str] = []
+        seen_ip_pairs: set[tuple[str, str]] = set()
+        for _, _, sess_entry in sorted(
+            sessions,
+            key=lambda t: (t[2].get("af", "v4"), t[2].get("neighbor_ip", "")),
+        ):
+            # canonical 側（dev_id が canonical_dev）のエントリのみ使用
+            sess_dev = sess_entry.get("device", "")
+            if sess_dev != canonical_dev:
+                continue
+            local_ip = sess_entry.get("local_ip") or ""
+            neighbor_ip = sess_entry.get("neighbor_ip") or ""
+            pair_key = (local_ip, neighbor_ip)
+            if pair_key in seen_ip_pairs:
+                continue
+            seen_ip_pairs.add(pair_key)
+            if local_ip and neighbor_ip:
+                ip_pairs.append(f"{_esc(local_ip)}↔{_esc(neighbor_ip)}")
+            elif neighbor_ip:
+                ip_pairs.append(_esc(neighbor_ip))
 
-        # <title> に完全情報（AS + IP）を埋め込む
+        ip_label = " / ".join(ip_pairs)
+
+        # <title> に完全情報（AS + 全 IP ペア）を埋め込む
         title_parts = [f"{_esc(bgp_type)} AS{local_as}↔AS{peer_as}"]
         if ip_label:
             title_parts.append(ip_label)
