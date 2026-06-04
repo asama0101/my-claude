@@ -1629,15 +1629,18 @@ def test_gating_ospf_two_devices_generates_view():
 
 @pytest.mark.unit
 def test_gating_tab_count_equals_view_count():
-    """タブ数 == ビュー <g> 数（== で検証）"""
+    """タブ数 == ビュー <g> 数 + 1（ifinv タブは SVG <g> を持たないテーブルビュー）"""
     from lib.rendering import render
     # bgp + ospf で両方エッジありの topology
     html = render(_make_bgp_with_real_neighbors_topology())
     view_groups = re.findall(r'class="view view-([a-z0-9_-]+)"', html)
     tabs = re.findall(r'data-view="([a-z0-9_-]+)"', html)
-    assert len(tabs) == len(view_groups), \
-        f"タブ数({len(tabs)}) != ビュー数({len(view_groups)}): " \
+    # ifinv タブは SVG <g class="view view-ifinv"> を生成しないので tabs = view_groups + 1
+    assert len(tabs) == len(view_groups) + 1, \
+        f"タブ数({len(tabs)}) != ビュー数({len(view_groups)}) + 1: " \
         f"views={view_groups}, tabs={tabs}"
+    assert "ifinv" in tabs, "ifinv タブが存在しない"
+    assert "ifinv" not in view_groups, "ifinv が SVG <g class=view> として生成されている"
 
 
 @pytest.mark.unit
@@ -11928,3 +11931,738 @@ def test_1c5_palette_cycle_index0_equals_index_len():
         f"asn={asn0} と asn={asn_wrap} の stroke 色が異なる（循環していない）: "
         f"{stroke_colors[0]!r} != {stroke_colors[1]!r}"
     )
+
+
+# ===========================================================================
+# Phase 2E: IF 一覧/棚卸しビュー
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# テスト用フィクスチャ: ifinv_topology
+# 機器2台・IF6本（IP有/無・admin_status up/down/admin-down を混在させて
+# 集計・未使用判定の vacuous 回避を保証）
+# ---------------------------------------------------------------------------
+
+def _make_ifinv_topology():
+    """IF一覧ビューテスト用 topology。
+    - r1: IF3本 (up+IP, up+IP, admin-down+IP)
+    - r2: IF3本 (up+IP, down+noIP, admin-down+noIP)  ← down+noIP / admin-down+noIP = 未使用候補2本
+    status 集計: up=3, down=1, admin-down=2
+    未使用候補 (IP無し & down系): down+noIP=1, admin-down+noIP=1 → 計2本
+    """
+    return {
+        "title": "IFInv Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            # r1
+            {
+                "id": "r1::GigabitEthernet0/0", "device": "r1", "name": "GigabitEthernet0/0",
+                "ip": "10.0.0.1/30", "admin_status": "up", "mtu": 1500, "vlan": None,
+                "l2_l3": "l3", "description": "to-R2", "shutdown": False,
+            },
+            {
+                "id": "r1::Loopback0", "device": "r1", "name": "Loopback0",
+                "ip": "1.1.1.1/32", "admin_status": "up", "mtu": None, "vlan": None,
+                "l2_l3": "l3", "description": None, "shutdown": False,
+            },
+            {
+                "id": "r1::GigabitEthernet0/1", "device": "r1", "name": "GigabitEthernet0/1",
+                "ip": "192.168.1.1/24", "admin_status": "admin-down", "mtu": 9000, "vlan": 10,
+                "l2_l3": "l2", "description": "unused-with-ip", "shutdown": True,
+            },
+            # r2
+            {
+                "id": "r2::ge-0/0/0", "device": "r2", "name": "ge-0/0/0",
+                "ip": "10.0.0.2/30", "admin_status": "up", "mtu": 1500, "vlan": None,
+                "l2_l3": "l3", "description": "to-R1", "shutdown": False,
+            },
+            {
+                "id": "r2::ge-0/0/1", "device": "r2", "name": "ge-0/0/1",
+                "ip": None, "admin_status": "down", "mtu": None, "vlan": None,
+                "l2_l3": None, "description": None, "shutdown": False,
+            },
+            {
+                "id": "r2::ge-0/0/2", "device": "r2", "name": "ge-0/0/2",
+                "ip": None, "admin_status": "admin-down", "mtu": None, "vlan": None,
+                "l2_l3": None, "description": "spare port", "shutdown": True,
+            },
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "GigabitEthernet0/0",
+             "b_device": "r2", "b_if": "ge-0/0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+@pytest.fixture
+def ifinv_topology():
+    return _make_ifinv_topology()
+
+
+@pytest.fixture
+def ifinv_html(ifinv_topology):
+    from lib.rendering import render
+    return render(ifinv_topology)
+
+
+# ---------------------------------------------------------------------------
+# T-2E-1: ビュータブに「ifinv」が追加される
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_ifinv_tab_exists_in_view_tabs(ifinv_html):
+    """Phase2E: ビュータブに data-view="ifinv" タブが存在する"""
+    assert 'data-view="ifinv"' in ifinv_html, \
+        "ifinv ビュータブ (data-view=\"ifinv\") が見つからない"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_tab_label(ifinv_html):
+    """Phase2E: ifinv タブのラベルが「IF一覧」または「IF-List」または「IFInv」"""
+    # タブボタンの onclick="selectView('ifinv')" または data-view="ifinv" の近辺に
+    # ラベルテキストが存在することを確認する
+    # data-view="ifinv" を含む button タグを抽出
+    m = re.search(r'<button[^>]*data-view="ifinv"[^>]*>(.*?)</button>', ifinv_html)
+    assert m, "ifinv タブボタンが見つからない"
+    label = m.group(1)
+    # 「IF一覧」「IF-List」「IFInv」のいずれかを含むことを確認
+    has_label = any(kw in label for kw in ("IF一覧", "IF-List", "IFInv", "IF Inv", "IF List"))
+    assert has_label, f"ifinv タブのラベルが不適切: {label!r}"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_tab_in_build_view_tabs():
+    """Phase2E: _build_view_tabs(['physical','ifinv']) に ifinv タブが含まれる"""
+    from lib.rendering.views import _build_view_tabs
+    html = _build_view_tabs(["physical", "ifinv"])
+    assert 'data-view="ifinv"' in html, \
+        "_build_view_tabs が ifinv タブを生成しない"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-2: IF一覧テーブルの生成（HTML table, 全IF行, 決定的な行順）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_ifinv_table_container_exists(ifinv_html):
+    """Phase2E: #view-ifinv-table コンテナが HTML に存在する"""
+    assert 'id="view-ifinv-table"' in ifinv_html, \
+        "#view-ifinv-table コンテナが見つからない"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_table_has_all_iface_rows(ifinv_topology, ifinv_html):
+    """Phase2E: IF一覧テーブルに全 IF 行（data-iface-id）が揃っている"""
+    iface_ids = [i["id"] for i in ifinv_topology["interfaces"]]
+    for iid in iface_ids:
+        assert f'data-iface-id="{iid}"' in ifinv_html, \
+            f"IF 行 data-iface-id=\"{iid}\" が見つからない"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_table_row_count(ifinv_topology, ifinv_html):
+    """Phase2E: IF一覧テーブルの data-iface-id 行数が interfaces 数と一致"""
+    expected = len(ifinv_topology["interfaces"])
+    # _build_ifinv_table を直呼びして フル render 依存を排除（境界 regex フォールバック不要）
+    from lib.rendering.views import _build_ifinv_table
+    ifinv_section = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
+    actual = ifinv_section.count('data-iface-id="')
+    assert actual == expected, \
+        f"ifinv テーブルの data-iface-id 行数が {actual}（期待: {expected}）"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_table_column_headers(ifinv_html):
+    """Phase2E: IF一覧テーブルに必要な列ヘッダ（Device/Interface/IP/Status/MTU/VLAN/L2L3/Description）が存在する"""
+    required_headers = ["Device", "Interface", "IP", "Status", "MTU", "VLAN", "L2L3", "Description"]
+    # #view-ifinv-table 内のテーブル全体を抽出
+    m = re.search(r'id="view-ifinv-table".*?</div>\s*<!--', ifinv_html, re.DOTALL)
+    table_section = m.group(0) if m else ifinv_html
+    for header in required_headers:
+        assert header in table_section, \
+            f"IF一覧テーブルに列ヘッダ \"{header}\" が見つからない"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_table_row_order_deterministic(ifinv_topology):
+    """Phase2E: 同一 topology を2回 render した結果が完全一致（決定性）"""
+    from lib.rendering import render
+    t1 = copy.deepcopy(ifinv_topology)
+    t2 = copy.deepcopy(ifinv_topology)
+    html1 = render(t1)
+    html2 = render(t2)
+    assert html1 == html2, "ifinv topology の render が非決定的"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_table_rows_sorted_by_device_then_ifname(ifinv_topology, ifinv_html):
+    """Phase2E: IF一覧テーブルの行が device id → IF 名の辞書順で並んでいる"""
+    # _build_ifinv_table を直呼びして抽出を確実に（境界 regex フォールバック廃止）
+    from lib.rendering.views import _build_ifinv_table
+    ifinv_section = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
+    found_ids = re.findall(r'data-iface-id="([^"]+)"', ifinv_section)
+    # ifinv-topology の interfaces を device id → IF 名でソートした期待順
+    ifaces = sorted(
+        ifinv_topology["interfaces"],
+        key=lambda i: (i["device"], i["name"])
+    )
+    expected_ids = [i["id"] for i in ifaces]
+    assert found_ids == expected_ids, \
+        f"IF行の順序が期待と異なる:\n  actual:   {found_ids}\n  expected: {expected_ids}"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_table_ip_column_values(ifinv_html):
+    """Phase2E: IP アドレスがテーブルに出力される（IP有のIFのみ）"""
+    assert "10.0.0.1/30" in ifinv_html
+    assert "10.0.0.2/30" in ifinv_html
+    assert "1.1.1.1/32" in ifinv_html
+
+
+@pytest.mark.unit
+def test_2e_ifinv_table_mtu_column_value(ifinv_html):
+    """Phase2E: MTU 値（1500, 9000）がテーブルに出力される"""
+    assert "1500" in ifinv_html
+    assert "9000" in ifinv_html
+
+
+@pytest.mark.unit
+def test_2e_ifinv_table_vlan_column_value(ifinv_topology):
+    """Phase2E: VLAN 値（10）がテーブルの該当行セルに出力される（vacuous OR を排除）"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
+    # r1::GigabitEthernet0/1 行が存在すること
+    m = re.search(r'<tr[^>]*data-iface-id="r1::GigabitEthernet0/1"[^>]*>(.*?)</tr>',
+                  result, re.DOTALL)
+    assert m is not None, "r1::GigabitEthernet0/1 行が見つからない"
+    row_html = m.group(0)
+    # VLAN セルに ">10<" が含まれること（OR の最後の "vlan" in html.lower() は削除）
+    assert ">10<" in row_html or ">10 <" in row_html, \
+        f"VLAN=10 がセル値として見つからない: {row_html!r}"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-3: status 集計（up/down/admin-down 件数）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_status_summary_up_count(ifinv_html):
+    """Phase2E: status 集計 up=3 が確定フォーマット 'up: 3</span>' で出力される（vacuous regex 解消）"""
+    # 確定フォーマット: <span ...>up: 3</span> を直接検証
+    assert "up: 3</span>" in ifinv_html, \
+        "IF 集計バッジに 'up: 3</span>' が見当たらない"
+
+
+@pytest.mark.unit
+def test_2e_status_summary_down_count(ifinv_html):
+    """Phase2E: status 集計 down=1 が確定フォーマット 'down: 1</span>' で出力される（vacuous regex 解消）"""
+    assert "down: 1</span>" in ifinv_html, \
+        "IF 集計バッジに 'down: 1</span>' が見当たらない"
+
+
+@pytest.mark.unit
+def test_2e_status_summary_admindown_count(ifinv_html):
+    """Phase2E: status 集計 admin-down=2 が確定フォーマット 'admin-down: 2</span>' で出力される（vacuous regex 解消）"""
+    assert "admin-down: 2</span>" in ifinv_html, \
+        "IF 集計バッジに 'admin-down: 2</span>' が見当たらない"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-4: 未使用候補マーク（IP無し & down/admin-down）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_unused_candidates_marked_with_data_unused(ifinv_html):
+    """Phase2E: IP無し & down系 の IF 行 <tr> に data-unused="1" が付く"""
+    # r2::ge-0/0/1 (down, ip=None) と r2::ge-0/0/2 (admin-down, ip=None) が対象
+    for iface_id in ("r2::ge-0/0/1", "r2::ge-0/0/2"):
+        # <tr> タグに両属性が共存することを確認
+        pattern = rf'<tr[^>]*data-iface-id="{re.escape(iface_id)}"[^>]*data-unused="1"|<tr[^>]*data-unused="1"[^>]*data-iface-id="{re.escape(iface_id)}"'
+        m = re.search(pattern, ifinv_html)
+        assert m, f"IF {iface_id} の <tr> に data-unused=\"1\" が付いていない"
+
+
+@pytest.mark.unit
+def test_2e_unused_candidate_count_correct(ifinv_html):
+    """Phase2E: <tr data-unused="1"> の件数が 2（IP無し & down系 の数と一致）"""
+    # <tr> タグの data-unused="1" のみカウント（JS 文字列内を除外）
+    count = len(re.findall(r'<tr[^>]*data-unused="1"', ifinv_html))
+    assert count == 2, f"<tr data-unused=\"1\"> の件数が {count}（期待: 2）"
+
+
+@pytest.mark.unit
+def test_2e_ip_with_down_not_marked_unused(ifinv_html):
+    """Phase2E: IP有り の admin-down IF（r1::GigabitEthernet0/1）は未使用候補にならない"""
+    # r1::GigabitEthernet0/1 は admin-down だが IP あり → data-unused="1" は付かない
+    # この行が存在することと data-unused="1" を持たないことを確認
+    # 当該行の tr タグを探す
+    m = re.search(r'<tr[^>]*data-iface-id="r1::GigabitEthernet0/1"[^>]*>', ifinv_html)
+    assert m, "r1::GigabitEthernet0/1 行が見つからない"
+    row_tag = m.group(0)
+    assert 'data-unused="1"' not in row_tag, \
+        "IP有りの admin-down IF が誤って data-unused=\"1\" マークされている"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-5: JS 関数の存在と対象セレクタ（vacuous 回避）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_js_ifinv_search_function_exists(ifinv_html):
+    """Phase2E: IF一覧検索 JS 関数が存在する（filterIfRows または ifinvSearch）"""
+    js_pattern = r'function\s+(filterIfRows|ifinvSearch|filterIfinvRows)\s*\('
+    assert re.search(js_pattern, ifinv_html), \
+        "IF一覧検索用 JS 関数が見つからない"
+
+
+@pytest.mark.unit
+def test_2e_js_ifinv_sort_function_exists(ifinv_html):
+    """Phase2E: IF一覧ソート JS 関数が存在する（sortIfTable または ifinvSort）"""
+    js_pattern = r'function\s+(sortIfTable|ifinvSort|sortIfinvTable)\s*\('
+    assert re.search(js_pattern, ifinv_html), \
+        "IF一覧ソート用 JS 関数が見つからない"
+
+
+@pytest.mark.unit
+def test_2e_js_ifinv_sort_targets_ifinv_table(ifinv_html):
+    """Phase2E: ソート JS が view-ifinv-table または ifinv-table-body を参照している"""
+    # ソート関数の実装が #view-ifinv-table または ifinv-table-body を使用
+    assert "view-ifinv-table" in ifinv_html or "ifinv-table-body" in ifinv_html, \
+        "ソート JS が IF一覧テーブルを参照していない"
+
+
+@pytest.mark.unit
+def test_2e_js_unused_toggle_function_exists(ifinv_html):
+    """Phase2E: 未使用のみ表示トグル JS 関数が存在する"""
+    js_pattern = r'function\s+(toggleUnused|showOnlyUnused|ifinvToggleUnused)\s*\('
+    assert re.search(js_pattern, ifinv_html), \
+        "未使用のみ表示トグル JS 関数が見つからない"
+
+
+@pytest.mark.unit
+def test_2e_js_unused_toggle_uses_data_unused_attr(ifinv_html):
+    """Phase2E: 未使用トグル JS が data-unused 属性を参照している"""
+    assert "data-unused" in ifinv_html, \
+        "未使用トグル JS が data-unused 属性を参照していない"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-6: selectView('ifinv') の挙動（JS コード構造）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_selectview_handles_ifinv(ifinv_html):
+    """Phase2E: selectView JS が ifinv 識別子を処理するコードを含む"""
+    # selectView 内で 'ifinv' を扱う条件分岐が存在すること
+    assert "'ifinv'" in ifinv_html or '"ifinv"' in ifinv_html, \
+        "JS に ifinv 識別子が見当たらない"
+
+
+@pytest.mark.unit
+def test_2e_selectview_hides_svg_container_for_ifinv(ifinv_html):
+    """Phase2E: ifinv 選択時に #svg-container を隠す JS コードが存在する"""
+    # svg-container の display 制御コードが ifinv 分岐で存在する
+    # "svg-container" と "display" / "none" / "ifinv" のキーワードが JS に共存
+    js_block_m = re.search(r'<script>(.*?)</script>', ifinv_html, re.DOTALL)
+    js_code = js_block_m.group(1) if js_block_m else ""
+    assert "svg-container" in js_code, \
+        "JS に svg-container の参照が見つからない"
+    assert "ifinv" in js_code, \
+        "JS に ifinv の参照が見つからない"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_table_hidden_by_default(ifinv_html):
+    """Phase2E: #view-ifinv-table は初期状態で非表示（style="display:none" または JS で隠す）"""
+    # #view-ifinv-table の div が display:none または class で非表示であること
+    m = re.search(r'id="view-ifinv-table"[^>]*>', ifinv_html)
+    assert m, "#view-ifinv-table が見つからない"
+    tag = m.group(0)
+    # display:none が属性にある、またはJSで初期非表示にすることを確認
+    is_hidden = (
+        "display:none" in tag
+        or "display: none" in tag
+        or 'style="display:none"' in tag
+    )
+    assert is_hidden, \
+        f"#view-ifinv-table が初期非表示になっていない: {tag}"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-7: 図系 UI（ズームボタン・凡例）が ifinv では無関係であることの設計確認
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_zoom_controls_exist_for_svg_views(ifinv_html):
+    """Phase2E: zoom-controls は存在する（Physical 等の SVG ビュー用）"""
+    assert 'id="zoom-controls"' in ifinv_html, \
+        "zoom-controls が見つからない"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-8: 自己完結・外部参照0の確認
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_self_contained_no_external_refs(ifinv_html):
+    """Phase2E: ifinv HTML に外部リソース参照（http://, https://, src=, href=）が含まれない"""
+    # src= / href= の外部参照を検査（style/script インライン専用）
+    # <link rel="stylesheet" href="..."> 等が無いこと
+    external_refs = re.findall(r'(?:src|href)\s*=\s*["\']https?://', ifinv_html, re.IGNORECASE)
+    assert len(external_refs) == 0, \
+        f"外部参照が含まれている: {external_refs}"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-9: sample_topology の render にも ifinv タブが追加されている（非回帰）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_ifinv_tab_present_in_sample_topology(rendered_html):
+    """Phase2E: 既存 sample_topology の render にも ifinv タブが含まれる（非回帰）"""
+    assert 'data-view="ifinv"' in rendered_html, \
+        "sample_topology render に ifinv タブが含まれない"
+
+
+@pytest.mark.unit
+def test_2e_sample_topology_all_ifaces_in_ifinv_table(sample_topology, rendered_html):
+    """Phase2E: sample_topology の全 IF が ifinv テーブルに存在する"""
+    for iface in sample_topology["interfaces"]:
+        iid = iface["id"]
+        assert f'data-iface-id="{iid}"' in rendered_html, \
+            f"sample_topology の IF {iid} が ifinv テーブルに見つからない"
+
+
+@pytest.mark.unit
+def test_2e_existing_physical_view_still_present(rendered_html):
+    """Phase2E: Physical ビューが引き続き存在する（非回帰）"""
+    assert 'class="view view-physical"' in rendered_html, \
+        "Physical ビューが消えている"
+
+
+@pytest.mark.unit
+def test_2e_existing_bgp_view_still_present(rendered_html):
+    """Phase2E: BGP ビューが引き続き存在する（非回帰）"""
+    assert 'class="view view-bgp"' in rendered_html, \
+        "BGP ビューが消えている"
+
+
+@pytest.mark.unit
+def test_2e_existing_ospf_view_still_present():
+    """Phase2E: OSPF 参加2台以上の topology で OSPF ビューが存在する（非回帰）"""
+    from lib.rendering import render
+    # OSPF 参加2台（両端）のシンプルな topology を用意
+    topo = {
+        "title": "OSPF Test", "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": "l3",
+             "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": "l3",
+             "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                {"device": "r1", "area": "0", "network": "10.0.0.0/30", "process": 1},
+                {"device": "r2", "area": "0", "network": "10.0.0.0/30", "process": 1},
+            ],
+            "static": [],
+        },
+    }
+    html = render(topo)
+    assert 'class="view view-ospf"' in html, "OSPF ビューが生成されない"
+    # ifinv タブも存在することを確認
+    assert 'data-view="ifinv"' in html, "ifinv タブが存在しない"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-10: _build_ifinv_table 単体テスト（views.py ユニット）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_build_ifinv_table_returns_string():
+    """Phase2E: _build_ifinv_table が文字列を返す"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    ifaces = [{"id": "r1::eth0", "device": "r1", "name": "eth0",
+               "ip": "10.0.0.1/30", "admin_status": "up",
+               "mtu": None, "vlan": None, "l2_l3": "l3", "description": None}]
+    result = _build_ifinv_table(devices, ifaces)
+    assert isinstance(result, str), f"文字列でない: {type(result)}"
+
+
+@pytest.mark.unit
+def test_2e_build_ifinv_table_empty_devices():
+    """Phase2E: _build_ifinv_table にデバイス0件でも例外なし"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table([], [])
+    assert isinstance(result, str)
+
+
+@pytest.mark.unit
+def test_2e_build_ifinv_table_status_counts():
+    """Phase2E: _build_ifinv_table の status 集計が確定フォーマットで出力される（vacuous regex 解消）"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0",
+         "ip": "10.0.0.1/30", "admin_status": "up",
+         "mtu": None, "vlan": None, "l2_l3": "l3", "description": None},
+        {"id": "r1::eth1", "device": "r1", "name": "eth1",
+         "ip": None, "admin_status": "down",
+         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
+        {"id": "r1::eth2", "device": "r1", "name": "eth2",
+         "ip": None, "admin_status": "admin-down",
+         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
+    ]
+    result = _build_ifinv_table(devices, ifaces)
+    # 確定フォーマット: 'up: 1</span>' / 'down: 1</span>' / 'admin-down: 1</span>' を直接検証
+    assert "up: 1</span>" in result, f"'up: 1</span>' が見当たらない: {result[:500]!r}"
+    assert "down: 1</span>" in result, f"'down: 1</span>' が見当たらない"
+    assert "admin-down: 1</span>" in result, f"'admin-down: 1</span>' が見当たらない"
+
+
+@pytest.mark.unit
+def test_2e_build_ifinv_table_unused_mark():
+    """Phase2E: _build_ifinv_table で IP無し&down系の行に data-unused=\"1\"が付く"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0",
+         "ip": "10.0.0.1/30", "admin_status": "up",  # IP有り → 未使用候補でない
+         "mtu": None, "vlan": None, "l2_l3": "l3", "description": None},
+        {"id": "r1::eth1", "device": "r1", "name": "eth1",
+         "ip": None, "admin_status": "admin-down",  # IP無し & admin-down → 未使用候補
+         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
+    ]
+    result = _build_ifinv_table(devices, ifaces)
+    # <tr> に data-unused="1" が付くこと（JS 文字列内は除外してカウント）
+    assert len(re.findall(r'<tr[^>]*data-unused="1"', result)) >= 1, \
+        "未使用候補行の <tr> に data-unused=\"1\" が付いていない"
+    # IP有りの up 行には data-unused が付かないこと
+    m = re.search(r'<tr[^>]*data-iface-id="r1::eth0"[^>]*>', result)
+    assert m, "r1::eth0 行が見つからない"
+    assert 'data-unused="1"' not in m.group(0), \
+        "IP有りの行に data-unused=\"1\" が誤って付いている"
+
+
+@pytest.mark.unit
+def test_2e_build_ifinv_table_row_order():
+    """Phase2E: _build_ifinv_table の行が device_id → IF名 辞書順"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [
+        {"id": "r2", "hostname": "R2"},
+        {"id": "r1", "hostname": "R1"},
+    ]
+    ifaces = [
+        {"id": "r2::eth0", "device": "r2", "name": "eth0",
+         "ip": None, "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": None, "description": None},
+        {"id": "r1::eth1", "device": "r1", "name": "eth1",
+         "ip": None, "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": None, "description": None},
+        {"id": "r1::eth0", "device": "r1", "name": "eth0",
+         "ip": None, "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": None, "description": None},
+    ]
+    result = _build_ifinv_table(devices, ifaces)
+    ids_in_order = re.findall(r'data-iface-id="([^"]+)"', result)
+    assert ids_in_order == ["r1::eth0", "r1::eth1", "r2::eth0"], \
+        f"行順が期待と異なる: {ids_in_order}"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-11: MTU/VLAN セルに data-num 属性が付くこと（数値ソート前提）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_ifinv_mtu_cell_has_data_num(ifinv_topology):
+    """Phase2E: MTU セルに data-num 属性が付く（数値ソート対応）"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
+    # r1::GigabitEthernet0/0 の行を探し、data-num="1500" が付くことを確認
+    m = re.search(r'<tr[^>]*data-iface-id="r1::GigabitEthernet0/0"[^>]*>(.*?)</tr>',
+                  result, re.DOTALL)
+    assert m is not None, "r1::GigabitEthernet0/0 行が見つからない"
+    row_html = m.group(0)
+    assert 'data-num="1500"' in row_html, \
+        f"MTU セルに data-num=\"1500\" が付いていない: {row_html!r}"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_vlan_cell_has_data_num(ifinv_topology):
+    """Phase2E: VLAN セルに data-num 属性が付く（数値ソート対応）"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
+    # r1::GigabitEthernet0/1 の行を探し、data-num="10" が付くことを確認
+    m = re.search(r'<tr[^>]*data-iface-id="r1::GigabitEthernet0/1"[^>]*>(.*?)</tr>',
+                  result, re.DOTALL)
+    assert m is not None, "r1::GigabitEthernet0/1 行が見つからない"
+    row_html = m.group(0)
+    assert 'data-num="10"' in row_html, \
+        f"VLAN セルに data-num=\"10\" が付いていない: {row_html!r}"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_data_num_empty_for_none_values(ifinv_topology):
+    """Phase2E: MTU/VLAN が None の行は data-num="" で出力される（空=ソート末尾）"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
+    # r1::Loopback0 は MTU=None, VLAN=None
+    m = re.search(r'<tr[^>]*data-iface-id="r1::Loopback0"[^>]*>(.*?)</tr>',
+                  result, re.DOTALL)
+    assert m is not None, "r1::Loopback0 行が見つからない"
+    row_html = m.group(0)
+    # data-num="" が2つ（MTU列・VLAN列）存在すること
+    assert row_html.count('data-num=""') >= 2, \
+        f"data-num=\"\" が2つ以上存在しない: {row_html!r}"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-12: 検索＋未使用トグル併用の振る舞い（_applyIfFilters 統合後）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_js_apply_if_filters_function_exists(ifinv_html):
+    """Phase2E: _applyIfFilters 関数（または統合関数）が JS に存在する"""
+    # 検索と未使用トグルを統合した関数が存在すること
+    assert re.search(r'function\s+_applyIfFilters\s*\(', ifinv_html), \
+        "_applyIfFilters 統合関数が JS に見つからない"
+
+
+@pytest.mark.unit
+def test_2e_js_filter_handlers_call_apply_if_filters(ifinv_html):
+    """Phase2E: 検索 input と未使用トグル onChange が _applyIfFilters を呼び出す"""
+    # _applyIfFilters が filterIfRows/toggleUnused ハンドラから呼ばれること
+    # JS ブロックを抽出して確認
+    js_block_m = re.search(r'<script>(.*?)</script>', ifinv_html, re.DOTALL)
+    assert js_block_m, "JS ブロックが見つからない"
+    js_code = js_block_m.group(1)
+    # _applyIfFilters が filterIfRows か toggleUnused から呼び出されていること
+    assert "_applyIfFilters" in js_code, "_applyIfFilters が JS に存在しない"
+    # filterIfRows の本体で _applyIfFilters を呼ぶか、直接統合されていること
+    filter_or_integrate = (
+        "filterIfRows" in js_code or "_ifinvSearchQuery" in js_code
+    )
+    assert filter_or_integrate, "検索ハンドラが _applyIfFilters に統合されていない"
+
+
+@pytest.mark.unit
+def test_2e_js_ifinv_state_vars_exist(ifinv_html):
+    """Phase2E: _ifinvSearchQuery / _ifinvUnusedOnly の状態変数が JS に存在する"""
+    js_block_m = re.search(r'<script>(.*?)</script>', ifinv_html, re.DOTALL)
+    assert js_block_m, "JS ブロックが見つからない"
+    js_code = js_block_m.group(1)
+    assert "_ifinvSearchQuery" in js_code, "_ifinvSearchQuery が JS に存在しない"
+    assert "_ifinvUnusedOnly" in js_code, "_ifinvUnusedOnly が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_2e_js_ifinv_search_uses_addeventlistener(ifinv_html):
+    """Phase2E: ifinv-search の oninput は addEventListener で登録される（インライン不使用）"""
+    # ifinv-search input タグに oninput インラインが無いこと
+    m = re.search(r'id="ifinv-search"[^>]*>', ifinv_html)
+    assert m is not None, "ifinv-search が見つからない"
+    tag = m.group(0)
+    assert "oninput" not in tag, \
+        f"ifinv-search に oninput インラインが残っている: {tag!r}"
+
+
+@pytest.mark.unit
+def test_2e_js_ifinv_unused_toggle_uses_addeventlistener(ifinv_html):
+    """Phase2E: ifinv-unused-toggle の onchange は addEventListener で登録される（インライン不使用）"""
+    m = re.search(r'id="ifinv-unused-toggle"[^>]*>', ifinv_html)
+    assert m is not None, "ifinv-unused-toggle が見つからない"
+    tag = m.group(0)
+    assert "onchange" not in tag, \
+        f"ifinv-unused-toggle に onchange インラインが残っている: {tag!r}"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-13: sortIfTable の data-col / data-label ベース（colOrder ドリフト解消）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_ifinv_th_has_data_col_attribute(ifinv_html):
+    """Phase2E: ifinv テーブルの全 th に data-col 属性が付く"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    ifaces = [{"id": "r1::eth0", "device": "r1", "name": "eth0",
+               "ip": None, "admin_status": "up", "mtu": None, "vlan": None,
+               "l2_l3": None, "description": None}]
+    result = _build_ifinv_table(devices, ifaces)
+    # <th ...> タグのみ抽出（<thead> は除外）
+    th_tags = re.findall(r'<th\s[^>]*>', result)
+    assert len(th_tags) > 0, "ifinv テーブルに th が見つからない"
+    for th in th_tags:
+        assert 'data-col="' in th, f"th に data-col が付いていない: {th!r}"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_th_has_data_label_attribute(ifinv_html):
+    """Phase2E: ifinv テーブルの全 th に data-label 属性が付く（▲▼書き換え安全のため）"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    ifaces = [{"id": "r1::eth0", "device": "r1", "name": "eth0",
+               "ip": None, "admin_status": "up", "mtu": None, "vlan": None,
+               "l2_l3": None, "description": None}]
+    result = _build_ifinv_table(devices, ifaces)
+    # <th ...> タグのみ抽出（<thead> は除外）
+    th_tags = re.findall(r'<th\s[^>]*>', result)
+    assert len(th_tags) > 0, "ifinv テーブルに th が見つからない"
+    for th in th_tags:
+        assert 'data-label="' in th, f"th に data-label が付いていない: {th!r}"
+
+
+@pytest.mark.unit
+def test_2e_ifinv_sort_uses_data_col_not_hardcoded_order(ifinv_html):
+    """Phase2E: sortIfTable が colOrder ハードコードを使わず DOM data-col から列順を取得する"""
+    js_block_m = re.search(r'<script>(.*?)</script>', ifinv_html, re.DOTALL)
+    assert js_block_m, "JS ブロックが見つからない"
+    js_code = js_block_m.group(1)
+    # ハードコード colOrder 配列が無いこと（廃止）
+    assert "var colOrder = [" not in js_code, \
+        "JS に colOrder ハードコード配列が残っている（廃止すべき）"
+    # data-col を参照するコードが存在すること
+    assert "data-col" in js_code, "sortIfTable が data-col 属性を参照していない"
+
+
+# ---------------------------------------------------------------------------
+# T-2E-14: status 集計 other（未知ステータス）の堅牢化
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_2e_build_ifinv_table_unknown_status_handled():
+    """Phase2E: 未知 admin_status が other/サイレントドロップされず集計に現れる"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = [{"id": "r1", "hostname": "R1"}]
+    ifaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0",
+         "ip": None, "admin_status": "unknown-state",  # 未知ステータス
+         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
+        {"id": "r1::eth1", "device": "r1", "name": "eth1",
+         "ip": None, "admin_status": None,  # None ステータス
+         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
+    ]
+    result = _build_ifinv_table(devices, ifaces)
+    # 例外なく文字列が返ること（最低条件）
+    assert isinstance(result, str)
+    # up/down/admin-down が 0 であること（他 2 件は other 扱い）
+    assert "up: 0</span>" in result, f"up: 0 が見当たらない: {result[:300]!r}"
+    assert "down: 0</span>" in result, f"down: 0 が見当たらない"
+    assert "admin-down: 0</span>" in result, f"admin-down: 0 が見当たらない"

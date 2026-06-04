@@ -704,6 +704,7 @@ def _build_view_tabs(view_ids: list[str]) -> str:
         "physical": "Physical",
         "bgp": "BGP",
         "ospf": "OSPF",
+        "ifinv": "IF一覧",
     }
     tabs = []
     for vid in view_ids:
@@ -714,3 +715,167 @@ def _build_view_tabs(view_ids: list[str]) -> str:
             f'onclick="selectView(this.dataset.view)">{_esc(label)}</button>'
         )
     return "\n".join(tabs)
+
+
+def _count_if_status(ifaces: list[dict]) -> tuple[int, int, int, int]:
+    """IF リストから admin_status を集計し (up, down, admin_down, other) のタプルを返す。
+
+    既知の3種 (up/down/admin-down) 以外の値（None 含む）は other にカウントし
+    サイレントドロップしない。
+
+    Args:
+        ifaces: interfaces リスト
+
+    Returns:
+        (count_up, count_down, count_admin_down, count_other)
+    """
+    count_up = count_down = count_admin_down = count_other = 0
+    for iface in ifaces:
+        st = (iface.get("admin_status") or "").lower()
+        if st == "up":
+            count_up += 1
+        elif st == "down":
+            count_down += 1
+        elif st == "admin-down":
+            count_admin_down += 1
+        else:
+            count_other += 1
+    return count_up, count_down, count_admin_down, count_other
+
+
+def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
+    """全機器の IF 横断一覧テーブル HTML を生成して返す。
+
+    行は device_id → IF 名の辞書順で決定的に並ぶ。
+    各行に ``data-iface-id`` を付与し、将来の編集フック（editable 化）に備える。
+
+    未使用候補（IP 無し かつ admin_status が down または admin-down）の行には
+    ``data-unused="1"`` を付与する。
+
+    表上部に status 集計（up / down / admin-down 件数）を表示する。
+    既知3種以外の admin_status は other にカウントし（サイレントドロップしない）、
+    件数が 1 以上の場合のみバッジとして表示する。
+
+    Args:
+        devices: topology の devices リスト（id/hostname）
+        interfaces: topology の interfaces リスト（Phase2D 以降の拡張フィールドを含む）
+
+    Returns:
+        HTML 文字列（#view-ifinv-table div 全体）
+    """
+    # device_id -> hostname マップ（表の Device 列用）
+    dev_hostname: dict[str, str] = {
+        d["id"]: d.get("hostname", d["id"]) for d in devices
+    }
+
+    # IF を device_id → IF 名 の辞書順でソート（決定性保証）
+    sorted_ifaces = sorted(interfaces, key=lambda i: (i.get("device", ""), i.get("name", "")))
+
+    # status 集計（ヘルパーに委譲）
+    count_up, count_down, count_admin_down, count_other = _count_if_status(sorted_ifaces)
+
+    # 集計バー（other は件数>0 の場合のみ表示）
+    other_badge = (
+        f'<span class="ifinv-badge" style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;">'
+        f'other: {count_other}</span>'
+        if count_other > 0 else ""
+    )
+    summary_html = (
+        f'<div class="ifinv-summary">'
+        f'<span class="ifinv-badge ifinv-badge-up">up: {count_up}</span>'
+        f'<span class="ifinv-badge ifinv-badge-down">down: {count_down}</span>'
+        f'<span class="ifinv-badge ifinv-badge-admindown">admin-down: {count_admin_down}</span>'
+        f'{other_badge}'
+        f'</div>'
+    )
+
+    # 検索・フィルタ UI（DC5: イベントは addEventListener で登録 → インライン不使用）
+    search_filter_html = (
+        f'<div class="ifinv-toolbar">'
+        f'<input type="search" id="ifinv-search" placeholder="Device / IF / IP / Description...">'
+        f'<label class="ifinv-filter-label">'
+        f'<input type="checkbox" id="ifinv-unused-toggle"> '
+        f'未使用のみ表示</label>'
+        f'</div>'
+    )
+
+    # テーブルヘッダ（列ソート: onclick）
+    # 列定義が単一の真実源（colOrder は DOM data-col から取得するため列追加時はここだけ変更）
+    columns = [
+        ("device", "Device"),
+        ("name", "Interface"),
+        ("ip", "IP"),
+        ("admin_status", "Status"),
+        ("mtu", "MTU"),
+        ("vlan", "VLAN"),
+        ("l2_l3", "L2L3"),
+        ("description", "Description"),
+    ]
+    header_cells = []
+    for col_key, col_label in columns:
+        header_cells.append(
+            f'<th class="ifinv-th" data-col="{_esc(col_key)}" data-label="{_esc(col_label)}" '
+            f'onclick="sortIfTable(\'{_esc(col_key)}\')" style="cursor:pointer;" '
+            f'title="クリックでソート">{_esc(col_label)}</th>'
+        )
+    thead = f'<thead><tr>{"".join(header_cells)}</tr></thead>'
+
+    # テーブル行
+    rows = []
+    for iface in sorted_ifaces:
+        dev_id = iface.get("device", "")
+        iface_id = iface.get("id", "")
+        name = iface.get("name", "")
+        ip = iface.get("ip") or ""
+        admin_status = iface.get("admin_status") or ""
+        mtu = iface.get("mtu")
+        vlan = iface.get("vlan")
+        l2_l3 = iface.get("l2_l3") or ""
+        description = iface.get("description") or ""
+        hostname = dev_hostname.get(dev_id, dev_id)
+
+        # 未使用候補判定: IP 無し かつ down 系
+        st_lower = admin_status.lower()
+        is_unused = (not ip) and (st_lower in ("down", "admin-down"))
+        unused_attr = ' data-unused="1"' if is_unused else ""
+
+        # 検索用テキスト（device / IF 名 / IP / description）
+        search_text = f"{hostname} {name} {ip} {description}".lower()
+
+        # MTU / VLAN は数値 or 空
+        mtu_str = str(mtu) if mtu is not None else ""
+        vlan_str = str(vlan) if vlan is not None else ""
+
+        # 将来の editable フック: data-iface-id が差込点（編集 UI は実装しない）
+        row_attrs = (
+            f' data-iface-id="{_esc(iface_id)}"'
+            f' data-device="{_esc(dev_id)}"'
+            f'{unused_attr}'
+            f' data-search="{_esc(search_text)}"'
+        )
+        cells = [
+            f'<td>{_esc(hostname)}</td>',
+            f'<td>{_esc(name)}</td>',
+            f'<td>{_esc(ip)}</td>',
+            f'<td>{_esc(admin_status)}</td>',
+            f'<td data-num="{_esc(mtu_str)}">{_esc(mtu_str)}</td>',
+            f'<td data-num="{_esc(vlan_str)}">{_esc(vlan_str)}</td>',
+            f'<td>{_esc(l2_l3)}</td>',
+            f'<td>{_esc(description)}</td>',
+        ]
+        rows.append(f'<tr{row_attrs}>{"".join(cells)}</tr>')
+
+    tbody_rows = "\n".join(rows)
+    tbody = f'<tbody id="ifinv-table-body">{tbody_rows}</tbody>'
+
+    table_html = f'<table class="ifinv-table">{thead}{tbody}</table>'
+
+    # 全体コンテナ（初期非表示: selectView('ifinv') で表示）
+    return (
+        f'<div id="view-ifinv-table" style="display:none" '
+        f'class="ifinv-container">'
+        f'{summary_html}'
+        f'{search_filter_html}'
+        f'{table_html}'
+        f'</div>'
+    )

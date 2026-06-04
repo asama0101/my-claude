@@ -13,6 +13,7 @@ from lib.rendering.svg import _build_ip_to_device, _esc, _make_iface_by_device, 
 from lib.rendering.template import _layer_toggles, _node_filter_ui, build_html
 from lib.rendering.views import (
     _bgp_has_resolved_edges,
+    _build_ifinv_table,
     _build_physical_layout,
     _build_view_bgp,
     _build_view_generic,
@@ -365,8 +366,8 @@ def render(topology: dict) -> str:
         proto_views.append(view_svg)
         proto_view_ids.append(proto_key)
 
-    # ビュー ID リスト（タブ生成用）— L3 は削除
-    all_view_ids = ["physical"] + proto_view_ids
+    # ビュー ID リスト（タブ生成用）— L3 は削除。ifinv は常に末尾に追加
+    all_view_ids = ["physical"] + proto_view_ids + ["ifinv"]
 
     # SVG 内の全ビューを結合
     all_views_svg = "\n".join(
@@ -461,6 +462,11 @@ def render(topology: dict) -> str:
     # ノードフィルタ UI（hostname 昇順チェックリスト）
     node_filter_html = _node_filter_ui(devices)
 
+    # ---------------------------------------------------------------------------
+    # Phase2E: IF 一覧テーブル HTML（全機器横断・決定的）
+    # ---------------------------------------------------------------------------
+    ifinv_table_html = _build_ifinv_table(devices, interfaces)
+
     return build_html(
         title=title,
         layer_hide_css=layer_hide_css,
@@ -474,4 +480,5 @@ def render(topology: dict) -> str:
         all_views_svg=all_views_svg,
         cards_html=cards_html,
         topology_json_safe=topology_json_safe,
+        ifinv_table_html=ifinv_table_html,
     )

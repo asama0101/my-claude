@@ -571,6 +571,101 @@ _CSS = """\
     /* 多ノードC: カード絞り込み（選択外カードを非表示） */
     .card-unselected {
       display: none;
+    }
+
+    /* ============================================================
+     * Phase2E: IF 一覧/棚卸しビュー
+     * ============================================================ */
+
+    /* IF一覧コンテナ（#svg-container と同じ上ペイン内に存在） */
+    .ifinv-container {
+      overflow: auto;
+      flex: 1;
+      min-height: 120px;
+      background: #fff;
+      padding: 12px 20px;
+      box-sizing: border-box;
+    }
+
+    /* status 集計バー */
+    .ifinv-summary {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .ifinv-badge {
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-family: var(--font-mono);
+    }
+
+    .ifinv-badge-up { background: #d1fae5; color: #065f46; }
+    .ifinv-badge-down { background: #fee2e2; color: #991b1b; }
+    .ifinv-badge-admindown { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+
+    /* ツールバー（検索・フィルタ） */
+    .ifinv-toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    #ifinv-search {
+      padding: 4px 10px;
+      font-size: 0.85rem;
+      border: 1px solid var(--color-card-border);
+      border-radius: 4px;
+      min-width: 260px;
+    }
+
+    .ifinv-filter-label {
+      font-size: 0.83rem;
+      cursor: pointer;
+    }
+
+    /* IF 一覧テーブル */
+    .ifinv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .ifinv-th {
+      text-align: left;
+      padding: 4px 8px;
+      background: #f3f4f6;
+      color: #6b7280;
+      font-weight: 600;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .ifinv-th:hover { background: #e5e7eb; }
+
+    .ifinv-table td {
+      padding: 3px 8px;
+      border-bottom: 1px solid #f3f4f6;
+      font-family: var(--font-mono);
+      word-break: break-all;
+    }
+
+    .ifinv-table tr:last-child td { border-bottom: none; }
+
+    /* 未使用候補行のハイライト */
+    .ifinv-table tr[data-unused="1"] td {
+      background: #fff7ed;
+      color: #92400e;
+    }
+
+    /* 検索/フィルタ非表示（_applyIfFilters により ifinv-row-hidden に一本化） */
+    .ifinv-row-hidden {
+      display: none !important;
     }\
 """
 
@@ -587,15 +682,47 @@ _JS = """\
     function selectView(viewId) {
       _currentView = viewId;
 
-      // ビュー <g> の表示切替
-      var views = document.querySelectorAll('.view');
-      views.forEach(function(v) {
-        if (v.classList.contains('view-' + viewId)) {
-          v.style.display = '';
-        } else {
-          v.style.display = 'none';
+      var ifinvTable = document.getElementById('view-ifinv-table');
+      var svgContainer = document.getElementById('svg-container');
+      var zoomControls = document.getElementById('zoom-controls');
+      var chipLegend = document.getElementById('chip-legend');
+
+      if (viewId === 'ifinv') {
+        // ifinv ビュー: SVG コンテナを隠し、IF 一覧テーブルを表示
+        // 図系 UI（ズームボタン・チップ凡例）は ifinv に無関係なので非表示
+        // 非SVGビュー追加時はここに同様の分岐を追加するか、
+        // 各ビューコンテナに data-view-type="table" 等を付与してデータ駆動化する
+        if (svgContainer) svgContainer.style.display = 'none';
+        if (zoomControls) zoomControls.style.display = 'none';
+        if (chipLegend) chipLegend.style.display = 'none';
+        if (ifinvTable) ifinvTable.style.display = '';
+      } else {
+        // SVG ビュー（physical/bgp/ospf 等）: IF 一覧テーブルを隠し、SVG コンテナを表示
+        if (ifinvTable) ifinvTable.style.display = 'none';
+        if (svgContainer) svgContainer.style.display = '';
+        if (zoomControls) zoomControls.style.display = '';
+        if (chipLegend) chipLegend.style.display = '';
+
+        // ビュー <g> の表示切替
+        var views = document.querySelectorAll('.view');
+        views.forEach(function(v) {
+          if (v.classList.contains('view-' + viewId)) {
+            v.style.display = '';
+          } else {
+            v.style.display = 'none';
+          }
+        });
+
+        // viewBox を選択ビューの data-bbox にセット（SVG はコンテナ 100% 固定）
+        var activeView = document.querySelector('.view-' + viewId);
+        if (activeView) {
+          var bbox = activeView.getAttribute('data-bbox');
+          if (bbox) {
+            var svg = document.getElementById('topology-svg');
+            svg.setAttribute('viewBox', bbox);
+          }
         }
-      });
+      }
 
       // タブのアクティブ状態更新
       var tabs = document.querySelectorAll('.view-tab');
@@ -607,20 +734,12 @@ _JS = """\
         }
       });
 
-      // viewBox を選択ビューの data-bbox にセット（SVG はコンテナ 100% 固定）
-      var activeView = document.querySelector('.view-' + viewId);
-      if (activeView) {
-        var bbox = activeView.getAttribute('data-bbox');
-        if (bbox) {
-          var svg = document.getElementById('topology-svg');
-          svg.setAttribute('viewBox', bbox);
+      // 検索状態をリセット（SVG ビューのみ）
+      if (viewId !== 'ifinv') {
+        var searchInput = document.getElementById('search-input');
+        if (searchInput && searchInput.value) {
+          filterNodes(searchInput.value);
         }
-      }
-
-      // 検索状態をリセット
-      var searchInput = document.getElementById('search-input');
-      if (searchInput && searchInput.value) {
-        filterNodes(searchInput.value);
       }
     }
 
@@ -738,7 +857,7 @@ _JS = """\
         // viewBox の全4要素（minX minY W H）を parse して centering を補正
         var vb = svg.getAttribute('viewBox');
         if (vb) {
-          var parts = vb.split(/\s+/);
+          var parts = vb.split(' ');
           if (parts.length === 4) {
             var vbX = parseFloat(parts[0]);  // min-x（0 以外になりうる）
             var vbY = parseFloat(parts[1]);  // min-y（0 以外になりうる）
@@ -1441,7 +1560,115 @@ _JS = """\
       if (cb) {
         cb.addEventListener('change', _updateCardFilter);
       }
-    })();\
+    })();
+
+    // ============================================================
+    // Phase2E: IF 一覧/棚卸しビュー — 検索・ソート・未使用トグル
+    // ============================================================
+
+    // 検索クエリ状態と未使用トグル状態（単一の真実源）
+    var _ifinvSearchQuery = '';
+    var _ifinvUnusedOnly = false;
+
+    // _applyIfFilters: 検索クエリ (_ifinvSearchQuery) と未使用トグル (_ifinvUnusedOnly) の
+    // 両条件 AND で全行の表示/非表示を一括再評価する。
+    // 検索ハンドラ・未使用トグルハンドラの両方がこの関数を呼ぶ（独立制御を廃止）。
+    function _applyIfFilters() {
+      var q = _ifinvSearchQuery.toLowerCase().trim();
+      var rows = document.querySelectorAll('#ifinv-table-body tr');
+      rows.forEach(function(row) {
+        var searchVal = (row.getAttribute('data-search') || '').toLowerCase();
+        var matchSearch = !q || searchVal.indexOf(q) !== -1;
+        var matchUnused = !_ifinvUnusedOnly || row.getAttribute('data-unused') === '1';
+        // 両条件を AND で評価して表示/非表示を決定（クラスは ifinv-row-hidden に一本化）
+        if (matchSearch && matchUnused) {
+          row.classList.remove('ifinv-row-hidden');
+        } else {
+          row.classList.add('ifinv-row-hidden');
+        }
+      });
+    }
+
+    // filterIfRows: 検索クエリ更新 → _applyIfFilters() 呼び出し
+    function filterIfRows(query) {
+      _ifinvSearchQuery = query || '';
+      _applyIfFilters();
+    }
+
+    // toggleUnused: 未使用トグル状態更新 → _applyIfFilters() 呼び出し
+    function toggleUnused(checked) {
+      _ifinvUnusedOnly = checked;
+      _applyIfFilters();
+    }
+
+    // ifinv-search / ifinv-unused-toggle のイベント登録（DC5: addEventListener）
+    (function() {
+      var searchInput = document.getElementById('ifinv-search');
+      if (searchInput) {
+        searchInput.addEventListener('input', function() {
+          filterIfRows(searchInput.value);
+        });
+      }
+      var unusedToggle = document.getElementById('ifinv-unused-toggle');
+      if (unusedToggle) {
+        unusedToggle.addEventListener('change', function() {
+          toggleUnused(unusedToggle.checked);
+        });
+      }
+    })();
+
+    // _ifinvSortState: {col: string, asc: boolean} — ソート状態
+    var _ifinvSortState = { col: null, asc: true };
+
+    // sortIfTable: IF 一覧テーブルをクリック列でソート（昇順/降順トグル）
+    // 列インデックスは DOM の data-col から取得（colOrder ハードコードを廃止）。
+    // 将来 th に子要素が入っても壊れないよう data-label で元ラベルを保持し
+    // th.textContent を label + 記号で書き換える。
+    // MTU/VLAN 列（data-num 属性が存在）は数値ソート、他は文字列ソート。
+    function sortIfTable(col) {
+      var tbody = document.getElementById('ifinv-table-body');
+      if (!tbody) return;
+      var asc = (_ifinvSortState.col === col) ? !_ifinvSortState.asc : true;
+      _ifinvSortState = { col: col, asc: asc };
+
+      // ヘッダの昇降指示記号を更新（data-label で元ラベルを取得してから書き換え）
+      var colIdx = -1;
+      var colHeaders = document.querySelectorAll('.ifinv-th');
+      colHeaders.forEach(function(th, idx) {
+        var colKey = th.getAttribute('data-col');
+        var label = th.getAttribute('data-label') || th.textContent.replace(/[ \t]*[▲▼]$/, '');
+        if (colKey === col) {
+          th.textContent = label + (asc ? ' ▲' : ' ▼');
+          colIdx = idx;
+        } else {
+          th.textContent = label;
+        }
+      });
+      if (colIdx === -1) return;
+
+      var rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort(function(a, b) {
+        var cellA = a.querySelectorAll('td')[colIdx];
+        var cellB = b.querySelectorAll('td')[colIdx];
+        if (!cellA || !cellB) return 0;
+        // 数値列（mtu/vlan）は data-num 属性で判定
+        var numA = cellA.getAttribute('data-num');
+        var numB = cellB.getAttribute('data-num');
+        var valA, valB;
+        if (numA !== null && numB !== null) {
+          // 数値ソート（空は末尾）
+          valA = numA === '' ? Infinity : parseFloat(numA);
+          valB = numB === '' ? Infinity : parseFloat(numB);
+          return asc ? valA - valB : valB - valA;
+        } else {
+          valA = (cellA.textContent || '').toLowerCase();
+          valB = (cellB.textContent || '').toLowerCase();
+          return asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+      });
+
+      rows.forEach(function(row) { tbody.appendChild(row); });
+    }\
 """
 
 
@@ -1520,6 +1747,7 @@ def build_html(
     all_views_svg: str,
     cards_html: str,
     topology_json_safe: str,
+    ifinv_table_html: str = "",
 ) -> str:
     """HTML シェルを組み立てて返す"""
     return f"""<!DOCTYPE html>
@@ -1587,6 +1815,9 @@ def build_html(
         <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip if-chip-loopback"><circle cx="6" cy="6" r="5"/></g></svg><span>Loopback</span>
       </div>
     </div>
+
+    <!-- Phase2E: IF 一覧/棚卸しビュー（ifinv 選択時のみ表示・初期非表示） -->
+    {ifinv_table_html}
 
     <!-- 境界ディバイダ（ドラッグで上下ペイン高を可変） -->
     <div id="split-divider"></div>
