@@ -2,3 +2,7 @@
 **/superpowers/
 __pycache__/
 *.pyc
+.venv/
+runbook-check-workspace/
+runbook-check/review-work/
+runbook-check/.venv/

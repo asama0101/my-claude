@@ -17,3 +17,5 @@ __pycache__/
 .coverage
 # Jupyter 自動保存の残骸
 .ipynb_checkpoints/
+# 一時チェック/検証スクリプト（開発中のみ使用、リポジトリには含めない）
+.claude/skills/config-topology/dev/_*.py
