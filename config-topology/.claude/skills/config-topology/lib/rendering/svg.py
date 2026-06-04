@@ -773,28 +773,63 @@ def _svg_bgp_edges(
         x1, y1 = positions[dev_id]
         x2, y2 = positions[neighbor_dev]
 
-        # チップアンカー（代表エントリの local_ip を使用）
+        # チップアンカー（A6c: af 対応解決 — sessions を走査して解決できる最初のセッションを使う）
         if chip_positions is not None:
-            local_ip_raw = repr_entry.get("local_ip") or ""
-            neighbor_ip_raw = repr_entry.get("neighbor_ip") or ""
-            # A 側: local_ip → iface_id → chip_pos
-            if local_ip_raw:
-                a_iface_id = ip_to_iface_id.get(local_ip_raw)
-                if a_iface_id and a_iface_id in chip_positions:
-                    x1, y1 = chip_positions[a_iface_id]
-            else:
-                # local_ip=null（iBGP Loopback 源）: 当該デバイスの Loopback チップを探す
-                lb_candidates = sorted(
-                    iface_id for iface_id in chip_positions
-                    if iface_id.startswith(f"{dev_id}::")
-                    and _is_loopback(iface_id[len(dev_id) + 2:])
+            # A 側: dev_id 側のセッションを決定的順（af→neighbor_ip ソート順）に走査し、
+            # local_ip が chip_positions に解決できる最初のセッションのチップ座標を使う。
+            # local_ip が全て null（iBGP Loopback 源）のフォールバックは維持。
+            # ※ sessions には双方向エントリが混在するため dev_id でフィルタする。
+            sorted_sessions = sorted(
+                sessions,
+                key=lambda t: (t[2].get("af", "v4"), t[2].get("neighbor_ip", "")),
+            )
+            a_side = [(s_dev, s_nbr, sess) for s_dev, s_nbr, sess in sorted_sessions if s_dev == dev_id]
+            b_side = [(s_dev, s_nbr, sess) for s_dev, s_nbr, sess in sorted_sessions if s_dev == neighbor_dev]
+            # フォールバック: dev_id フィルタで空になる場合（逆向きのみの場合）は全体を使う
+            if not a_side:
+                a_side = sorted_sessions
+            if not b_side:
+                b_side = sorted_sessions
+
+            a_anchored = False
+            for _, _, sess_a in a_side:
+                local_ip_raw = sess_a.get("local_ip") or ""
+                if local_ip_raw:
+                    a_iface_id = ip_to_iface_id.get(local_ip_raw)
+                    if a_iface_id and a_iface_id in chip_positions:
+                        x1, y1 = chip_positions[a_iface_id]
+                        a_anchored = True
+                        break
+            if not a_anchored:
+                # local_ip が全て null か全て解決失敗: iBGP Loopback フォールバック
+                has_any_local_ip = any(
+                    (sess.get("local_ip") or "") for _, _, sess in a_side
                 )
-                if lb_candidates:
-                    x1, y1 = chip_positions[lb_candidates[0]]
-            # B 側: neighbor_ip → iface_id → chip_pos
-            b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
-            if b_iface_id and b_iface_id in chip_positions:
-                x2, y2 = chip_positions[b_iface_id]
+                if not has_any_local_ip:
+                    lb_candidates = sorted(
+                        iface_id for iface_id in chip_positions
+                        if iface_id.startswith(f"{dev_id}::")
+                        and _is_loopback(iface_id[len(dev_id) + 2:])
+                    )
+                    if lb_candidates:
+                        x1, y1 = chip_positions[lb_candidates[0]]
+            # B 側: neighbor_dev 側のセッションで neighbor_ip が解決できる最初のものを使う
+            for _, _, sess_b in b_side:
+                neighbor_ip_raw = sess_b.get("local_ip") or ""  # B側から見た local_ip = A側の neighbor_ip
+                if neighbor_ip_raw:
+                    b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
+                    if b_iface_id and b_iface_id in chip_positions:
+                        x2, y2 = chip_positions[b_iface_id]
+                        break
+            # B 側: b_side が空か全て解決失敗の場合は a_side の neighbor_ip でフォールバック
+            if (x2, y2) == tuple(positions[neighbor_dev]):
+                for _, _, sess_a in a_side:
+                    neighbor_ip_raw = sess_a.get("neighbor_ip") or ""
+                    if neighbor_ip_raw:
+                        b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
+                        if b_iface_id and b_iface_id in chip_positions:
+                            x2, y2 = chip_positions[b_iface_id]
+                            break
 
         css_class = f"bgp-edge bgp-{_esc(bgp_type)} layer-bgp"
 
@@ -826,6 +861,11 @@ def _svg_bgp_edges(
             elif neighbor_ip:
                 ip_pairs.append(_esc(neighbor_ip))
 
+        # A4: dual-stack 時は v4/v6 ペアを別リストに分ける（":" 有無で判定）
+        v4_pairs = [p for p in ip_pairs if ":" not in p]
+        v6_pairs = [p for p in ip_pairs if ":" in p]
+        is_dual_stack = bool(v4_pairs and v6_pairs)
+
         ip_label = " / ".join(ip_pairs)
 
         # <title> に完全情報（AS + 全 IP ペア）を埋め込む
@@ -834,16 +874,30 @@ def _svg_bgp_edges(
             title_parts.append(ip_label)
         title_text = " | ".join(title_parts)
 
-        # バッジ: 上段に type/AS、下段に IP を2行表示
-        # SVG text は tspan で複数行化
+        # バッジ: 上段に type/AS、以降は IP ペア行
+        # dual-stack 時: v4ペア行 + v6ペア行 = 最大3行
+        # single-stack 時: 従来通り 2行（type/AS + IPペア）
         if ip_label:
-            badge_svg = (
-                f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
-                f'class="bgp-badge layer-bgp">'
-                f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
-                f'<tspan x="{mx:.1f}" dy="12">{ip_label}</tspan>'
-                f'</text>'
-            )
+            if is_dual_stack:
+                # v4 行 + v6 行を別 tspan で表現
+                v4_label = " / ".join(v4_pairs)
+                v6_label = " / ".join(v6_pairs)
+                badge_svg = (
+                    f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
+                    f'class="bgp-badge layer-bgp">'
+                    f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
+                    f'<tspan x="{mx:.1f}" dy="12">{v4_label}</tspan>'
+                    f'<tspan x="{mx:.1f}" dy="12">{v6_label}</tspan>'
+                    f'</text>'
+                )
+            else:
+                badge_svg = (
+                    f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
+                    f'class="bgp-badge layer-bgp">'
+                    f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
+                    f'<tspan x="{mx:.1f}" dy="12">{ip_label}</tspan>'
+                    f'</text>'
+                )
         else:
             badge_svg = (
                 f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '
@@ -1094,5 +1148,57 @@ def _build_ip_to_iface_id(interfaces: list[dict]) -> dict[str, str]:
                 ip_only = iface["ip"].split("/")[0]
                 result[ip_only] = iface_id
     return result
+
+
+def _format_iface_ip_cell(iface: dict) -> str:
+    """IF の IP アドレスを HTML セル用文字列として返す。
+
+    dual-stack（v4 + v6 GUA）の場合は v4/v6 を個別に _esc() してから
+    '<br>' で連結した HTML 断片を返す（HTML テキストノードで改行が折り畳まれる問題を回避）。
+    single-stack（v4のみ/v6のみ）または空の場合は '<br>' なしの単一文字列を返す。
+
+    cards.py / views.py 双方から import して使用する共通ヘルパー。
+
+    Args:
+        iface: インタフェース辞書
+
+    Returns:
+        HTML セル用文字列。dual-stack: "<v4><br><v6>"、single: "<ip>"、空: ""
+    """
+    ip_val = iface.get("ip") or ""
+    addresses = iface.get("addresses") or []
+
+    if ip_val:
+        # dual-stack 判定: v6 GUA があれば v4<br>v6 形式
+        v6_gua = ""
+        for addr in addresses:
+            if addr.get("af") != "v6":
+                continue
+            if addr.get("scope") == "link-local":
+                continue
+            v6_ip = addr.get("ip", "")
+            v6_prefix = addr.get("prefix")
+            if not v6_ip:
+                continue
+            v6_gua = f"{v6_ip}/{v6_prefix}" if v6_prefix is not None else v6_ip
+            break
+        if v6_gua:
+            return f"{_esc(ip_val)}<br>{_esc(v6_gua)}"
+        return _esc(ip_val)
+
+    # ip が None/空: addresses から先頭 v6 GUA を取得（単一行）
+    for addr in addresses:
+        if addr.get("af") != "v6":
+            continue
+        if addr.get("scope") == "link-local":
+            continue
+        ip_str = addr.get("ip", "")
+        prefix = addr.get("prefix")
+        if not ip_str:
+            continue
+        v6_str = f"{ip_str}/{prefix}" if prefix is not None else ip_str
+        return _esc(v6_str)
+
+    return ""
 
 

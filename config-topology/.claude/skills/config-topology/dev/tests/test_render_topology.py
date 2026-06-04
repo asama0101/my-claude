@@ -9533,7 +9533,7 @@ def test_p3b10_cards_grid_is_display_grid(rendered_html):
 
 @pytest.mark.unit
 def test_p3b10_cards_grid_has_grid_template_columns(rendered_html):
-    """#10: .cards-grid に grid-template-columns が定義されている"""
+    """#10: .cards-grid に grid-template-columns が定義されている（Round A: 縦1列 1fr）"""
     style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
     combined = "\n".join(style_blocks)
     m = re.search(r'\.cards-grid\s*\{([^}]+)\}', combined, re.DOTALL)
@@ -9541,9 +9541,9 @@ def test_p3b10_cards_grid_has_grid_template_columns(rendered_html):
     rule = m.group(1)
     assert "grid-template-columns" in rule, \
         ".cards-grid に grid-template-columns が定義されていない"
-    # repeat(auto-fill, minmax(320px, 1fr)) パターン
-    assert "auto-fill" in rule or "minmax" in rule, \
-        ".cards-grid の grid-template-columns に auto-fill/minmax がない"
+    # Round A A1: 縦1列（1fr）。auto-fill/minmax による複数列は撤廃済み
+    assert "1fr" in rule, \
+        f".cards-grid の grid-template-columns に 1fr がない（縦1列になっていない）: {rule.strip()!r}"
 
 
 @pytest.mark.unit
@@ -13048,3 +13048,282 @@ def test_ifinv_data_search_no_link_local():
     assert "2001:db8:1::1" in all_search
     assert "fe80" not in all_search, \
         f"link-local が data-search に混入: {all_search!r}"
+
+
+# ===========================================================================
+# Round A — Pass1: スタイル・配置改善
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# A1: Device Details を縦1列に（.cards-grid: grid-template-columns: 1fr）
+# ---------------------------------------------------------------------------
+
+def _extract_css_rule(html: str, selector: str) -> str:
+    """HTML の <style> ブロックから指定セレクタの CSS ルール本体を返す。"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    pattern = re.escape(selector) + r'\s*\{([^}]+)\}'
+    m = re.search(pattern, combined, re.DOTALL)
+    return m.group(1) if m else ""
+
+
+@pytest.mark.unit
+def test_roundA_a1_cards_grid_single_column(rendered_html):
+    """A1: .cards-grid が縦1列（grid-template-columns: 1fr）になっている"""
+    rule = _extract_css_rule(rendered_html, ".cards-grid")
+    assert rule, "CSS に .cards-grid ルールが存在しない"
+    assert "grid-template-columns" in rule, \
+        ".cards-grid に grid-template-columns が定義されていない"
+    # 単一列: "1fr" が存在し、auto-fill/minmax による複数列でないこと
+    assert "1fr" in rule, (
+        f".cards-grid の grid-template-columns が 1fr でない（縦1列未実装）: {rule.strip()!r}"
+    )
+    assert "auto-fill" not in rule, (
+        ".cards-grid に auto-fill が残っている（複数列のまま）"
+    )
+    assert "minmax" not in rule, (
+        ".cards-grid に minmax が残っている（複数列のまま）"
+    )
+
+
+@pytest.mark.unit
+def test_roundA_a1_cards_grid_still_display_grid(rendered_html):
+    """A1: .cards-grid が引き続き display:grid を使用している（回帰保護）"""
+    rule = _extract_css_rule(rendered_html, ".cards-grid")
+    assert rule, "CSS に .cards-grid ルールが存在しない"
+    assert "display" in rule and "grid" in rule, \
+        f".cards-grid の display が grid でない: {rule.strip()!r}"
+
+
+# ---------------------------------------------------------------------------
+# A2: BGPバッジと OSPFラベルのフォントサイズ統一
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundA_a2_link_label_css_defined(rendered_html):
+    """A2: CSS に .link-label ルールが定義されている"""
+    rule = _extract_css_rule(rendered_html, ".link-label")
+    assert rule, (
+        "CSS に .link-label ルールが存在しない（OSPFラベルがブラウザ既定フォントのまま）"
+    )
+
+
+@pytest.mark.unit
+def test_roundA_a2_link_label_font_size_matches_bgp_badge(rendered_html):
+    """A2: .link-label と .bgp-badge の font-size が同一値"""
+    link_label_rule = _extract_css_rule(rendered_html, ".link-label")
+    bgp_badge_rule = _extract_css_rule(rendered_html, ".bgp-badge")
+    assert link_label_rule, "CSS に .link-label ルールが存在しない"
+    assert bgp_badge_rule, "CSS に .bgp-badge ルールが存在しない"
+
+    def _extract_font_size(rule_text: str) -> str:
+        m = re.search(r'font-size\s*:\s*([^;]+)', rule_text)
+        return m.group(1).strip() if m else ""
+
+    fs_link_label = _extract_font_size(link_label_rule)
+    fs_bgp_badge = _extract_font_size(bgp_badge_rule)
+    assert fs_link_label, f".link-label に font-size が定義されていない: {link_label_rule.strip()!r}"
+    assert fs_bgp_badge, f".bgp-badge に font-size が定義されていない: {bgp_badge_rule.strip()!r}"
+    assert fs_link_label == fs_bgp_badge, (
+        f".link-label の font-size ({fs_link_label}) が .bgp-badge ({fs_bgp_badge}) と異なる"
+    )
+
+
+@pytest.mark.unit
+def test_roundA_a2_link_label_has_mono_font(rendered_html):
+    """A2: .link-label が monospace フォントファミリーを指定している"""
+    rule = _extract_css_rule(rendered_html, ".link-label")
+    assert rule, "CSS に .link-label ルールが存在しない"
+    assert "font-family" in rule or "font-mono" in rule or "monospace" in rule.lower() or "Consolas" in rule, (
+        f".link-label にモノスペースフォント指定がない: {rule.strip()!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# A3: OSPFラベルの配色（黒脱却）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundA_a3_link_label_has_fill(rendered_html):
+    """A3: .link-label に fill が定義されている（SVGテキスト色指定）"""
+    rule = _extract_css_rule(rendered_html, ".link-label")
+    assert rule, "CSS に .link-label ルールが存在しない"
+    assert "fill" in rule, (
+        f".link-label に fill が定義されていない（黒のまま）: {rule.strip()!r}"
+    )
+
+
+@pytest.mark.unit
+def test_roundA_a3_link_label_fill_not_black(rendered_html):
+    """A3: .link-label の fill が黒（#000/#000000）でない"""
+    rule = _extract_css_rule(rendered_html, ".link-label")
+    assert rule, "CSS に .link-label ルールが存在しない"
+    fill_m = re.search(r'fill\s*:\s*([^;]+)', rule)
+    assert fill_m, f".link-label に fill が定義されていない: {rule.strip()!r}"
+    fill_val = fill_m.group(1).strip().lower()
+    assert fill_val not in ("#000", "#000000", "black", "inherit", "initial", "unset"), (
+        f".link-label の fill が黒/既定値: {fill_val!r}（OSPFテーマ色で明示すること）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# A7: ノード間隔縮小 — _CANVAS_FACTOR の更なる縮小・20台 no-overlap
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundA_a7_canvas_factor_smaller_than_current():
+    """A7: _CANVAS_FACTOR_W / _CANVAS_FACTOR_H が現行値（8/7）よりさらに小さい"""
+    from lib.rendering.layout import _CANVAS_FACTOR_W, _CANVAS_FACTOR_H
+    assert _CANVAS_FACTOR_W < 8, (
+        f"_CANVAS_FACTOR_W={_CANVAS_FACTOR_W} が現行値 8 以上（縮小未実施）"
+    )
+    assert _CANVAS_FACTOR_H < 7, (
+        f"_CANVAS_FACTOR_H={_CANVAS_FACTOR_H} が現行値 7 以上（縮小未実施）"
+    )
+
+
+def _load_large_topo_for_test():
+    """large-topo の topology dict を返す。
+
+    evals/inputs/large-topo/*.cfg から build_topology 経由で topology を生成する。
+    /tmp への依存・pytest.skip() は使わず、リポジトリ内フィクスチャのみで完結する。
+    """
+    import os
+    from scripts.parse_configs import parse_paths
+    from scripts.build_topology import build
+
+    fixture_dir = os.path.join(
+        os.path.dirname(__file__), "..", "evals", "inputs", "large-topo"
+    )
+    files = sorted(
+        os.path.join(fixture_dir, f)
+        for f in os.listdir(fixture_dir)
+        if f.endswith(".cfg")
+    )
+    assert files, f"large-topo フィクスチャが空: {fixture_dir}"
+    devices = parse_paths(files)
+    return build(devices, generated_from=files)
+
+
+@pytest.mark.unit
+def test_roundA_a7_no_overlap_large_topo_20nodes():
+    """A7: large-topo 20台（evals/inputs/large-topo）で全ノードペアの矩形が重ならない。
+    build_topology 経由で topology を生成し、_layout_force_directed で検証（決定性も兼ねる）。
+    リポジトリ内フィクスチャ(large-topo/*.cfg)のみで完結し、/tmp 依存・pytest.skip() なし。
+    """
+    from lib.rendering.layout import (
+        _layout_force_directed, _node_size_for, _canvas_size_for_nodes, _adaptive_iter
+    )
+
+    topo = _load_large_topo_for_test()
+
+    devices = topo["devices"]
+    links = topo["links"]
+    interfaces = topo["interfaces"]
+
+    assert len(devices) == 20, f"large-topo は 20台であるべき: {len(devices)}"
+
+    node_ids = [d["id"] for d in devices]
+    edges = [(lk["a_device"], lk["b_device"]) for lk in links]
+    iface_count: dict[str, int] = {}
+    for iface in interfaces:
+        iface_count[iface["device"]] = iface_count.get(iface["device"], 0) + 1
+    node_sizes = {d["id"]: iface_count.get(d["id"], 0) for d in devices}
+
+    n = len(node_ids)
+    est_w, est_h = _canvas_size_for_nodes(n, max_node_h=max(
+        _node_size_for(node_sizes.get(nid, 0))[1] for nid in node_ids
+    ))
+    pos = _layout_force_directed(
+        node_ids, edges, width=est_w, height=est_h,
+        iterations=_adaptive_iter(n), node_sizes=node_sizes,
+    )
+
+    # 決定性チェック: 同一入力で2回呼んで同一座標
+    pos2 = _layout_force_directed(
+        node_ids, edges, width=est_w, height=est_h,
+        iterations=_adaptive_iter(n), node_sizes=node_sizes,
+    )
+    assert pos == pos2, "large-topo でのレイアウトが非決定的（2回の結果が異なる）"
+
+    # 全ペア重なりゼロ
+    for i, na in enumerate(node_ids):
+        for j, nb in enumerate(node_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(node_sizes[na])
+            wb, hb = _node_size_for(node_sizes[nb])
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            min_sep_x = (wa + wb) / 2 + 5
+            min_sep_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= min_sep_x or dy >= min_sep_y
+            assert no_overlap, (
+                f"large-topo: ノード {na} と {nb} が重なっている "
+                f"(dx={dx:.1f} min_sep_x={min_sep_x:.1f}, "
+                f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
+            )
+
+
+@pytest.mark.unit
+def test_roundA_a7_no_overlap_multi_as_area():
+    """A7: 係数縮小後も multi-as-area (7台) でノード重なりゼロ（既存ケース回帰保護）"""
+    from lib.rendering.views import _build_bgp_layout
+    from lib.rendering.layout import _node_size_for
+
+    topo = _make_multi_as_area_topology()
+    pos, _devs = _build_bgp_layout(
+        topo["devices"], topo["routing"].get("bgp", []), topo["interfaces"]
+    )
+    iface_count: dict[str, int] = {}
+    for iface in topo["interfaces"]:
+        iface_count[iface["device"]] = iface_count.get(iface["device"], 0) + 1
+
+    dev_ids = [d["id"] for d in topo["devices"] if d["id"] in pos]
+    for i, na in enumerate(dev_ids):
+        for j, nb in enumerate(dev_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(iface_count.get(na, 0))
+            wb, hb = _node_size_for(iface_count.get(nb, 0))
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            needed_x = (wa + wb) / 2 + 5
+            needed_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= needed_x or dy >= needed_y
+            assert no_overlap, (
+                f"multi-as-area: ノード {na} と {nb} が重なっている "
+                f"(dx={dx:.1f} needed_x={needed_x:.1f}, "
+                f"dy={dy:.1f} needed_y={needed_y:.1f})"
+            )
+
+
+@pytest.mark.unit
+def test_roundA_a7_canvas_smaller_than_current_factors():
+    """A7: 縮小後の _canvas_size_for_nodes(20) が現行係数(8/7)より小さい"""
+    from lib.rendering.layout import (
+        _canvas_size_for_nodes,
+        _NODE_WIDTH, _NODE_HEIGHT, _CANVAS_SCALE_EXP,
+        _MIN_CANVAS_W, _MIN_CANVAS_H,
+    )
+    n = 20
+    w_new, h_new = _canvas_size_for_nodes(n)
+    # 現行係数(8/7)での値を手計算
+    w_old = max(_MIN_CANVAS_W, n * (_NODE_WIDTH + 20) ** _CANVAS_SCALE_EXP * 8)
+    h_old = max(_MIN_CANVAS_H, n * (_NODE_HEIGHT + 20) ** _CANVAS_SCALE_EXP * 7)
+    assert w_new < w_old and h_new < h_old, (
+        f"A7 縮小後({w_new:.0f}x{h_new:.0f})が現行値({w_old:.0f}x{h_old:.0f})より"
+        f"幅・高さともに小さくなっていない"
+    )
+
+
+@pytest.mark.unit
+def test_roundA_a7_deterministic(sample_topology):
+    """A7: 係数縮小後も render() が決定的（2回一致）"""
+    from lib.rendering import render
+    import copy
+    html1 = render(copy.deepcopy(sample_topology))
+    html2 = render(copy.deepcopy(sample_topology))
+    assert html1 == html2, "A7 係数縮小後の render() が非決定的"

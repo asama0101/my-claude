@@ -3,13 +3,18 @@ rendering/cards.py — 機器カード HTML 生成モジュール
 """
 from __future__ import annotations
 
-from lib.rendering.svg import _esc
+from lib.rendering.svg import _esc, _format_iface_ip_cell
 
 
 def _get_display_ip(iface: dict) -> str:
-    """IF の表示用 IP 文字列を返す。
+    """IF の表示用 IP 文字列を返す（内部テキスト・SVG title 用途）。
 
-    Phase 3I [MEDIUM]: v6-only IF（ip=None かつ addresses に v6 GUA あり）の場合、
+    HTML セル表示には _format_iface_ip_cell（svg.py）を使うこと。
+    本関数は <br> を含まない生テキストを返す。
+
+    dual-stack（ip フィールド + addresses に v6 GUA あり）の場合、
+    v4 アドレスと v6 アドレスを '\\n' で結合して返す。
+    v6-only IF（ip=None かつ addresses に v6 GUA あり）の場合、
     addresses の先頭 v6 GUA（link-local 除く）を "ip/prefix" 形式で返す。
     それ以外は iface["ip"] または "" を返す（後方互換）。
 
@@ -17,14 +22,30 @@ def _get_display_ip(iface: dict) -> str:
         iface: インタフェース辞書
 
     Returns:
-        表示用 IP 文字列（"a.b.c.d/prefix" または "addr::/prefix" または ""）
+        表示用 IP 文字列（single: "a.b.c.d/prefix" / dual: "v4\\nv6" / v6-only: "addr::/prefix" / ""）
     """
     ip_val = iface.get("ip") or ""
+    addresses = iface.get("addresses") or []
+
+    # dual-stack 判定: ip フィールド（v4）があり、かつ addresses に v6 GUA がある
     if ip_val:
+        v6_gua = ""
+        for addr in addresses:
+            if addr.get("af") != "v6":
+                continue
+            if addr.get("scope") == "link-local":
+                continue
+            v6_ip = addr.get("ip", "")
+            v6_prefix = addr.get("prefix")
+            if not v6_ip:
+                continue
+            v6_gua = f"{v6_ip}/{v6_prefix}" if v6_prefix is not None else v6_ip
+            break
+        if v6_gua:
+            return f"{ip_val}\n{v6_gua}"
         return ip_val
 
     # ip が None/空: addresses から先頭 v6 GUA を取得
-    addresses = iface.get("addresses") or []
     for addr in addresses:
         if addr.get("af") != "v6":
             continue
@@ -126,12 +147,12 @@ def _device_cards(
             mtu_val = iface.get("mtu")
             mtu_str = str(mtu_val) if mtu_val is not None else ""
             speed_val = iface.get("speed", "")
-            # Phase 3I [MEDIUM]: v6-only IF (ip=None) の IP列に先頭 v6 GUA を表示
-            ip_display = _get_display_ip(iface)
+            # A6a: dual-stack IF の IP セルは _format_iface_ip_cell で <br> 区切り表示
+            ip_cell = _format_iface_ip_cell(iface)
             if_row_parts.append(
                 f"<tr{tr_attrs}>"
                 f"<td>{_esc(iface['name'])}{_esc(shutdown_mark)}</td>"
-                f"<td>{_esc(ip_display)}</td>"
+                f"<td>{ip_cell}</td>"
                 f"<td>{_esc(iface.get('description', ''))}</td>"
                 f"<td>{_esc(admin_status)}</td>"
                 f"<td>{_esc(mtu_str)}</td>"

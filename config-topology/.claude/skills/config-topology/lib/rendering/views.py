@@ -20,6 +20,7 @@ from lib.rendering.svg import (
     _build_ip_to_iface_id,
     _chip_positions,
     _esc,
+    _format_iface_ip_cell,
     _is_loopback,
     _make_link_id,
     _merge_links_by_link_id,
@@ -641,20 +642,45 @@ def _build_view_ospf(
         my = (y1 + y2) / 2 - 15
 
         if ospf_area is not None:
-            # Phase 3H: 統合エッジのラベルに全 subnet を「/」区切りで表示（dual-stack 対応）
+            # A5: dual-stack 時は v4/v6 subnet を別 tspan 行で表示
             if len(subnets) > 1:
-                subnets_label = " / ".join(_esc(s) for s in subnets if s)
-                label_line1 = OSPF_AREA_LABEL_FORMAT.format(
-                    area=_esc(ospf_area), subnet=subnets_label
-                )
+                v4_subnets = [s for s in subnets if s and ":" not in s]
+                v6_subnets = [s for s in subnets if s and ":" in s]
+                is_dual_stack_ospf = bool(v4_subnets and v6_subnets)
+                if is_dual_stack_ospf:
+                    # 1行目: "area X · v4subnet"、2行目以降: v6subnet
+                    v4_label = " / ".join(_esc(s) for s in v4_subnets)
+                    line1 = OSPF_AREA_LABEL_FORMAT.format(
+                        area=_esc(ospf_area), subnet=v4_label
+                    )
+                    extra_tspans = "".join(
+                        f'<tspan x="{mx:.1f}" dy="14">{_esc(s)}</tspan>'
+                        for s in v6_subnets
+                    )
+                    label_elem = (
+                        f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
+                        f'class="link-label layer-ospf">'
+                        f'<tspan x="{mx:.1f}" dy="0">{line1}</tspan>'
+                        f'{extra_tspans}'
+                        f'</text>'
+                    )
+                else:
+                    subnets_label = " / ".join(_esc(s) for s in subnets if s)
+                    label_line1 = OSPF_AREA_LABEL_FORMAT.format(
+                        area=_esc(ospf_area), subnet=subnets_label
+                    )
+                    label_elem = (
+                        f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
+                        f'class="link-label layer-ospf">{label_line1}</text>'
+                    )
             else:
                 label_line1 = OSPF_AREA_LABEL_FORMAT.format(
                     area=_esc(ospf_area), subnet=primary_subnet
                 )
-            label_elem = (
-                f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
-                f'class="link-label layer-ospf">{label_line1}</text>'
-            )
+                label_elem = (
+                    f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
+                    f'class="link-label layer-ospf">{label_line1}</text>'
+                )
         else:
             # ospf_area 欠如: subnet のみ表示（後方互換）
             label_elem = (
@@ -867,14 +893,11 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         description = iface.get("description") or ""
         hostname = dev_hostname.get(dev_id, dev_id)
 
-        # Phase 3I [MEDIUM]: v6-only IF (ip=None) の IP列に先頭 v6 GUA を表示
-        # _get_display_ip と同じロジックをインラインで実装（views は cards に依存しない）
-        ip_v4 = iface.get("ip") or ""
-        if ip_v4:
-            ip = ip_v4
-        else:
-            # v6 GUA フォールバック
-            ip = ""
+        # A6d: IP列 HTML セルは _format_iface_ip_cell で生成（dual-stack は <br> 区切り）
+        ip_cell = _format_iface_ip_cell(iface)
+        # 未使用候補判定・検索テキスト用: ip プレーンテキスト（v4 or v6-GUA）
+        ip = iface.get("ip") or ""
+        if not ip:
             for addr in (iface.get("addresses") or []):
                 if addr.get("af") != "v6":
                     continue
@@ -892,8 +915,7 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         unused_attr = ' data-unused="1"' if is_unused else ""
 
         # 検索用テキスト（device / IF 名 / 全 IP / description）
-        # dual-stack IF の場合、ip 変数は v4 primary のみ保持している。
-        # addresses リストから link-local を除いた全アドレスを追加して v6 を検索可能にする。
+        # addresses リストから link-local を除いた全アドレスを追加して v6 も検索可能にする。
         extra_ips: list[str] = []
         for addr in (iface.get("addresses") or []):
             if addr.get("scope") == "link-local":
@@ -955,7 +977,7 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         cells = [
             f'<td>{_esc(hostname)}</td>',
             f'<td>{_esc(name)}</td>',
-            f'<td>{_esc(ip)}</td>',
+            f'<td>{ip_cell}</td>',
             f'<td>{_esc(admin_status)}</td>',
             f'<td data-num="{_esc(mtu_str)}">{_esc(mtu_str)}</td>',
             f'<td data-num="{_esc(vlan_data_num)}">{_esc(vlan_str)}</td>',

@@ -26,6 +26,7 @@ _CSS = """\
       --color-selected: #ef4444;
       --color-card-bg: #f9fafb;
       --color-card-border: #e5e7eb;
+      --color-ospf: #059669;  /* OSPFラベル・テーマ色（緑系）*/
       --font-main: 'Segoe UI', Arial, sans-serif;
       --font-mono: 'Consolas', 'Courier New', monospace;
     }
@@ -282,8 +283,16 @@ _CSS = """\
     .bgp-unknown { stroke: var(--color-bgp-unknown); }
 
     .bgp-badge {
-      font-size: 9px;
+      font-size: 10px;
       fill: var(--color-bgp-ebgp);
+      pointer-events: none;
+      font-family: var(--font-mono);
+    }
+
+    /* OSPF リンクラベル（A2/A3: bgp-badge と同一フォントサイズ・OSPFテーマ色） */
+    .link-label {
+      font-size: 10px;
+      fill: var(--color-ospf);
       pointer-events: none;
       font-family: var(--font-mono);
     }
@@ -304,7 +313,7 @@ _CSS = """\
 
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      grid-template-columns: 1fr;
       gap: 16px;
     }
 
