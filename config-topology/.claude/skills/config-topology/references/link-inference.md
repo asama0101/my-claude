@@ -15,7 +15,10 @@
 ### 注意点（境界値）
 - 同一機器内に同一サブネットの IF が複数ある異常設定 → メンバー数にそのまま含めるが、`links` では `a_device != b_device` のペアのみ採用（自己ループを作らない）。
 - IP 重複（同一サブネットに同一 IP）→ そのまま members に含め、警告は呼び出し側ログに委ねる（v1 はクラッシュしない方針）。
-- IPv6 は v1 では対象外（`ip` は IPv4 CIDR 前提）。
+- **Phase 3F 以降**: IPv6 グローバルアドレスも対象。`ip` フィールドではなく `addresses` リストの各エントリから `ipaddress.ip_interface(f"{ip}/{prefix}").network` でネットワークを算出してグルーピングする。
+- **link-local（fe80::/10 = `is_link_local`）は結線推論から除外**。`fe80::` 系アドレスで誤結線しない。
+- 同一 IF が同一ネットワークに複数アドレスで属していても members には IF を 1 回のみ登録（重複除去）。
+- **IPv4-only config（`addresses` が空または v4 のみ）では links/segments が従来と完全一致**（後方互換保証）。`addresses` が空の場合は `ip` フィールドにフォールバックする。
 
 ## 2. BGP 対向解決
 1. 各機器の BgpNeighbor について、`neighbor_ip` を全機器の IF IP（ホスト部）と突合。

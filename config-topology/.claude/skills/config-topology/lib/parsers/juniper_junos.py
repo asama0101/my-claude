@@ -6,7 +6,9 @@ Juniper JunOS パーサ（set 形式）
 パース規則（vendor-parsing.md より）:
 - set system host-name X → Device.hostname
 - set interfaces <if> description "X" → description（クォート除去）
-- set interfaces <if> unit N family inet address A.B.C.D/PL → ip
+- set interfaces <if> unit N family inet address A.B.C.D/PL → ip（v4 → L3 判定）
+- set interfaces <if> unit N family inet6 address X:Y:Z/PL → v6（v6 → L3 判定）
+  - fe80::/10（link-local）には scope:"link-local" を付与
 - set interfaces <if> disable → shutdown=True
 - set routing-options autonomous-system <asn> → Device.asn
 - set protocols bgp group <g> neighbor <ip> peer-as <peer> → BgpNeighbor
@@ -20,9 +22,14 @@ IF 名の取り扱い:
 
 from __future__ import annotations
 
+import ipaddress
 import re
 
-from .base import ADMIN_DOWN, ADMIN_UP, L2, L3, BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute
+from .base import (
+    ADMIN_DOWN, ADMIN_UP, AF_V6, L2, L3, SCOPE_LINK_LOCAL,
+    BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute,
+    derive_ip_from_addresses, normalize_v6, sort_addresses,
+)
 
 
 def detect(text: str) -> bool:
@@ -54,6 +61,12 @@ def _strip_quotes(s: str) -> str:
 def parse(text: str) -> Device:
     """
     JunOS set 形式コンフィグをパースして Device を返す。
+
+    Phase 3F 拡張:
+    - family inet address と family inet6 address を addresses リストに収集
+    - addresses は (af 順 v4<v6, ipaddress オブジェクト, prefix) でソート（決定的）
+    - ip フィールドは addresses 中の最初の非 secondary v4 から派生（後方互換）
+    - unit は v1 では IF 名に含めない（unit 集約方針踏襲）
     """
     hostname = ""
     asn: int | None = None
@@ -63,7 +76,7 @@ def parse(text: str) -> Device:
 
     # IF ごとのデータを収集するための辞書
     # key: if_name, value: dict with keys ip, description, shutdown, mtu, speed,
-    #                       encapsulation, l2_flag (bool)
+    #                       encapsulation, l2_flag (bool), addresses (list)
     if_data: dict[str, dict] = {}
 
     def ensure_if(name: str) -> None:
@@ -76,6 +89,7 @@ def parse(text: str) -> Device:
                 "speed": None,
                 "encapsulation": None,
                 "l2_flag": False,   # family ethernet-switching が出現したか
+                "addresses": [],    # Phase 3F: アドレスリスト
             }
 
     for line in text.splitlines():
@@ -101,14 +115,47 @@ def parse(text: str) -> Device:
             continue
 
         # set interfaces <if> unit N family inet address A.B.C.D/PL
-        # 先勝ち: 既に ip が設定済みの場合は上書きしない
         m = re.match(r'^interfaces\s+(\S+)\s+unit\s+\d+\s+family\s+inet\s+address\s+(\S+)', rest)
         if m:
             if_name = m.group(1)
-            ip = m.group(2)
+            cidr = m.group(2)
             ensure_if(if_name)
-            if if_data[if_name]["ip"] is None:
-                if_data[if_name]["ip"] = ip
+            # Phase 3F: addresses に v4 エントリを追加（先勝ち廃止・全アドレス収集）
+            if "/" in cidr:
+                addr_str, prefix_str = cidr.rsplit("/", 1)
+                try:
+                    prefix = int(prefix_str)
+                    if_data[if_name]["addresses"].append(
+                        {"af": "v4", "ip": addr_str, "prefix": prefix}
+                    )
+                    # ip フィールド: 後方互換（最初の v4 を採用・先勝ちは維持）
+                    if if_data[if_name]["ip"] is None:
+                        if_data[if_name]["ip"] = cidr
+                except (ValueError, TypeError):
+                    pass
+            continue
+
+        # set interfaces <if> unit N family inet6 address X:Y:Z/PL（Phase 3F 追加）
+        m = re.match(r'^interfaces\s+(\S+)\s+unit\s+\d+\s+family\s+inet6\s+address\s+(\S+)', rest)
+        if m:
+            if_name = m.group(1)
+            cidr6 = m.group(2)
+            ensure_if(if_name)
+            if "/" in cidr6:
+                addr6_str, prefix6_str = cidr6.rsplit("/", 1)
+                try:
+                    prefix6 = int(prefix6_str)
+                    normalized = normalize_v6(addr6_str)
+                    addr_entry: dict = {"af": AF_V6, "ip": normalized, "prefix": prefix6}
+                    # link-local（fe80::/10）に scope:"link-local" を付与（IOS と対称）
+                    try:
+                        if ipaddress.ip_address(normalized).is_link_local:
+                            addr_entry["scope"] = SCOPE_LINK_LOCAL
+                    except ValueError:
+                        pass
+                    if_data[if_name]["addresses"].append(addr_entry)
+                except (ValueError, TypeError):
+                    pass
             continue
 
         # set interfaces <if> disable
@@ -191,11 +238,20 @@ def parse(text: str) -> Device:
     # IF データを Interface リストに変換（収集順を保持）
     interfaces: list[Interface] = []
     for name, data in if_data.items():
+        # Phase 3F: addresses をソートして確定（base.sort_addresses で DRY）
+        sorted_addrs = sort_addresses(data.get("addresses", []))
+        # ip フィールド: addresses から派生（後方互換）
+        # addresses がある場合は最初の非 secondary v4 から、なければ data["ip"] を信頼
+        if sorted_addrs:
+            derived_ip = derive_ip_from_addresses(sorted_addrs)
+        else:
+            derived_ip = data["ip"]
         # l2_l3 判定（JunOS: family ethernet-switching が L2 判定で優先される）
+        # Phase 3F: v6-only IF（inet6 のみ）でも addresses があれば L3 扱い
         # switchport は常に None（JunOS には switchport コマンドがなく l2_l3='l2' で表現）
         if data["l2_flag"]:
             l2_l3 = L2
-        elif data["ip"] is not None:
+        elif derived_ip is not None or any(a.get("af") == "v6" for a in sorted_addrs):
             l2_l3 = L3
         else:
             l2_l3 = None
@@ -203,7 +259,7 @@ def parse(text: str) -> Device:
         admin_status = ADMIN_DOWN if data["shutdown"] else ADMIN_UP
         interfaces.append(Interface(
             name=name,
-            ip=data["ip"],
+            ip=derived_ip,
             description=data["description"],
             shutdown=data["shutdown"],
             mtu=data["mtu"],
@@ -211,6 +267,7 @@ def parse(text: str) -> Device:
             encapsulation=data["encapsulation"],
             l2_l3=l2_l3,
             admin_status=admin_status,
+            addresses=sorted_addrs,
         ))
 
     return Device(

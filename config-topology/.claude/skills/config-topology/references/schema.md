@@ -79,6 +79,8 @@ topology/
 | `switchport` | object \| null | **Phase 2D** IOS switchport 情報。`{"mode": "access"\|"trunk", "access_vlan": int?, "trunk_vlans": string?}`。switchport 非設定は null |
 | `encapsulation` | string \| null | **Phase 2D** カプセル化種別（`"dot1q"`, `"flexible-ethernet-services"` 等）。なければ null |
 | `source` | string | **Phase 2D** データソース識別子。現行は常に `"parsed"` |
+| `addresses` | object[] | **Phase 3F** dual-stack アドレス正本。`[{af, ip, prefix, secondary?, scope?}]` 形式。`af`=`"v4"`/`"v6"`、`ip`=ホストアドレス（プレフィックス長なし・ipaddress 正規化済み）、`prefix`=int。`secondary`=True（IOS secondary、省略=False 相当）、`scope`=`"link-local"` 等（省略=通常グローバルアドレス）。空の IF は空配列。ソート: af 順（v4 < v6）→ ip 昇順 → prefix 昇順。|
+| `ip` | string \| null | 後方互換フィールド（Phase 3F より `addresses` が正本）。`addresses` 中の最初の非 secondary v4 アドレスから `"a.b.c.d/prefixlen"` 形式で派生。v6-only IF では null。IP 未設定 IF は null |
 
 ## links
 2 機器のちょうど 2 つの IF が同一サブネットを共有するとき 1 本生成。
@@ -86,7 +88,7 @@ topology/
 |-----------|----|------|
 | `a_device` / `b_device` | string | 端点機器 ID（`a` < `b` で安定ソート） |
 | `a_if` / `b_if` | string | 端点 IF 名 |
-| `subnet` | string | 共有サブネット CIDR（例 `10.0.0.0/30`） |
+| `subnet` | string | 共有サブネット CIDR（IPv4 例 `10.0.0.0/30`、IPv6 例 `2001:db8:1::/127`）。IPv4 または IPv6 CIDR どちらも取り得る |
 | `kind` | string | 結線の由来。初版は常に `"inferred-subnet"` |
 | `ospf_area` | string \| null | **任意**。OSPF 参加リンクの area 番号。両端が同一 area なら単一値（例 `"0"`）。両端で異なる場合は昇順スラッシュ区切り（例 `"0/1"`）。OSPF 非参加リンクには付かない（フィールド欠如）。 |
 | `ospf_network` | string \| null | **任意**。`ospf_area` が付くリンクの subnet CIDR（`subnet` フィールドと同値）。OSPF 非参加リンクには付かない（フィールド欠如）。 |
@@ -98,7 +100,7 @@ topology/
 | フィールド | 型 | 説明 |
 |-----------|----|------|
 | `id` | string | `"seg-<subnet>"`（`/` と `.` は `_` に置換。例 `seg-192_168_1_0_24`） |
-| `subnet` | string | サブネット CIDR |
+| `subnet` | string | サブネット CIDR（IPv4 または IPv6 CIDR どちらも取り得る。例 `192.168.1.0/24`、`2001:db8:10::/64`） |
 | `members` | string[] | 接続する interface ID の配列（安定ソート） |
 | `ospf_area` | string \| null | **任意**。OSPF 参加セグメントの area 番号。メンバー機器が同一 area なら単一値（例 `"1"`）。異なる場合は昇順スラッシュ区切り（例 `"0/1"`）。OSPF 非参加セグメントには付かない（フィールド欠如）。 |
 | `ospf_network` | string \| null | **任意**。`ospf_area` が付くセグメントの subnet CIDR（`subnet` フィールドと同値）。OSPF 非参加セグメントには付かない（フィールド欠如）。 |

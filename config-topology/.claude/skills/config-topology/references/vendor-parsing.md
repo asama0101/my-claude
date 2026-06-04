@@ -65,7 +65,12 @@ class Device:
 ## Cisco IOS / IOS-XE（cisco_ios.py）
 - 行指向・`!` 区切り。`interface <name>` ブロック内をインデントで把握。
 - `hostname X` → hostname。
-- `ip address A.B.C.D MASK` → `ip`（マスクは prefixlen に変換。`ipaddress` 使用）。`secondary` は v1 では無視。
+- `ip address A.B.C.D MASK` → addresses に `{af:"v4", ip:"...", prefix:n}` エントリを追加。secondary あり → `secondary:True` で収録（無視せず全アドレスを保持）。
+  - **`ip` フィールド**: addresses 中の最初の非 secondary v4 から派生（後方互換）。
+  - **l2_l3 判定**: `ip address`（v4）**または** `ipv6 address`（v6）の存在 → L3。`switchport` → L2。
+- `ipv6 address X:Y:Z/PL` → addresses に `{af:"v6", ip:"正規化済みアドレス", prefix:n}` エントリを追加（ipaddress 正規化済み）。
+- `ipv6 address FE80::X link-local` → addresses に `{af:"v6", ip:"fe80::...", prefix:64, scope:"link-local"}` エントリを追加。
+- **link-local アドレスは `addresses` には保持されるが結線推論（`_infer_links_and_segments`）から除外**される。
 - `no ip address` は「IP 未設定」の明示構文だが、ip address コマンドがなければ ip=None になるため特別対応しない設計判断。
 - `shutdown`（ブロック内・`no` なし）→ `shutdown=True`。
 - `description X` → description。
@@ -86,13 +91,17 @@ class Device:
 - 全行 `set ...` 前提。
 - `set system host-name X` → hostname。
 - `set interfaces <if> description "X"` → description（クォート除去）。
-- `set interfaces <if> unit N family inet address A.B.C.D/PL` → `ip`（既に CIDR）。IF 名は `<if>`（unit は v1 では IF 名に含めない）。先勝ち（同一 IF に複数 IP があれば最初のものを採用）。
+- `set interfaces <if> unit N family inet address A.B.C.D/PL` → addresses に `{af:"v4", ip:"...", prefix:n}` エントリを追加。
+  - `ip` フィールド: addresses 中の最初の非 secondary v4 から派生（後方互換）。旧来の「先勝ち」は廃止し全アドレスを収集する。
+- `set interfaces <if> unit N family inet6 address X:Y:Z/PL` → addresses に `{af:"v6", ip:"正規化済みアドレス", prefix:n}` エントリを追加（Phase 3F 追加）。
+  - fe80::/10（link-local）アドレスには `scope:"link-local"` を付与する（IOS と対称）。link-local は addresses には保持されるが結線推論から除外される。
+  - 注記: unit は IF 名に含めない（unit 集約方針踏襲）。複数 unit / 複数アドレスは全て収集する（将来 unit を区別する場合は Phase X で変更）。
 - `set interfaces <if> disable` → shutdown=True。
 - `set interfaces <if> mtu <val>` → `mtu`（int）。`\d+` マッチ後のため ValueError は不発生。
 - `set interfaces <if> speed <val>` → `speed`（文字列のまま格納。例: `"1g"`, `"10g"`）。duplex は JunOS set 形式では通常出現しないため常に None。
 - `set interfaces <if> encapsulation <val>` → `encapsulation`（値はそのまま格納。例: `"flexible-ethernet-services"`）。
 - `set interfaces <if> unit N family ethernet-switching ...` → `l2_flag=True`。
-- **l2_l3 判定（JunOS）**: `family ethernet-switching` あり → L2。`family inet`（= ip あり）→ L3。それ以外 None。
+- **l2_l3 判定（JunOS）**: `family ethernet-switching` あり → L2。`family inet`（v4）**または** `family inet6`（v6）→ L3。それ以外 None。
   - JunOS は ethernet-switching が L2 判定で優先され（inet より先に評価）、ethernet-switching は L2 の根拠となる。
   - `switchport` フィールドは常に None（JunOS には IOS の switchport コマンドが存在しない。L2 は l2_l3='l2' で表現）。
 - **admin_status 導出**: `disable` あり → `ADMIN_DOWN`、それ以外 → `ADMIN_UP`。

@@ -212,16 +212,30 @@ def _svg_if_chip(
 
     if_name = iface.get("name", "")
     if_id = iface.get("id", "")
-    if_ip = iface.get("ip") or ""
     desc = iface.get("description") or ""
 
-    # title テキスト: "IF名 IP（desc）" 形式
+    # title テキスト: "IF名 v4addr v6addr（desc）" 形式
+    # addresses 優先（link-local 除外）、なければ ip フィールドにフォールバック
     title_parts = [if_name]
-    if if_ip:
-        title_parts.append(if_ip)
+    addresses = iface.get("addresses") or []
+    # link-local を除いて v4/v6 ごとに最初の1件を取り出す（上限で簡潔に）
+    v4_ips = [a["ip"] for a in addresses if a.get("af") == "v4" and not a.get("scope") and not a.get("secondary")]
+    v6_ips = [a["ip"] for a in addresses if a.get("af") == "v6" and a.get("scope") != "link-local"]
+    if v4_ips or v6_ips:
+        for ip in v4_ips[:1]:
+            prefix = next((a["prefix"] for a in addresses if a.get("ip") == ip and a.get("af") == "v4"), None)
+            title_parts.append(_esc(f"{ip}/{prefix}" if prefix is not None else ip))
+        for ip in v6_ips[:1]:
+            prefix = next((a["prefix"] for a in addresses if a.get("ip") == ip and a.get("af") == "v6" and a.get("scope") != "link-local"), None)
+            title_parts.append(_esc(f"{ip}/{prefix}" if prefix is not None else ip))
+    else:
+        # フォールバック: ip フィールドのみ
+        if_ip = iface.get("ip") or ""
+        if if_ip:
+            title_parts.append(_esc(if_ip))
     if desc:
-        title_parts.append(f"（{desc}）")
-    title_text = _esc(" ".join(title_parts))
+        title_parts.append(f"（{_esc(desc)}）")
+    title_text = " ".join(title_parts)
 
     # CSS クラスを決定: loopback / shutdown の組み合わせを処理
     extra_classes = []
@@ -846,18 +860,31 @@ def _make_iface_by_device(interfaces: list[dict]) -> dict[str, list[dict]]:
 def _build_ip_to_device(interfaces: list[dict]) -> dict[str, str]:
     """interfaces から ip_only -> device_id 逆引きマップを構築する。
 
+    Phase 3F 拡張: addresses リストが存在する場合は全アドレス（v4/v6）を登録する。
+    addresses がない旧形式では ip フィールドにフォールバックする（後方互換）。
+
     Args:
         interfaces: topology の interfaces リスト
 
     Returns:
-        ``{ip_only: device_id}`` 辞書。iface["ip"].split("/")[0] -> iface["device"] の形式。
+        ``{ip_only: device_id}`` 辞書。
         ip を持たないエントリはスキップする。
     """
     result: dict[str, str] = {}
     for iface in interfaces:
-        if iface.get("ip"):
-            ip_only = iface["ip"].split("/")[0]
-            result[ip_only] = iface["device"]
+        dev_id = iface.get("device", "")
+        addresses = iface.get("addresses")
+        if addresses:
+            # Phase 3F: addresses から全アドレスを登録（v4 + v6）
+            for addr in addresses:
+                ip_str = addr.get("ip", "")
+                if ip_str:
+                    result[ip_str] = dev_id
+        else:
+            # フォールバック: ip フィールドから登録（旧形式後方互換）
+            if iface.get("ip"):
+                ip_only = iface["ip"].split("/")[0]
+                result[ip_only] = dev_id
     return result
 
 
@@ -866,18 +893,31 @@ def _build_ip_to_iface_id(interfaces: list[dict]) -> dict[str, str]:
 
     _build_ip_to_device と対称なヘルパー。チップアンカー解決に使用する。
 
+    Phase 3F 拡張: addresses リストが存在する場合は全アドレス（v4/v6）を登録する。
+    addresses がない旧形式では ip フィールドにフォールバックする（後方互換）。
+
     Args:
         interfaces: topology の interfaces リスト
 
     Returns:
-        ``{ip_only: iface_id}`` 辞書。iface["ip"].split("/")[0] -> iface["id"] の形式。
+        ``{ip_only: iface_id}`` 辞書。
         ip を持たないエントリはスキップする。
     """
     result: dict[str, str] = {}
     for iface in interfaces:
-        if iface.get("ip"):
-            ip_only = iface["ip"].split("/")[0]
-            result[ip_only] = iface["id"]
+        iface_id = iface.get("id", "")
+        addresses = iface.get("addresses")
+        if addresses:
+            # Phase 3F: addresses から全アドレスを登録（v4 + v6）
+            for addr in addresses:
+                ip_str = addr.get("ip", "")
+                if ip_str:
+                    result[ip_str] = iface_id
+        else:
+            # フォールバック: ip フィールドから登録（旧形式後方互換）
+            if iface.get("ip"):
+                ip_only = iface["ip"].split("/")[0]
+                result[ip_only] = iface_id
     return result
 
 

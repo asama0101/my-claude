@@ -136,6 +136,34 @@ def dump_topology(topology: dict, out_dir: str) -> None:
 # ================================================================
 
 
+def _synthesize_addresses_from_ip(ip_cidr: str | None) -> list:
+    """旧形式の ip フィールド（CIDR）から addresses リストを合成する（後方互換吸収用）。
+
+    Phase 3F: addresses キーが存在しない旧 YAML を読み込む際に使用する。
+    ip="a.b.c.d/prefix" → [{"af": "v4", "ip": "a.b.c.d", "prefix": n}]
+    ip が None または不正な場合は空リストを返す。
+
+    注意: この関数は base.derive_ip_from_addresses の**逆写像**（逆変換）である。
+    derive_ip_from_addresses(addresses) → ip_cidr という正方向に対して、
+    _synthesize_addresses_from_ip(ip_cidr) → addresses[0] の逆変換を担う。
+
+    Args:
+        ip_cidr: "a.b.c.d/prefixlen" 形式の文字列、または None
+
+    Returns:
+        addresses リスト（0 または 1 エントリ）
+    """
+    import ipaddress as _ip
+    if not ip_cidr:
+        return []
+    try:
+        iface = _ip.ip_interface(ip_cidr)
+        af = "v4" if iface.version == 4 else "v6"
+        return [{"af": af, "ip": str(iface.ip), "prefix": iface.network.prefixlen}]
+    except ValueError:
+        return []
+
+
 def load_topology(in_dir: str) -> dict:
     """レイヤー別 YAML を読み込み従来の topology dict を返す。
 
@@ -197,11 +225,19 @@ def load_topology(in_dir: str) -> dict:
         else:
             routing[key] = []
 
+    interfaces = dev_data.get("interfaces", [])
+
+    # Phase 3F: 旧形式（addresses キーなし）の interfaces を吸収する
+    # addresses が欠如している interface に ip フィールドから合成した addresses を付与する
+    for iface in interfaces:
+        if "addresses" not in iface:
+            iface["addresses"] = _synthesize_addresses_from_ip(iface.get("ip"))
+
     topology: dict = {
         "title": meta.get("title", ""),
         "generated_from": meta.get("generated_from", []),
         "devices": dev_data.get("devices", []),
-        "interfaces": dev_data.get("interfaces", []),
+        "interfaces": interfaces,
         "links": phys_data.get("links", []),
         "segments": phys_data.get("segments", []),
         "routing": routing,

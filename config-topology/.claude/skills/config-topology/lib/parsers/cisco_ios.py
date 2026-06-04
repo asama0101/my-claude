@@ -6,7 +6,9 @@ Cisco IOS / IOS-XE パーサ
 パース規則（vendor-parsing.md より）:
 - hostname X → Device.hostname
 - interface <name> ブロック:
-  - ip address A.B.C.D MASK → Interface.ip (CIDR変換)。secondary は無視。
+  - ip address A.B.C.D MASK → addresses に {af:"v4", ip:"...", prefix:n} エントリを追加。
+    secondary は addresses に secondary=True で収録（無視せず全て保持）。
+  - ipv6 address X:Y:Z/PL → addresses に {af:"v6", ip:"正規化済みアドレス", prefix:n} エントリを追加。
   - shutdown → shutdown=True
   - no shutdown → shutdown=False
   - description X → description
@@ -20,7 +22,11 @@ from __future__ import annotations
 import ipaddress
 import re
 
-from .base import ADMIN_DOWN, ADMIN_UP, L2, L3, SOURCE_PARSED, BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute
+from .base import (
+    ADMIN_DOWN, ADMIN_UP, AF_V6, L2, L3, SCOPE_LINK_LOCAL, SOURCE_PARSED,
+    BgpNeighbor, Device, Interface, OspfNetwork, StaticRoute,
+    derive_ip_from_addresses, normalize_v6, sort_addresses,
+)
 
 
 def detect(text: str) -> bool:
@@ -77,6 +83,11 @@ def _wildcard_to_prefixlen(wildcard: str) -> int:
 def parse(text: str) -> Device:
     """
     IOS コンフィグテキストをパースして Device を返す。
+
+    Phase 3F 拡張:
+    - ip address（primary / secondary）と ipv6 address を addresses リストに収集
+    - ip フィールドは addresses 中の最初の非 secondary v4 から派生（_derive_ip_from_addresses 相当）
+    - addresses は (af 順, ipaddress オブジェクト, prefix) でソート（決定的）
     """
     hostname = ""
     asn: int | None = None
@@ -113,6 +124,8 @@ def parse(text: str) -> Device:
             if_encapsulation: str | None = None
             if_has_ip_cmd = False      # "ip address" コマンドがあったか
             if_no_switchport = False   # "no switchport" があったか
+            # Phase 3F: addresses 収集用リスト（パース中の生データ）
+            if_addresses: list[dict] = []
             i += 1
             # ブロック内を読む（インデントされた行か次のトップレベルまで）
             while i < len(lines):
@@ -121,17 +134,48 @@ def parse(text: str) -> Device:
                 # ブロック終端: 空行 or "!" or インデントなしの非空行
                 if not inner or inner_stripped == "!" or (inner and not inner[0].isspace() and inner_stripped):
                     break
-                # ip address（secondary は無視）
-                m2 = re.match(r'^ip\s+address\s+(\S+)\s+(\S+)(?:\s+secondary)?$', inner_stripped)
-                if m2 and "secondary" not in inner_stripped:
+                # ip address（primary / secondary 両方対応）
+                m2 = re.match(r'^ip\s+address\s+(\S+)\s+(\S+)(\s+secondary)?$', inner_stripped)
+                if m2:
                     addr = m2.group(1)
                     mask = m2.group(2)
+                    is_secondary = bool(m2.group(3) and "secondary" in m2.group(3))
                     try:
                         prefixlen = _mask_to_prefixlen(mask)
-                        if_ip = f"{addr}/{prefixlen}"
-                        if_has_ip_cmd = True
+                        addr_entry: dict = {"af": "v4", "ip": addr, "prefix": prefixlen}
+                        if is_secondary:
+                            addr_entry["secondary"] = True
+                        else:
+                            # primary のみ if_ip に採用（後方互換）
+                            if_ip = f"{addr}/{prefixlen}"
+                            if_has_ip_cmd = True
+                        if_addresses.append(addr_entry)
                     except ValueError:
                         pass
+                # ipv6 address（グローバル / link-local 両方対応）
+                m_v6 = re.match(r'^ipv6\s+address\s+(\S+)(?:\s+(\S+))?$', inner_stripped, re.IGNORECASE)
+                if m_v6:
+                    v6_spec = m_v6.group(1)
+                    v6_qualifier = (m_v6.group(2) or "").lower()
+                    if "/" in v6_spec:
+                        # グローバルアドレス: "2001:db8::1/64" 形式
+                        v6_addr_str, v6_prefix_str = v6_spec.rsplit("/", 1)
+                        try:
+                            v6_prefix = int(v6_prefix_str)
+                            v6_normalized = normalize_v6(v6_addr_str)
+                            addr_entry = {"af": AF_V6, "ip": v6_normalized, "prefix": v6_prefix}
+                            if_addresses.append(addr_entry)
+                            if_has_ip_cmd = True  # ip が設定されている = L3 扱い
+                        except (ValueError, TypeError):
+                            pass
+                    elif v6_qualifier == "link-local":
+                        # link-local: "fe80::1 link-local" 形式
+                        try:
+                            v6_normalized = normalize_v6(v6_spec)
+                            addr_entry = {"af": AF_V6, "ip": v6_normalized, "prefix": 64, "scope": SCOPE_LINK_LOCAL}
+                            if_addresses.append(addr_entry)
+                        except (ValueError, TypeError):
+                            pass
                 # description
                 m3 = re.match(r'^description\s+(.*)', inner_stripped)
                 if m3:
@@ -185,9 +229,13 @@ def parse(text: str) -> Device:
                 if_l2_l3 = None
             # admin_status: shutdown 由来（定数使用）
             if_admin_status = ADMIN_DOWN if if_shutdown else ADMIN_UP
+            # Phase 3F: addresses をソートして格納（base.sort_addresses で DRY）
+            sorted_addrs = sort_addresses(if_addresses)
+            # ip: addresses から派生（primary v4 が存在すれば if_ip と同値・v6-only なら None）
+            derived_ip = derive_ip_from_addresses(sorted_addrs) if sorted_addrs else if_ip
             interfaces.append(Interface(
                 name=if_name,
-                ip=if_ip,
+                ip=derived_ip,
                 description=if_desc,
                 shutdown=if_shutdown,
                 mtu=if_mtu,
@@ -197,6 +245,7 @@ def parse(text: str) -> Device:
                 encapsulation=if_encapsulation,
                 l2_l3=if_l2_l3,
                 admin_status=if_admin_status,
+                addresses=sorted_addrs,
             ))
             continue
 
