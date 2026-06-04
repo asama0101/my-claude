@@ -12666,3 +12666,130 @@ def test_2e_build_ifinv_table_unknown_status_handled():
     assert "up: 0</span>" in result, f"up: 0 が見当たらない: {result[:300]!r}"
     assert "down: 0</span>" in result, f"down: 0 が見当たらない"
     assert "admin-down: 0</span>" in result, f"admin-down: 0 が見当たらない"
+
+
+# ---------------------------------------------------------------------------
+# T-VLAN-SW: _build_ifinv_table — switchport VLAN フォールバック
+# Phase2E クロスレビュー指摘: iface.vlan が null のとき switchport の VLAN を使う
+# ---------------------------------------------------------------------------
+
+def _make_devices_for_vlan_test():
+    return [{"id": "sw1", "hostname": "SW1"}]
+
+
+def _make_iface(iid, name, vlan=None, switchport=None, admin_status="up", ip=None):
+    """テスト用 iface dict ビルダー（省略可能フィールドはデフォルト None）。"""
+    return {
+        "id": iid, "device": "sw1", "name": name,
+        "ip": ip, "admin_status": admin_status,
+        "mtu": None, "vlan": vlan, "switchport": switchport,
+        "l2_l3": None, "description": None,
+    }
+
+
+@pytest.mark.unit
+def test_vlan_sw_access_port_shows_access_vlan():
+    """switchport mode=access, access_vlan=10, iface.vlan=null → VLAN セルに '10' + data-num='10'。"""
+    from lib.rendering.views import _build_ifinv_table
+    iface = _make_iface("sw1::eth0", "eth0",
+                         vlan=None,
+                         switchport={"mode": "access", "access_vlan": 10})
+    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
+    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth0"[^>]*>(.*?)</tr>', result, re.DOTALL)
+    assert m, "sw1::eth0 行が見つからない"
+    row = m.group(0)
+    # VLAN セルに 10 が表示される
+    assert ">10<" in row or ">10 <" in row, \
+        f"access VLAN=10 がセル値に出ていない: {row!r}"
+    # data-num="10" が付く（数値ソート対応）
+    assert 'data-num="10"' in row, \
+        f"access VLAN セルに data-num='10' が付いていない: {row!r}"
+
+
+@pytest.mark.unit
+def test_vlan_sw_trunk_port_shows_trunk_vlans_string():
+    """switchport mode=trunk, trunk_vlans=[10,20,30]（list）, iface.vlan=null
+    → VLAN セルに '10,20,30'（sorted/カンマ結合）、data-num は付かない。"""
+    from lib.rendering.views import _build_ifinv_table
+    iface = _make_iface("sw1::eth1", "eth1",
+                         vlan=None,
+                         switchport={"mode": "trunk", "trunk_vlans": [10, 20, 30]})
+    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
+    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth1"[^>]*>(.*?)</tr>', result, re.DOTALL)
+    assert m, "sw1::eth1 行が見つからない"
+    row = m.group(0)
+    assert ">10,20,30<" in row or ">10,20,30 <" in row, \
+        f"trunk VLAN '10,20,30' がセル値に出ていない: {row!r}"
+    # trunk 複数 VLAN には data-num を付けない（文字列ソート扱い）
+    assert 'data-num="10,20,30"' not in row, \
+        f"trunk VLAN セルに不正な data-num が付いている: {row!r}"
+
+
+@pytest.mark.unit
+def test_vlan_sw_trunk_port_string_trunk_vlans():
+    """switchport mode=trunk, trunk_vlans='10,20,30'（str）→ そのまま表示、data-num なし。"""
+    from lib.rendering.views import _build_ifinv_table
+    iface = _make_iface("sw1::eth2", "eth2",
+                         vlan=None,
+                         switchport={"mode": "trunk", "trunk_vlans": "10,20,30"})
+    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
+    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth2"[^>]*>(.*?)</tr>', result, re.DOTALL)
+    assert m, "sw1::eth2 行が見つからない"
+    row = m.group(0)
+    assert ">10,20,30<" in row or ">10,20,30 <" in row, \
+        f"trunk VLAN (str) がセル値に出ていない: {row!r}"
+    assert 'data-num="10,20,30"' not in row, \
+        f"trunk VLAN (str) セルに不正な data-num が付いている: {row!r}"
+
+
+@pytest.mark.unit
+def test_vlan_iface_vlan_takes_precedence_over_switchport():
+    """iface.vlan が非 null のときは switchport.access_vlan より優先される。"""
+    from lib.rendering.views import _build_ifinv_table
+    iface = _make_iface("sw1::eth3", "eth3",
+                         vlan=99,
+                         switchport={"mode": "access", "access_vlan": 10})
+    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
+    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth3"[^>]*>(.*?)</tr>', result, re.DOTALL)
+    assert m, "sw1::eth3 行が見つからない"
+    row = m.group(0)
+    # vlan=99 が優先 → 99 が表示される
+    assert ">99<" in row or ">99 <" in row, \
+        f"iface.vlan=99 が優先表示されていない: {row!r}"
+    # access_vlan=10 は表示されない
+    assert ">10<" not in row, \
+        f"iface.vlan 優先のはずが access_vlan=10 が表示されている: {row!r}"
+
+
+@pytest.mark.unit
+def test_vlan_no_switchport_no_vlan_shows_empty():
+    """switchport も vlan も null → VLAN セルは空欄。"""
+    from lib.rendering.views import _build_ifinv_table
+    iface = _make_iface("sw1::eth4", "eth4", vlan=None, switchport=None)
+    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
+    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth4"[^>]*>(.*?)</tr>', result, re.DOTALL)
+    assert m, "sw1::eth4 行が見つからない"
+    row = m.group(0)
+    # VLAN セルが空欄（data-num="" かつ セル内容が空）
+    assert 'data-num=""' in row or "<td></td>" in row or "<td> </td>" in row, \
+        f"VLAN 空欄行の data-num が空でない: {row!r}"
+
+
+@pytest.mark.unit
+def test_vlan_sw_deterministic():
+    """switchport VLAN フォールバックを含む _build_ifinv_table が2回呼び出して同一出力を返す（決定性）。"""
+    from lib.rendering.views import _build_ifinv_table
+    devices = _make_devices_for_vlan_test()
+    ifaces = [
+        _make_iface("sw1::p0", "p0", vlan=None,
+                    switchport={"mode": "access", "access_vlan": 10}),
+        _make_iface("sw1::p1", "p1", vlan=None,
+                    switchport={"mode": "trunk", "trunk_vlans": [30, 10, 20]}),
+        _make_iface("sw1::p2", "p2", vlan=5, switchport=None),
+    ]
+    r1 = _build_ifinv_table(devices, ifaces)
+    r2 = _build_ifinv_table(devices, ifaces)
+    assert r1 == r2, "2回呼び出して結果が異なる（非決定的）"
+    # trunk の list は sorted されて "10,20,30" になる
+    assert ">10,20,30<" in r1 or ">10,20,30 <" in r1, \
+        f"trunk list が sorted/カンマ結合されていない: {r1[:500]!r}"

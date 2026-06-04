@@ -842,9 +842,44 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         # 検索用テキスト（device / IF 名 / IP / description）
         search_text = f"{hostname} {name} {ip} {description}".lower()
 
-        # MTU / VLAN は数値 or 空
+        # MTU は数値 or 空
         mtu_str = str(mtu) if mtu is not None else ""
-        vlan_str = str(vlan) if vlan is not None else ""
+
+        # VLAN 列: iface.vlan 優先 → switchport フォールバック → 空欄
+        # switchport 構造: {mode, access_vlan?, trunk_vlans?}
+        # trunk_vlans は str または list（パーサー由来 str / テスト由来 list 両対応）
+        switchport = iface.get("switchport")
+        if vlan is not None:
+            # iface.vlan が非 null → 最優先（単一整数扱い、data-num 付与）
+            vlan_str = str(vlan)
+            vlan_data_num = vlan_str
+        elif switchport:
+            sp_mode = switchport.get("mode", "")
+            if sp_mode == "access":
+                av = switchport.get("access_vlan")
+                if av is not None:
+                    vlan_str = str(av)
+                    vlan_data_num = vlan_str  # 単一整数 → data-num 付与
+                else:
+                    vlan_str = ""
+                    vlan_data_num = ""
+            elif sp_mode == "trunk":
+                tv = switchport.get("trunk_vlans")
+                if tv is not None:
+                    if isinstance(tv, list):
+                        vlan_str = ",".join(str(v) for v in sorted(tv))
+                    else:
+                        vlan_str = str(tv)
+                    vlan_data_num = ""  # trunk 複数 VLAN → data-num なし（文字列ソート扱い）
+                else:
+                    vlan_str = ""
+                    vlan_data_num = ""
+            else:
+                vlan_str = ""
+                vlan_data_num = ""
+        else:
+            vlan_str = ""
+            vlan_data_num = ""
 
         # 将来の editable フック: data-iface-id が差込点（編集 UI は実装しない）
         row_attrs = (
@@ -859,7 +894,7 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
             f'<td>{_esc(ip)}</td>',
             f'<td>{_esc(admin_status)}</td>',
             f'<td data-num="{_esc(mtu_str)}">{_esc(mtu_str)}</td>',
-            f'<td data-num="{_esc(vlan_str)}">{_esc(vlan_str)}</td>',
+            f'<td data-num="{_esc(vlan_data_num)}">{_esc(vlan_str)}</td>',
             f'<td>{_esc(l2_l3)}</td>',
             f'<td>{_esc(description)}</td>',
         ]
