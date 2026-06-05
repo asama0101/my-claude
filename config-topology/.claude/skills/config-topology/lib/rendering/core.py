@@ -9,9 +9,10 @@ import math
 
 from lib.rendering.cards import _device_cards
 from lib.rendering.layout import _compute_canvas
-from lib.rendering.svg import _build_ip_to_device, _esc, _make_iface_by_device, _make_link_id, _normalize_subnet
+from lib.rendering.svg import _build_ip_to_device, _esc, _make_ext_id, _make_iface_by_device, _make_link_id, _normalize_subnet
 from lib.rendering.template import _layer_toggles, _node_filter_ui, build_html
 from lib.rendering.views import (
+    _bgp_has_external_peers,
     _bgp_has_resolved_edges,
     _build_ifinv_table,
     _build_physical_layout,
@@ -282,8 +283,9 @@ def _build_bgp_session_map(
     ip_to_device 逆引きには ``svg._build_ip_to_device`` を共用しており、
     ``_svg_bgp_edges`` と挙動が同一であることを保証する。
 
-    neighbor_ip に対応する device が interfaces から逆引きできない場合は
-    そのエントリをスキップする（bgp-session <g> が生成されないため不要）。
+    B4: 外部ピア（neighbor_ip が interfaces から逆引きできない）の場合も
+    ``"ext:{neighbor_ip}"`` を B 側として扱い、bgp_id を生成する。
+    これにより cards の BGP 行と図の外部セッション線が同一 data-bgp-id で連動する。
 
     Args:
         bgp_entries: routing["bgp"] のエントリリスト
@@ -302,10 +304,16 @@ def _build_bgp_session_map(
         if not (dev_id and neighbor_ip):
             continue
         neighbor_dev = ip_to_device.get(neighbor_ip)
-        if not neighbor_dev or neighbor_dev == dev_id:
-            continue
-        bgp_id = "|".join(sorted([dev_id, neighbor_dev]))
-        result[(dev_id, neighbor_ip)] = bgp_id
+        if neighbor_dev and neighbor_dev != dev_id:
+            # 内部解決: 従来通り
+            bgp_id = "|".join(sorted([dev_id, neighbor_dev]))
+            result[(dev_id, neighbor_ip)] = bgp_id
+        elif not neighbor_dev:
+            # B4: 外部ピア → ext:IP を B 側として bgp_id 生成
+            ext_id = _make_ext_id(neighbor_ip)
+            bgp_id = "|".join(sorted([dev_id, ext_id]))
+            result[(dev_id, neighbor_ip)] = bgp_id
+        # neighbor_dev == dev_id (self-loop): スキップ
 
     return result
 
@@ -398,7 +406,9 @@ def render(topology: dict) -> str:
         if proto_key == "bgp":
             if not active_entries:
                 continue
-            if not _bgp_has_resolved_edges(active_entries, interfaces):
+            # A1: 内部解決セッション ≥1 または 外部ピア ≥1 のいずれかがあればビューを生成
+            if not (_bgp_has_resolved_edges(active_entries, interfaces)
+                    or _bgp_has_external_peers(active_entries, interfaces)):
                 continue
             view_svg = _build_view_bgp(
                 devices, interfaces, proto_entries, links, iface_by_device

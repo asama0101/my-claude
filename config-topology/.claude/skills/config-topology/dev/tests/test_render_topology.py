@@ -1588,14 +1588,21 @@ def test_gating_static_only_no_view():
 
 
 @pytest.mark.unit
-def test_gating_bgp_no_resolved_neighbors_no_view():
-    """neighbor_ip が解決できない BGP のみの topology では view-bgp が生成されない"""
+def test_gating_bgp_external_peer_only_generates_view():
+    """外部ピアのみ（neighbor_ip が内部解決できない）の topology でも view-bgp が生成される（A1）。
+
+    A1 修正: BGP ビュー生成ゲートを「内部解決セッション ≥1 OR 外部ピア ≥1」に拡張した。
+    外部ピアのみの機器（ISP 接続エッジ等）でも BGP ビューに外部ノードが描画されることを確認する。
+    """
     from lib.rendering import render
     html = render(_make_bgp_no_resolved_neighbors_topology())
-    assert 'class="view view-bgp"' not in html, \
-        "BGP ビューが（解決可能な隣接なしなのに）生成されている"
-    assert 'data-view="bgp"' not in html, \
-        "BGP タブが（解決可能な隣接なしなのに）生成されている"
+    assert 'class="view view-bgp"' in html, \
+        "BGP ビューが（外部ピアのみなのに）生成されていない（A1 修正が必要）"
+    assert 'data-view="bgp"' in html, \
+        "BGP タブが（外部ピアのみなのに）生成されていない（A1 修正が必要）"
+    # 外部ノードが存在すること
+    assert 'data-device="ext:203.0.113.1"' in html, \
+        "外部ノード ext:203.0.113.1 が生成されていない"
 
 
 @pytest.mark.unit
@@ -7913,20 +7920,31 @@ def test_p2_nb_apply_focus_mode_removed(rendered_html):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-def test_build_bgp_session_map_neighbor_not_resolved_returns_empty():
-    """(a) neighbor_ip が interfaces に存在しない場合、そのエントリは含まない。"""
+def test_build_bgp_session_map_neighbor_not_resolved_returns_ext_bgp_id():
+    """(a) neighbor_ip が interfaces に存在しない（外部ピア）場合、ext: 形式の bgp_id が付与される（B4）。
+
+    B4 変更: 旧仕様「解決不能はスキップ」→ 新仕様「外部ピアは ext:{ip} として bgp_id を生成」。
+    これにより cards の BGP 行と図の外部セッション線が同一 data-bgp-id で連動する。
+    """
     from lib.rendering.core import _build_bgp_session_map
     interfaces = [
         {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
     ]
     bgp_entries = [
         {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
-         "neighbor_ip": "203.0.113.99",  # 解決不能
+         "neighbor_ip": "203.0.113.99",  # 解決不能 → 外部ピア
          "peer_as": 64500, "type": "ebgp"},
     ]
     result = _build_bgp_session_map(bgp_entries, interfaces)
-    assert len(result) == 0, \
-        f"解決不能な neighbor_ip のエントリが含まれている: {result}"
+    assert len(result) == 1, \
+        f"外部ピアの bgp_id エントリが生成されていない: {result}"
+    bgp_id = result.get(("r1", "203.0.113.99"))
+    assert bgp_id is not None, "(r1, 203.0.113.99) のエントリが存在しない"
+    assert "ext:203.0.113.99" in bgp_id, \
+        f"bgp_id に ext:203.0.113.99 が含まれていない: {bgp_id!r}"
+    # sorted 結合の検証
+    assert bgp_id == "ext:203.0.113.99|r1", \
+        f"bgp_id が期待値 'ext:203.0.113.99|r1' と異なる: {bgp_id!r}"
 
 
 @pytest.mark.unit

@@ -15,19 +15,24 @@ from lib.rendering.layout import (
     _node_size_for,
     OSPF_AREA_LABEL_FORMAT,
 )
+from lib.rendering.layout import _NODE_WIDTH, _NODE_HEIGHT
 from lib.rendering.svg import (
     _build_ip_to_device,
     _build_ip_to_iface_id,
     _build_ips_attr,
     _chip_positions,
     _esc,
+    _ext_id_to_ip,
     _format_iface_ip_cell,
     _is_loopback,
+    _make_ext_id,
     _make_link_id,
     _merge_links_by_link_id,
     _normalize_subnet,
     _svg_bgp_as_groups,
     _svg_bgp_edges,
+    _svg_bgp_external_edges,
+    _svg_bgp_external_nodes,
     _svg_links,
     _svg_nodes,
     _svg_ospf_segment_edges,
@@ -257,6 +262,11 @@ def _build_physical_layout(
     )
 
 
+# C MED-1: BGP 外部ピアノード配置定数（モジュールレベル UPPER_SNAKE_CASE）
+_EXT_COLUMN_MARGIN = 180.0  # 内部ノード右端からの水平マージン（px）
+_EXT_NODE_SPACING = _NODE_HEIGHT + 40.0  # 外部ノード縦間隔（_NODE_HEIGHT=50 + margin 40）
+
+
 def _bgp_has_resolved_edges(bgp_entries: list[dict], interfaces: list[dict]) -> bool:
     """BGP エントリに解決可能な neighbor（= 同トポロジー内の device）が存在するか
 
@@ -270,6 +280,89 @@ def _bgp_has_resolved_edges(bgp_entries: list[dict], interfaces: list[dict]) -> 
         if nbr and nbr != dev_id:
             return True
     return False
+
+
+def _bgp_has_external_peers(bgp_entries: list[dict], interfaces: list[dict]) -> bool:
+    """BGP エントリに外部ピア（topology 外の neighbor_ip）が存在するか
+
+    A1: 外部ピアのみの機器（ISP 接続エッジ等）で BGP ビューを生成するためのゲート。
+    neighbor_ip が interfaces から逆引きできないものを外部ピアとみなす。
+    """
+    ip_to_device = _build_ip_to_device(interfaces)
+    for entry in bgp_entries:
+        neighbor_ip = entry.get("neighbor_ip", "")
+        if not neighbor_ip:
+            continue
+        if not ip_to_device.get(neighbor_ip):
+            return True
+    return False
+
+
+def _compute_ext_bgp_positions(
+    bgp_entries: list[dict],
+    interfaces: list[dict],
+    positions: dict[str, tuple[float, float]],
+) -> dict[str, tuple[float, float]]:
+    """BGP 外部ピアノードの座標を決定的に計算する。
+
+    外部ピア = neighbor_ip が interfaces の ip_to_device に解決されないもの。
+    外部ノード ID: ``"ext:{neighbor_ip}"``（dedup）。
+
+    配置方式: 内部ノード群の bbox 右端 + マージンを基準に、
+    neighbor_ip 昇順で縦に等間隔配置（決定的 reserved column）。
+
+    Args:
+        bgp_entries:  BGP エントリリスト
+        interfaces:   topology の interfaces リスト
+        positions:    内部デバイスID → (cx, cy) 座標辞書
+
+    Returns:
+        ``{ext_id: (cx, cy)}`` 辞書（neighbor_ip 昇順決定的）。外部ピアがなければ空。
+    """
+    ip_to_device = _build_ip_to_device(interfaces)
+
+    # 外部ピアの dedup（neighbor_ip 昇順）
+    ext_ips: list[str] = []
+    seen_ext: set[str] = set()
+    for entry in sorted(bgp_entries, key=lambda e: (e["device"], e.get("neighbor_ip", ""))):
+        neighbor_ip = entry.get("neighbor_ip", "")
+        if not neighbor_ip:
+            continue
+        if ip_to_device.get(neighbor_ip):
+            continue  # 内部解決: スキップ
+        if neighbor_ip not in seen_ext:
+            seen_ext.add(neighbor_ip)
+            ext_ips.append(neighbor_ip)
+
+    if not ext_ips:
+        return {}
+
+    # 内部ノード群の bbox 右端を計算（positions が空のケースを安全に処理）
+    if positions:
+        max_x = max(x for x, y in positions.values())
+        min_y = min(y for x, y in positions.values())
+        max_y = max(y for x, y in positions.values())
+    else:
+        max_x = 300.0
+        min_y = 100.0
+        max_y = 500.0
+
+    # 外部ノード列: 右端 + マージン（モジュールレベル定数を使用）
+    col_x = max_x + _NODE_WIDTH / 2 + _EXT_COLUMN_MARGIN
+
+    # 垂直方向: 内部ノード群の縦中心を軸に等間隔
+    n_ext = len(ext_ips)
+    center_y = (min_y + max_y) / 2.0
+    total_h = (n_ext - 1) * _EXT_NODE_SPACING
+    start_y = center_y - total_h / 2.0
+
+    result: dict[str, tuple[float, float]] = {}
+    for k, neighbor_ip in enumerate(sorted(ext_ips)):  # 昇順ソートで決定的
+        ext_id = _make_ext_id(neighbor_ip)
+        y = start_y + k * _EXT_NODE_SPACING
+        result[ext_id] = (col_x, y)
+
+    return result
 
 
 def _ospf_has_edges(ospf_entries: list[dict], links: list[dict]) -> bool:
@@ -475,17 +568,34 @@ def _build_view_bgp(
             all_chip_positions.update(cp)
             bgp_node_sizes[dev["id"]] = 1 if dev_chip_ids else 0
 
+    # B4: 外部ピアノードの座標を決定的に計算
+    ext_positions = _compute_ext_bgp_positions(bgp_entries, interfaces, positions_bgp)
+
     as_groups_str = _svg_bgp_as_groups(bgp_devices, positions_bgp, node_sizes=bgp_node_sizes)
     bgp_str = _svg_bgp_edges(
         bgp_entries, interfaces, positions_bgp,
+        chip_positions=all_chip_positions,
+    )
+    # B4: 外部ピアへのエッジ
+    ext_edges_str = _svg_bgp_external_edges(
+        bgp_entries, interfaces, positions_bgp, ext_positions,
         chip_positions=all_chip_positions,
     )
     nodes_str = _svg_nodes(
         bgp_devices, positions_bgp, iface_by_device,
         chip_iface_ids=bgp_chip_ids,
     )
-    bbox = _make_bbox_str(positions_bgp)
-    inner = "\n".join(filter(None, [as_groups_str, bgp_str, nodes_str]))
+    # B4: 外部ピアノード（最前面: ノードの上に重ならないよう最後に描画）
+    ext_nodes_str = _svg_bgp_external_nodes(
+        bgp_entries, interfaces, ext_positions
+    )
+
+    # bbox は内部ノード + 外部ノードを含めて計算
+    all_positions_for_bbox = dict(positions_bgp)
+    all_positions_for_bbox.update(ext_positions)
+    bbox = _make_bbox_str(all_positions_for_bbox)
+
+    inner = "\n".join(filter(None, [as_groups_str, bgp_str, ext_edges_str, nodes_str, ext_nodes_str]))
     return (
         f'<g class="view view-bgp" data-bbox="{bbox}" style="display:none">\n'
         f'{inner}\n'

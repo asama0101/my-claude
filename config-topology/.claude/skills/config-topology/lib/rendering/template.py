@@ -233,6 +233,25 @@ _CSS = """\
       pointer-events: none;
     }
 
+    /* BGP 外部ピアノード（B4: topology 外のピア。BGP ビューのみ表示） */
+    .external-rect {
+      fill: #f9fafb;
+      stroke: #9ca3af;
+      stroke-width: 1.5;
+      stroke-dasharray: 5 3;
+    }
+
+    .device-node.external-node:hover .external-rect,
+    .device-node.external-node.highlighted .external-rect {
+      fill: #f3f4f6;
+      stroke-width: 2.5;
+    }
+
+    .external-label {
+      fill: #6b7280;
+      font-weight: 600;
+    }
+
     /* セグメントノード */
     .seg-ellipse {
       fill: var(--color-seg-fill);
@@ -2229,6 +2248,7 @@ def build_html(
       <div id="chip-legend">
         <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip"><circle cx="6" cy="6" r="5"/></g></svg><span>接続IF</span>
         <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip if-chip-loopback"><circle cx="6" cy="6" r="5"/></g></svg><span>Loopback</span>
+        <svg width="22" height="12" style="flex-shrink:0"><rect x="1" y="1" width="20" height="10" rx="2" ry="2" class="node-rect external-rect"/></svg><span>外部ピア（topology外）</span>
       </div>
     </div>
 

@@ -24,6 +24,36 @@ from lib.rendering.layout import (
 )
 
 
+# B4: 外部ピア ID プレフィックス定数（マジックナンバー "ext:" と 4 を排除）
+_EXT_ID_PREFIX = "ext:"
+
+
+def _make_ext_id(ip: str) -> str:
+    """外部ピア IP アドレスから外部ノード ID を生成する。
+
+    Args:
+        ip: 外部ピアの IP アドレス文字列
+
+    Returns:
+        ``"ext:{ip}"`` 形式の外部ノード ID
+    """
+    return f"{_EXT_ID_PREFIX}{ip}"
+
+
+def _ext_id_to_ip(ext_id: str) -> str:
+    """外部ノード ID から IP アドレスを逆算する。
+
+    Args:
+        ext_id: ``"ext:{ip}"`` 形式の外部ノード ID
+
+    Returns:
+        IP アドレス文字列（プレフィックスを除いた部分）
+    """
+    if ext_id.startswith(_EXT_ID_PREFIX):
+        return ext_id[len(_EXT_ID_PREFIX):]
+    return ext_id
+
+
 def _esc(value: Any) -> str:
     """値を HTML 安全な文字列に変換する"""
     if value is None:
@@ -999,6 +1029,209 @@ def _svg_bgp_edges(
         parts.append(
             f'<g class="bgp-session" data-type="{_esc(bgp_type)}" '
             f'data-a="{_esc(dev_id)}" data-b="{_esc(neighbor_dev)}" '
+            f'data-bgp-id="{_esc(bgp_id)}">'
+            f'<path d="M{x1:.1f},{y1:.1f} Q{mx:.1f},{my:.1f} {x2:.1f},{y2:.1f}" '
+            f'class="{css_class}" fill="none"/>'
+            f'<title>{title_text}</title>'
+            f'{badge_svg}'
+            f'</g>'
+        )
+    return "\n".join(parts)
+
+
+def _svg_bgp_external_nodes(
+    bgp_entries: list[dict],
+    interfaces: list[dict],
+    ext_positions: dict[str, tuple[float, float]],
+) -> str:
+    """BGP 外部ピアノード（topology 外）の SVG 要素を生成する。
+
+    外部ピア = neighbor_ip が interfaces の ip_to_device に解決されないもの。
+    外部ノード ID: ``"ext:{neighbor_ip}"``（dedup・neighbor_ip 昇順決定的）。
+
+    B4: 外部ノードは BGP ビューのみ。点線 rect + AS ラベル + neighbor_ip sublabel。
+
+    Args:
+        bgp_entries:   BGP エントリリスト
+        interfaces:    topology の interfaces リスト
+        ext_positions: ext_id → (cx, cy) 座標辞書（_compute_ext_bgp_positions で算出）
+    """
+    if not ext_positions:
+        return ""
+
+    # C HIGH-2: ip_to_device の重複呼び出しを除去。
+    # ext_positions のキー（ext_id）に対するエントリのみが外部ピアと確定しているため、
+    # _build_ip_to_device による再判定は不要。ext_positions.keys() で外部判定を行う。
+
+    # ext_id → peer_as マップ（最初に見つかったエントリの peer_as を使用）
+    ext_peer_as: dict[str, str] = {}
+    for entry in sorted(bgp_entries, key=lambda e: (e["device"], e.get("neighbor_ip", ""))):
+        neighbor_ip = entry.get("neighbor_ip", "")
+        if not neighbor_ip:
+            continue
+        ext_id = _make_ext_id(neighbor_ip)
+        if ext_id not in ext_positions:
+            continue  # 外部ピアでない（内部解決済み）: スキップ
+        if ext_id not in ext_peer_as:
+            peer_as = entry.get("peer_as")
+            ext_peer_as[ext_id] = str(peer_as) if peer_as is not None else ""
+
+    parts = []
+    for ext_id in sorted(ext_positions.keys()):
+        x, y = ext_positions[ext_id]
+        # ext_id から neighbor_ip を逆算
+        neighbor_ip = _ext_id_to_ip(ext_id)
+        peer_as_str = ext_peer_as.get(ext_id, "")
+
+        nx = x - _NODE_WIDTH / 2
+        ny = y - _NODE_HEIGHT / 2
+        label = f"AS{_esc(peer_as_str)}" if peer_as_str else "external"
+        sublabel = _esc(neighbor_ip)
+
+        parts.append(
+            f'<g class="device-node external-node" data-device="{_esc(ext_id)}">'
+            f'<rect x="{nx:.1f}" y="{ny:.1f}" width="{_NODE_WIDTH}" height="{_NODE_HEIGHT:.1f}" '
+            f'rx="6" ry="6" class="node-rect external-rect"/>'
+            f'<text x="{x:.1f}" y="{y - 6:.1f}" text-anchor="middle" class="node-label external-label">'
+            f'{label}</text>'
+            f'<text x="{x:.1f}" y="{y + 10:.1f}" text-anchor="middle" class="node-sublabel">'
+            f'{sublabel}</text>'
+            f'</g>'
+        )
+    return "\n".join(parts)
+
+
+def _svg_bgp_external_edges(
+    bgp_entries: list[dict],
+    interfaces: list[dict],
+    positions: dict,
+    ext_positions: dict[str, tuple[float, float]],
+    chip_positions: dict[str, tuple[float, float]] | None = None,
+) -> str:
+    """BGP 外部ピア向けエッジを生成する（内部デバイス → 外部ノード）。
+
+    data-bgp-id: ``"{dev_id}|ext:{neighbor_ip}"``（sorted して結合）。
+    これにより cards の外部行と図の外部線が同一 data-bgp-id で連動する。
+
+    B4: 外部ノード専用。内部解決済みピアは _svg_bgp_edges が処理する。
+
+    Args:
+        bgp_entries:   BGP エントリリスト
+        interfaces:    topology の interfaces リスト
+        positions:     内部デバイスID → (cx, cy) 座標辞書
+        ext_positions: ext_id → (cx, cy) 外部ノード座標辞書
+        chip_positions: iface_id → (cx, cy) チップ座標辞書（None のときフォールバック）
+    """
+    if not ext_positions:
+        return ""
+
+    ip_to_device = _build_ip_to_device(interfaces)
+    ip_to_iface_id: dict[str, str] = _build_ip_to_iface_id(interfaces) if chip_positions is not None else {}
+
+    # (dev_id, ext_id) ペアごとに収集（dedup）
+    # pair(frozenset[dev_id, ext_id]) → list[(dev_id, ext_id, entry)]
+    pair_sessions: dict[frozenset, list[tuple[str, str, dict]]] = {}
+    pair_order: list[frozenset] = []
+
+    for entry in sorted(bgp_entries, key=lambda e: (e["device"], e.get("neighbor_ip", ""))):
+        dev_id = entry["device"]
+        neighbor_ip = entry.get("neighbor_ip", "")
+        if not neighbor_ip:
+            continue
+        if ip_to_device.get(neighbor_ip):
+            continue  # 内部解決: _svg_bgp_edges が処理
+        if dev_id not in positions:
+            continue
+
+        ext_id = _make_ext_id(neighbor_ip)
+        if ext_id not in ext_positions:
+            continue
+
+        pair = frozenset([dev_id, ext_id])
+        if pair not in pair_sessions:
+            pair_sessions[pair] = []
+            pair_order.append(pair)
+        # 重複スキップ
+        already = any(
+            e.get("device") == dev_id and e.get("neighbor_ip") == neighbor_ip
+            for _, _, e in pair_sessions[pair]
+        )
+        if not already:
+            pair_sessions[pair].append((dev_id, ext_id, entry))
+
+    # C MED-2: pair_order は pair_sessions 初出時のみ追加されるため seen 重複チェックは不要
+    parts = []
+    for pair in pair_order:
+        sessions = pair_sessions[pair]
+        if not sessions:
+            continue
+
+        dev_id, ext_id, repr_entry = sessions[0]
+        bgp_type = repr_entry.get("type", "unknown")
+        peer_as = _esc(repr_entry.get("peer_as", ""))
+        local_as = _esc(repr_entry.get("local_as", ""))
+        neighbor_ip = repr_entry.get("neighbor_ip", "")
+
+        # デフォルト座標: 内部ノード中心 → 外部ノード中心
+        x1, y1 = positions[dev_id]
+        x2, y2 = ext_positions[ext_id]
+
+        # チップアンカー（A 側のみ。外部ノードはチップなし）
+        if chip_positions is not None:
+            a_anchored = False
+            for _, _, sess in sorted(sessions, key=lambda t: (t[2].get("af", "v4"), t[2].get("neighbor_ip", ""))):
+                if sess.get("device") != dev_id:
+                    continue
+                local_ip_raw = sess.get("local_ip") or ""
+                if local_ip_raw:
+                    a_iface_id = ip_to_iface_id.get(local_ip_raw)
+                    if a_iface_id and a_iface_id in chip_positions:
+                        x1, y1 = chip_positions[a_iface_id]
+                        a_anchored = True
+                        break
+            if not a_anchored:
+                # local_ip なし: Loopback フォールバック
+                has_local = any(
+                    (s.get("local_ip") or "") for _, _, s in sessions if s.get("device") == dev_id
+                )
+                if not has_local:
+                    lb_candidates = sorted(
+                        iface_id for iface_id in chip_positions
+                        if iface_id.startswith(f"{dev_id}::")
+                        and _is_loopback(iface_id[len(dev_id) + 2:])
+                    )
+                    if lb_candidates:
+                        x1, y1 = chip_positions[lb_candidates[0]]
+
+        css_class = f"bgp-edge bgp-{_esc(bgp_type)} layer-bgp"
+        mx = (x1 + x2) / 2
+        my = (y1 + y2) / 2 - 15
+
+        ip_label = _esc(neighbor_ip) if neighbor_ip else ""
+        title_text = f"{_esc(bgp_type)} AS{local_as}↔AS{peer_as}"
+        if ip_label:
+            title_text += f" | {ip_label}"
+
+        if ip_label:
+            badge_svg = (
+                f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
+                f'class="bgp-badge layer-bgp">'
+                f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
+                f'<tspan x="{mx:.1f}" dy="12">{ip_label}</tspan>'
+                f'</text>'
+            )
+        else:
+            badge_svg = (
+                f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '
+                f'class="bgp-badge layer-bgp">{_esc(bgp_type)} {local_as}↔{peer_as}</text>'
+            )
+
+        # data-bgp-id: dev_id と ext_id を sorted で結合（cards と共有）
+        bgp_id = "|".join(sorted([dev_id, ext_id]))
+
+        parts.append(
+            f'<g class="bgp-session" data-type="{_esc(bgp_type)}" '
+            f'data-a="{_esc(dev_id)}" data-b="{_esc(ext_id)}" '
             f'data-bgp-id="{_esc(bgp_id)}">'
             f'<path d="M{x1:.1f},{y1:.1f} Q{mx:.1f},{my:.1f} {x2:.1f},{y2:.1f}" '
             f'class="{css_class}" fill="none"/>'
