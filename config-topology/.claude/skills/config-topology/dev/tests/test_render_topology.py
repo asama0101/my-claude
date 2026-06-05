@@ -17455,3 +17455,753 @@ def test_fa_low_as_cluster_bbox_single_node():
     min_x, min_y, max_x, max_y = result
     assert min_x < max_x, "min_x >= max_x: bbox が不正"
     assert min_y < max_y, "min_y >= max_y: bbox が不正"
+
+
+# ===========================================================================
+# Round C: 使い勝手3機能
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# ① キーボード操作拡充
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_rc_keyboard_input_guard_in_js(rendered_html):
+    """① 入力中ガード: keydown ハンドラが INPUT/TEXTAREA/SELECT の e.target チェックを持つ"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    # e.target.tagName のガード (INPUT/TEXTAREA/SELECT) が含まれること
+    assert "INPUT" in js_part, "INPUT ガードが keydown ハンドラにない"
+    assert "TEXTAREA" in js_part, "TEXTAREA ガードが keydown ハンドラにない"
+
+
+@pytest.mark.unit
+def test_rc_keyboard_escape_blurs_input(rendered_html):
+    """① Escape キー: 入力欄に focus がある場合 blur() を呼ぶコードが存在する"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    assert "blur()" in js_part, "Escape で入力欄を blur() するコードがない"
+
+
+@pytest.mark.unit
+def test_rc_keyboard_number_keys_view_switch(rendered_html):
+    """① 数字キー 1〜9 でビュー切替: querySelectorAll('.view-tab') を使う処理が存在する"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    # 数字キーで selectView を呼ぶ分岐
+    assert "view-tab" in js_part, "数字キーによるビュー切替コードが見つからない"
+    # 数字-1 インデックスのアクセス（parseInt や Number 等）
+    assert "parseInt" in js_part or "Number(" in js_part or "charCodeAt" in js_part, \
+        "数字キーのインデックス変換処理が見つからない"
+
+
+@pytest.mark.unit
+def test_rc_keyboard_slash_search_focus(rendered_html):
+    """① '/' キーで #search-input をフォーカスし preventDefault するコードが存在する"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    assert "search-input" in js_part, "#search-input へのフォーカスコードがない"
+    assert "preventDefault" in js_part, "/ キーの preventDefault が見つからない"
+
+
+@pytest.mark.unit
+def test_rc_keyboard_help_text_updated(rendered_html):
+    """① ヘルプ文言に数字キーと '/' が追記されている"""
+    # ヘッダ部のヘルプ span 内を確認（script ブロック外）
+    # script タグを除外した本文を検査
+    body_part = re.sub(r'<script[^>]*>.*?</script>', '', rendered_html, flags=re.DOTALL)
+    assert "1" in body_part and "5" in body_part, \
+        "ヘルプ文言に数字キー (1〜5) の記述がない"
+    assert "/" in body_part, "ヘルプ文言に / キーの記述がない"
+
+
+# ---------------------------------------------------------------------------
+# ② 統合凡例トグルパネル
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_rc_legend_toggle_button_exists(rendered_html):
+    """② id="legend-toggle" ボタンが存在する"""
+    assert 'id="legend-toggle"' in rendered_html, "legend-toggle ボタンが存在しない"
+
+
+@pytest.mark.unit
+def test_rc_legend_panel_exists(rendered_html):
+    """② id="legend-panel" パネルが存在する"""
+    assert 'id="legend-panel"' in rendered_html, "legend-panel が存在しない"
+
+
+@pytest.mark.unit
+def test_rc_toggle_legend_function_exists(rendered_html):
+    """② toggleLegend() 関数が JS に存在する"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    assert "toggleLegend" in js_part, "toggleLegend 関数が存在しない"
+
+
+@pytest.mark.unit
+def test_rc_legend_panel_initially_hidden(rendered_html):
+    """② legend-panel は初期状態で非表示 (display:none)"""
+    assert 'id="legend-panel"' in rendered_html
+    # id="legend-panel" の直後の style 属性に display:none が含まれること
+    import re
+    m = re.search(r'id="legend-panel"([^>]*>)', rendered_html)
+    assert m is not None, "legend-panel 要素が見つからない"
+    tag_content = m.group(0) + rendered_html[m.end():m.end() + 50]
+    # style="display:none" が要素属性か直後のインラインスタイルに含まれること
+    assert "display:none" in tag_content or "display: none" in tag_content, \
+        "legend-panel が初期状態で非表示になっていない"
+
+
+@pytest.mark.unit
+def test_rc_legend_static_sections(rendered_html):
+    """② 静的凡例ラベル（eBGP / iBGP / Loopback / 外部ピア）が含まれる"""
+    assert "eBGP" in rendered_html, "eBGP 凡例ラベルがない"
+    assert "iBGP" in rendered_html, "iBGP 凡例ラベルがない"
+    assert "Loopback" in rendered_html, "Loopback 凡例ラベルがない"
+    assert "外部ピア" in rendered_html, "外部ピア 凡例ラベルがない"
+
+
+@pytest.mark.unit
+def test_rc_legend_dynamic_as_section_with_bgp_topology():
+    """② AS を持つ topology で AS{n} 行と _as_color 由来の stroke 色が昇順で出る"""
+    from lib.rendering import render
+    from lib.rendering.svg import _as_color
+    topo = {
+        "title": "AS Legend Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+    html = render(topo)
+    # AS65001, AS65002 の両方が凡例に含まれること
+    assert "AS65001" in html, "legend に AS65001 行がない"
+    assert "AS65002" in html, "legend に AS65002 行がない"
+    # stroke 色が含まれること（昇順: 65001 -> 65002）
+    stroke_65001, _, _ = _as_color(65001)
+    stroke_65002, _, _ = _as_color(65002)
+    assert stroke_65001 in html, f"legend に AS65001 の stroke 色 {stroke_65001} がない"
+    assert stroke_65002 in html, f"legend に AS65002 の stroke 色 {stroke_65002} がない"
+    # 昇順: 65001 が 65002 より前に現れること
+    pos_65001 = html.find("AS65001")
+    pos_65002 = html.find("AS65002")
+    assert pos_65001 < pos_65002, "AS 凡例が昇順になっていない（65001 が 65002 より後）"
+
+
+@pytest.mark.unit
+def test_rc_legend_no_as_section_without_bgp():
+    """② AS を持たない topology では AS セクションが凡例に出ない"""
+    from lib.rendering import render
+    topo = {
+        "title": "No AS Topology",
+        "generated_from": [],
+        "devices": [
+            {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    # AS セクション見出しが出ないこと（"AS枠" や "AS Frame" 等は凡例パネル内限定のため）
+    # legend-panel の内容だけ抽出して確認
+    import re
+    panel_match = re.search(r'id="legend-panel"[^>]*>(.*?)</div>', html, re.DOTALL)
+    if panel_match:
+        panel_content = panel_match.group(1)
+        # AS65XXX 形式の記述がないこと
+        assert not re.search(r"AS\d{5}", panel_content), \
+            "AS なし topology なのに凡例パネルに AS 行が出ている"
+
+
+@pytest.mark.unit
+def test_rc_legend_deterministic(sample_topology):
+    """② legend を含む render 出力が決定的（2回呼んで同一）"""
+    from lib.rendering import render
+    import copy
+    html1 = render(copy.deepcopy(sample_topology))
+    html2 = render(copy.deepcopy(sample_topology))
+    assert html1 == html2, "legend を含む render 出力が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# ③ 接続フィルタ
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_rc_filter_connected_button_exists(rendered_html):
+    """③ id="filter-connected" ボタンが存在する"""
+    assert 'id="filter-connected"' in rendered_html, "filter-connected ボタンがない"
+
+
+@pytest.mark.unit
+def test_rc_invert_selection_button_exists(rendered_html):
+    """③ id="invert-selection" ボタンが存在する"""
+    assert 'id="invert-selection"' in rendered_html, "invert-selection ボタンがない"
+
+
+@pytest.mark.unit
+def test_rc_filter_connected_function_js(rendered_html):
+    """③ filterConnected() 相当の JS 関数が存在し physical/bgp/ospf ビュー対応の分岐を持つ"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    assert "filterConnected" in js_part, "filterConnected 関数が存在しない"
+    # _currentView 別の分岐確認
+    assert "physical" in js_part, "physical ビューの分岐がない"
+    assert "bgp" in js_part, "bgp ビューの分岐がない"
+    assert "ospf" in js_part, "ospf ビューの分岐がない"
+
+
+@pytest.mark.unit
+def test_rc_filter_connected_uses_link_edge_data(rendered_html):
+    """③ filterConnected は .link-edge[data-a][data-b] を参照する"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    assert "link-edge" in js_part and "data-a" in js_part and "data-b" in js_part, \
+        "filterConnected が link-edge の data-a/data-b を参照していない"
+
+
+@pytest.mark.unit
+def test_rc_filter_connected_ospf_seg_grouping(rendered_html):
+    """③ filterConnected の OSPF 分岐が seg-edge の data-seg-id グルーピングを行う"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    assert "seg-edge" in js_part, "ospf 分岐で seg-edge が参照されていない"
+    assert "data-seg-id" in js_part, "ospf 分岐で data-seg-id が参照されていない"
+
+
+@pytest.mark.unit
+def test_rc_invert_selection_function_js(rendered_html):
+    """③ invertSelection() 関数が存在し _updateEdgeHighlightForSelection と _updateCardFilter を呼ぶ"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    assert "invertSelection" in js_part, "invertSelection 関数が存在しない"
+    assert "_updateEdgeHighlightForSelection" in js_part, \
+        "invertSelection が _updateEdgeHighlightForSelection を呼んでいない"
+    assert "_updateCardFilter" in js_part, \
+        "invertSelection が _updateCardFilter を呼んでいない"
+
+
+@pytest.mark.unit
+def test_rc_filter_connected_empty_selection_noop(rendered_html):
+    """③ filterConnected: 選択が空のとき no-op コード（早期リターン等）が存在する"""
+    js_part = rendered_html[rendered_html.find("<script>"):]
+    # _selectedNodes.size === 0 またはそれに相当するガード
+    assert "_selectedNodes.size" in js_part or "_selectedNodes.size ===" in js_part or \
+           "if (_selectedNodes.size" in js_part, \
+        "filterConnected の空選択ガードが見つからない"
+
+
+# ---------------------------------------------------------------------------
+# Round C バグ修正・テスト強化（tdd-guide 追加分）
+# ---------------------------------------------------------------------------
+
+
+# === 【実バグ1】invertSelection 2パス構造テスト ===
+
+@pytest.mark.unit
+def test_rc_invert_selection_two_pass_structure(rendered_html):
+    """invertSelection: devId集合を先に確定（pass1）してから全DOM要素にclassListを適用（pass2）する2パス構造を持つ"""
+    func_body = _extract_js_function(rendered_html, "invertSelection")
+    assert func_body, "invertSelection 関数が見つからない"
+    # 2パス構造の検証:
+    # pass1: 表示中devIdのうち_selectedNodesに含まれないものだけnewSelectedに追加（classList操作なし）
+    # pass2: 全 .device-node に対して newSelected.has(devId) でclassListを一括更新
+    # → 1つ目のforEachでは classList.add('selected') が発生しないこと（newSelected.add のみ）
+    # → 2つ目のforEachで classList.add/remove を行うこと
+    # querySelectorAll が3回以上（device-node pass1 / device-node pass2 / device-card）使われること
+    queries = []
+    pos = 0
+    while True:
+        idx = func_body.find("querySelectorAll", pos)
+        if idx == -1:
+            break
+        queries.append(idx)
+        pos = idx + 1
+    assert len(queries) >= 3, \
+        (f"invertSelection の querySelectorAll が {len(queries)} 個しかない。"
+         "pass1(devId集合確定) / pass2(device-node classList) / pass3(device-card) の3回が必要")
+    # pass1 ループ（1回目querySelectorAll）の中には classList.add('selected') がないこと
+    first_loop_start = queries[0]
+    second_loop_start = queries[1]
+    first_loop_body = func_body[first_loop_start:second_loop_start]
+    assert "classList.add('selected')" not in first_loop_body, \
+        ("pass1 ループ内で classList.add('selected') が発生している。"
+         "devId集合確定フェーズでDOM操作をすると多重ビュー環境でクラス逆転バグが起きる")
+    # pass2 ループ（2回目querySelectorAll）には classList 操作があること
+    second_loop_body = func_body[second_loop_start:]
+    assert "classList" in second_loop_body, \
+        "pass2 以降のループに classList 操作がない"
+
+
+# === 【実バグ2】filterConnected ifinvビューの早期 return テスト ===
+
+@pytest.mark.unit
+def test_rc_filter_connected_ifinv_early_return(rendered_html):
+    """filterConnected: ifinvビューでは隣接計算をせず早期returnすること"""
+    func_body = _extract_js_function(rendered_html, "filterConnected")
+    assert func_body, "filterConnected 関数が見つからない"
+    # _currentView === 'ifinv' の early return が関数本体にあること
+    assert "_currentView === 'ifinv'" in func_body, \
+        "filterConnected に ifinv ビューの early return がない（ifinvビュー状態汚染バグ）"
+    # returnが直後に来ること（if (_currentView === 'ifinv') return; パターン）
+    ifinv_pos = func_body.find("_currentView === 'ifinv'")
+    # ifinv 文字列の後150文字以内に return が含まれること
+    surrounding = func_body[ifinv_pos:ifinv_pos + 150]
+    assert "return" in surrounding, \
+        "ifinv チェックの直後に return がない"
+
+
+# === 【MEDIUM】toggleLegend getComputedStyle テスト ===
+
+@pytest.mark.unit
+def test_rc_toggle_legend_uses_computed_style(rendered_html):
+    """toggleLegend: CSS由来の非表示も検出できるよう getComputedStyle を使うこと"""
+    func_body = _extract_js_function(rendered_html, "toggleLegend")
+    assert func_body, "toggleLegend 関数が見つからない"
+    assert "getComputedStyle" in func_body, \
+        "toggleLegend が getComputedStyle を使っていない（CSS由来displayで誤動作するバグ）"
+
+
+# === 【テスト強化 H-3】keyboard help text のタグ単位検証 ===
+
+@pytest.mark.unit
+def test_rc_keyboard_help_text_kbd_tags(rendered_html):
+    """ヘルプ文言に <kbd>1</kbd>〜<kbd>5</kbd> と <kbd>/</kbd> のタグが存在する"""
+    body_part = re.sub(r'<script[^>]*>.*?</script>', '', rendered_html, flags=re.DOTALL)
+    assert "<kbd>1</kbd>" in body_part, "ヘルプ文言に <kbd>1</kbd> タグがない"
+    assert "<kbd>5</kbd>" in body_part, "ヘルプ文言に <kbd>5</kbd> タグがない"
+    assert "<kbd>/</kbd>" in body_part, "ヘルプ文言に <kbd>/</kbd> タグがない"
+
+
+# === 【テスト強化 H-4】filterConnected 関数本体に3分岐があること ===
+
+@pytest.mark.unit
+def test_rc_filter_connected_three_view_branches_in_body(rendered_html):
+    """filterConnected 関数本体に physical/bgp/ospf の3分岐が全て存在する"""
+    func_body = _extract_js_function(rendered_html, "filterConnected")
+    assert func_body, "filterConnected 関数が見つからない"
+    assert "'physical'" in func_body or '"physical"' in func_body, \
+        "filterConnected 本体に physical 分岐がない"
+    assert "'bgp'" in func_body or '"bgp"' in func_body, \
+        "filterConnected 本体に bgp 分岐がない"
+    assert "'ospf'" in func_body or '"ospf"' in func_body, \
+        "filterConnected 本体に ospf 分岐がない"
+
+
+# === 【テスト強化 H-1】legend-panel 領域にスコープした AS 昇順検証 ===
+
+@pytest.mark.unit
+def test_rc_legend_as_order_scoped_to_legend_panel():
+    """AS凡例の昇順が legend-panel スコープ内で確認される（SVGノードラベルに引っ張られない）"""
+    from lib.rendering import render
+    topo = {
+        "title": "AS Order Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+    html = render(topo)
+    # legend-panel 開始位置以降に絞って検証（SVGノードラベル位置に影響されない）
+    panel_start = html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が見つからない"
+    panel_region = html[panel_start:]
+    pos_65001 = panel_region.find("AS65001")
+    pos_65002 = panel_region.find("AS65002")
+    assert pos_65001 != -1, "legend-panel に AS65001 がない"
+    assert pos_65002 != -1, "legend-panel に AS65002 がない"
+    assert pos_65001 < pos_65002, \
+        "legend-panel 内で AS65001 が AS65002 より後に現れる（昇順でない）"
+
+
+# === 【テスト強化 C-1】legend_no_as の素通り防止 ===
+
+@pytest.mark.unit
+def test_rc_legend_no_as_section_scoped():
+    """AS なし topology では legend-panel 内に AS 番号行が出ないこと（素通りしない構造）"""
+    from lib.rendering import render
+    topo = {
+        "title": "No AS Topology",
+        "generated_from": [],
+        "devices": [
+            {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    panel_start = html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が存在しない（素通りせず確実に検証できる）"
+    # legend-panel 以降の文字列を対象に AS 番号パターンを検索
+    panel_region = html[panel_start:]
+    # AS65XXX 形式の AS 番号が含まれないこと
+    assert not re.search(r"AS\d{5}", panel_region), \
+        "AS なし topology なのに legend-panel 領域に AS 行が出ている"
+
+
+# === 【テスト強化 M-1】legend_static_sections を legend-panel 領域にスコープ ===
+
+@pytest.mark.unit
+def test_rc_legend_static_sections_scoped(rendered_html):
+    """静的凡例ラベルが legend-panel 内に含まれること（全体検索でなくパネル内スコープ）"""
+    panel_start = rendered_html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が存在しない"
+    panel_region = rendered_html[panel_start:]
+    assert "eBGP" in panel_region, "legend-panel 内に eBGP 凡例ラベルがない"
+    assert "iBGP" in panel_region, "legend-panel 内に iBGP 凡例ラベルがない"
+    assert "Loopback" in panel_region, "legend-panel 内に Loopback 凡例ラベルがない"
+    assert "外部ピア" in panel_region, "legend-panel 内に 外部ピア 凡例ラベルがない"
+
+
+# === 【ユニットテスト追加】_build_legend_as_html / _collect_bgp_asns 単体 ===
+
+@pytest.mark.unit
+def test_rc_build_legend_as_html_empty():
+    """_build_legend_as_html([]) は空文字を返す（AS なし → AS セクション非表示）"""
+    from lib.rendering.views import _build_legend_as_html
+    result = _build_legend_as_html([])
+    assert result == "", f"空リストで空文字でなく '{result}' が返った"
+
+
+@pytest.mark.unit
+def test_rc_build_legend_as_html_single():
+    """_build_legend_as_html([65001]) は AS65001 を含む HTML を返す"""
+    from lib.rendering.views import _build_legend_as_html
+    result = _build_legend_as_html([65001])
+    assert "AS65001" in result, "_build_legend_as_html が AS65001 を含まない"
+    assert "AS 枠" in result, "_build_legend_as_html にセクションタイトルがない"
+
+
+@pytest.mark.unit
+def test_rc_build_legend_as_html_deterministic():
+    """_build_legend_as_html は同一入力で同一出力（決定的）"""
+    from lib.rendering.views import _build_legend_as_html
+    result1 = _build_legend_as_html([65001, 65002])
+    result2 = _build_legend_as_html([65001, 65002])
+    assert result1 == result2, "_build_legend_as_html が非決定的"
+
+
+@pytest.mark.unit
+def test_rc_collect_bgp_asns_sorted_unique():
+    """_collect_bgp_asns は重複なし昇順 int リストを返す"""
+    from lib.rendering.views import _collect_bgp_asns
+    devices = [
+        {"id": "r1", "as": 65002},
+        {"id": "r2", "as": 65001},
+        {"id": "r3", "as": 65001},  # 重複
+    ]
+    bgp_entries = [
+        {"local_as": 65003, "device": "r1"},
+        {"local_as": 65001, "device": "r2"},  # 重複
+    ]
+    result = _collect_bgp_asns(devices, bgp_entries)
+    assert result == [65001, 65002, 65003], f"昇順ユニーク結果が期待と異なる: {result}"
+
+
+@pytest.mark.unit
+def test_rc_collect_bgp_asns_empty():
+    """_collect_bgp_asns は空入力で空リストを返す"""
+    from lib.rendering.views import _collect_bgp_asns
+    result = _collect_bgp_asns([], [])
+    assert result == [], f"空入力で [] でなく {result} が返った"
+
+
+@pytest.mark.unit
+def test_rc_collect_bgp_asns_devices_only():
+    """_collect_bgp_asns は devices のみの場合でも AS を収集する"""
+    from lib.rendering.views import _collect_bgp_asns
+    devices = [{"id": "r1", "as": 65100}, {"id": "r2", "as": None}]
+    result = _collect_bgp_asns(devices, [])
+    assert result == [65100], f"devices のみの AS 収集が期待と異なる: {result}"
+
+
+# ===========================================================================
+# Round C クロスレビュー修正テスト
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# 修正1【HIGH・実バグ】filterConnected OSPF ビューで link-edge も参照する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundc_filter_connected_ospf_also_uses_link_edge(rendered_html):
+    """filterConnected の ospf 分岐内に .view-ospf .link-edge[data-a][data-b] が含まれること（p2p 隣接バグ修正）"""
+    func_body = _extract_js_function(rendered_html, "filterConnected")
+    assert func_body, "filterConnected 関数が見つからない"
+    # ospf 分岐のスコープ: 'ospf' 検出位置以降かつ bgp 分岐開始より前を対象
+    ospf_start = func_body.find("'ospf'")
+    assert ospf_start != -1, "filterConnected に ospf 分岐がない"
+    # ospf 分岐内（1500文字以内）に view-ospf .link-edge が含まれること
+    ospf_branch = func_body[ospf_start: ospf_start + 1500]
+    assert ".view-ospf .link-edge" in ospf_branch, (
+        "filterConnected の ospf 分岐が .view-ospf .link-edge[data-a][data-b] を参照していない"
+        "（p2p リンク主体のOSPFトポロジで接続先のみが壊れるバグ）"
+    )
+
+
+@pytest.mark.unit
+def test_roundc_filter_connected_ospf_branch_has_addadjacentbyedge(rendered_html):
+    """filterConnected の ospf 分岐内に _addAdjacentByEdge 呼び出しが存在する（p2p 用）"""
+    func_body = _extract_js_function(rendered_html, "filterConnected")
+    assert func_body, "filterConnected 関数が見つからない"
+    ospf_start = func_body.find("'ospf'")
+    assert ospf_start != -1, "filterConnected に ospf 分岐がない"
+    ospf_branch = func_body[ospf_start: ospf_start + 1500]
+    # ospf 分岐内で _addAdjacentByEdge が呼ばれていること（p2p ヘルパー再利用）
+    assert "_addAdjacentByEdge" in ospf_branch, (
+        "filterConnected の ospf 分岐内で _addAdjacentByEdge が呼ばれていない"
+        "（p2p OSPFリンクに対する隣接解決が欠落）"
+    )
+
+
+@pytest.mark.unit
+def test_roundc_ospf_view_link_edge_present_in_ospf_topology():
+    """OSPF p2p トポロジの render 出力に .view-ospf 内の link-edge[data-a][data-b] が存在する"""
+    from lib.rendering import render
+    topo = _make_ospf_two_devices_topology()
+    html = render(topo)
+    # view-ospf グループを抽出
+    ospf_view_start = html.find('class="view view-ospf"')
+    assert ospf_view_start != -1, "OSPF ビューが生成されていない"
+    # 次の class="view view-" まで or 3000文字の範囲を ospf ビューとみなす
+    ospf_view_end = html.find('class="view view-', ospf_view_start + 10)
+    if ospf_view_end == -1:
+        ospf_view_end = ospf_view_start + 5000
+    ospf_view_html = html[ospf_view_start:ospf_view_end]
+    # link-edge[data-a][data-b] が存在すること
+    assert 'data-a=' in ospf_view_html and 'data-b=' in ospf_view_html, (
+        "OSPF ビュー内に link-edge[data-a][data-b] が存在しない"
+        "（p2p リンクが link-edge としてレンダリングされていない）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 修正2【MEDIUM・UX】凡例パネルの静的セクションをビュー存在に応じて条件表示
+# ---------------------------------------------------------------------------
+
+def _make_ospf_only_topology():
+    """BGP なし・OSPF あり の topology（BGP節は出ないはずの検証用）"""
+    return {
+        "title": "OSPF Only Topology",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "ospf": [
+                {"device": "r1", "process": 1, "network": "10.0.0.0/30", "area": "0"},
+                {"device": "r2", "process": 1, "network": "10.0.0.0/30", "area": "0"},
+            ],
+            "bgp": [],
+            "static": [],
+        },
+    }
+
+
+def _make_bgp_only_no_ospf_topology():
+    """BGP あり・OSPF なし の topology（OSPF節は出ないはずの検証用）"""
+    return {
+        "title": "BGP Only No OSPF",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_roundc_legend_bgp_section_present_with_bgp(rendered_html):
+    """BGP ビューを持つ sample_topology では凡例パネル内に BGP 節（eBGP/iBGP）が出ること"""
+    panel_start = rendered_html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が存在しない"
+    panel_region = rendered_html[panel_start:]
+    assert "eBGP" in panel_region, "BGP あり topology の legend-panel 内に eBGP 節がない"
+    assert "iBGP" in panel_region, "BGP あり topology の legend-panel 内に iBGP 節がない"
+
+
+@pytest.mark.unit
+def test_roundc_legend_bgp_section_absent_without_bgp():
+    """BGP なし topology では凡例パネル内に BGP 節（eBGP/iBGP/unknown）が出ないこと"""
+    from lib.rendering import render
+    html = render(_make_ospf_only_topology())
+    panel_start = html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が存在しない"
+    # legend-panel div から <script> タグ開始までをパネル領域として検証
+    # （<script> 以降の JS コメントにこれらの文字列が現れる場合を除外するため）
+    script_start = html.find("<script>", panel_start)
+    panel_region = html[panel_start:script_start] if script_start != -1 else html[panel_start:]
+    # BGP 節テキストが含まれないこと
+    assert "eBGP" not in panel_region, (
+        "BGP なし topology なのに legend-panel（HTML部分）内に 'eBGP' が含まれている（UXバグ）"
+    )
+    assert "iBGP" not in panel_region, (
+        "BGP なし topology なのに legend-panel（HTML部分）内に 'iBGP' が含まれている（UXバグ）"
+    )
+
+
+@pytest.mark.unit
+def test_roundc_legend_ospf_section_present_with_ospf(rendered_html):
+    """OSPF ビューを持つ sample_topology では凡例パネル内に OSPF 節が出ること"""
+    panel_start = rendered_html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が存在しない"
+    panel_region = rendered_html[panel_start:]
+    assert "OSPF リンク" in panel_region, "OSPF あり topology の legend-panel 内に OSPF 節がない"
+
+
+@pytest.mark.unit
+def test_roundc_legend_ospf_section_absent_without_ospf():
+    """OSPF なし topology では凡例パネル内に OSPF 節が出ないこと"""
+    from lib.rendering import render
+    html = render(_make_bgp_only_no_ospf_topology())
+    panel_start = html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が存在しない"
+    # legend-panel div から <script> タグ開始までをパネル領域として検証
+    script_start = html.find("<script>", panel_start)
+    panel_region = html[panel_start:script_start] if script_start != -1 else html[panel_start:]
+    assert "OSPF リンク" not in panel_region, (
+        "OSPF なし topology なのに legend-panel（HTML部分）内に 'OSPF リンク' が含まれている（UXバグ）"
+    )
+
+
+@pytest.mark.unit
+def test_roundc_legend_node_link_sections_always_present():
+    """ノード節・Physical リンク節は BGP/OSPF の有無によらず常に表示されること"""
+    from lib.rendering import render
+    # BGP も OSPF もない最小 topology
+    topo = {
+        "title": "Minimal No Protocol",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    panel_start = html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が存在しない"
+    panel_region = html[panel_start:]
+    assert "通常ノード" in panel_region, "legend-panel 内にノード節（通常ノード）がない"
+    assert "Physical リンク" in panel_region, "legend-panel 内に Physical リンク節がない"
+
+
+@pytest.mark.unit
+def test_roundc_legend_ifchip_section_always_present():
+    """IF チップ節はビュー有無によらず常に表示されること"""
+    from lib.rendering import render
+    topo = {
+        "title": "IF Chip Legend Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    panel_start = html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が存在しない"
+    panel_region = html[panel_start:]
+    assert "接続 IF" in panel_region, "legend-panel 内に IF チップ節（接続 IF）がない"
+
+
+@pytest.mark.unit
+def test_roundc_legend_deterministic_with_bgp_and_ospf(rendered_html):
+    """BGP+OSPF を持つ sample_topology での render は決定的（凡例条件分岐修正後も）"""
+    from lib.rendering import render
+    import copy
+    from lib.topology_io import load_topology
+    import os
+    examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
+    topo = load_topology(os.path.join(examples_dir, "topology"))
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "凡例条件分岐修正後に render 出力が非決定的になっている"
+
+
+@pytest.mark.unit
+def test_roundc_legend_bgp_and_ospf_both_present_with_both_protocols(rendered_html):
+    """BGP+OSPF 両方を持つ sample_topology では凡例パネルに BGP 節も OSPF 節も出ること"""
+    panel_start = rendered_html.find('id="legend-panel"')
+    assert panel_start != -1, "legend-panel が存在しない"
+    panel_region = rendered_html[panel_start:]
+    assert "eBGP" in panel_region, "BGP+OSPF topology の legend-panel 内に eBGP がない"
+    assert "OSPF リンク" in panel_region, "BGP+OSPF topology の legend-panel 内に OSPF リンクがない"

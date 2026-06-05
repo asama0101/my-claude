@@ -39,7 +39,177 @@ from lib.rendering.svg import (
     _svg_ospf_segments,
     _svg_segment_edges,
     _svg_segments,
+    _as_color,
 )
+
+
+def _build_legend_as_html(asns: list[int]) -> str:
+    """BGP AS 番号リストから凡例パネル用 AS スウォッチ HTML を生成する。
+
+    副作用なし・色は `_as_color(asn)` 委譲で同一 asn は常に同色（決定的）。
+    `asns` は昇順ユニーク前提（`_collect_bgp_asns` の戻り値を渡すこと）。
+
+    Args:
+        asns: 重複なし・昇順ソート済みの AS 番号リスト（呼び出し側で保証）
+
+    Returns:
+        AS が1つ以上あれば見出し＋各 AS 行の HTML 文字列。空リストなら空文字。
+    """
+    if not asns:
+        return ""
+    rows = []
+    rows.append('<div class="legend-section-title">AS 枠</div>')
+    for asn in asns:
+        stroke, _, _ = _as_color(asn)
+        rows.append(
+            f'<div class="legend-row">'
+            f'<svg width="16" height="12" style="flex-shrink:0;vertical-align:middle">'
+            f'<rect x="1" y="1" width="14" height="10" rx="2" fill="none"'
+            f' stroke="{stroke}" stroke-width="2"/></svg>'
+            f'<span>AS{asn}</span>'
+            f'</div>'
+        )
+    return "\n".join(rows)
+
+
+def _collect_bgp_asns(devices: list[dict], bgp_entries: list[dict]) -> list[int]:
+    """BGP 参加デバイスから AS 番号を収集し、重複なし昇順で返す。
+
+    devices[].as および bgp_entries[].local_as を両方参照し、
+    int 化できるもののみ収集する。
+
+    Args:
+        devices:     topology["devices"]
+        bgp_entries: topology["routing"]["bgp"]
+
+    Returns:
+        重複なし昇順 int リスト
+    """
+    asns: set[int] = set()
+    for dev in devices:
+        asn = dev.get("as")
+        if asn is not None:
+            try:
+                asns.add(int(asn))
+            except (ValueError, TypeError):
+                pass
+    for entry in bgp_entries:
+        local_as = entry.get("local_as")
+        if local_as is not None:
+            try:
+                asns.add(int(local_as))
+            except (ValueError, TypeError):
+                pass
+    return sorted(asns)
+
+
+def _build_legend_panel_inner(view_ids: list[str], legend_as_html: str) -> str:
+    """凡例パネルの内側 HTML をビュー存在に応じて条件生成する。
+
+    常に表示するセクション:
+    - ノード節（通常ノード・外部ピア・next-hop 経路対象）
+    - Physical リンク節
+    - IF チップ節
+
+    ビュー存在依存のセクション:
+    - BGP 節（eBGP/iBGP/unknown）: ``'bgp' in view_ids`` の時のみ
+    - OSPF 節: ``'ospf' in view_ids`` の時のみ
+
+    動的 AS 節（``legend_as_html``）: 空文字でなければ末尾に追記。
+
+    Args:
+        view_ids: 生成済みビュー ID リスト（例: ["physical", "bgp", "ospf", "ifinv"]）
+        legend_as_html: _build_legend_as_html() の戻り値。空文字なら出力しない。
+
+    Returns:
+        legend-panel div の内側 HTML 文字列（決定的・副作用なし）。
+    """
+    parts: list[str] = []
+
+    # ---- ノード節（常時）----
+    parts.append("""\
+        <div class="legend-section-title">ノード</div>
+        <div class="legend-row">
+          <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
+            <rect x="1" y="1" width="20" height="12" rx="3" class="node-rect"/></svg>
+          <span>通常ノード</span>
+        </div>
+        <div class="legend-row">
+          <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
+            <rect x="1" y="1" width="20" height="12" rx="3" class="node-rect external-rect"/></svg>
+          <span>外部ピア（topology外）</span>
+        </div>
+        <div class="legend-row">
+          <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
+            <rect x="1" y="1" width="20" height="12" rx="3" class="node-rect route-target" style="fill:#d1fae5;stroke:#059669;stroke-width:2"/></svg>
+          <span>next-hop 経路対象</span>
+        </div>""")
+
+    # ---- Physical リンク節（常時）----
+    parts.append("""\
+        <div class="legend-section-title">リンク（Physical）</div>
+        <div class="legend-row">
+          <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
+            <line x1="1" y1="7" x2="21" y2="7" stroke="var(--color-link)" stroke-width="2"/></svg>
+          <span>Physical リンク</span>
+        </div>
+        <div class="legend-row">
+          <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
+            <line x1="1" y1="7" x2="21" y2="7" stroke="var(--color-highlight)" stroke-width="2"/></svg>
+          <span>ハイライト</span>
+        </div>""")
+
+    # ---- BGP 節（bgp ビューが存在する場合のみ）----
+    if "bgp" in view_ids:
+        parts.append("""\
+        <div class="legend-section-title">BGP</div>
+        <div class="legend-row">
+          <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
+            <line x1="1" y1="7" x2="21" y2="7" stroke="var(--color-bgp-ebgp)" stroke-width="2"/></svg>
+          <span>eBGP</span>
+        </div>
+        <div class="legend-row">
+          <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
+            <line x1="1" y1="7" x2="21" y2="7" stroke="var(--color-bgp-ibgp)" stroke-width="2"/></svg>
+          <span>iBGP</span>
+        </div>
+        <div class="legend-row">
+          <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
+            <line x1="1" y1="7" x2="21" y2="7" stroke="var(--color-bgp-unknown)" stroke-width="2"/></svg>
+          <span>unknown</span>
+        </div>""")
+
+    # ---- OSPF 節（ospf ビューが存在する場合のみ）----
+    if "ospf" in view_ids:
+        parts.append("""\
+        <div class="legend-section-title">OSPF</div>
+        <div class="legend-row">
+          <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
+            <line x1="1" y1="7" x2="21" y2="7" stroke="var(--color-ospf)" stroke-width="2"/></svg>
+          <span>OSPF リンク・ラベル</span>
+        </div>""")
+
+    # ---- IF チップ節（常時）----
+    parts.append("""\
+        <div class="legend-section-title">IF チップ</div>
+        <div class="legend-row">
+          <svg width="12" height="12" style="flex-shrink:0;vertical-align:middle"><g class="if-chip"><circle cx="6" cy="6" r="5"/></g></svg>
+          <span>接続 IF</span>
+        </div>
+        <div class="legend-row">
+          <svg width="12" height="12" style="flex-shrink:0;vertical-align:middle"><g class="if-chip if-chip-loopback"><circle cx="6" cy="6" r="5"/></g></svg>
+          <span>Loopback</span>
+        </div>
+        <div class="legend-row">
+          <svg width="12" height="12" style="flex-shrink:0;vertical-align:middle"><g class="if-chip highlighted"><circle cx="6" cy="6" r="5" fill="#fef08a" stroke="#f59e0b" stroke-width="2"/></g></svg>
+          <span>ハイライト IF</span>
+        </div>""")
+
+    # ---- 動的 AS 節（空文字でなければ）----
+    if legend_as_html:
+        parts.append(f"        {legend_as_html}")
+
+    return "\n".join(parts)
 
 
 def _as_cluster_bbox(

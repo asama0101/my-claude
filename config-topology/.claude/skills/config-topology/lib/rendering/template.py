@@ -575,6 +575,61 @@ _CSS = """\
       color: #3730a3;
     }
 
+    /* 統合凡例パネル（右上 zoom-controls の下、絶対配置） */
+    #legend-panel {
+      display: none;
+      position: absolute;
+      top: 44px;
+      right: 8px;
+      background: #fff;
+      border: 1px solid var(--color-card-border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      z-index: 20;
+      min-width: 180px;
+      max-height: 60vh;
+      overflow-y: auto;
+      font-size: 0.8rem;
+      color: #374151;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+
+    #legend-panel .legend-section-title {
+      font-weight: 700;
+      font-size: 0.75rem;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-top: 8px;
+      margin-bottom: 4px;
+      padding-bottom: 2px;
+      border-bottom: 1px solid var(--color-card-border);
+    }
+
+    #legend-panel .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 0;
+    }
+
+    /* 凡例トグルボタン（ヘッダ内） */
+    #legend-toggle {
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 4px;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      cursor: pointer;
+      line-height: 1.4;
+    }
+
+    #legend-toggle:hover {
+      background: rgba(255,255,255,0.25);
+    }
+
     /* BGP ビュー AS グルーピング枠（iteration-3 Batch2 #4: 視認性改善）
        色（fill/stroke）は svg のインライン style で AS 別に付与するためここでは省略 */
     .as-group {
@@ -726,6 +781,130 @@ _CSS = """\
 # ---------------------------------------------------------------------------
 
 _JS = """\
+    // ============================================================
+    // 統合凡例パネル トグル
+    // ============================================================
+    function toggleLegend() {
+      var panel = document.getElementById('legend-panel');
+      if (!panel) return;
+      // getComputedStyle を使うことで CSS 由来の display:none も正しく検出する
+      var isHidden = window.getComputedStyle(panel).display === 'none';
+      panel.style.display = isHidden ? 'block' : 'none';
+    }
+
+    // ============================================================
+    // 接続フィルタ
+    // ============================================================
+    function filterConnected() {
+      // 選択ノードが空なら no-op
+      if (_selectedNodes.size === 0) return;
+      // ifinv ビューでは隣接計算を行わない（SVG エッジが存在しないため状態汚染を防ぐ）
+      if (_currentView === 'ifinv') return;
+
+      // 表示中の全デバイスノードを収集
+      var allDeviceIds = new Set();
+      document.querySelectorAll('.device-node[data-device]').forEach(function(n) {
+        allDeviceIds.add(n.getAttribute('data-device'));
+      });
+
+      // 隣接集合を現在のビュー別に計算
+      var adjacent = new Set(_selectedNodes);
+
+      // physical/bgp は selector の違いのみで同型 → ローカルヘルパで重複排除
+      function _addAdjacentByEdge(selector) {
+        document.querySelectorAll(selector).forEach(function(edge) {
+          var a = edge.getAttribute('data-a');
+          var b = edge.getAttribute('data-b');
+          if (_selectedNodes.has(a) || _selectedNodes.has(b)) {
+            adjacent.add(a);
+            adjacent.add(b);
+          }
+        });
+      }
+
+      if (_currentView === 'physical') {
+        _addAdjacentByEdge('.view-physical .link-edge[data-a][data-b]');
+      } else if (_currentView === 'bgp') {
+        _addAdjacentByEdge('.view-bgp .bgp-session[data-a][data-b]');
+      } else if (_currentView === 'ospf') {
+        // p2p リンク: physical/bgp と同型のヘルパーで隣接解決
+        _addAdjacentByEdge('.view-ospf .link-edge[data-a][data-b]');
+        // multi-access セグメント: seg-edge を data-seg-id でグルーピングし、
+        // 選択ノードが属するセグメントの全 device を隣接に追加
+        var segToDevs = {};
+        document.querySelectorAll('.view-ospf .seg-edge[data-seg-id][data-device]').forEach(function(edge) {
+          var segId = edge.getAttribute('data-seg-id');
+          var dev = edge.getAttribute('data-device');
+          if (!segToDevs[segId]) segToDevs[segId] = [];
+          segToDevs[segId].push(dev);
+        });
+        Object.keys(segToDevs).forEach(function(segId) {
+          var devs = segToDevs[segId];
+          var hasSelected = devs.some(function(d) { return _selectedNodes.has(d); });
+          if (hasSelected) {
+            devs.forEach(function(d) { adjacent.add(d); });
+          }
+        });
+      }
+
+      // チェックボックス連動: devId → cb の Map を事前構築（O(N)クエリ削減）
+      var cbMap = new Map();
+      document.querySelectorAll('.node-filter-cb[data-node-filter]').forEach(function(cb) {
+        cbMap.set(cb.getAttribute('data-node-filter'), cb);
+      });
+
+      // 表示集合 = adjacent、それ以外を隠す
+      allDeviceIds.forEach(function(devId) {
+        var visible = adjacent.has(devId);
+        setNodeVisibility(devId, visible, true);
+        var cb = cbMap.get(devId);
+        if (cb) cb.checked = visible;
+      });
+      _applyIfFilters();
+    }
+
+    function invertSelection() {
+      // 2パス構造: physical/bgp/ospf 各ビューに同一 devId のノードが存在するため、
+      // pass1 で反転後の選択 devId 集合を先に確定し、
+      // pass2 で全ノード/カードに classList を一括適用する（逆転バグ防止）
+
+      // pass1: 表示中の devId を収集し、反転後の newSelected 集合を確定（DOM操作なし）
+      var newSelected = new Set();
+      document.querySelectorAll('.device-node[data-device]').forEach(function(node) {
+        var devId = node.getAttribute('data-device');
+        if (_hiddenNodes.has(devId)) return;  // 非表示ノードはスキップ
+        if (!_selectedNodes.has(devId)) {
+          newSelected.add(devId);
+        }
+      });
+
+      // pass2: 全 .device-node に newSelected に基づいて classList を一括適用
+      document.querySelectorAll('.device-node[data-device]').forEach(function(node) {
+        var devId = node.getAttribute('data-device');
+        if (_hiddenNodes.has(devId)) return;
+        if (newSelected.has(devId)) {
+          node.classList.add('selected');
+        } else {
+          node.classList.remove('selected');
+        }
+      });
+
+      // カードも同期（newSelected 確定後に適用）
+      document.querySelectorAll('.device-card[data-device]').forEach(function(card) {
+        var devId = card.getAttribute('data-device');
+        if (_hiddenNodes.has(devId)) return;
+        if (newSelected.has(devId)) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      });
+      _selectedNodes.clear();
+      newSelected.forEach(function(d) { _selectedNodes.add(d); });
+      _updateEdgeHighlightForSelection();
+      _updateCardFilter();
+    }
+
     // ============================================================
     // ビュー切替
     // ============================================================
@@ -1266,16 +1445,40 @@ _JS = """\
 
       // キーボード
       document.addEventListener('keydown', function(e) {
+        // 入力中ガード: INPUT/TEXTAREA/SELECT または contentEditable にフォーカス中は
+        // f/数字/'/` キーを横取りしない（Escape は例外で blur を優先）
+        var isEditing = (
+          e.target.tagName === 'INPUT' ||
+          e.target.tagName === 'TEXTAREA' ||
+          e.target.tagName === 'SELECT' ||
+          e.target.contentEditable === 'true'
+        );
+
+        if (e.key === 'Escape') {
+          // Escape は常にハンドル: 入力欄にいれば blur してから clearSelection 等を実行
+          if (isEditing) { e.target.blur(); }
+          clearSelection(); scale = 1.0; translateX = 0; translateY = 0; applyTransform();
+          return;
+        }
+
+        // 入力中はここ以降を処理しない
+        if (isEditing) return;
+
         if (e.key === 'f' || e.key === 'F') {
-          // F = 全体表示（zoomFit）: HTML ヘルプ表記と実挙動を一致させる
+          // F = 全体表示（zoomFit）
           zoomFit();
-        } else if (e.key === 'Escape') {
-          // Esc = 選択/ハイライト解除 + 等倍リセット
-          clearSelection();
-          scale = 1.0;
-          translateX = 0;
-          translateY = 0;
-          applyTransform();
+        } else if (e.key === '/') {
+          // '/' = 検索欄フォーカス（'/' が入力されないよう preventDefault）
+          e.preventDefault();
+          var searchInput = document.getElementById('search-input');
+          if (searchInput) searchInput.focus();
+        } else if (e.key >= '1' && e.key <= '9') {
+          // 数字キー 1〜9 でビュー切替（タブの N 番目、0-indexed = 数字-1）
+          var tabs = document.querySelectorAll('.view-tab');
+          var idx = parseInt(e.key, 10) - 1;
+          if (idx >= 0 && idx < tabs.length) {
+            selectView(tabs[idx].dataset.view);
+          }
         }
       });
 
@@ -2443,8 +2646,15 @@ def build_html(
     cards_html: str,
     topology_json_safe: str,
     ifinv_table_html: str = "",
+    legend_panel_inner: str = "",
 ) -> str:
-    """HTML シェルを組み立てて返す"""
+    """HTML シェルを組み立てて返す。
+
+    Args:
+        legend_panel_inner: 凡例パネル（#legend-panel）の内側 HTML断片。
+            ``_build_legend_panel_inner()`` の戻り値を渡す。
+            ビュー存在に応じて BGP/OSPF 節の表示が制御される。
+    """
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -2462,8 +2672,9 @@ def build_html(
   <header>
     <h1 id="topo-title">{title}</h1>
     <span style="font-size:0.75rem;opacity:0.7;">
-      <kbd>F</kbd> 全体表示　<kbd>Esc</kbd> リセット　ホイール=ズーム　ドラッグ=パン　クリック=ノード選択
+      <kbd>F</kbd> 全体表示　<kbd>Esc</kbd> リセット　<kbd>1</kbd>〜<kbd>5</kbd> ビュー切替　<kbd>/</kbd> 検索　ホイール=ズーム　ドラッグ=パン　クリック=ノード選択
     </span>
+    <button id="legend-toggle" onclick="toggleLegend()" title="凡例を表示/非表示">凡例</button>
   </header>
 
   <!-- ビュー切替タブ -->
@@ -2476,6 +2687,8 @@ def build_html(
     <input type="search" id="search-input" placeholder="hostname / IP / CIDR..." oninput="filterNodes(this.value)">
     <button id="search-next" class="zoom-btn" title="次のマッチへ（Enter）" style="margin-left:4px;">次へ</button>
     <span id="search-count" style="margin-left:8px;font-size:0.8rem;color:#6b7280;"></span>
+    <button id="filter-connected" class="zoom-btn" onclick="filterConnected()" style="margin-left:12px;" title="選択ノードと接続先のみ表示">接続先のみ</button>
+    <button id="invert-selection" class="zoom-btn" onclick="invertSelection()" style="margin-left:4px;" title="選択反転">選択反転</button>
   </div>
 
   {node_filter_html}
@@ -2511,6 +2724,10 @@ def build_html(
         <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip"><circle cx="6" cy="6" r="5"/></g></svg><span>接続IF</span>
         <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip if-chip-loopback"><circle cx="6" cy="6" r="5"/></g></svg><span>Loopback</span>
         <svg width="22" height="12" style="flex-shrink:0"><rect x="1" y="1" width="20" height="10" rx="2" ry="2" class="node-rect external-rect"/></svg><span>外部ピア（topology外）</span>
+      </div>
+      <!-- 統合凡例パネル（右上 zoom-controls の下、初期非表示） -->
+      <div id="legend-panel" style="display:none">
+{legend_panel_inner}
       </div>
     </div>
 

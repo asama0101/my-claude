@@ -15,12 +15,15 @@ from lib.rendering.views import (
     _bgp_has_external_peers,
     _bgp_has_resolved_edges,
     _build_ifinv_table,
+    _build_legend_as_html,
+    _build_legend_panel_inner,
     _build_physical_layout,
     _build_view_bgp,
     _build_view_generic,
     _build_view_ospf,
     _build_view_physical,
     _build_view_tabs,
+    _collect_bgp_asns,
     _generic_has_edges,
     _ospf_has_edges,
 )
@@ -696,6 +699,18 @@ def render(topology: dict) -> str:
     # ---------------------------------------------------------------------------
     ifinv_table_html = _build_ifinv_table(devices, interfaces)
 
+    # ---------------------------------------------------------------------------
+    # Round C ②: 統合凡例パネル — 動的 AS セクション（昇順・決定的）
+    # ---------------------------------------------------------------------------
+    bgp_entries = routing.get("bgp", [])
+    legend_asns = _collect_bgp_asns(devices, bgp_entries)
+    legend_as_html = _build_legend_as_html(legend_asns)
+
+    # ---------------------------------------------------------------------------
+    # Round C クロスレビュー修正: 凡例パネル内側 HTML をビュー存在に応じて条件生成
+    # ---------------------------------------------------------------------------
+    legend_panel_inner = _build_legend_panel_inner(all_view_ids, legend_as_html)
+
     return build_html(
         title=title,
         layer_hide_css=layer_hide_css,
@@ -710,4 +725,5 @@ def render(topology: dict) -> str:
         cards_html=cards_html,
         topology_json_safe=topology_json_safe,
         ifinv_table_html=ifinv_table_html,
+        legend_panel_inner=legend_panel_inner,
     )
