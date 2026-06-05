@@ -1989,9 +1989,14 @@ _JS = """\
     // 検索クエリ状態と未使用トグル状態（単一の真実源）
     var _ifinvSearchQuery = '';
     var _ifinvUnusedOnly = false;
+    // B3: ドロップダウンフィルタ状態変数（空文字列 = フィルタしない）
+    var _ifinvDeviceFilter = '';
+    var _ifinvAfFilter = '';
+    var _ifinvStatusFilter = '';
+    var _ifinvL2l3Filter = '';
 
-    // _applyIfFilters: 検索クエリ (_ifinvSearchQuery) と未使用トグル (_ifinvUnusedOnly) の
-    // 両条件 AND で全行の表示/非表示を一括再評価する。
+    // _applyIfFilters: 全フィルタ条件（検索 × 未使用トグル × device × af × status × l2l3）
+    // を AND で評価して全行の表示/非表示を一括再評価する。
     // グローバル検索から _ifinvSearchQuery が更新される（#ifinv-search は撤去済み）。
     // CIDR クエリの場合は data-ips も参照してマッチ判定する（_ipsMatchCidr を使用）。
     function _applyIfFilters() {
@@ -2011,8 +2016,13 @@ _JS = """\
           matchSearch = searchVal.indexOf(q) !== -1;
         }
         var matchUnused = !_ifinvUnusedOnly || row.getAttribute('data-unused') === '1';
-        // 両条件を AND で評価して表示/非表示を決定（クラスは ifinv-row-hidden に一本化）
-        if (matchSearch && matchUnused) {
+        // B3: ドロップダウン AND フィルタ
+        var matchDevice = !_ifinvDeviceFilter || row.getAttribute('data-device') === _ifinvDeviceFilter;
+        var matchAf = !_ifinvAfFilter || row.getAttribute('data-af') === _ifinvAfFilter;
+        var matchStatus = !_ifinvStatusFilter || row.getAttribute('data-status') === _ifinvStatusFilter;
+        var matchL2l3 = !_ifinvL2l3Filter || row.getAttribute('data-l2l3') === _ifinvL2l3Filter;
+        // 全条件を AND で評価して表示/非表示を決定（クラスは ifinv-row-hidden に一本化）
+        if (matchSearch && matchUnused && matchDevice && matchAf && matchStatus && matchL2l3) {
           row.classList.remove('ifinv-row-hidden');
           // マッチ行に search-match クラスを付与（強調表示）
           if (q) {
@@ -2039,13 +2049,42 @@ _JS = """\
       _applyIfFilters();
     }
 
-    // ifinv-unused-toggle のイベント登録（DC5: addEventListener）
+    // ifinv-unused-toggle とドロップダウン select のイベント登録（DC5: addEventListener）
     // #ifinv-search は撤去済み（グローバル検索 #search-input に統合）のためリスナーなし
+    // B3: ifinv-filter-device / -af / -status / -l2l3 の change を登録
     (function() {
       var unusedToggle = document.getElementById('ifinv-unused-toggle');
       if (unusedToggle) {
         unusedToggle.addEventListener('change', function() {
           toggleUnused(unusedToggle.checked);
+        });
+      }
+      var selDevice = document.getElementById('ifinv-filter-device');
+      if (selDevice) {
+        selDevice.addEventListener('change', function() {
+          _ifinvDeviceFilter = selDevice.value;
+          _applyIfFilters();
+        });
+      }
+      var selAf = document.getElementById('ifinv-filter-af');
+      if (selAf) {
+        selAf.addEventListener('change', function() {
+          _ifinvAfFilter = selAf.value;
+          _applyIfFilters();
+        });
+      }
+      var selStatus = document.getElementById('ifinv-filter-status');
+      if (selStatus) {
+        selStatus.addEventListener('change', function() {
+          _ifinvStatusFilter = selStatus.value;
+          _applyIfFilters();
+        });
+      }
+      var selL2l3 = document.getElementById('ifinv-filter-l2l3');
+      if (selL2l3) {
+        selL2l3.addEventListener('change', function() {
+          _ifinvL2l3Filter = selL2l3.value;
+          _applyIfFilters();
         });
       }
     })();

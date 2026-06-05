@@ -13929,3 +13929,747 @@ def test_b_search_count_hidden_on_empty_query(rendered_html):
     )
     assert has_clear, \
         "#search-count の空クエリ時クリア（textContent = ''）が filterNodes JS に含まれない"
+
+
+# ===========================================================================
+# Round B — B3: IF一覧 af 列追加 + 機器/af/status/L2L3 ドロップダウン絞り込み
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# テスト用ヘルパー: B3 専用 topology（dual/v4/v6/none の各 af パターンを含む）
+# ---------------------------------------------------------------------------
+
+def _make_b3_topology():
+    """B3 テスト用 topology。
+    DS-R1: GUA v4+v6(dual), v4-only, noip(none)
+    V4-R2: v4-only × 2
+    V6-R3: v6(GUA)-only × 1
+    合計6本の IF で all af パターンを網羅。
+    """
+    return {
+        "title": "B3 Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "ds_r1", "hostname": "DS-R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "v4_r2", "hostname": "V4-R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+            {"id": "v6_r3", "hostname": "V6-R3", "vendor": "junos", "as": 65003, "sections": []},
+        ],
+        "interfaces": [
+            # DS-R1 Gi0/0: dual (v4+v6 GUA)
+            {
+                "id": "ds_r1::Gi0/0", "device": "ds_r1", "name": "GigabitEthernet0/0",
+                "ip": "10.0.0.1/30", "admin_status": "up", "mtu": 1500, "vlan": None,
+                "l2_l3": "l3", "description": "to-V4-R2", "shutdown": False,
+                "addresses": [
+                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30, "scope": None, "secondary": False},
+                    {"af": "v6", "ip": "2001:db8:1::1", "prefix": 64, "scope": None},
+                ],
+            },
+            # DS-R1 Gi0/1: v4 only
+            {
+                "id": "ds_r1::Gi0/1", "device": "ds_r1", "name": "GigabitEthernet0/1",
+                "ip": "192.168.1.1/24", "admin_status": "down", "mtu": 9000, "vlan": None,
+                "l2_l3": "l2", "description": "unused-v4", "shutdown": False,
+                "addresses": [
+                    {"af": "v4", "ip": "192.168.1.1", "prefix": 24, "scope": None, "secondary": False},
+                ],
+            },
+            # DS-R1 Gi0/2: no IP (none)
+            {
+                "id": "ds_r1::Gi0/2", "device": "ds_r1", "name": "GigabitEthernet0/2",
+                "ip": None, "admin_status": "admin-down", "mtu": None, "vlan": None,
+                "l2_l3": None, "description": None, "shutdown": True,
+                "addresses": [],
+            },
+            # V4-R2 ge0: v4 only
+            {
+                "id": "v4_r2::ge0", "device": "v4_r2", "name": "ge-0/0/0",
+                "ip": "10.0.0.2/30", "admin_status": "up", "mtu": 1500, "vlan": None,
+                "l2_l3": "l3", "description": "to-DS-R1", "shutdown": False,
+                "addresses": [
+                    {"af": "v4", "ip": "10.0.0.2", "prefix": 30, "scope": None, "secondary": False},
+                ],
+            },
+            # V4-R2 ge1: v4 only, admin-down
+            {
+                "id": "v4_r2::ge1", "device": "v4_r2", "name": "ge-0/0/1",
+                "ip": "172.16.0.1/24", "admin_status": "admin-down", "mtu": None, "vlan": 100,
+                "l2_l3": "l2", "description": None, "shutdown": True,
+                "addresses": [
+                    {"af": "v4", "ip": "172.16.0.1", "prefix": 24, "scope": None, "secondary": False},
+                ],
+            },
+            # V6-R3 ge0: v6 GUA only（link-local 含む → link-local は除外して v6 判定）
+            {
+                "id": "v6_r3::ge0", "device": "v6_r3", "name": "ge-0/0/0",
+                "ip": None, "admin_status": "up", "mtu": 1500, "vlan": None,
+                "l2_l3": "l3", "description": "v6-only-link", "shutdown": False,
+                "addresses": [
+                    {"af": "v6", "ip": "2001:db8:2::1", "prefix": 64, "scope": None},
+                    {"af": "v6", "ip": "fe80::1", "prefix": 64, "scope": "link-local"},
+                ],
+            },
+        ],
+        "links": [
+            {"a_device": "ds_r1", "a_if": "GigabitEthernet0/0",
+             "b_device": "v4_r2", "b_if": "ge-0/0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+@pytest.fixture
+def b3_topology():
+    return _make_b3_topology()
+
+
+@pytest.fixture
+def b3_ifinv_html(b3_topology):
+    from lib.rendering.views import _build_ifinv_table
+    return _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+
+
+# ---------------------------------------------------------------------------
+# B3-1: af 列 / data-af 属性
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_b3_af_column_header_exists(b3_ifinv_html):
+    """B3: ifinv テーブルに AF 列ヘッダが存在する。"""
+    assert "AF" in b3_ifinv_html, \
+        "ifinv テーブルに AF 列ヘッダが見つからない"
+
+
+@pytest.mark.unit
+def test_b3_af_column_has_data_col(b3_ifinv_html):
+    """B3: AF 列 th に data-col='af' が付与される。"""
+    assert 'data-col="af"' in b3_ifinv_html, \
+        "AF 列に data-col='af' が見つからない"
+
+
+@pytest.mark.unit
+def test_b3_data_af_dual_on_dualstack_iface(b3_topology):
+    """B3: dual-stack IF（v4+v6 GUA）の data-af が 'dual'。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    # ds_r1::Gi0/0 は dual
+    assert 'data-iface-id="ds_r1::Gi0/0"' in result, "ds_r1::Gi0/0 行が見つからない"
+    # data-af="dual" を持つ行が存在する
+    assert 'data-af="dual"' in result, \
+        "dual-stack IF に data-af='dual' が付与されていない"
+
+
+@pytest.mark.unit
+def test_b3_data_af_v4_on_v4_only_iface(b3_topology):
+    """B3: v4のみ IF の data-af が 'v4'。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    assert 'data-af="v4"' in result, \
+        "v4-only IF に data-af='v4' が付与されていない"
+
+
+@pytest.mark.unit
+def test_b3_data_af_v6_on_v6_only_iface(b3_topology):
+    """B3: v6 GUA のみ IF（link-local 除外）の data-af が 'v6'。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    assert 'data-af="v6"' in result, \
+        "v6-only IF に data-af='v6' が付与されていない"
+
+
+@pytest.mark.unit
+def test_b3_data_af_none_on_no_ip_iface(b3_topology):
+    """B3: IP なし IF（addresses が空）の data-af が 'none'。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    assert 'data-af="none"' in result, \
+        "IP なし IF に data-af='none' が付与されていない"
+
+
+@pytest.mark.unit
+def test_b3_af_column_value_dual_in_cell(b3_topology):
+    """B3: dual-stack IF の AF 列セルに 'dual' が表示される。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    # dual が td として出力されること（data-af="dual" の行に対応）
+    # "dual" という文字列が data-af 属性以外にもセルテキストとして存在すること
+    assert result.count("dual") >= 2, \
+        "AF 列セルに 'dual' テキストが含まれない（data-af 属性のみでセルなし）"
+
+
+@pytest.mark.unit
+def test_b3_af_link_local_excluded_from_v6(b3_topology):
+    """B3: link-local のみ持つ IF は v6 ではなく none 扱い。"""
+    from lib.rendering.views import _build_ifinv_table
+    # link-local のみの IF を追加したトポロジー
+    topo = _make_b3_topology()
+    topo["devices"].append({"id": "ll_r4", "hostname": "LL-R4", "vendor": "cisco_ios", "as": None, "sections": []})
+    topo["interfaces"].append({
+        "id": "ll_r4::ge0", "device": "ll_r4", "name": "ge-0/0/0",
+        "ip": None, "admin_status": "up", "mtu": None, "vlan": None,
+        "l2_l3": "l3", "description": None, "shutdown": False,
+        "addresses": [
+            {"af": "v6", "ip": "fe80::1", "prefix": 64, "scope": "link-local"},
+        ],
+    })
+    result = _build_ifinv_table(topo["devices"], topo["interfaces"])
+    # ll_r4::ge0 の行
+    import re
+    row_m = re.search(r'<tr[^>]*data-iface-id="ll_r4::ge0"[^>]*>', result)
+    assert row_m is not None, "ll_r4::ge0 行が見つからない"
+    assert 'data-af="none"' in row_m.group(0), \
+        "link-local のみの IF が v6 と誤判定されている（none であるべき）"
+
+
+# ---------------------------------------------------------------------------
+# B3-2: data-status / data-l2l3 属性
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_b3_rows_have_data_status(b3_topology):
+    """B3: 各 ifinv 行に data-status 属性が付与される。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    import re
+    rows = re.findall(r'<tr[^>]*data-iface-id="[^"]*"[^>]*>', result)
+    for row_html in rows:
+        assert 'data-status="' in row_html, \
+            f"data-status 属性が行に見つからない: {row_html[:120]!r}"
+
+
+@pytest.mark.unit
+def test_b3_rows_have_data_l2l3(b3_topology):
+    """B3: 各 ifinv 行に data-l2l3 属性が付与される。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    import re
+    rows = re.findall(r'<tr[^>]*data-iface-id="[^"]*"[^>]*>', result)
+    for row_html in rows:
+        assert 'data-l2l3="' in row_html, \
+            f"data-l2l3 属性が行に見つからない: {row_html[:120]!r}"
+
+
+@pytest.mark.unit
+def test_b3_data_status_matches_admin_status(b3_topology):
+    """B3: data-status の値が admin_status フィールドと一致する。"""
+    from lib.rendering.views import _build_ifinv_table
+    import re
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    # ds_r1::Gi0/0 は admin_status="up" → data-status="up"
+    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/0"[^>]*>', result)
+    assert row_m is not None, "ds_r1::Gi0/0 行が見つからない"
+    assert 'data-status="up"' in row_m.group(0), \
+        f"ds_r1::Gi0/0 の data-status が 'up' でない: {row_m.group(0)!r}"
+
+
+@pytest.mark.unit
+def test_b3_data_l2l3_matches_l2l3_field(b3_topology):
+    """B3: data-l2l3 の値が l2_l3 フィールドと一致する。"""
+    from lib.rendering.views import _build_ifinv_table
+    import re
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    # ds_r1::Gi0/0 は l2_l3="l3" → data-l2l3="l3"
+    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/0"[^>]*>', result)
+    assert row_m is not None, "ds_r1::Gi0/0 行が見つからない"
+    assert 'data-l2l3="l3"' in row_m.group(0), \
+        f"ds_r1::Gi0/0 の data-l2l3 が 'l3' でない: {row_m.group(0)!r}"
+
+
+@pytest.mark.unit
+def test_b3_data_l2l3_none_sentinel_when_null(b3_topology):
+    """B3-A1: l2_l3=None の IF は data-l2l3="none"（sentinel）になる。
+
+    空文字列 "" は「すべて」フィルタ value="" と衝突するため sentinel "none" を使用する。
+    """
+    from lib.rendering.views import _build_ifinv_table
+    import re
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    # ds_r1::Gi0/2 は l2_l3=None → data-l2l3="none"（sentinel）
+    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>', result)
+    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
+    assert 'data-l2l3="none"' in row_m.group(0), \
+        f"ds_r1::Gi0/2 の data-l2l3 が sentinel 'none' でない: {row_m.group(0)!r}"
+
+
+# ---------------------------------------------------------------------------
+# B3-3: ドロップダウン select 要素の生成
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_b3_select_device_exists(b3_ifinv_html):
+    """B3: ifinv ツールバーに id='ifinv-filter-device' select が存在する。"""
+    assert 'id="ifinv-filter-device"' in b3_ifinv_html, \
+        "id='ifinv-filter-device' select が見つからない"
+
+
+@pytest.mark.unit
+def test_b3_select_af_exists(b3_ifinv_html):
+    """B3: ifinv ツールバーに id='ifinv-filter-af' select が存在する。"""
+    assert 'id="ifinv-filter-af"' in b3_ifinv_html, \
+        "id='ifinv-filter-af' select が見つからない"
+
+
+@pytest.mark.unit
+def test_b3_select_status_exists(b3_ifinv_html):
+    """B3: ifinv ツールバーに id='ifinv-filter-status' select が存在する。"""
+    assert 'id="ifinv-filter-status"' in b3_ifinv_html, \
+        "id='ifinv-filter-status' select が見つからない"
+
+
+@pytest.mark.unit
+def test_b3_select_l2l3_exists(b3_ifinv_html):
+    """B3: ifinv ツールバーに id='ifinv-filter-l2l3' select が存在する。"""
+    assert 'id="ifinv-filter-l2l3"' in b3_ifinv_html, \
+        "id='ifinv-filter-l2l3' select が見つからない"
+
+
+@pytest.mark.unit
+def test_b3_select_af_has_all_options(b3_ifinv_html):
+    """B3: #ifinv-filter-af に すべて/v4/v6/dual/none の全 option が存在する。"""
+    import re
+    m = re.search(r'<select[^>]*id="ifinv-filter-af"[^>]*>(.*?)</select>',
+                  b3_ifinv_html, re.DOTALL)
+    assert m is not None, "ifinv-filter-af select が見つからない"
+    select_html = m.group(0)
+    for val in ("v4", "v6", "dual", "none"):
+        assert f'value="{val}"' in select_html, \
+            f"af select に value='{val}' option が見つからない"
+
+
+@pytest.mark.unit
+def test_b3_select_device_options_deterministic(b3_topology):
+    """B3: #ifinv-filter-device の option はデータから決定的に生成される（device id 昇順）。"""
+    from lib.rendering.views import _build_ifinv_table
+    import re
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    m = re.search(r'<select[^>]*id="ifinv-filter-device"[^>]*>(.*?)</select>',
+                  result, re.DOTALL)
+    assert m is not None, "ifinv-filter-device select が見つからない"
+    select_html = m.group(0)
+    # topology の全 device id が option に含まれること
+    for dev in b3_topology["devices"]:
+        assert f'value="{dev["id"]}"' in select_html, \
+            f"device '{dev['id']}' が ifinv-filter-device select に見つからない"
+
+
+@pytest.mark.unit
+def test_b3_select_status_options_from_data(b3_topology):
+    """B3: #ifinv-filter-status の option がデータの admin_status から決定的に生成される。"""
+    from lib.rendering.views import _build_ifinv_table
+    import re
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    m = re.search(r'<select[^>]*id="ifinv-filter-status"[^>]*>(.*?)</select>',
+                  result, re.DOTALL)
+    assert m is not None, "ifinv-filter-status select が見つからない"
+    select_html = m.group(0)
+    # b3_topology の admin_status のユニーク値 (up/down/admin-down) が含まれること
+    expected_statuses = {"up", "down", "admin-down"}
+    for st in expected_statuses:
+        assert f'value="{st}"' in select_html, \
+            f"status '{st}' が ifinv-filter-status select に見つからない"
+
+
+@pytest.mark.unit
+def test_b3_select_l2l3_options_from_data(b3_topology):
+    """B3: #ifinv-filter-l2l3 の option がデータの l2_l3 から決定的に生成される。"""
+    from lib.rendering.views import _build_ifinv_table
+    import re
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    m = re.search(r'<select[^>]*id="ifinv-filter-l2l3"[^>]*>(.*?)</select>',
+                  result, re.DOTALL)
+    assert m is not None, "ifinv-filter-l2l3 select が見つからない"
+    select_html = m.group(0)
+    # b3_topology の l2_l3 のユニーク非空値 (l2/l3) が含まれること
+    for val in ("l2", "l3"):
+        assert f'value="{val}"' in select_html, \
+            f"l2l3 '{val}' が ifinv-filter-l2l3 select に見つからない"
+
+
+# ---------------------------------------------------------------------------
+# B3-4: _applyIfFilters JS のドロップダウンフィルタ AND 統合テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_b3_js_has_device_filter_state_var(b3_topology):
+    """B3: _applyIfFilters JS に _ifinvDeviceFilter 状態変数が存在する。"""
+    from lib.rendering import render
+    html = render(b3_topology)
+    import re
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None, "script ブロックが見つからない"
+    js = js_m.group(1)
+    assert "_ifinvDeviceFilter" in js, \
+        "_ifinvDeviceFilter 状態変数が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_b3_js_has_af_filter_state_var(b3_topology):
+    """B3: _applyIfFilters JS に _ifinvAfFilter 状態変数が存在する。"""
+    from lib.rendering import render
+    html = render(b3_topology)
+    import re
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None
+    js = js_m.group(1)
+    assert "_ifinvAfFilter" in js, \
+        "_ifinvAfFilter 状態変数が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_b3_js_has_status_filter_state_var(b3_topology):
+    """B3: _applyIfFilters JS に _ifinvStatusFilter 状態変数が存在する。"""
+    from lib.rendering import render
+    html = render(b3_topology)
+    import re
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None
+    js = js_m.group(1)
+    assert "_ifinvStatusFilter" in js, \
+        "_ifinvStatusFilter 状態変数が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_b3_js_has_l2l3_filter_state_var(b3_topology):
+    """B3: _applyIfFilters JS に _ifinvL2l3Filter 状態変数が存在する。"""
+    from lib.rendering import render
+    html = render(b3_topology)
+    import re
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None
+    js = js_m.group(1)
+    assert "_ifinvL2l3Filter" in js, \
+        "_ifinvL2l3Filter 状態変数が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_b3_js_apply_if_filters_uses_data_af(b3_topology):
+    """B3: _applyIfFilters JS が data-af 属性を参照する AND 評価を含む。"""
+    from lib.rendering import render
+    html = render(b3_topology)
+    import re
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None
+    js = js_m.group(1)
+    assert "data-af" in js, \
+        "_applyIfFilters JS が data-af を参照しない"
+
+
+@pytest.mark.unit
+def test_b3_js_apply_if_filters_uses_data_status(b3_topology):
+    """B3: _applyIfFilters JS が data-status 属性を参照する。"""
+    from lib.rendering import render
+    html = render(b3_topology)
+    import re
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None
+    js = js_m.group(1)
+    assert "data-status" in js, \
+        "_applyIfFilters JS が data-status を参照しない"
+
+
+@pytest.mark.unit
+def test_b3_js_apply_if_filters_uses_data_l2l3(b3_topology):
+    """B3: _applyIfFilters JS が data-l2l3 属性を参照する。"""
+    from lib.rendering import render
+    html = render(b3_topology)
+    import re
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None
+    js = js_m.group(1)
+    assert "data-l2l3" in js, \
+        "_applyIfFilters JS が data-l2l3 を参照しない"
+
+
+@pytest.mark.unit
+def test_b3_js_select_change_listeners_registered(b3_topology):
+    """B3: ifinv-filter-* select に addEventListener('change', ...) が登録される JS コードが存在する。"""
+    from lib.rendering import render
+    html = render(b3_topology)
+    import re
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None
+    js = js_m.group(1)
+    # ifinv-filter-device/af/status/l2l3 の change リスナー登録
+    for sel_id in ("ifinv-filter-device", "ifinv-filter-af", "ifinv-filter-status", "ifinv-filter-l2l3"):
+        assert sel_id in js, \
+            f"select id='{sel_id}' への change リスナー登録が JS に見つからない"
+
+
+# ---------------------------------------------------------------------------
+# B3-5: 決定性・非回帰
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_b3_ifinv_deterministic(b3_topology):
+    """B3: b3_topology を2回 _build_ifinv_table して同一出力（決定性）。"""
+    from lib.rendering.views import _build_ifinv_table
+    r1 = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    r2 = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    assert r1 == r2, "b3_topology の _build_ifinv_table が非決定的"
+
+
+@pytest.mark.unit
+def test_b3_existing_columns_unchanged(b3_ifinv_html):
+    """B3: 既存列ヘッダ（Device/Interface/IP/Status/MTU/VLAN/L2L3/Description）が維持される。"""
+    for header in ("Device", "Interface", "IP", "Status", "MTU", "VLAN", "L2L3", "Description"):
+        assert header in b3_ifinv_html, \
+            f"B3 追加後に既存列ヘッダ '{header}' が消えた"
+
+
+@pytest.mark.unit
+def test_b3_existing_data_attrs_unchanged(b3_topology):
+    """B3: 既存の data-iface-id/data-device/data-unused/data-search/data-ips が維持される。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    for attr in ("data-iface-id", "data-device", "data-search", "data-ips"):
+        assert attr in result, f"B3 追加後に既存属性 '{attr}' が消えた"
+
+
+@pytest.mark.unit
+def test_b3_unused_toggle_still_exists(b3_ifinv_html):
+    """B3: 未使用トグル (#ifinv-unused-toggle) が維持される（非回帰）。"""
+    assert 'id="ifinv-unused-toggle"' in b3_ifinv_html, \
+        "B3 追加後に未使用トグルが消えた"
+
+
+@pytest.mark.unit
+def test_b3_ifinv_html_self_contained(b3_topology):
+    """B3: _build_ifinv_table 出力が外部リソース参照（src= / href=）を持たない（自己完結）。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    import re
+    external_refs = re.findall(r'(?:src|href)="(?!#)[^"]*"', result)
+    assert not external_refs, \
+        f"_build_ifinv_table 出力に外部参照が含まれる: {external_refs}"
+
+
+# ---------------------------------------------------------------------------
+# Round B B3 レビュー指摘修正テスト
+# ---------------------------------------------------------------------------
+
+# --- A1: l2_l3=None を sentinel "none" に正規化 ---
+
+@pytest.mark.unit
+def test_b3_a1_l2l3_none_sentinel_in_data_attr(b3_topology):
+    """A1: l2_l3=None の IF は data-l2l3="none" (sentinel) になる（value="" との衝突防止）。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>', result)
+    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
+    assert 'data-l2l3="none"' in row_m.group(0), \
+        f"l2_l3=None の行が data-l2l3='none' でない: {row_m.group(0)!r}"
+
+
+@pytest.mark.unit
+def test_b3_a1_l2l3_select_has_none_option(b3_topology):
+    """A1: l2_l3=None 行がある場合、#ifinv-filter-l2l3 select に value='none' option が存在する。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    m = re.search(r'<select[^>]*id="ifinv-filter-l2l3"[^>]*>(.*?)</select>',
+                  result, re.DOTALL)
+    assert m is not None, "ifinv-filter-l2l3 select が見つからない"
+    assert 'value="none"' in m.group(0), \
+        "l2_l3=None 行があるのに value='none' option が ifinv-filter-l2l3 に存在しない"
+
+
+@pytest.mark.unit
+def test_b3_a1_l2l3_select_no_empty_value_for_none(b3_topology):
+    """A1: #ifinv-filter-l2l3 の value="" は「すべて」専用のみ（sentinel "none" で空value重複なし）。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    m = re.search(r'<select[^>]*id="ifinv-filter-l2l3"[^>]*>(.*?)</select>',
+                  result, re.DOTALL)
+    assert m is not None, "ifinv-filter-l2l3 select が見つからない"
+    # value="" は「すべて」1個のみ（sentinel "none" があるので空データ option なし）
+    empty_options = re.findall(r'<option[^>]*value=""[^>]*>', m.group(0))
+    assert len(empty_options) == 1, \
+        f"value='' option が「すべて」1個以外に存在する: {empty_options}"
+
+
+@pytest.mark.unit
+def test_b3_a1_l2l3_none_sentinel_cell_display(b3_topology):
+    """A1: data-l2l3='none' の L2L3 列セルは '-' 等（空欄でなく）で表示される。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    # ds_r1::Gi0/2 行（l2_l3=None）の td[L2L3] セルが '-' または '(未分類)' 等で表示される
+    row_m = re.search(
+        r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>(.*?)</tr>',
+        result, re.DOTALL
+    )
+    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
+    row_body = row_m.group(1)
+    # 行内の td を取得
+    tds = re.findall(r'<td[^>]*>(.*?)</td>', row_body, re.DOTALL)
+    # L2L3 列は8番目（0-indexed: 7）: Device/Interface/IP/AF/Status/MTU/VLAN/L2L3/Description
+    assert len(tds) >= 8, f"td 数が不足: {len(tds)}"
+    l2l3_cell = tds[7]
+    # セルは '-' で表示（空欄ではない）
+    assert l2l3_cell.strip() == "-", \
+        f"l2_l3=None の L2L3 セルが '-' でない: {l2l3_cell!r}"
+
+
+# --- A2: dev_hostname_for_select 重複除去 ---
+
+@pytest.mark.unit
+def test_b3_a2_no_dev_hostname_for_select_duplication(b3_topology):
+    """A2: _build_ifinv_table が dev_hostname_for_select の重複定義なしに device option を生成する（DRY 確認）。
+
+    実装内側の変数名はブラックボックスだが、device option の hostname 表示が正しく動作することで間接確認。
+    """
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    m = re.search(r'<select[^>]*id="ifinv-filter-device"[^>]*>(.*?)</select>',
+                  result, re.DOTALL)
+    assert m is not None, "ifinv-filter-device select が見つからない"
+    select_html = m.group(0)
+    # 各 device の hostname が option テキストとして表示される
+    for dev in b3_topology["devices"]:
+        hostname = dev.get("hostname", dev["id"])
+        assert hostname in select_html, \
+            f"device '{dev['id']}' の hostname '{hostname}' が device option テキストに見つからない"
+
+
+# --- H-1: data-af 行単位検証 ---
+
+@pytest.mark.unit
+def test_b3_h1_data_af_v4_on_target_row(b3_topology):
+    """H-1: v4-only IF (ds_r1::Gi0/1) の行に data-af='v4' が付く（行抽出で検証）。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/1"[^>]*>', result)
+    assert row_m is not None, "ds_r1::Gi0/1 行が見つからない"
+    assert 'data-af="v4"' in row_m.group(0), \
+        f"ds_r1::Gi0/1 の行に data-af='v4' が付かない: {row_m.group(0)!r}"
+
+
+@pytest.mark.unit
+def test_b3_h1_data_af_v6_on_target_row(b3_topology):
+    """H-1: v6-only IF (v6_r3::ge0) の行に data-af='v6' が付く（行抽出で検証）。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    row_m = re.search(r'<tr[^>]*data-iface-id="v6_r3::ge0"[^>]*>', result)
+    assert row_m is not None, "v6_r3::ge0 行が見つからない"
+    assert 'data-af="v6"' in row_m.group(0), \
+        f"v6_r3::ge0 の行に data-af='v6' が付かない: {row_m.group(0)!r}"
+
+
+@pytest.mark.unit
+def test_b3_h1_data_af_none_on_target_row(b3_topology):
+    """H-1: no-IP IF (ds_r1::Gi0/2) の行に data-af='none' が付く（行抽出で検証）。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>', result)
+    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
+    assert 'data-af="none"' in row_m.group(0), \
+        f"ds_r1::Gi0/2 の行に data-af='none' が付かない: {row_m.group(0)!r}"
+
+
+# --- H-2: _applyIfFilters 6条件 AND ---
+
+@pytest.mark.unit
+def test_b3_h2_apply_if_filters_has_6_conditions_and(b3_topology):
+    """H-2: _applyIfFilters JS が matchSearch/matchUnused/matchDevice/matchAf/matchStatus/matchL2l3 の 6条件 AND を持つ。
+
+    _applyIfFilters は rows.forEach コールバックを含むため、関数先頭から閉じ括弧まで
+    を含む全テキストを検索して6変数と AND 結合式を確認する。
+    """
+    from lib.rendering import render
+    html = render(b3_topology)
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None, "script ブロックが見つからない"
+    js = js_m.group(1)
+    # _applyIfFilters 関数が存在する
+    assert "function _applyIfFilters" in js, "_applyIfFilters 関数が JS に存在しない"
+    # 関数開始位置から 1500 文字以内に 6変数がすべて含まれる
+    start = js.find("function _applyIfFilters")
+    fn_region = js[start:start + 1500]
+    for var in ("matchSearch", "matchUnused", "matchDevice", "matchAf", "matchStatus", "matchL2l3"):
+        assert var in fn_region, \
+            f"_applyIfFilters に '{var}' 条件が存在しない"
+    # AND 結合式に 6変数が含まれる（matchX && matchY && ... の形）
+    and_m = re.search(
+        r'if\s*\(\s*matchSearch\s*&&\s*matchUnused\s*&&\s*matchDevice\s*&&\s*matchAf\s*&&\s*matchStatus\s*&&\s*matchL2l3\s*\)',
+        fn_region
+    )
+    assert and_m is not None, \
+        "_applyIfFilters に 6条件の AND 結合式 (matchSearch && matchUnused && matchDevice && matchAf && matchStatus && matchL2l3) が存在しない"
+    # data-* 参照が含まれる（各条件で getAttribute を使用）
+    for attr in ("data-unused", "data-device", "data-af", "data-status", "data-l2l3"):
+        assert attr in fn_region, \
+            f"_applyIfFilters が '{attr}' を参照しない"
+
+
+# --- H-3: data-status / data-l2l3 値バリエーション行単位検証 ---
+
+@pytest.mark.unit
+def test_b3_h3_data_status_down_on_target_row(b3_topology):
+    """H-3: admin_status='down' の行に data-status='down' が付く（行抽出）。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    # ds_r1::Gi0/1 は admin_status="down"
+    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/1"[^>]*>', result)
+    assert row_m is not None, "ds_r1::Gi0/1 行が見つからない"
+    assert 'data-status="down"' in row_m.group(0), \
+        f"ds_r1::Gi0/1 の行に data-status='down' が付かない: {row_m.group(0)!r}"
+
+
+@pytest.mark.unit
+def test_b3_h3_data_status_admin_down_on_target_row(b3_topology):
+    """H-3: admin_status='admin-down' の行に data-status='admin-down' が付く（行抽出）。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    # ds_r1::Gi0/2 は admin_status="admin-down"
+    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>', result)
+    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
+    assert 'data-status="admin-down"' in row_m.group(0), \
+        f"ds_r1::Gi0/2 の行に data-status='admin-down' が付かない: {row_m.group(0)!r}"
+
+
+@pytest.mark.unit
+def test_b3_h3_data_l2l3_l2_on_target_row(b3_topology):
+    """H-3: l2_l3='l2' の行に data-l2l3='l2' が付く（行抽出）。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    # ds_r1::Gi0/1 は l2_l3="l2"
+    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/1"[^>]*>', result)
+    assert row_m is not None, "ds_r1::Gi0/1 行が見つからない"
+    assert 'data-l2l3="l2"' in row_m.group(0), \
+        f"ds_r1::Gi0/1 の行に data-l2l3='l2' が付かない: {row_m.group(0)!r}"
+
+
+# --- M-2: addEventListener('change' が JS にある ---
+
+@pytest.mark.unit
+def test_b3_m2_select_change_listeners_use_add_event_listener(b3_topology):
+    """M-2: ifinv-filter-* select の change 登録が addEventListener('change', ...) 形式である。"""
+    from lib.rendering import render
+    html = render(b3_topology)
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None, "script ブロックが見つからない"
+    js = js_m.group(1)
+    # addEventListener と 'change' が共存している（インライン onchange は使わない）
+    assert "addEventListener" in js and "'change'" in js, \
+        "addEventListener('change', ...) パターンが JS に存在しない"
+    # 各 select id について addEventListener('change' が登録されている
+    for sel_id in ("ifinv-filter-device", "ifinv-filter-af", "ifinv-filter-status", "ifinv-filter-l2l3"):
+        assert sel_id in js, \
+            f"select id='{sel_id}' への addEventListener 登録が JS に見つからない"
+
+
+# --- M-3: device option 決定的昇順 ---
+
+@pytest.mark.unit
+def test_b3_m3_device_options_deterministic_ascending_order(b3_topology):
+    """M-3: #ifinv-filter-device の option value は device_id 昇順で決定的に並ぶ。"""
+    from lib.rendering.views import _build_ifinv_table
+    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
+    m = re.search(r'<select[^>]*id="ifinv-filter-device"[^>]*>(.*?)</select>',
+                  result, re.DOTALL)
+    assert m is not None, "ifinv-filter-device select が見つからない"
+    # 「すべて」(value="") を除く option value を出現順に取得
+    option_values = re.findall(r'<option[^>]*value="([^"]+)"[^>]*>', m.group(0))
+    expected = sorted(option_values)
+    assert option_values == expected, \
+        f"device option が昇順でない: {option_values} != {expected}"

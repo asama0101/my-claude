@@ -921,6 +921,35 @@ def _count_if_status(ifaces: list[dict]) -> tuple[int, int, int, int]:
     return count_up, count_down, count_admin_down, count_other
 
 
+def _classify_af(iface: dict) -> str:
+    """IF の addresses フィールドから AF 区分を返す。
+
+    判定ルール:
+    - link-local は除外する
+    - v4 と v6(GUA) の両方あり → "dual"
+    - v4 のみ → "v4"（secondary v4 も v4 扱い: secondary フラグは無視）
+    - v6(GUA) のみ → "v6"
+    - それ以外（IP 無し / link-local のみ） → "none"
+    """
+    has_v4 = False
+    has_v6_gua = False
+    for addr in (iface.get("addresses") or []):
+        if addr.get("scope") == "link-local":
+            continue
+        af = addr.get("af", "")
+        if af == "v4":
+            has_v4 = True
+        elif af == "v6":
+            has_v6_gua = True
+    if has_v4 and has_v6_gua:
+        return "dual"
+    if has_v4:
+        return "v4"
+    if has_v6_gua:
+        return "v6"
+    return "none"
+
+
 def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
     """全機器の IF 横断一覧テーブル HTML を生成して返す。
 
@@ -967,14 +996,59 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         f'</div>'
     )
 
+    # ドロップダウン用データ収集
+    # device: id昇順
+    device_options = sorted({i.get("device", "") for i in interfaces if i.get("device")})
+    # status: admin_status のユニーク値（昇順）
+    status_options = sorted({(i.get("admin_status") or "") for i in interfaces if i.get("admin_status")})
+    # l2l3: l2_l3 のユニーク値（昇順）。None は sentinel "none" として含める。
+    # value="" は「すべて」専用とするため、空文字列と sentinel "none" を分離する。
+    l2l3_data_vals: set[str] = set()
+    for i in interfaces:
+        raw_l2l3 = i.get("l2_l3")
+        if raw_l2l3:
+            l2l3_data_vals.add(raw_l2l3)
+        else:
+            # None または空文字列 → sentinel "none" として登録
+            l2l3_data_vals.add("none")
+    l2l3_options = sorted(l2l3_data_vals)
+
+    # device select: hostname 表示（value は device_id）。dev_hostname を直接使用（DRY）。
+    device_option_tags = '<option value="">すべて</option>' + "".join(
+        f'<option value="{_esc(did)}">{_esc(dev_hostname.get(did, did))}</option>'
+        for did in device_options
+    )
+    # af select: 固定順 (v4/v6/dual/none)
+    af_option_tags = (
+        '<option value="">すべて</option>'
+        '<option value="v4">v4</option>'
+        '<option value="v6">v6</option>'
+        '<option value="dual">dual</option>'
+        '<option value="none">none</option>'
+    )
+    status_option_tags = '<option value="">すべて</option>' + "".join(
+        f'<option value="{_esc(st)}">{_esc(st)}</option>'
+        for st in status_options
+    )
+    # l2l3 option: "none" sentinel は「(未分類)」ラベルで表示（AF の none と整合）
+    _l2l3_labels = {"none": "(未分類)"}
+    l2l3_option_tags = '<option value="">すべて</option>' + "".join(
+        f'<option value="{_esc(v)}">{_esc(_l2l3_labels.get(v, v))}</option>'
+        for v in l2l3_options
+    )
+
     # 検索・フィルタ UI（DC5: イベントは addEventListener で登録 → インライン不使用）
     # B-pass1b: #ifinv-search は撤去（グローバル検索 #search-input に統合）。
-    # 未使用トグルのみ残す。
+    # B3: 機器/af/status/L2L3 ドロップダウンを追加。
     search_filter_html = (
         f'<div class="ifinv-toolbar">'
         f'<label class="ifinv-filter-label">'
         f'<input type="checkbox" id="ifinv-unused-toggle"> '
         f'未使用のみ表示</label>'
+        f'<select id="ifinv-filter-device">{device_option_tags}</select>'
+        f'<select id="ifinv-filter-af">{af_option_tags}</select>'
+        f'<select id="ifinv-filter-status">{status_option_tags}</select>'
+        f'<select id="ifinv-filter-l2l3">{l2l3_option_tags}</select>'
         f'</div>'
     )
 
@@ -984,6 +1058,7 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         ("device", "Device"),
         ("name", "Interface"),
         ("ip", "IP"),
+        ("af", "AF"),
         ("admin_status", "Status"),
         ("mtu", "MTU"),
         ("vlan", "VLAN"),
@@ -1008,7 +1083,9 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         admin_status = iface.get("admin_status") or ""
         mtu = iface.get("mtu")
         vlan = iface.get("vlan")
-        l2_l3 = iface.get("l2_l3") or ""
+        # A1: l2_l3=None → sentinel "none" に正規化（value="" と衝突防止）
+        raw_l2_l3 = iface.get("l2_l3")
+        l2_l3 = raw_l2_l3 if raw_l2_l3 else "none"
         description = iface.get("description") or ""
         hostname = dev_hostname.get(dev_id, dev_id)
 
@@ -1091,6 +1168,9 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
         # これにより secondary アドレス等の誤除外が防止される。
         data_ips_val = _build_ips_attr([iface])
 
+        # B3: AF 区分を判定（data-af / AF列セル）
+        af_val = _classify_af(iface)
+
         # 将来の editable フック: data-iface-id が差込点（編集 UI は実装しない）
         row_attrs = (
             f' data-iface-id="{_esc(iface_id)}"'
@@ -1098,15 +1178,21 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
             f'{unused_attr}'
             f' data-search="{_esc(search_text)}"'
             f' data-ips="{_esc(data_ips_val)}"'
+            f' data-af="{_esc(af_val)}"'
+            f' data-status="{_esc(admin_status)}"'
+            f' data-l2l3="{_esc(l2_l3)}"'
         )
+        # L2L3 セル表示: sentinel "none" は "-" で表示（AF と同様）
+        l2_l3_display = "-" if l2_l3 == "none" else l2_l3
         cells = [
             f'<td>{_esc(hostname)}</td>',
             f'<td>{_esc(name)}</td>',
             f'<td>{ip_cell}</td>',
+            f'<td>{_esc(af_val)}</td>',
             f'<td>{_esc(admin_status)}</td>',
             f'<td data-num="{_esc(mtu_str)}">{_esc(mtu_str)}</td>',
             f'<td data-num="{_esc(vlan_data_num)}">{_esc(vlan_str)}</td>',
-            f'<td>{_esc(l2_l3)}</td>',
+            f'<td>{_esc(l2_l3_display)}</td>',
             f'<td>{_esc(description)}</td>',
         ]
         rows.append(f'<tr{row_attrs}>{"".join(cells)}</tr>')
