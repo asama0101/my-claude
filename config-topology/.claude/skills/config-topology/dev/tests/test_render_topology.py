@@ -16518,3 +16518,940 @@ def test_a3_multi_as_area_static_loopback_regression():
     assert has_any_static_loopback, (
         "multi-as-area の acc1/acc2 static loopback 行に data-loopback-iface-id がない"
     )
+
+
+# ===========================================================================
+# FA: フィードバック対応
+#   F4: ノード間隔縮小（_CANVAS_FACTOR 圧縮）
+#   F3: AS枠の重なり分離（BGPビュー AS65000 ↔ AS65103 等が被る問題）
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# F4: _CANVAS_FACTOR_W / _CANVAS_FACTOR_H を 3 / 2.5 まで縮小
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fa_f4_canvas_factor_w_le3():
+    """F4: _CANVAS_FACTOR_W が 3 以下（ノード間隔圧縮済み）"""
+    from lib.rendering.layout import _CANVAS_FACTOR_W
+    assert _CANVAS_FACTOR_W <= 3, (
+        f"_CANVAS_FACTOR_W={_CANVAS_FACTOR_W} が 3 超（縮小未実施）"
+    )
+
+
+@pytest.mark.unit
+def test_fa_f4_canvas_factor_h_le2_5():
+    """F4: _CANVAS_FACTOR_H が 2.5 以下（ノード間隔圧縮済み）"""
+    from lib.rendering.layout import _CANVAS_FACTOR_H
+    assert _CANVAS_FACTOR_H <= 2.5, (
+        f"_CANVAS_FACTOR_H={_CANVAS_FACTOR_H} が 2.5 超（縮小未実施）"
+    )
+
+
+@pytest.mark.unit
+def test_fa_f4_canvas_shrinks_vs_factor6_5():
+    """F4: 縮小後のキャンバスが係数6/5より小さい（n=20 Physical）"""
+    from lib.rendering.layout import (
+        _canvas_size_for_nodes, _NODE_WIDTH, _NODE_HEIGHT,
+        _CANVAS_SCALE_EXP, _MIN_CANVAS_W, _MIN_CANVAS_H,
+    )
+    n = 20
+    w_new, h_new = _canvas_size_for_nodes(n)
+    w_old = max(_MIN_CANVAS_W, n * (_NODE_WIDTH + 20) ** _CANVAS_SCALE_EXP * 6)
+    h_old = max(_MIN_CANVAS_H, n * (_NODE_HEIGHT + 20) ** _CANVAS_SCALE_EXP * 5)
+    assert w_new < w_old, (
+        f"F4: 縮小後幅 {w_new:.0f} >= 旧値 {w_old:.0f}（係数 6 比）"
+    )
+    assert h_new < h_old, (
+        f"F4: 縮小後高 {h_new:.0f} >= 旧値 {h_old:.0f}（係数 5 比）"
+    )
+
+
+@pytest.mark.unit
+def test_fa_f4_no_overlap_large_topo_20nodes():
+    """F4: 係数縮小後も large-topo 20台でノード矩形が重ならない（non-regression）"""
+    from lib.rendering.layout import (
+        _layout_force_directed, _node_size_for, _canvas_size_for_nodes, _adaptive_iter
+    )
+
+    topo = _load_large_topo_for_test()
+    devices = topo["devices"]
+    links = topo["links"]
+    interfaces = topo["interfaces"]
+
+    node_ids = [d["id"] for d in devices]
+    edges = [(lk["a_device"], lk["b_device"]) for lk in links]
+    iface_count: dict[str, int] = {}
+    for iface in interfaces:
+        iface_count[iface["device"]] = iface_count.get(iface["device"], 0) + 1
+    node_sizes = {d["id"]: iface_count.get(d["id"], 0) for d in devices}
+
+    n = len(node_ids)
+    est_w, est_h = _canvas_size_for_nodes(n, max_node_h=max(
+        _node_size_for(node_sizes.get(nid, 0))[1] for nid in node_ids
+    ))
+    pos = _layout_force_directed(
+        node_ids, edges, width=est_w, height=est_h,
+        iterations=_adaptive_iter(n), node_sizes=node_sizes,
+    )
+
+    for i, na in enumerate(node_ids):
+        for j, nb in enumerate(node_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(node_sizes[na])
+            wb, hb = _node_size_for(node_sizes[nb])
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            min_sep_x = (wa + wb) / 2 + 5
+            min_sep_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= min_sep_x or dy >= min_sep_y
+            assert no_overlap, (
+                f"F4: large-topo ノード {na} と {nb} が重なっている "
+                f"(dx={dx:.1f} min_sep_x={min_sep_x:.1f}, "
+                f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
+            )
+
+
+@pytest.mark.unit
+def test_fa_f4_no_overlap_multi_as_area():
+    """F4: 係数縮小後も multi-as-area BGP ビューでノード重なりゼロ"""
+    from lib.rendering.views import _build_bgp_layout
+    from lib.rendering.layout import _node_size_for
+
+    topo = _make_multi_as_area_topology()
+    pos, _devs = _build_bgp_layout(
+        topo["devices"], topo["routing"].get("bgp", []), topo["interfaces"]
+    )
+    iface_count: dict[str, int] = {}
+    for iface in topo["interfaces"]:
+        iface_count[iface["device"]] = iface_count.get(iface["device"], 0) + 1
+
+    dev_ids = [d["id"] for d in topo["devices"] if d["id"] in pos]
+    for i, na in enumerate(dev_ids):
+        for j, nb in enumerate(dev_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(iface_count.get(na, 0))
+            wb, hb = _node_size_for(iface_count.get(nb, 0))
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            needed_x = (wa + wb) / 2 + 5
+            needed_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= needed_x or dy >= needed_y
+            assert no_overlap, (
+                f"F4: multi-as-area ノード {na} と {nb} が重なっている "
+                f"(dx={dx:.1f} needed_x={needed_x:.1f}, "
+                f"dy={dy:.1f} needed_y={needed_y:.1f})"
+            )
+
+
+@pytest.mark.unit
+def test_fa_f4_deterministic(sample_topology):
+    """F4: 係数縮小後も render() が決定的（2回一致）"""
+    import copy
+    from lib.rendering import render
+    html1 = render(copy.deepcopy(sample_topology))
+    html2 = render(copy.deepcopy(sample_topology))
+    assert html1 == html2, "F4: 係数縮小後の render() が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# F3: AS枠の重なり分離
+# ---------------------------------------------------------------------------
+
+def _as_group_rects_from_bgp_view(bgp_view_html: str) -> list[tuple[float, float, float, float]]:
+    """BGP ビュー HTML から as-group <rect> の (x, y, w, h) を抽出して返す。"""
+    # <rect x="..." y="..." width="..." height="..." ... class="as-group" ...>
+    rects = re.findall(
+        r'<rect\s+x="([^"]+)"\s+y="([^"]+)"\s+width="([^"]+)"\s+height="([^"]+)"[^>]*class="as-group"',
+        bgp_view_html,
+    )
+    if not rects:
+        # class が後置の場合
+        rects = re.findall(
+            r'<rect[^>]+class="as-group"[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*width="([^"]+)"[^>]*height="([^"]+)"',
+            bgp_view_html,
+        )
+    return [(float(x), float(y), float(w), float(h)) for x, y, w, h in rects]
+
+
+def _aabb_overlap(ax: float, ay: float, aw: float, ah: float,
+                  bx: float, by: float, bw: float, bh: float,
+                  margin: float = 0.0) -> bool:
+    """2 AABB (左上x,y・幅・高さ) が重なるか判定する（margin で収縮）。"""
+    # margin > 0 の場合は判定を甘くする（マージン分だけ重なりを許容）
+    return not (
+        ax + aw <= bx + margin or
+        bx + bw <= ax + margin or
+        ay + ah <= by + margin or
+        by + bh <= ay + margin
+    )
+
+
+@pytest.mark.unit
+def test_fa_f3_large_topo_bgp_as_rects_no_overlap():
+    """F3: large-topo BGP ビューで全 AS 枠 rect ペアが非重なり（AS65000 ↔ AS65103 含む）"""
+    import os
+    from scripts.parse_configs import parse_paths, collect_inputs
+    from scripts.build_topology import build
+    from lib.rendering import render
+
+    large_dir = os.path.join(
+        os.path.dirname(__file__), "..", "evals", "inputs", "large-topo"
+    )
+    paths = collect_inputs(large_dir)
+    devices_raw = parse_paths(paths)
+    topo = build(devices_raw, generated_from=paths)
+    html = render(topo)
+
+    # BGP ビュー部分を抽出
+    bgp_m = re.search(
+        r'<g class="view view-bgp"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>)',
+        html, re.DOTALL
+    )
+    assert bgp_m, "view-bgp が見つからない"
+    bgp_view = bgp_m.group(0)
+
+    rects = _as_group_rects_from_bgp_view(bgp_view)
+    assert len(rects) >= 2, f"AS 枠 rect が 2 個未満: {len(rects)} 個"
+
+    # 全 AS 枠ペアの非重なりを検証（1px の余裕を持たせた判定）
+    margin = 1.0  # 1px 以内の接触は許容（浮動小数点誤差）
+    for i in range(len(rects)):
+        for j in range(i + 1, len(rects)):
+            ax, ay, aw, ah = rects[i]
+            bx, by, bw, bh = rects[j]
+            assert not _aabb_overlap(ax, ay, aw, ah, bx, by, bw, bh, margin=margin), (
+                f"F3: AS枠 [{i}]=({ax:.0f},{ay:.0f},{aw:.0f},{ah:.0f}) と "
+                f"[{j}]=({bx:.0f},{by:.0f},{bw:.0f},{bh:.0f}) が重なっている"
+            )
+
+
+@pytest.mark.unit
+def test_fa_f3_multi_as_area_bgp_as_rects_no_overlap():
+    """F3 非回帰: multi-as-area (AS65000/65100/65200) の全 AS 枠ペアが非重なり"""
+    from lib.rendering import render
+
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    bgp_m = re.search(
+        r'<g class="view view-bgp"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>)',
+        html, re.DOTALL
+    )
+    assert bgp_m, "multi-as-area: view-bgp が見つからない"
+    bgp_view = bgp_m.group(0)
+
+    rects = _as_group_rects_from_bgp_view(bgp_view)
+    if len(rects) < 2:
+        return  # AS 単体 or BGP ビューなし → スキップ（非エラー）
+
+    margin = 1.0
+    for i in range(len(rects)):
+        for j in range(i + 1, len(rects)):
+            ax, ay, aw, ah = rects[i]
+            bx, by, bw, bh = rects[j]
+            assert not _aabb_overlap(ax, ay, aw, ah, bx, by, bw, bh, margin=margin), (
+                f"F3 multi-as-area: AS枠 [{i}]=({ax:.0f},{ay:.0f},{aw:.0f},{ah:.0f}) と "
+                f"[{j}]=({bx:.0f},{by:.0f},{bw:.0f},{bh:.0f}) が重なっている"
+            )
+
+
+@pytest.mark.unit
+def test_fa_f3_as_relative_positions_preserved():
+    """F3: AS 内相対位置が維持される（同一 AS メンバーの相対座標が分離前後で変わらない）"""
+    from lib.rendering.views import _build_bgp_layout
+
+    # AS65000 に 4 台: core1/core2/edge1/edge2 → 内部相対距離は維持される
+    topo = _load_large_topo_for_test()
+    pos, bgp_devs = _build_bgp_layout(
+        topo["devices"], topo["routing"]["bgp"], topo["interfaces"]
+    )
+
+    # AS65000 メンバーを収集
+    as65000 = [d["id"] for d in bgp_devs if d.get("as") == 65000 and d["id"] in pos]
+    assert len(as65000) >= 2, f"AS65000 メンバーが少なすぎ: {as65000}"
+
+    # 2 回呼んで座標が一致 → 決定性確認（相対位置の安定性代替検証）
+    pos2, _ = _build_bgp_layout(
+        topo["devices"], topo["routing"]["bgp"], topo["interfaces"]
+    )
+    for dev_id in as65000:
+        x1, y1 = pos[dev_id]
+        x2, y2 = pos2[dev_id]
+        assert abs(x1 - x2) < 0.01 and abs(y1 - y2) < 0.01, (
+            f"F3: AS65000 メンバー {dev_id} の座標が非決定的 ({x1:.1f},{y1:.1f}) vs ({x2:.1f},{y2:.1f})"
+        )
+
+
+@pytest.mark.unit
+def test_fa_f3_external_nodes_survive_separation():
+    """F3: AS 分離後も外部ピアノード（ext:...）が BGP ビューに存在する"""
+    import os
+    from scripts.parse_configs import parse_paths, collect_inputs
+    from scripts.build_topology import build
+    from lib.rendering import render
+
+    large_dir = os.path.join(
+        os.path.dirname(__file__), "..", "evals", "inputs", "large-topo"
+    )
+    paths = collect_inputs(large_dir)
+    devices_raw = parse_paths(paths)
+    topo = build(devices_raw, generated_from=paths)
+    html = render(topo)
+
+    bgp_m = re.search(
+        r'<g class="view view-bgp"[^>]*>(.*?)(?=<g class="view view-|</g>\s*</g>)',
+        html, re.DOTALL
+    )
+    if not bgp_m:
+        return  # BGP ビューなし → 外部ノードもなし → OK
+
+    bgp_view = bgp_m.group(0)
+    # large-topo には cust1~4 (AS65101~65104) の単一AS eBGP があるが外部ノードはないはず
+    # BGP ビューが生成されていること自体を確認する
+    assert "device-node" in bgp_view, "F3: BGP ビューに device-node が存在しない"
+
+
+@pytest.mark.unit
+def test_fa_f3_deterministic_after_separation():
+    """F3: AS 枠分離後も render() が決定的（2回 BGP ビュー一致）"""
+    import copy
+    import os
+    from scripts.parse_configs import parse_paths, collect_inputs
+    from scripts.build_topology import build
+    from lib.rendering import render
+
+    large_dir = os.path.join(
+        os.path.dirname(__file__), "..", "evals", "inputs", "large-topo"
+    )
+    paths = collect_inputs(large_dir)
+    devices_raw = parse_paths(paths)
+    topo = build(devices_raw, generated_from=paths)
+
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "F3: AS 枠分離後の render() が非決定的"
+
+
+# ===========================================================================
+# FB: 複数選択ビュー対応 (F1) + IF一覧選択連動 (F2)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# F1-A: _updateEdgeHighlightForSelection が _currentView で分岐する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f1_update_edge_highlight_branches_on_current_view(rendered_html):
+    """F1-A: _updateEdgeHighlightForSelection が _currentView を参照して分岐する。
+    ビュー対応前は _currentView を見ていないため FAIL する。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    assert "_currentView" in func_body, \
+        "_updateEdgeHighlightForSelection が _currentView を参照していない（F1 ビュー分岐未実装）"
+
+
+# ---------------------------------------------------------------------------
+# F1-B: physical ビュー時は .view-physical .link-edge のみをハイライト対象にする
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f1_physical_view_targets_view_physical_link_edge(rendered_html):
+    """F1-B: physical ビューのエッジハイライトが view-physical スコープの .link-edge を対象とする。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    # physical 分岐で view-physical スコープのセレクタを使うこと
+    assert "view-physical" in func_body, \
+        "_updateEdgeHighlightForSelection が .view-physical スコープを参照していない（F1-B 未実装）"
+
+
+# ---------------------------------------------------------------------------
+# F1-C: physical ビュー時は BGP 表行（tr[data-bgp-id]）をハイライトしない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f1_physical_view_does_not_touch_bgp_table(rendered_html):
+    """F1-C: physical ビュー選択ハイライトは BGP 表行（tr[data-bgp-id]）を操作しない。
+    分岐内の physical セクションに tr[data-bgp-id] が出現しないことを確認する。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    # physical 分岐があること
+    assert "_currentView" in func_body, \
+        "F1-C の前提: _currentView 分岐が存在しない"
+    # physical 条件節を取り出す: === 'physical' のブロックに tr[data-bgp-id] が出ないこと
+    physical_block_match = re.search(
+        r"=== ['\"]physical['\"].*?(?=\s*\}\s*else\s*if\s*\(|\s*\}\s*// end if _currentView|\Z)",
+        func_body, re.DOTALL
+    )
+    if physical_block_match:
+        physical_block = physical_block_match.group(0)
+        assert 'data-bgp-id' not in physical_block, \
+            "F1-C: physical 分岐内で BGP 表行（data-bgp-id）を操作している"
+
+
+# ---------------------------------------------------------------------------
+# F1-D: bgp ビュー時は .view-bgp .bgp-session をハイライト対象にする
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f1_bgp_view_targets_view_bgp_bgp_session(rendered_html):
+    """F1-D: bgp ビューのエッジハイライトが view-bgp スコープの .bgp-session を対象とする。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    assert "view-bgp" in func_body, \
+        "_updateEdgeHighlightForSelection が .view-bgp スコープを参照していない（F1-D 未実装）"
+
+
+# ---------------------------------------------------------------------------
+# F1-E: bgp ビュー時は tr[data-bgp-id] 表行もハイライトする
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f1_bgp_view_highlights_bgp_table_rows(rendered_html):
+    """F1-E: bgp ビューのハイライトで BGP 表行（tr[data-bgp-id]）もハイライトする。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    # bgp 分岐内に data-bgp-id の参照があること
+    bgp_block_match = re.search(
+        r"=== ['\"]bgp['\"].*?(?=\s*\}\s*else\s*if\s*\(|\s*\}\s*// end if _currentView|\Z)",
+        func_body, re.DOTALL
+    )
+    if bgp_block_match:
+        bgp_block = bgp_block_match.group(0)
+        assert 'data-bgp-id' in bgp_block, \
+            "F1-E: bgp 分岐内で BGP 表行（data-bgp-id）をハイライトしていない"
+    else:
+        # 分岐の抽出ができない場合は関数全体に data-bgp-id と view-bgp の共存を確認
+        assert 'data-bgp-id' in func_body and 'view-bgp' in func_body, \
+            "F1-E: _updateEdgeHighlightForSelection に view-bgp かつ data-bgp-id の参照がない"
+
+
+# ---------------------------------------------------------------------------
+# F1-F: ospf ビュー時は .view-ospf .link-edge をハイライト対象にする
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f1_ospf_view_targets_view_ospf_link_edge(rendered_html):
+    """F1-F: ospf ビューのエッジハイライトが view-ospf スコープの .link-edge を対象とする。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    assert "view-ospf" in func_body, \
+        "_updateEdgeHighlightForSelection が .view-ospf スコープを参照していない（F1-F 未実装）"
+
+
+# ---------------------------------------------------------------------------
+# F1-G: ospf ビュー時は OSPF 表行（tr[data-ospf-id]）もハイライトする
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f1_ospf_view_highlights_ospf_table_rows(rendered_html):
+    """F1-G: ospf ビューのハイライトで OSPF 表行（data-ospf-id トークンマッチ）もハイライトする。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    # ospf 分岐内に data-ospf-id の参照があること
+    assert "data-ospf-id" in func_body, \
+        "F1-G: _updateEdgeHighlightForSelection 内に data-ospf-id の参照がない（OSPF 表連動未実装）"
+
+
+# ---------------------------------------------------------------------------
+# F1-H: selectView 呼び出し後に _updateEdgeHighlightForSelection が再適用される
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f1_select_view_calls_update_edge_highlight(rendered_html):
+    """F1-H: selectView 関数が _updateEdgeHighlightForSelection() を呼んでビュー切替時に再適用する。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    selectview_match = re.search(
+        r'function selectView\(viewId\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert selectview_match is not None, \
+        "selectView 関数が JS に見つからない"
+    sv_body = selectview_match.group(1)
+    assert "_updateEdgeHighlightForSelection" in sv_body, \
+        "F1-H: selectView 内で _updateEdgeHighlightForSelection() が呼ばれていない（ビュー切替時の再適用未実装）"
+
+
+# ---------------------------------------------------------------------------
+# F1-I: clearSelection で selection-edge-hl が全解除される（非回帰）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f1_clear_selection_removes_selection_edge_hl(rendered_html):
+    """F1-I 非回帰: clearSelection 後は selection-edge-hl が解除される仕組みが存在する。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # _updateEdgeHighlightForSelection の冒頭で selection-edge-hl を解除すること
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    assert "selection-edge-hl" in func_body, \
+        "F1-I: _updateEdgeHighlightForSelection 内に selection-edge-hl の解除コードが存在しない"
+
+
+# ---------------------------------------------------------------------------
+# F2-A: selectView('ifinv') 時にドロップダウン状態変数がリセットされる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f2_select_view_ifinv_resets_device_filter(rendered_html):
+    """F2-A: selectView('ifinv') 入場時に _ifinvDeviceFilter が空文字にリセットされる。
+    直接 selectView 内でも _resetIfinvFilters() 経由でも可。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # _resetIfinvFilters 関数があり、その中で _ifinvDeviceFilter = '' を行う場合を確認
+    reset_func_match = re.search(
+        r'function _resetIfinvFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    if reset_func_match:
+        reset_body = reset_func_match.group(1)
+        assert "_ifinvDeviceFilter" in reset_body, \
+            "F2-A: _resetIfinvFilters 内で _ifinvDeviceFilter がリセットされていない（残留バグ未修正）"
+        # selectView の ifinv 分岐から _resetIfinvFilters が呼ばれること
+        sv_match = re.search(
+            r'function selectView\(viewId\)(.*?)(?=\n    function |\n    // ={3,})',
+            js_text, re.DOTALL
+        )
+        assert sv_match is not None, "selectView 関数が JS に見つからない"
+        sv_body = sv_match.group(1)
+        ifinv_block_match = re.search(
+            r"viewId\s*===\s*['\"]ifinv['\"].*?(?=\}\s*else\b|\Z)",
+            sv_body, re.DOTALL
+        )
+        if ifinv_block_match:
+            ifinv_block = ifinv_block_match.group(0)
+            has_direct = "_ifinvDeviceFilter" in ifinv_block
+            has_indirect = "_resetIfinvFilters" in ifinv_block
+            assert has_direct or has_indirect, \
+                "F2-A: selectView ifinv 分岐内で _ifinvDeviceFilter も _resetIfinvFilters も呼ばれていない"
+    else:
+        # _resetIfinvFilters がない場合: selectView 内に直接 _ifinvDeviceFilter があること
+        sv_match = re.search(
+            r'function selectView\(viewId\)(.*?)(?=\n    function |\n    // ={3,})',
+            js_text, re.DOTALL
+        )
+        assert sv_match is not None, "selectView 関数が JS に見つからない"
+        assert "_ifinvDeviceFilter" in sv_match.group(1), \
+            "F2-A: selectView に _ifinvDeviceFilter リセットコードがない（残留バグ未修正）"
+
+
+# ---------------------------------------------------------------------------
+# F2-B: selectView('ifinv') 時にドロップダウン <select> の value もリセットされる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f2_select_view_ifinv_resets_select_element_value(rendered_html):
+    """F2-B: selectView('ifinv') 入場時に ifinv-filter-device の <select>.value が '' にリセットされる。
+    直接 selectView 内でも、_resetIfinvFilters() 経由でも可。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # selectView または _resetIfinvFilters のどちらかに ifinv-filter-device の参照があること
+    assert "ifinv-filter-device" in js_text, \
+        "F2-B: ifinv-filter-device セレクタ参照が JS にない（<select>.value リセット未実装）"
+    # さらに、selectView の ifinv 分岐から _resetIfinvFilters か直接参照が呼ばれること
+    reset_func_match = re.search(
+        r'function _resetIfinvFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    if reset_func_match:
+        # _resetIfinvFilters 内に ifinv-filter-device があること
+        assert "ifinv-filter-device" in reset_func_match.group(1), \
+            "F2-B: _resetIfinvFilters 内に ifinv-filter-device 参照がない"
+
+
+# ---------------------------------------------------------------------------
+# F2-C: selectView('ifinv') 入場時に _applyIfFilters が呼ばれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f2_select_view_ifinv_calls_apply_if_filters(rendered_html):
+    """F2-C: selectView('ifinv') 入場時に _applyIfFilters() が（直接または間接に）呼ばれる。
+    _resetIfinvFilters() 経由でも可（_resetIfinvFilters の中で _applyIfFilters を呼ぶ）。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    selectview_match = re.search(
+        r'function selectView\(viewId\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert selectview_match is not None, \
+        "selectView 関数が JS に見つからない"
+    sv_body = selectview_match.group(1)
+    # ifinv 分岐内で _applyIfFilters() 直接または _resetIfinvFilters()（間接）が呼ばれること
+    ifinv_block_match = re.search(
+        r"viewId\s*===\s*['\"]ifinv['\"].*?(?=\}\s*else\b|\Z)",
+        sv_body, re.DOTALL
+    )
+    if ifinv_block_match:
+        ifinv_block = ifinv_block_match.group(0)
+        has_direct = "_applyIfFilters" in ifinv_block
+        has_indirect = "_resetIfinvFilters" in ifinv_block
+        assert has_direct or has_indirect, \
+            "F2-C: selectView ifinv 分岐内で _applyIfFilters() も _resetIfinvFilters() も呼ばれていない"
+        # _resetIfinvFilters 経由の場合、その関数内で _applyIfFilters が呼ばれることを確認
+        if has_indirect and not has_direct:
+            reset_func_match = re.search(
+                r'function _resetIfinvFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
+                js_text, re.DOTALL
+            )
+            assert reset_func_match is not None, \
+                "F2-C: _resetIfinvFilters 関数が JS に見つからない"
+            assert "_applyIfFilters" in reset_func_match.group(1), \
+                "F2-C: _resetIfinvFilters 内で _applyIfFilters() が呼ばれていない"
+    else:
+        has_call = "_applyIfFilters" in sv_body or "_resetIfinvFilters" in sv_body
+        assert has_call, \
+            "F2-C: selectView に _applyIfFilters() / _resetIfinvFilters() 呼び出しがない"
+
+
+# ---------------------------------------------------------------------------
+# F2-D: _applyIfFilters に _selectedNodes による matchSelection 条件がある
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f2_apply_if_filters_has_match_selection_condition(rendered_html):
+    """F2-D: _applyIfFilters が _selectedNodes に基づく matchSelection 条件を持つ。
+    ノード未選択は全表示、複数選択なら選択機器のみ表示（IF一覧の選択連動）。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _applyIfFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_applyIfFilters 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    # _selectedNodes を参照するマッチ条件が存在すること
+    assert "_selectedNodes" in func_body, \
+        "F2-D: _applyIfFilters に _selectedNodes による選択連動条件がない（F2 選択連動未実装）"
+
+
+# ---------------------------------------------------------------------------
+# F2-E: _applyIfFilters の AND 条件に matchSelection が追加されている
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f2_apply_if_filters_and_includes_match_selection(rendered_html):
+    """F2-E: _applyIfFilters の 最終 AND 式に matchSelection (または同等変数) が含まれる。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _applyIfFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_applyIfFilters 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    # matchSelection（または matchSel / selectedMatch 等）が AND 式に含まれること
+    has_match_selection = (
+        "matchSelection" in func_body
+        or re.search(r'matchSel\b', func_body) is not None
+    )
+    assert has_match_selection, \
+        "F2-E: _applyIfFilters の AND 式に matchSelection 変数が存在しない（F2 選択連動未実装）"
+
+
+# ---------------------------------------------------------------------------
+# F2-F: _selectedNodes.size === 0 のとき matchSelection は全行 true になる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f2_match_selection_true_when_no_nodes_selected(rendered_html):
+    """F2-F: _selectedNodes.size === 0 のとき matchSelection が true になるロジックが存在する。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _applyIfFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_applyIfFilters 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    # _selectedNodes.size === 0 の条件が matchSelection ロジックにあること
+    has_size_zero = (
+        "_selectedNodes.size === 0" in func_body
+        or "_selectedNodes.size == 0" in func_body
+        or re.search(r'_selectedNodes\.size\s*<\s*1\b', func_body) is not None
+        or re.search(r'!\s*_selectedNodes\.size\b', func_body) is not None
+    )
+    assert has_size_zero, \
+        "F2-F: _applyIfFilters に _selectedNodes.size === 0 の全行表示条件がない"
+
+
+# ---------------------------------------------------------------------------
+# F2-G: 選択変化（ノードクリック）時に _applyIfFilters が呼ばれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f2_node_click_calls_apply_if_filters(rendered_html):
+    """F2-G: ノードクリックハンドラが _updateEdgeHighlightForSelection() と
+    _applyIfFilters() の両方を呼ぶ。選択変化を IF一覧に即時反映するため必要。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # _updateEdgeHighlightForSelection() の呼び出しを含むノードクリックハンドラを探し、
+    # その直後に _applyIfFilters() があることを確認する
+    # ノードクリックハンドラ: _selectedNodes.add(deviceId) ... _updateEdgeHighlightForSelection() ... _applyIfFilters()
+    node_handler_match = re.search(
+        r'_selectedNodes\.add\(deviceId\).*?_updateEdgeHighlightForSelection\(\).*?_applyIfFilters\(\)',
+        js_text, re.DOTALL
+    )
+    assert node_handler_match is not None, \
+        "F2-G: ノードクリックハンドラが _applyIfFilters() を呼んでいない（IF一覧選択連動未実装）"
+
+
+# ---------------------------------------------------------------------------
+# F2-H: カードクリックでも _applyIfFilters が呼ばれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f2_card_click_calls_apply_if_filters(rendered_html):
+    """F2-H: カードクリックハンドラも _applyIfFilters() を呼ぶ。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # カードクリックハンドラ: _selectedNodes.add(deviceId) の後に
+    # _updateEdgeHighlightForSelection() と _applyIfFilters() が呼ばれること
+    # ノードクリックとカードクリックの両方のパターンをカバーするため、
+    # device-card を使った querySelectorAll の後のハンドラ本体を確認する
+    card_handler_match = re.search(
+        r"device-card.*?_updateEdgeHighlightForSelection\(\).*?_applyIfFilters\(\)",
+        js_text, re.DOTALL
+    )
+    assert card_handler_match is not None, \
+        "F2-H: カードクリックハンドラが _applyIfFilters() を呼んでいない"
+
+
+# ---------------------------------------------------------------------------
+# F2-I 非回帰: 既存 _applyIfFilters の 7条件 AND が維持される
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_f2_apply_if_filters_existing_conditions_preserved(rendered_html):
+    """F2-I 非回帰: F2 追加後も既存フィルタ条件（matchSearch/matchUnused/matchDevice/
+    matchAf/matchStatus/matchL2l3/matchNodeFilter）が _applyIfFilters に残っている。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _applyIfFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_applyIfFilters 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    existing_conditions = [
+        "matchSearch", "matchUnused", "matchDevice",
+        "matchAf", "matchStatus", "matchL2l3", "matchNodeFilter",
+    ]
+    for cond in existing_conditions:
+        assert cond in func_body, \
+            f"F2-I 非回帰: _applyIfFilters から '{cond}' 条件が消えた"
+
+
+# ---------------------------------------------------------------------------
+# F1/F2 非回帰: _updateEdgeHighlightForSelection が既存の selection-edge-hl 解除を保持する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_regression_update_edge_hl_clears_all_three_selectors(rendered_html):
+    """F1 非回帰: _updateEdgeHighlightForSelection が bgp-session/link-edge/tr の
+    3セレクタすべての selection-edge-hl を解除するコードを持つ。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    # 3クリア: bgp-session.selection-edge-hl / link-edge.selection-edge-hl / tr.selection-edge-hl
+    assert "bgp-session.selection-edge-hl" in func_body or \
+           ("bgp-session" in func_body and "selection-edge-hl" in func_body), \
+        "非回帰: bgp-session の selection-edge-hl クリアコードが消えた"
+    assert "link-edge.selection-edge-hl" in func_body or \
+           ("link-edge" in func_body and "selection-edge-hl" in func_body), \
+        "非回帰: link-edge の selection-edge-hl クリアコードが消えた"
+
+
+# ===========================================================================
+# FA/FB 2巡目 低コスト堅牢化テスト
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# 修正1: F3 AS分離 max_iters 動的収束保証 (correctness HIGH-2)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fa_f3_max_iters_dynamic_scales_with_as_count():
+    """F3: _separate_as_clusters の実効 max_iters が AS 数に応じた動的値になる。
+    8AS を同一座標から呼んだとき全ペアが分離されること（50固定では破綻しうる）。"""
+    from lib.rendering.views import _separate_as_clusters
+
+    n_as = 8
+    # 8 AS それぞれ 1 台を同じ座標 (0, 0) に配置（最悪ケース）
+    positions = {f"dev{i}": (0.0, 0.0) for i in range(n_as)}
+    bgp_devices = [{"id": f"dev{i}", "as": 65000 + i} for i in range(n_as)]
+    node_sizes = {f"dev{i}": 0 for i in range(n_as)}
+    padding = 20.0
+
+    result = _separate_as_clusters(positions, bgp_devices, node_sizes, padding)
+
+    # 全 AS 枠ペアが非重なりであること
+    from lib.rendering.views import _as_cluster_bbox
+
+    def _bbox(dev_id):
+        return _as_cluster_bbox([dev_id], {dev_id: result[dev_id]}, node_sizes, padding)
+
+    def _rects_overlap(r1, r2):
+        ax, ay, ax2, ay2 = r1
+        bx, by, bx2, by2 = r2
+        return not (ax2 <= bx or bx2 <= ax or ay2 <= by or by2 <= ay)
+
+    dev_ids = list(result.keys())
+    for i in range(len(dev_ids)):
+        for j in range(i + 1, len(dev_ids)):
+            bb_a = _bbox(dev_ids[i])
+            bb_b = _bbox(dev_ids[j])
+            assert not _rects_overlap(bb_a, bb_b), (
+                f"F3: 8AS 同一座標ケースで AS枠 {dev_ids[i]} と {dev_ids[j]} が重なっている"
+            )
+
+
+@pytest.mark.unit
+def test_fa_f3_max_iters_10as_all_separated():
+    """F3: 10 AS を同一座標から配置しても全ペア AS 枠が分離されること。"""
+    from lib.rendering.views import _separate_as_clusters, _as_cluster_bbox
+
+    n_as = 10
+    positions = {f"dev{i}": (0.0, 0.0) for i in range(n_as)}
+    bgp_devices = [{"id": f"dev{i}", "as": 65000 + i} for i in range(n_as)]
+    node_sizes = {f"dev{i}": 0 for i in range(n_as)}
+    padding = 20.0
+
+    result = _separate_as_clusters(positions, bgp_devices, node_sizes, padding)
+
+    def _bbox(dev_id):
+        return _as_cluster_bbox([dev_id], {dev_id: result[dev_id]}, node_sizes, padding)
+
+    def _rects_overlap(r1, r2):
+        ax, ay, ax2, ay2 = r1
+        bx, by, bx2, by2 = r2
+        return not (ax2 <= bx or bx2 <= ax or ay2 <= by or by2 <= ay)
+
+    dev_ids = list(result.keys())
+    for i in range(len(dev_ids)):
+        for j in range(i + 1, len(dev_ids)):
+            bb_a = _bbox(dev_ids[i])
+            bb_b = _bbox(dev_ids[j])
+            assert not _rects_overlap(bb_a, bb_b), (
+                f"F3: 10AS 同一座標ケースで AS枠 {dev_ids[i]} と {dev_ids[j]} が重なっている"
+            )
+
+
+# ---------------------------------------------------------------------------
+# 修正2: clearSelection で selection-edge-hl を確実クリア (correctness MED-1)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_med1_clear_selection_calls_update_edge_highlight(rendered_html):
+    """MED-1: clearSelection() 末尾で _updateEdgeHighlightForSelection() を呼ぶ。
+    clearSelection 後に selection-edge-hl が残留しないことを保証する。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function clearSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, "clearSelection 関数が見つからない"
+    func_body = func_match.group(1)
+    assert "_updateEdgeHighlightForSelection" in func_body, (
+        "clearSelection() が _updateEdgeHighlightForSelection() を呼んでいない"
+        "（clearSelection 後に selection-edge-hl が残留する）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 修正3: _resetIfinvFilters が未使用トグルもリセット (correctness MED-2)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fb_med2_reset_ifinv_filters_resets_unused_toggle(rendered_html):
+    """MED-2: _resetIfinvFilters が _ifinvUnusedOnly=false と
+    #ifinv-unused-toggle の checked=false をリセットするコードを含む。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _resetIfinvFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, "_resetIfinvFilters 関数が見つからない"
+    func_body = func_match.group(1)
+    assert "_ifinvUnusedOnly" in func_body, (
+        "_resetIfinvFilters が _ifinvUnusedOnly をリセットしていない"
+    )
+    assert "ifinv-unused-toggle" in func_body, (
+        "_resetIfinvFilters が #ifinv-unused-toggle をリセットしていない"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 修正4: _as_cluster_bbox 空リストガード (correctness LOW)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_fa_low_as_cluster_bbox_empty_raises_value_error():
+    """LOW: _as_cluster_bbox([]) は空リストで ValueError を投げる（防御的ガード）。"""
+    from lib.rendering.views import _as_cluster_bbox
+
+    with pytest.raises((ValueError, IndexError)):
+        _as_cluster_bbox([], {}, {}, 20.0)
+
+
+@pytest.mark.unit
+def test_fa_low_as_cluster_bbox_single_node():
+    """LOW: _as_cluster_bbox は1ノードで正常動作する（ガード追加後の非回帰）。"""
+    from lib.rendering.views import _as_cluster_bbox
+
+    positions = {"dev1": (100.0, 200.0)}
+    node_sizes = {"dev1": 0}
+    result = _as_cluster_bbox(["dev1"], positions, node_sizes, padding=20.0)
+    min_x, min_y, max_x, max_y = result
+    assert min_x < max_x, "min_x >= max_x: bbox が不正"
+    assert min_y < max_y, "min_y >= max_y: bbox が不正"

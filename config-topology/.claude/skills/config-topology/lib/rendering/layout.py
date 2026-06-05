@@ -33,8 +33,8 @@ OSPF_AREA_LABEL_FORMAT = "area {area} · {subnet}"
 
 # キャンバスサイズ計算定数（DRY 化用）
 _CANVAS_SCALE_EXP = 0.7   # ノード数のスケーリング指数
-_CANVAS_FACTOR_W = 6      # 幅方向ファクター（間延び抑制のため段階的に縮小: 15→11→8→6）
-_CANVAS_FACTOR_H = 5      # 高さ方向ファクター（間延び抑制のため段階的に縮小: 12→9→7→5）
+_CANVAS_FACTOR_W = 3      # 幅方向ファクター（間延び抑制のため段階的に縮小: 15→11→8→6→3）
+_CANVAS_FACTOR_H = 2.5    # 高さ方向ファクター（間延び抑制のため段階的に縮小: 12→9→7→5→2.5）
 
 
 def _node_size_for(n_ifaces: int) -> tuple[float, float]:

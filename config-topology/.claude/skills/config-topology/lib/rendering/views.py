@@ -42,6 +42,142 @@ from lib.rendering.svg import (
 )
 
 
+def _as_cluster_bbox(
+    dev_ids: list[str],
+    positions: dict[str, tuple[float, float]],
+    node_sizes: dict[str, int],
+    padding: float,
+) -> tuple[float, float, float, float]:
+    """AS クラスタの bounding box (min_x, min_y, max_x, max_y) を返す。
+
+    node_sizes は {dev_id: n_ifaces} マップ。padding は AS 枠と同じ値を使う。
+
+    Raises:
+        ValueError: dev_ids が空のとき
+    """
+    if not dev_ids:
+        raise ValueError("dev_ids must not be empty")
+    xs = [positions[d][0] for d in dev_ids]
+    tops = []
+    bottoms = []
+    for d in dev_ids:
+        cy = positions[d][1]
+        _w, node_h = _node_size_for(node_sizes.get(d, 0))
+        tops.append(cy - node_h / 2)
+        bottoms.append(cy + node_h / 2)
+    min_x = min(xs) - _NODE_WIDTH / 2 - padding
+    min_y = min(tops) - padding
+    max_x = max(xs) + _NODE_WIDTH / 2 + padding
+    max_y = max(bottoms) + padding
+    return min_x, min_y, max_x, max_y
+
+
+def _separate_as_clusters(
+    positions: dict[str, tuple[float, float]],
+    bgp_devices: list[dict],
+    node_sizes: dict[str, int],
+    padding: float,
+    max_iters: int = 50,
+) -> dict[str, tuple[float, float]]:
+    """BGP ビューのノード座標確定後、AS 枠 bbox が重なるクラスタを分離する後処理。
+
+    各 AS のメンバーノード全体を平行移動することで AS 枠同士が重ならない状態にする。
+    クラスタ内の相対配置（force-directed 結果）は保持する。
+
+    アルゴリズム:
+    1. AS番号昇順で asn -> [dev_id, ...] を構築（as=None は除外）。
+    2. 全 AS ペアについて bbox 重なりを検出。
+    3. 重なりがある場合、後発 AS（大きい番号）のクラスタを重なり方向に応じてシフト。
+    4. 重なりがなくなるか max_iters 回で打ち切る（決定的・有限回）。
+
+    決定性: ASN 昇順・ペア処理順が固定のため、同一入力で常に同一結果。
+
+    Args:
+        positions:   force-directed 後の {dev_id: (cx, cy)} 座標辞書
+        bgp_devices: BGP 参加デバイスリスト
+        node_sizes:  {dev_id: n_ifaces} マップ
+        padding:     AS 枠パディング（_svg_bgp_as_groups と同じ値）
+        max_iters:   最大反復回数
+
+    Returns:
+        AS 分離後の {dev_id: (cx, cy)} 座標辞書（コピー）
+    """
+    from collections import defaultdict
+
+    # asn -> [dev_id] マップを ASN 昇順で構築
+    asn_to_devs: dict[int, list[str]] = defaultdict(list)
+    for dev in sorted(bgp_devices, key=lambda d: d["id"]):
+        asn = dev.get("as")
+        if asn is None:
+            continue
+        if dev["id"] in positions:
+            asn_to_devs[asn].append(dev["id"])
+
+    # AS が 1 種類以下 → 分離不要
+    asns = sorted(asn_to_devs.keys())
+    if len(asns) <= 1:
+        return dict(positions)
+
+    # 座標をコピーして操作
+    pos = {k: list(v) for k, v in positions.items()}  # {dev_id: [x, y]}
+
+    def _bbox(asn: int) -> tuple[float, float, float, float]:
+        dev_ids = asn_to_devs[asn]
+        pts = {d: (pos[d][0], pos[d][1]) for d in dev_ids}
+        min_x, min_y, max_x, max_y = _as_cluster_bbox(dev_ids, pts, node_sizes, padding)
+        return min_x, min_y, max_x, max_y
+
+    def _rects_overlap(r1: tuple, r2: tuple) -> bool:
+        ax, ay, aw_end, ah_end = r1
+        bx, by, bw_end, bh_end = r2
+        return not (aw_end <= bx or bw_end <= ax or ah_end <= by or bh_end <= ay)
+
+    def _shift_cluster(asn: int, dx: float, dy: float) -> None:
+        for dev_id in asn_to_devs[asn]:
+            pos[dev_id][0] += dx
+            pos[dev_id][1] += dy
+
+    # F3: max_iters を AS 数に応じた動的値に変更（50固定の打ち切りサイレント化を防止）
+    # n 個の AS クラスタが全て重なるとき最悪 O(n^2) 回の分離パスが必要になるため
+    # max(50, n * n) を上限とすることで実用ケースで確実収束させる。
+    n_as = len(asns)
+    effective_max_iters = max(max_iters, n_as * n_as)
+    for _ in range(effective_max_iters):
+        any_overlap = False
+        for i, asn_a in enumerate(asns):
+            for j in range(i + 1, len(asns)):
+                asn_b = asns[j]
+                bb_a = _bbox(asn_a)
+                bb_b = _bbox(asn_b)
+                if not _rects_overlap(bb_a, bb_b):
+                    continue
+                any_overlap = True
+                # 重なり量を x/y 方向それぞれ計算し、小さい方向にシフト（最小移動）
+                ax, ay, ax2, ay2 = bb_a
+                bx, by, bx2, by2 = bb_b
+                overlap_x = min(ax2, bx2) - max(ax, bx)
+                overlap_y = min(ay2, by2) - max(ay, by)
+                # asn_b（後発 AS）を重なりが解消する方向にシフト
+                # x/y どちらか小さい方でシフト（最小移動原則）
+                if overlap_x <= overlap_y:
+                    # x 軸方向にシフト
+                    # asn_b 中心が asn_a 中心より右なら右へ、左なら左へ
+                    cx_a = (ax + ax2) / 2
+                    cx_b = (bx + bx2) / 2
+                    direction = 1.0 if cx_b >= cx_a else -1.0
+                    _shift_cluster(asn_b, direction * (overlap_x + 1.0), 0.0)
+                else:
+                    # y 軸方向にシフト
+                    cy_a = (ay + ay2) / 2
+                    cy_b = (by + by2) / 2
+                    direction = 1.0 if cy_b >= cy_a else -1.0
+                    _shift_cluster(asn_b, 0.0, direction * (overlap_y + 1.0))
+        if not any_overlap:
+            break
+
+    return {k: (v[0], v[1]) for k, v in pos.items()}
+
+
 def _build_bgp_layout(
     devices: list[dict],
     bgp_entries: list[dict],
@@ -99,6 +235,15 @@ def _build_bgp_layout(
         iterations=_adaptive_iter(est_n),
         node_sizes=node_sizes,
     )
+
+    # F3: AS 枠 bbox 重なり分離（force-directed 後処理）
+    # 外部ノード（"ext:" プレフィックス）を除いた BGP デバイスの AS クラスタを分離する。
+    from lib.rendering.layout import _AS_GROUP_PADDING
+    positions = _separate_as_clusters(
+        positions, bgp_devices, node_sizes,
+        padding=_AS_GROUP_PADDING,
+    )
+
     return positions, bgp_devices
 
 

@@ -748,6 +748,8 @@ _JS = """\
         if (zoomControls) zoomControls.style.display = 'none';
         if (chipLegend) chipLegend.style.display = 'none';
         if (ifinvTable) ifinvTable.style.display = '';
+        // F2: ドロップダウン残留リセット → IF一覧即時更新
+        _resetIfinvFilters();
       } else {
         // SVG ビュー（physical/bgp/ospf 等）: IF 一覧テーブルを隠し、SVG コンテナを表示
         if (ifinvTable) ifinvTable.style.display = 'none';
@@ -795,6 +797,11 @@ _JS = """\
         if (searchInput && searchInput.value) {
           filterNodes(searchInput.value);
         }
+      }
+
+      // F1: ビュー切替時に複数選択エッジハイライトを現ビューに合わせて再適用
+      if (typeof _updateEdgeHighlightForSelection === 'function') {
+        _updateEdgeHighlightForSelection();
       }
     }
 
@@ -1435,6 +1442,8 @@ _JS = """\
           _updateCardFilter();
           // P2 #5: 複数ノード選択時にノード間エッジをハイライト
           _updateEdgeHighlightForSelection();
+          // F2: 選択変化を IF 一覧に即時反映（選択連動）
+          _applyIfFilters();
         });
       });
 
@@ -1481,6 +1490,8 @@ _JS = """\
       clearLinkHighlight();
       // 多ノードC: カード絞り込みを同期
       _updateCardFilter();
+      // MED-1: selection-edge-hl を確実クリア（_selectedNodes 空なので冒頭の全解除→early return）
+      _updateEdgeHighlightForSelection();
     }
 
     // clearLinkHighlight: リンク/IF行/static経路/セグメント/BGP ハイライトを解除する。
@@ -1528,13 +1539,13 @@ _JS = """\
     }
 
     // ============================================================
-    // P2 #5: 複数ノード選択 → ノード間エッジ + BGP 表行ハイライト
+    // P2 #5: 複数ノード選択 → ノード間エッジ + BGP/OSPF 表行ハイライト（ビュー対応）
     // ============================================================
     // _updateEdgeHighlightForSelection: _selectedNodes に基づいて
-    // 両端が _selectedNodes に含まれるエッジ（.bgp-session / .link-edge）を highlighted にする。
+    // 現ビュー（_currentView）に応じたエッジと関連表行を highlighted にする。
     // 選択ノードが1以下の場合はエッジハイライトを解除する。
     function _updateEdgeHighlightForSelection() {
-      // まず既存の「選択由来」エッジハイライトをクリア
+      // まず既存の「選択由来」エッジハイライトをクリア（全ビュー共通）
       // （_selectedLinks・_selectedBgp の保持分は除外して選択由来分だけ解除）
       document.querySelectorAll('.bgp-session.selection-edge-hl').forEach(function(el) {
         el.classList.remove('highlighted');
@@ -1551,34 +1562,60 @@ _JS = """\
 
       if (_selectedNodes.size <= 1) return;
 
-      // .bgp-session: data-a / data-b 両方が _selectedNodes に含まれるものをハイライト
-      document.querySelectorAll('.bgp-session[data-a][data-b]').forEach(function(el) {
-        var a = el.getAttribute('data-a');
-        var b = el.getAttribute('data-b');
-        if (_selectedNodes.has(a) && _selectedNodes.has(b)) {
-          el.classList.add('highlighted');
-          el.classList.add('selection-edge-hl');
-          // 対応する BGP 表行もハイライト
-          var bgpId = el.getAttribute('data-bgp-id');
-          if (bgpId) {
-            var bgpAttr = 'data-bgp-id';
-            document.querySelectorAll('tr[' + bgpAttr + '="' + CSS.escape(bgpId) + '"]').forEach(function(row) {
-              row.classList.add('highlighted');
-              row.classList.add('selection-edge-hl');
-            });
+      if (_currentView === 'physical') {
+        // physical ビュー: .view-physical スコープの .link-edge のみハイライト
+        // BGP 表・OSPF 表には触らない
+        document.querySelectorAll('.view-physical .link-edge[data-a][data-b]').forEach(function(el) {
+          var a = el.getAttribute('data-a');
+          var b = el.getAttribute('data-b');
+          if (_selectedNodes.has(a) && _selectedNodes.has(b)) {
+            el.classList.add('highlighted');
+            el.classList.add('selection-edge-hl');
           }
-        }
-      });
+        });
 
-      // .link-edge: data-a / data-b 両方が _selectedNodes に含まれるものをハイライト
-      document.querySelectorAll('.link-edge[data-a][data-b]').forEach(function(el) {
-        var a = el.getAttribute('data-a');
-        var b = el.getAttribute('data-b');
-        if (_selectedNodes.has(a) && _selectedNodes.has(b)) {
-          el.classList.add('highlighted');
-          el.classList.add('selection-edge-hl');
-        }
-      });
+      } else if (_currentView === 'bgp') {
+        // bgp ビュー: .view-bgp スコープの .bgp-session をハイライト + BGP 表行連動
+        document.querySelectorAll('.view-bgp .bgp-session[data-a][data-b]').forEach(function(el) {
+          var a = el.getAttribute('data-a');
+          var b = el.getAttribute('data-b');
+          if (_selectedNodes.has(a) && _selectedNodes.has(b)) {
+            el.classList.add('highlighted');
+            el.classList.add('selection-edge-hl');
+            // 対応する BGP 表行もハイライト（data-bgp-id）
+            var bgpId = el.getAttribute('data-bgp-id');
+            if (bgpId) {
+              var bgpAttr = 'data-bgp-id';
+              document.querySelectorAll('tr[' + bgpAttr + '="' + CSS.escape(bgpId) + '"]').forEach(function(row) {
+                row.classList.add('highlighted');
+                row.classList.add('selection-edge-hl');
+              });
+            }
+          }
+        });
+
+      } else if (_currentView === 'ospf') {
+        // ospf ビュー: .view-ospf スコープの .link-edge をハイライト + OSPF 表行連動
+        document.querySelectorAll('.view-ospf .link-edge[data-a][data-b]').forEach(function(el) {
+          var a = el.getAttribute('data-a');
+          var b = el.getAttribute('data-b');
+          if (_selectedNodes.has(a) && _selectedNodes.has(b)) {
+            el.classList.add('highlighted');
+            el.classList.add('selection-edge-hl');
+            // 対応する OSPF 表行もハイライト（data-ospf-id トークンマッチ）
+            var ospfId = el.getAttribute('data-ospf-id');
+            if (ospfId) {
+              ospfId.split(' ').forEach(function(token) {
+                if (!token) return;
+                document.querySelectorAll('tr[data-ospf-id~="' + CSS.escape(token) + '"]').forEach(function(row) {
+                  row.classList.add('highlighted');
+                  row.classList.add('selection-edge-hl');
+                });
+              });
+            }
+          }
+        });
+      }
     }
 
     // カード→ノード選択（カードクリックで対応ノードを selected 強調・累積トグル）
@@ -1606,6 +1643,8 @@ _JS = """\
           _updateCardFilter();
           // P2 #5: カードクリック時も複数選択エッジハイライトを更新
           _updateEdgeHighlightForSelection();
+          // F2: 選択変化を IF 一覧に即時反映（選択連動）
+          _applyIfFilters();
         });
       });
     })();
@@ -2081,6 +2120,28 @@ _JS = """\
     var _ifinvStatusFilter = '';
     var _ifinvL2l3Filter = '';
 
+    // _resetIfinvFilters: ifinv ドロップダウン状態変数と <select>.value を一括リセットし
+    // _applyIfFilters() を即時呼び出す。selectView('ifinv') 入場時に使用する（F2）。
+    // MED-2: 未使用トグル（_ifinvUnusedOnly/#ifinv-unused-toggle）もリセットして全フィルタ統一。
+    function _resetIfinvFilters() {
+      _ifinvUnusedOnly = false;
+      var unusedToggleEl = document.getElementById('ifinv-unused-toggle');
+      if (unusedToggleEl) unusedToggleEl.checked = false;
+      _ifinvDeviceFilter = '';
+      _ifinvAfFilter = '';
+      _ifinvStatusFilter = '';
+      _ifinvL2l3Filter = '';
+      var selDev = document.getElementById('ifinv-filter-device');
+      if (selDev) selDev.value = '';
+      var selAf = document.getElementById('ifinv-filter-af');
+      if (selAf) selAf.value = '';
+      var selSt = document.getElementById('ifinv-filter-status');
+      if (selSt) selSt.value = '';
+      var selL2 = document.getElementById('ifinv-filter-l2l3');
+      if (selL2) selL2.value = '';
+      _applyIfFilters();
+    }
+
     // _applyIfFilters: 全フィルタ条件（検索 × 未使用トグル × device × af × status × l2l3）
     // を AND で評価して全行の表示/非表示を一括再評価する。
     // グローバル検索から _ifinvSearchQuery が更新される（#ifinv-search は撤去済み）。
@@ -2110,8 +2171,10 @@ _JS = """\
         // P2 #3: node-filter 非表示機器の行を隠す（_hiddenNodes との AND）
         var rowDevice = row.getAttribute('data-device') || '';
         var matchNodeFilter = !rowDevice || !_hiddenNodes.has(rowDevice);
+        // F2: 選択連動 — ノード複数選択中は選択機器のIFのみ表示、未選択は全表示
+        var matchSelection = (_selectedNodes.size === 0) || !rowDevice || _selectedNodes.has(rowDevice);
         // 全条件を AND で評価して表示/非表示を決定（クラスは ifinv-row-hidden に一本化）
-        if (matchSearch && matchUnused && matchDevice && matchAf && matchStatus && matchL2l3 && matchNodeFilter) {
+        if (matchSearch && matchUnused && matchDevice && matchAf && matchStatus && matchL2l3 && matchNodeFilter && matchSelection) {
           row.classList.remove('ifinv-row-hidden');
           // マッチ行に search-match クラスを付与（強調表示）
           if (q) {
