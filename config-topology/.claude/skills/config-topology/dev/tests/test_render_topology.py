@@ -12577,13 +12577,14 @@ def test_2e_js_ifinv_state_vars_exist(ifinv_html):
 
 @pytest.mark.unit
 def test_2e_js_ifinv_search_uses_addeventlistener(ifinv_html):
-    """Phase2E: ifinv-search の oninput は addEventListener で登録される（インライン不使用）"""
-    # ifinv-search input タグに oninput インラインが無いこと
-    m = re.search(r'id="ifinv-search"[^>]*>', ifinv_html)
-    assert m is not None, "ifinv-search が見つからない"
-    tag = m.group(0)
-    assert "oninput" not in tag, \
-        f"ifinv-search に oninput インラインが残っている: {tag!r}"
+    """B-pass1b: #ifinv-search はグローバル検索統合のため撤去済み。
+    代わりに #search-input がグローバル検索として存在し ifinv を駆動する。"""
+    # B-pass1b: #ifinv-search は撤去（グローバル #search-input に統合）
+    assert 'id="ifinv-search"' not in ifinv_html, \
+        "#ifinv-search がまだ残っている（B-pass1b で撤去済みのはず）"
+    # グローバル検索入力が存在することを確認
+    assert 'id="search-input"' in ifinv_html, \
+        "グローバル検索入力 #search-input が見つからない"
 
 
 @pytest.mark.unit
@@ -13447,3 +13448,466 @@ def test_fix1_ospf_non_participant_merged_link_no_data_ospf_id():
     # ospf_subnets=[v4_only] なので v6 は入らないはず
     assert "2001:db8::" not in svg.split('data-ospf-id="')[1] if 'data-ospf-id="' in svg else True, \
         "OSPF 非参加 v6 subnet が data-ospf-id に誤って含まれた"
+
+
+# ===========================================================================
+# B-pass1: 検索インデックス拡充 / data-ips / CIDR 内包 / 件数表示
+# ===========================================================================
+#
+# B-pass1-1: _build_search_attr 拡充（AS/subnet/description/VLAN/vendor）
+# B-pass1-2: data-ips 属性（CIDR 内包判定用）
+# B-pass1-3: filterNodes CIDR 内包 + 件数表示（JS 文字列検証）
+# B-pass1-4: CSS .device-node.search-match
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# B-pass1-1: _build_search_attr 拡充テスト
+# ---------------------------------------------------------------------------
+
+def _make_iface_with_addresses(iface_id: str, name: str,
+                                v4_ip: str, v4_prefix: int,
+                                v6_ip: str | None = None, v6_prefix: int | None = None,
+                                description: str | None = None,
+                                vlan: int | None = None) -> dict:
+    """addresses リスト付き IF を構築するヘルパー（B-pass1 テスト用）。"""
+    addresses = [
+        {"af": "v4", "ip": v4_ip, "prefix": v4_prefix, "scope": None, "secondary": False},
+    ]
+    if v6_ip is not None:
+        addresses.append({"af": "v6", "ip": v6_ip, "prefix": v6_prefix, "scope": None})
+    return {
+        "id": iface_id,
+        "device": iface_id.split("::")[0],
+        "name": name,
+        "ip": f"{v4_ip}/{v4_prefix}",
+        "vlan": vlan,
+        "description": description,
+        "shutdown": False,
+        "addresses": addresses,
+    }
+
+
+@pytest.mark.unit
+def test_b_search_attr_as_number_included():
+    """_build_search_attr: AS番号が 'as65000' と '65000' の両形式で含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "core1", "hostname": "CORE1", "vendor": "cisco_ios", "as": 65000}
+    iface = _make_iface_with_addresses("core1::ge0", "GigabitEthernet0/0", "10.0.0.1", 30)
+    result = _build_search_attr(dev, [iface])
+    assert "as65000" in result, f"'as65000' が data-search に含まれない: {result!r}"
+    assert "65000" in result, f"'65000' が data-search に含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_as_none_not_included():
+    """_build_search_attr: as が None の場合 'as' トークンは含まれない。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None}
+    iface = _make_iface_with_addresses("r1::eth0", "eth0", "10.0.0.1", 30)
+    result = _build_search_attr(dev, [iface])
+    # 'as' で始まるトークンがないこと（asnone 等が混入しない）
+    tokens = result.split()
+    as_tokens = [t for t in tokens if t.startswith("as") and t != "r1"]
+    assert not as_tokens, f"as=None なのに AS トークンが混入: {as_tokens!r} in {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_subnet_with_prefix_included():
+    """_build_search_attr: IP/prefix 形式（CIDR）が data-search に含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None}
+    iface = _make_iface_with_addresses("r1::eth0", "eth0", "10.0.0.1", 30)
+    result = _build_search_attr(dev, [iface])
+    assert "10.0.0.1/30" in result, f"CIDR 形式が含まれない: {result!r}"
+    # ホスト部（従来）も維持される
+    assert "10.0.0.1" in result, f"IP ホスト部が含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_vendor_included():
+    """_build_search_attr: vendor 文字列が data-search に含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1", "vendor": "juniper_junos", "as": None}
+    iface = _make_iface_with_addresses("r1::ge0", "ge-0/0/0", "10.0.0.1", 30)
+    result = _build_search_attr(dev, [iface])
+    assert "juniper_junos" in result, f"vendor が含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_description_included():
+    """_build_search_attr: IF description が data-search に含まれる（rich-if 相当）。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None}
+    iface = _make_iface_with_addresses(
+        "sw1::ge0", "GigabitEthernet0/0", "192.168.10.1", 24,
+        description="ACCESS-LINK-TO-SERVER"
+    )
+    result = _build_search_attr(dev, [iface])
+    assert "access-link-to-server" in result.lower(), \
+        f"description が含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_vlan_included():
+    """_build_search_attr: vlan 番号が data-search に含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None}
+    iface = {
+        "id": "sw1::eth0",
+        "device": "sw1",
+        "name": "GigabitEthernet0/1",
+        "ip": None,
+        "vlan": 10,
+        "description": None,
+        "shutdown": False,
+        "addresses": [],
+    }
+    result = _build_search_attr(dev, [iface])
+    assert "vlan10" in result or "10" in result.split(), \
+        f"VLAN10 が含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_switchport_access_vlan_included():
+    """_build_search_attr: switchport.access_vlan が data-search に含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None}
+    iface = {
+        "id": "sw1::eth0",
+        "device": "sw1",
+        "name": "GigabitEthernet0/1",
+        "ip": None,
+        "vlan": None,
+        "description": None,
+        "shutdown": False,
+        "addresses": [],
+        "switchport": {"mode": "access", "access_vlan": 20},
+    }
+    result = _build_search_attr(dev, [iface])
+    assert "20" in result.split() or "vlan20" in result, \
+        f"switchport access_vlan 20 が含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_dualstack_v4_subnet_included():
+    """_build_search_attr: dual-stack の v4 CIDR（10.0.0.1/30）が含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "DS-R1", "vendor": "cisco_ios", "as": None}
+    iface = _make_iface_with_addresses(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.0.0.1", 30,
+        "2001:db8:1::1", 127,
+    )
+    result = _build_search_attr(dev, [iface])
+    assert "10.0.0.1/30" in result, f"v4 CIDR が含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_dualstack_v6_subnet_included():
+    """_build_search_attr: dual-stack の v6 CIDR（2001:db8:1::1/127）が含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "DS-R1", "vendor": "cisco_ios", "as": None}
+    iface = _make_iface_with_addresses(
+        "r1::eth0", "GigabitEthernet0/0",
+        "10.0.0.1", 30,
+        "2001:db8:1::1", 127,
+    )
+    result = _build_search_attr(dev, [iface])
+    assert "2001:db8:1::1/127" in result, f"v6 CIDR が含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_link_local_subnet_excluded():
+    """_build_search_attr: link-local アドレスの CIDR は含まれない（fe80::/64 等）。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None}
+    iface = {
+        "id": "r1::eth0",
+        "device": "r1",
+        "name": "GigabitEthernet0/0",
+        "ip": "10.0.0.1/30",
+        "vlan": None,
+        "description": None,
+        "shutdown": False,
+        "addresses": [
+            {"af": "v4", "ip": "10.0.0.1", "prefix": 30, "scope": None, "secondary": False},
+            {"af": "v6", "ip": "2001:db8::1", "prefix": 64, "scope": None},
+            {"af": "v6", "ip": "fe80::1", "prefix": 64, "scope": "link-local"},
+        ],
+    }
+    result = _build_search_attr(dev, [iface])
+    assert "fe80" not in result, f"link-local CIDR が混入: {result!r}"
+    assert "2001:db8::1" in result, f"GUA v6 が含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_b_search_attr_multi_as_area_has_as_and_vendor():
+    """_build_search_attr: multi-as-area 相当（AS65000, vendor=cisco_ios）で AS/vendor が含まれる。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "core1", "hostname": "CORE1", "vendor": "cisco_ios", "as": 65000}
+    iface1 = _make_iface_with_addresses(
+        "core1::ge0", "GigabitEthernet0/0", "10.0.0.1", 30,
+        description="CORE-LINK-to-CORE2-AREA0"
+    )
+    iface2 = _make_iface_with_addresses(
+        "core1::ge1", "GigabitEthernet0/1", "10.0.1.1", 30,
+        description="CORE-LINK-to-EDGE1-AREA0"
+    )
+    result = _build_search_attr(dev, [iface1, iface2])
+    assert "as65000" in result
+    assert "65000" in result
+    assert "cisco_ios" in result
+    assert "core-link-to-core2-area0" in result.lower()
+    assert "10.0.0.1/30" in result
+    assert "10.0.1.1/30" in result
+
+
+@pytest.mark.unit
+def test_b_search_attr_deterministic_with_extensions():
+    """_build_search_attr 拡充後も決定性が維持される（2回一致）。"""
+    from lib.rendering.svg import _build_search_attr
+    dev = {"id": "core1", "hostname": "CORE1", "vendor": "cisco_ios", "as": 65000}
+    iface = _make_iface_with_addresses(
+        "core1::ge0", "GigabitEthernet0/0", "10.0.0.1", 30,
+        "2001:db8::1", 64,
+        description="TEST-LINK"
+    )
+    r1 = _build_search_attr(dev, [iface])
+    r2 = _build_search_attr(dev, [iface])
+    assert r1 == r2, f"非決定的: {r1!r} vs {r2!r}"
+
+
+# ---------------------------------------------------------------------------
+# B-pass1-2: data-ips 属性テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_b_data_ips_attribute_present_in_html():
+    """render(): device-node の <g> に data-ips 属性が含まれる。"""
+    from lib.rendering import render
+    topo = {
+        "title": "data-ips test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {
+                "id": "r1::eth0", "device": "r1", "name": "GigabitEthernet0/0",
+                "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False,
+                "addresses": [
+                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30, "scope": None, "secondary": False},
+                ],
+            },
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    assert 'data-ips=' in html, "data-ips 属性が device-node の <g> に含まれない"
+
+
+@pytest.mark.unit
+def test_b_data_ips_contains_v4_cidr():
+    """render(): data-ips に v4 CIDR（10.0.0.1/30）が含まれる。"""
+    from lib.rendering import render
+    topo = {
+        "title": "data-ips v4 test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {
+                "id": "r1::eth0", "device": "r1", "name": "GigabitEthernet0/0",
+                "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False,
+                "addresses": [
+                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30, "scope": None, "secondary": False},
+                ],
+            },
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    ips_vals = re.findall(r'data-ips="([^"]*)"', html)
+    all_ips = " ".join(ips_vals)
+    assert "10.0.0.1/30" in all_ips, f"data-ips に v4 CIDR が含まれない: {all_ips!r}"
+
+
+@pytest.mark.unit
+def test_b_data_ips_dualstack_contains_v4_and_v6():
+    """render(): dual-stack ノードの data-ips に v4/v6 両方の CIDR が含まれる。"""
+    from lib.rendering import render
+    topo = {
+        "title": "data-ips dualstack test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "DS-R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {
+                "id": "r1::eth0", "device": "r1", "name": "GigabitEthernet0/0",
+                "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False,
+                "addresses": [
+                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30, "scope": None, "secondary": False},
+                    {"af": "v6", "ip": "2001:db8:1::1", "prefix": 127, "scope": None},
+                    {"af": "v6", "ip": "fe80::1", "prefix": 64, "scope": "link-local"},
+                ],
+            },
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    ips_vals = re.findall(r'data-ips="([^"]*)"', html)
+    all_ips = " ".join(ips_vals)
+    assert "10.0.0.1/30" in all_ips, f"data-ips に v4 CIDR が含まれない: {all_ips!r}"
+    assert "2001:db8:1::1/127" in all_ips, f"data-ips に v6 CIDR が含まれない: {all_ips!r}"
+
+
+@pytest.mark.unit
+def test_b_data_ips_no_link_local():
+    """render(): data-ips に link-local アドレスが含まれない。"""
+    from lib.rendering import render
+    topo = {
+        "title": "data-ips no-link-local test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {
+                "id": "r1::eth0", "device": "r1", "name": "GigabitEthernet0/0",
+                "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False,
+                "addresses": [
+                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30, "scope": None, "secondary": False},
+                    {"af": "v6", "ip": "fe80::1", "prefix": 64, "scope": "link-local"},
+                ],
+            },
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    ips_vals = re.findall(r'data-ips="([^"]*)"', html)
+    all_ips = " ".join(ips_vals)
+    assert "fe80" not in all_ips, f"data-ips に link-local が混入: {all_ips!r}"
+
+
+@pytest.mark.unit
+def test_b_data_ips_deterministic():
+    """render(): 同一 topology を2回 render して data-ips が一致（決定性）。"""
+    from lib.rendering import render
+    topo = {
+        "title": "data-ips deterministic",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {
+                "id": "r1::eth0", "device": "r1", "name": "eth0",
+                "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False,
+                "addresses": [
+                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30, "scope": None, "secondary": False},
+                    {"af": "v6", "ip": "2001:db8::1", "prefix": 64, "scope": None},
+                ],
+            },
+            {
+                "id": "r2::eth0", "device": "r2", "name": "eth0",
+                "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False,
+                "addresses": [
+                    {"af": "v4", "ip": "10.0.0.2", "prefix": 30, "scope": None, "secondary": False},
+                ],
+            },
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    h1 = render(topo)
+    h2 = render(topo)
+    ips1 = re.findall(r'data-ips="([^"]*)"', h1)
+    ips2 = re.findall(r'data-ips="([^"]*)"', h2)
+    assert ips1 == ips2, f"data-ips が非決定的: {ips1!r} vs {ips2!r}"
+
+
+# ---------------------------------------------------------------------------
+# B-pass1-3: filterNodes JS 拡張 / B-pass1-4: CSS .search-match の文字列検証
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_b_html_has_search_count_element(rendered_html):
+    """生成 HTML に #search-count 要素が含まれる。"""
+    assert 'id="search-count"' in rendered_html, \
+        "#search-count 要素が HTML に含まれない"
+
+
+@pytest.mark.unit
+def test_b_js_filterNodes_cidr_detection(rendered_html):
+    """filterNodes JS に CIDR 判定ロジック（'/' 含む query の分岐）が含まれる。"""
+    # CIDR モード判定: query に '/' が含まれるかチェックするコードが存在する
+    assert "indexOf('/')" in rendered_html or 'includes("/")' in rendered_html or \
+        "cidr" in rendered_html.lower() or "prefix" in rendered_html.lower(), \
+        "filterNodes に CIDR 判定ロジックが含まれない"
+
+
+@pytest.mark.unit
+def test_b_js_filterNodes_bigint_v6(rendered_html):
+    """filterNodes JS に v6 内包判定用 BigInt ロジックが含まれる。"""
+    assert "BigInt" in rendered_html, \
+        "filterNodes に v6 CIDR 判定用 BigInt が含まれない"
+
+
+@pytest.mark.unit
+def test_b_js_filterNodes_search_match_class(rendered_html):
+    """filterNodes JS が .search-match クラスを付与するコードを含む。"""
+    assert "search-match" in rendered_html, \
+        "filterNodes に '.search-match' クラス付与が含まれない"
+
+
+@pytest.mark.unit
+def test_b_js_filterNodes_count_display(rendered_html):
+    """filterNodes JS が件数を #search-count に反映するコードを含む。"""
+    assert "search-count" in rendered_html, \
+        "filterNodes に #search-count 更新コードが含まれない"
+
+
+@pytest.mark.unit
+def test_b_css_search_match_class_defined(rendered_html):
+    """CSS に .device-node.search-match が定義されている。"""
+    assert ".device-node.search-match" in rendered_html, \
+        "CSS に .device-node.search-match が定義されていない"
+
+
+@pytest.mark.unit
+def test_b_js_filterNodes_data_ips_used(rendered_html):
+    """filterNodes JS が data-ips 属性を参照する（CIDR 内包判定に使用）。"""
+    assert "data-ips" in rendered_html, \
+        "filterNodes JS に data-ips 参照が含まれない"
+
+
+@pytest.mark.unit
+def test_b_search_count_hidden_on_empty_query(rendered_html):
+    """#search-count は空クエリ時に空にする JS コードが含まれる。"""
+    # JS 全体で search-count の textContent を空にする処理が含まれること
+    # countEl.textContent = '' または '' のような代入
+    assert "search-count" in rendered_html, "#search-count が HTML に存在しない"
+    # 空文字代入パターン
+    has_clear = (
+        "textContent = ''" in rendered_html
+        or "textContent=''" in rendered_html
+        or 'textContent = ""' in rendered_html
+    )
+    assert has_clear, \
+        "#search-count の空クエリ時クリア（textContent = ''）が filterNodes JS に含まれない"

@@ -71,28 +71,104 @@ def _make_link_id(a_device: str, a_if: str, b_device: str, b_if: str) -> str:
 
 
 def _build_search_attr(dev: dict, interfaces_for_dev: list[dict]) -> str:
-    """device ノードの data-search 属性値を構築する（hostname小文字 + 全 IP ホスト部）。
+    """device ノードの data-search 属性値を構築する。
 
-    addresses リストがある場合は v4/v6 全アドレス（link-local 除く）のホスト部を追加する。
+    含めるトークン（小文字・空白結合）:
+    - hostname（小文字）
+    - AS 番号: ``as{asn}`` と ``{asn}`` の両形式（``dev.get("as")`` がある場合）
+    - vendor: ``dev.get("vendor")``
+    - 各 IF の addresses から IP ホスト部と IP/prefix（link-local 除外）
+    - 各 IF の description（あれば小文字化）
+    - 各 IF の VLAN 番号: ``iface.get("vlan")`` または switchport から収集
+
     addresses がない旧形式は ip フィールドにフォールバックする（後方互換）。
-    決定性: addresses 順でトークンを追加する。
+    決定性: iface 順・addresses 順でトークンを追加する。
     """
     parts = [dev["hostname"].lower()]
+
+    # AS 番号（as65000 と 65000 の両形式）
+    asn = dev.get("as")
+    if asn is not None:
+        parts.append(f"as{asn}")
+        parts.append(str(asn))
+
+    # vendor
+    vendor = dev.get("vendor")
+    if vendor:
+        parts.append(vendor.lower())
+
     for iface in interfaces_for_dev:
         addresses = iface.get("addresses")
         if addresses:
-            # addresses リストから v4/v6 全アドレスを追加（link-local 除く）
+            # addresses リストから v4/v6 全アドレス（link-local 除く）のホスト部と CIDR を追加
             for addr in addresses:
                 if addr.get("scope") == "link-local":
                     continue
                 ip_str = addr.get("ip", "")
-                if ip_str:
-                    parts.append(ip_str)
+                if not ip_str:
+                    continue
+                # ホスト部（従来互換）
+                parts.append(ip_str)
+                # prefix 付き CIDR
+                prefix = addr.get("prefix")
+                if prefix is not None:
+                    parts.append(f"{ip_str}/{prefix}")
         else:
             # フォールバック: ip フィールドのホスト部のみ（旧形式後方互換）
             ip = iface.get("ip")
             if ip:
                 parts.append(ip.split("/")[0])
+
+        # description
+        desc = iface.get("description")
+        if desc:
+            parts.append(desc.lower())
+
+        # VLAN
+        vlan = iface.get("vlan")
+        if vlan is not None:
+            parts.append(f"vlan{vlan}")
+            parts.append(str(vlan))
+
+        # switchport から VLAN 番号を収集
+        switchport = iface.get("switchport")
+        if switchport:
+            access_vlan = switchport.get("access_vlan")
+            if access_vlan is not None:
+                parts.append(f"vlan{access_vlan}")
+                parts.append(str(access_vlan))
+            trunk_vlans = switchport.get("trunk_vlans")
+            if trunk_vlans:
+                for tv in trunk_vlans:
+                    parts.append(f"vlan{tv}")
+                    parts.append(str(tv))
+
+    return " ".join(parts)
+
+
+def _build_ips_attr(interfaces_for_dev: list[dict]) -> str:
+    """device ノードの data-ips 属性値を構築する（CIDR 内包判定用）。
+
+    全 IF addresses から ``"{ip}/{prefix}"`` を収集（link-local 除外、v4/v6 とも）。
+    addresses がない旧形式は ip フィールドにフォールバックする（後方互換）。
+    決定性: iface 順・addresses 順で収集する。
+    """
+    parts = []
+    for iface in interfaces_for_dev:
+        addresses = iface.get("addresses")
+        if addresses:
+            for addr in addresses:
+                if addr.get("scope") == "link-local":
+                    continue
+                ip_str = addr.get("ip", "")
+                prefix = addr.get("prefix")
+                if ip_str and prefix is not None:
+                    parts.append(f"{ip_str}/{prefix}")
+        else:
+            # フォールバック: ip フィールド（旧形式後方互換）
+            ip = iface.get("ip")
+            if ip and "/" in ip:
+                parts.append(ip)
     return " ".join(parts)
 
 
@@ -314,6 +390,7 @@ def _svg_nodes(
         label2 = f"AS{as_num}" if dev.get("as") is not None else vendor
 
         search_val = _esc(_build_search_attr(dev, iface_by_device.get(dev["id"], [])))
+        ips_val = _esc(_build_ips_attr(iface_by_device.get(dev["id"], [])))
 
         all_ifaces = sorted(iface_by_device.get(dev["id"], []), key=lambda i: i["name"])
 
@@ -356,6 +433,7 @@ def _svg_nodes(
             parts.append(
                 f'<g class="device-node" data-device="{dev_id}" '
                 f'data-search="{search_val}" '
+                f'data-ips="{ips_val}" '
                 f'transform="translate(0,0)">'
                 f'<rect x="{nx:.1f}" y="{ny:.1f}" width="{_NODE_WIDTH}" height="{node_h:.1f}" '
                 f'rx="6" ry="6" class="node-rect"/>'
@@ -371,6 +449,7 @@ def _svg_nodes(
             parts.append(
                 f'<g class="device-node" data-device="{dev_id}" '
                 f'data-search="{search_val}" '
+                f'data-ips="{ips_val}" '
                 f'transform="translate(0,0)">'
                 f'<rect x="{nx:.1f}" y="{ny:.1f}" width="{_NODE_WIDTH}" height="{_NODE_HEIGHT}" '
                 f'rx="6" ry="6" class="node-rect"/>'

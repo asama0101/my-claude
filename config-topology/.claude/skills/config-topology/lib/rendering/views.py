@@ -18,6 +18,7 @@ from lib.rendering.layout import (
 from lib.rendering.svg import (
     _build_ip_to_device,
     _build_ip_to_iface_id,
+    _build_ips_attr,
     _chip_positions,
     _esc,
     _format_iface_ip_cell,
@@ -857,9 +858,10 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
     )
 
     # 検索・フィルタ UI（DC5: イベントは addEventListener で登録 → インライン不使用）
+    # B-pass1b: #ifinv-search は撤去（グローバル検索 #search-input に統合）。
+    # 未使用トグルのみ残す。
     search_filter_html = (
         f'<div class="ifinv-toolbar">'
-        f'<input type="search" id="ifinv-search" placeholder="Device / IF / IP / Description...">'
         f'<label class="ifinv-filter-label">'
         f'<input type="checkbox" id="ifinv-unused-toggle"> '
         f'未使用のみ表示</label>'
@@ -974,12 +976,18 @@ def _build_ifinv_table(devices: list[dict], interfaces: list[dict]) -> str:
             vlan_str = ""
             vlan_data_num = ""
 
+        # data-ips: CIDR 内包検索用（link-local 除外）
+        # _build_ips_attr を単一 IF に対して使用してノードと同一の規則で生成する（DRY）。
+        # これにより secondary アドレス等の誤除外が防止される。
+        data_ips_val = _build_ips_attr([iface])
+
         # 将来の editable フック: data-iface-id が差込点（編集 UI は実装しない）
         row_attrs = (
             f' data-iface-id="{_esc(iface_id)}"'
             f' data-device="{_esc(dev_id)}"'
             f'{unused_attr}'
             f' data-search="{_esc(search_text)}"'
+            f' data-ips="{_esc(data_ips_val)}"'
         )
         cells = [
             f'<td>{_esc(hostname)}</td>',

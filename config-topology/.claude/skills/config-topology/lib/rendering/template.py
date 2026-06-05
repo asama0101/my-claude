@@ -215,6 +215,11 @@ _CSS = """\
       opacity: 0.4;
     }
 
+    .device-node.search-match .node-rect {
+      stroke: #f59e0b;
+      stroke-width: 3;
+    }
+
     .node-label {
       font-size: 13px;
       font-weight: 700;
@@ -675,6 +680,18 @@ _CSS = """\
     /* 検索/フィルタ非表示（_applyIfFilters により ifinv-row-hidden に一本化） */
     .ifinv-row-hidden {
       display: none !important;
+    }
+
+    /* B-pass1b: グローバル検索フォーカスノード（「次へ」で巡回中の対象） */
+    .device-node.search-focus .node-rect {
+      stroke: #dc2626;
+      stroke-width: 4;
+      filter: drop-shadow(0 0 6px rgba(220,38,38,0.6));
+    }
+
+    /* B-pass1b: ifinv ヒット行強調（グローバル検索マッチ） */
+    tr.search-match td {
+      background: #fef3c7;
     }\
 """
 
@@ -758,40 +775,357 @@ _JS = """\
     // ============================================================
     // 検索 / フィルタ
     // ============================================================
+
+    // ---- CIDR ユーティリティ ----
+    function _parseCidrV4(cidr) {
+      // "10.0.0.0/24" → {netInt, prefix} or null
+      var slash = cidr.indexOf('/');
+      if (slash === -1) return null;
+      var ipPart = cidr.slice(0, slash);
+      var prefixStr = cidr.slice(slash + 1);
+      var prefix = parseInt(prefixStr, 10);
+      if (isNaN(prefix) || prefix < 0 || prefix > 32) return null;
+      var octets = ipPart.split('.');
+      if (octets.length !== 4) return null;
+      var netInt = 0;
+      for (var i = 0; i < 4; i++) {
+        var o = parseInt(octets[i], 10);
+        if (isNaN(o) || o < 0 || o > 255) return null;
+        netInt = (netInt * 256 + o) >>> 0;
+      }
+      return {netInt: netInt, prefix: prefix};
+    }
+
+    function _ipv4ToInt(ip) {
+      var octets = ip.split('.');
+      if (octets.length !== 4) return null;
+      var val = 0;
+      for (var i = 0; i < 4; i++) {
+        var o = parseInt(octets[i], 10);
+        if (isNaN(o) || o < 0 || o > 255) return null;
+        val = (val * 256 + o) >>> 0;
+      }
+      return val;
+    }
+
+    function _inCidrV4(ipCidr, networkCidr) {
+      // ipCidr: "10.0.0.1/30" (address部のみ使用), networkCidr: {netInt, prefix}
+      var slash = ipCidr.indexOf('/');
+      var ip = slash !== -1 ? ipCidr.slice(0, slash) : ipCidr;
+      var ipInt = _ipv4ToInt(ip);
+      if (ipInt === null) return false;
+      if (networkCidr.prefix === 0) return true;
+      var mask = (~((1 << (32 - networkCidr.prefix)) - 1)) >>> 0;
+      return ((ipInt & mask) >>> 0) === ((networkCidr.netInt & mask) >>> 0);
+    }
+
+    function _expandV6(ip) {
+      // IPv6 短縮形を展開して 8グループの数値配列を返す。失敗時 null
+      ip = ip.toLowerCase();
+      // :: を展開
+      var dcolon = ip.indexOf('::');
+      var left, right;
+      if (dcolon !== -1) {
+        left = ip.slice(0, dcolon).split(':').filter(function(s) { return s !== ''; });
+        right = ip.slice(dcolon + 2).split(':').filter(function(s) { return s !== ''; });
+        var fill = 8 - left.length - right.length;
+        if (fill < 0) return null;
+        var mid = [];
+        for (var i = 0; i < fill; i++) mid.push('0');
+        var groups = left.concat(mid).concat(right);
+      } else {
+        var groups = ip.split(':');
+      }
+      if (groups.length !== 8) return null;
+      var nums = [];
+      for (var j = 0; j < 8; j++) {
+        var v = parseInt(groups[j], 16);
+        if (isNaN(v)) return null;
+        nums.push(v);
+      }
+      return nums;
+    }
+
+    function _v6ToBigInt(nums) {
+      var val = BigInt(0);
+      for (var i = 0; i < 8; i++) {
+        val = (val << BigInt(16)) | BigInt(nums[i]);
+      }
+      return val;
+    }
+
+    function _parseCidrV6(cidr) {
+      // "2001:db8::/32" → {netBig, prefix} or null
+      var slash = cidr.indexOf('/');
+      if (slash === -1) return null;
+      var ipPart = cidr.slice(0, slash);
+      var prefix = parseInt(cidr.slice(slash + 1), 10);
+      if (isNaN(prefix) || prefix < 0 || prefix > 128) return null;
+      var nums = _expandV6(ipPart);
+      if (!nums) return null;
+      return {netBig: _v6ToBigInt(nums), prefix: prefix};
+    }
+
+    function _inCidrV6(ipCidr, networkCidr) {
+      // ipCidr: "2001:db8::1/64" のアドレス部
+      var slash = ipCidr.indexOf('/');
+      var ip = slash !== -1 ? ipCidr.slice(0, slash) : ipCidr;
+      var nums = _expandV6(ip);
+      if (!nums) return false;
+      var ipBig = _v6ToBigInt(nums);
+      if (networkCidr.prefix === 0) return true;
+      var shift = BigInt(128 - networkCidr.prefix);
+      var mask = ((BigInt(1) << BigInt(networkCidr.prefix)) - BigInt(1)) << shift;
+      return (ipBig & mask) === (networkCidr.netBig & mask);
+    }
+
+    function _isV4Cidr(s) {
+      return /^(\\d{1,3}\\.){3}\\d{1,3}\\/\\d+$/.test(s);
+    }
+
+    function _isV6Cidr(s) {
+      return s.indexOf('/') !== -1 && (s.indexOf(':') !== -1);
+    }
+
+    // 共通ヘルパー: ips 配列（空白区切り文字列 or 配列）が cidrQuery に内包される IP を持つか
+    // _nodeMatchesCidr / _applyIfFilters 両方から再利用する（v4/v6 ループを DRY 化）。
+    function _ipsMatchCidr(ipsAttr, cidrQuery) {
+      var ipsStr = (ipsAttr || '').trim();
+      if (!ipsStr) return false;
+      var ips = ipsStr.split(/\\s+/);
+      if (_isV4Cidr(cidrQuery)) {
+        var net4 = _parseCidrV4(cidrQuery);
+        if (!net4) return false;
+        for (var i = 0; i < ips.length; i++) {
+          if (ips[i].indexOf(':') === -1 && _inCidrV4(ips[i], net4)) return true;
+        }
+        return false;
+      } else {
+        var net6 = _parseCidrV6(cidrQuery);
+        if (!net6) return false;
+        for (var i = 0; i < ips.length; i++) {
+          if (ips[i].indexOf(':') !== -1 && _inCidrV6(ips[i], net6)) return true;
+        }
+        return false;
+      }
+    }
+
+    function _nodeMatchesCidr(node, cidrQuery) {
+      var ipsAttr = node.getAttribute('data-ips') || '';
+      return _ipsMatchCidr(ipsAttr, cidrQuery);
+    }
+
+    // 検索ナビゲーション状態（全ビュー横断・タブ自動切替用）
+    var _searchMatches = [];     // マッチした機器ID の決定的リスト（id 昇順）
+    var _searchFocusIndex = -1;  // 現在フォーカス中のインデックス（-1=未選択）
+    var _isNavigating = false;   // navigateSearchNext 実行中フラグ（filterNodes のインデックスリセットをガード）
+
     function filterNodes(query) {
       var q = (query || '').toLowerCase().trim();
-      // 現在のビュー内のノードのみ対象
+
+      // CIDR モード判定: '/' を含み v4/v6 CIDR として解釈できる場合
+      var isCidrMode = q.indexOf('/') !== -1 && (_isV4Cidr(q) || _isV6Cidr(q));
+
+      // 全グラフビュー（physical/bgp/ospf）を横断してノードにマッチ適用
+      var allGraphViews = document.querySelectorAll('.view');
+      // マッチした機器IDを収集（ビュー間重複除去）
+      var matchedDevices = new Set();
+
+      allGraphViews.forEach(function(viewEl) {
+        var nodes = viewEl.querySelectorAll('.device-node');
+        nodes.forEach(function(node) {
+          if (!q) {
+            node.classList.remove('dimmed');
+            node.classList.remove('search-match');
+            node.classList.remove('search-focus');
+          } else {
+            var matched;
+            if (isCidrMode) {
+              matched = _nodeMatchesCidr(node, q);
+            } else {
+              var searchVal = (node.getAttribute('data-search') || '').toLowerCase();
+              matched = searchVal.indexOf(q) !== -1;
+            }
+            if (matched) {
+              node.classList.remove('dimmed');
+              node.classList.add('search-match');
+              var devId = node.getAttribute('data-device');
+              if (devId) matchedDevices.add(devId);
+            } else {
+              node.classList.add('dimmed');
+              node.classList.remove('search-match');
+              node.classList.remove('search-focus');
+            }
+          }
+        });
+
+        // エッジも淡色化（両端が dimmed のとき）
+        var links = viewEl.querySelectorAll('.link-edge');
+        links.forEach(function(link) {
+          if (!q) {
+            link.style.opacity = '';
+            return;
+          }
+          var aNode = viewEl.querySelector('.device-node[data-device="' + CSS.escape(link.dataset.a) + '"]');
+          var bNode = viewEl.querySelector('.device-node[data-device="' + CSS.escape(link.dataset.b) + '"]');
+          var aDimmed = aNode && aNode.classList.contains('dimmed');
+          var bDimmed = bNode && bNode.classList.contains('dimmed');
+          link.style.opacity = (aDimmed && bDimmed) ? '0.15' : '';
+        });
+      });
+
+      // ifinv 行もグローバルクエリで駆動（CIDR 内包 or テキスト部分一致）
+      _ifinvSearchQuery = q;
+      _applyIfFilters();
+
+      // ifinv マッチ行の機器も matchedDevices に追加（件数カウントに含む）
+      if (q) {
+        var ifinvRows = document.querySelectorAll('#ifinv-table-body tr');
+        ifinvRows.forEach(function(row) {
+          if (!row.classList.contains('ifinv-row-hidden')) {
+            var devId = row.getAttribute('data-device');
+            if (devId) matchedDevices.add(devId);
+          }
+        });
+      }
+
+      // マッチ機器リストを id 昇順の決定的リストに変換（ナビゲーション用）
+      _searchMatches = Array.from(matchedDevices).sort();
+      // _isNavigating 中（navigateSearchNext から selectView 経由で再呼び出しの場合）は
+      // インデックスをリセットしない（クロスタブ「次へ」で i/N 表示が維持される）
+      if (!_isNavigating) {
+        _searchFocusIndex = -1;
+        // フォーカスクラス解除（ユーザー入力起動のときのみリセット）
+        document.querySelectorAll('.device-node.search-focus').forEach(function(n) {
+          n.classList.remove('search-focus');
+        });
+      }
+
+      // 件数表示（未ナビゲーション時は件数のみ）
+      _updateSearchCount();
+    }
+
+    // 件数表示更新ヘルパー
+    function _updateSearchCount() {
+      var countEl = document.getElementById('search-count');
+      if (!countEl) return;
+      var searchInput = document.getElementById('search-input');
+      var q = searchInput ? searchInput.value.trim() : '';
+      if (!q) {
+        countEl.textContent = '';
+        return;
+      }
+      var total = _searchMatches.length;
+      if (total === 0) {
+        countEl.textContent = '0件';
+        return;
+      }
+      if (_searchFocusIndex >= 0) {
+        countEl.textContent = (_searchFocusIndex + 1) + '/' + total + '件';
+      } else {
+        countEl.textContent = total + '件';
+      }
+    }
+
+    // 「次へ」ナビゲーション — マッチ機器を id 昇順で巡回
+    // 各ステップで対象機器をグラフビューに表示（タブ自動切替）し中央寄せ
+    function navigateSearchNext() {
+      if (_searchMatches.length === 0) return;
+
+      // 旧フォーカス解除
+      document.querySelectorAll('.device-node.search-focus').forEach(function(n) {
+        n.classList.remove('search-focus');
+      });
+
+      // 次のインデックスへ進む（巡回）
+      _searchFocusIndex = (_searchFocusIndex + 1) % _searchMatches.length;
+      var targetDevId = _searchMatches[_searchFocusIndex];
+
+      // 対象ノードをグラフビューに表示（現ビューがグラフビューかつノードを含むならそのまま）
+      var targetInCurrentView = false;
+      if (_currentView !== 'ifinv') {
+        var currentViewEl = document.querySelector('.view-' + _currentView);
+        if (currentViewEl) {
+          var nodeInCurrent = currentViewEl.querySelector(
+            '.device-node[data-device="' + CSS.escape(targetDevId) + '"]'
+          );
+          if (nodeInCurrent) targetInCurrentView = true;
+        }
+      }
+      // 現ビューにない or ifinv ビュー → Physical タブへ自動切替
+      // _isNavigating フラグで filterNodes 内の _searchFocusIndex リセットを抑止する
+      if (!targetInCurrentView) {
+        _isNavigating = true;
+        selectView('physical');
+        _isNavigating = false;
+      }
+
+      // フォーカスノードに .search-focus クラスを付与（全ビュー）
+      document.querySelectorAll(
+        '.device-node[data-device="' + CSS.escape(targetDevId) + '"]'
+      ).forEach(function(n) {
+        n.classList.add('search-focus');
+      });
+
+      // 中央寄せ: 現ビューのノード座標を使い、viewport の translateX/Y を更新
+      _centerOnDevice(targetDevId);
+
+      // 件数表示を i/N件 に更新
+      _updateSearchCount();
+    }
+
+    // ノード中央寄せヘルパー（ズーム closure の _zoomState 共有オブジェクト経由で更新）
+    function _centerOnDevice(deviceId) {
       var currentViewEl = document.querySelector('.view-' + _currentView);
       if (!currentViewEl) return;
-
-      var nodes = currentViewEl.querySelectorAll('.device-node');
-      nodes.forEach(function(node) {
-        if (!q) {
-          node.classList.remove('dimmed');
-        } else {
-          var searchVal = (node.getAttribute('data-search') || '').toLowerCase();
-          if (searchVal.indexOf(q) !== -1) {
-            node.classList.remove('dimmed');
-          } else {
-            node.classList.add('dimmed');
-          }
-        }
-      });
-
-      // エッジも淡色化（両端が dimmed のとき）
-      var links = currentViewEl.querySelectorAll('.link-edge');
-      links.forEach(function(link) {
-        if (!q) {
-          link.style.opacity = '';
-          return;
-        }
-        var aNode = currentViewEl.querySelector('.device-node[data-device="' + CSS.escape(link.dataset.a) + '"]');
-        var bNode = currentViewEl.querySelector('.device-node[data-device="' + CSS.escape(link.dataset.b) + '"]');
-        var aDimmed = aNode && aNode.classList.contains('dimmed');
-        var bDimmed = bNode && bNode.classList.contains('dimmed');
-        link.style.opacity = (aDimmed && bDimmed) ? '0.15' : '';
-      });
+      var node = currentViewEl.querySelector(
+        '.device-node[data-device="' + CSS.escape(deviceId) + '"]'
+      );
+      if (!node) return;
+      // 実座標は子 .node-rect の x/y/width/height 属性から取得する
+      // g の transform="translate(0,0)" は常に原点のため使用しない
+      var rect = node.querySelector('.node-rect');
+      if (!rect) return;  // セグメント等 .node-rect を持たない要素は安全に return
+      var rx = parseFloat(rect.getAttribute('x') || '0');
+      var ry = parseFloat(rect.getAttribute('y') || '0');
+      var rw = parseFloat(rect.getAttribute('width') || '0');
+      var rh = parseFloat(rect.getAttribute('height') || '0');
+      // ノード中心座標（rect の中心）
+      var nx = rx + rw / 2;
+      var ny = ry + rh / 2;
+      var container = document.getElementById('svg-container');
+      if (!container) return;
+      var cw = container.clientWidth || 800;
+      var ch = container.clientHeight || 600;
+      // _zoomState 共有オブジェクトで closure の scale を読み、translateX/Y を更新する。
+      // _applyTransform() を呼ぶことで closure 側の状態と viewport transform が同期する。
+      if (window._zoomState && window._applyTransform) {
+        var currentScale = window._zoomState.scale;
+        window._zoomState.translateX = cw / 2 - nx * currentScale;
+        window._zoomState.translateY = ch / 2 - ny * currentScale;
+        window._applyTransform();
+      }
     }
+
+    // search-next ボタン・Enter キーのイベント登録
+    (function() {
+      var nextBtn = document.getElementById('search-next');
+      if (nextBtn) {
+        nextBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          navigateSearchNext();
+        });
+      }
+      var searchInput = document.getElementById('search-input');
+      if (searchInput) {
+        searchInput.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            navigateSearchNext();
+          }
+        });
+      }
+    })();
 
     // ============================================================
     // ズーム / パン
@@ -925,7 +1259,17 @@ _JS = """\
         applyTransform();
       });
 
-      // Phase2 向けにズーム制御を window に露出（selectView 等から呼べるよう）
+      // ズーム状態を共有オブジェクトとして window に露出（_centerOnDevice から利用）
+      // _zoomState 経由で scale/translateX/translateY を読み書きし applyTransform を呼ぶ。
+      window._zoomState = {
+        get scale() { return scale; },
+        set scale(v) { scale = v; },
+        get translateX() { return translateX; },
+        set translateX(v) { translateX = v; },
+        get translateY() { return translateY; },
+        set translateY(v) { translateY = v; },
+      };
+      window._applyTransform = applyTransform;
       window._zoomFit = zoomFit;
       window._zoomReset = function() { scale = 1.0; translateX = 0; translateY = 0; applyTransform(); };
     })();
@@ -1629,19 +1973,37 @@ _JS = """\
 
     // _applyIfFilters: 検索クエリ (_ifinvSearchQuery) と未使用トグル (_ifinvUnusedOnly) の
     // 両条件 AND で全行の表示/非表示を一括再評価する。
-    // 検索ハンドラ・未使用トグルハンドラの両方がこの関数を呼ぶ（独立制御を廃止）。
+    // グローバル検索から _ifinvSearchQuery が更新される（#ifinv-search は撤去済み）。
+    // CIDR クエリの場合は data-ips も参照してマッチ判定する（_ipsMatchCidr を使用）。
     function _applyIfFilters() {
       var q = _ifinvSearchQuery.toLowerCase().trim();
+      var isCidrMode = q.indexOf('/') !== -1 && (_isV4Cidr(q) || _isV6Cidr(q));
       var rows = document.querySelectorAll('#ifinv-table-body tr');
       rows.forEach(function(row) {
-        var searchVal = (row.getAttribute('data-search') || '').toLowerCase();
-        var matchSearch = !q || searchVal.indexOf(q) !== -1;
+        var matchSearch;
+        if (!q) {
+          matchSearch = true;
+        } else if (isCidrMode) {
+          // CIDR 内包: data-ips（行に付与された全アドレス）で判定（_ipsMatchCidr を再利用）
+          var ipsAttr = row.getAttribute('data-ips') || '';
+          matchSearch = _ipsMatchCidr(ipsAttr, q);
+        } else {
+          var searchVal = (row.getAttribute('data-search') || '').toLowerCase();
+          matchSearch = searchVal.indexOf(q) !== -1;
+        }
         var matchUnused = !_ifinvUnusedOnly || row.getAttribute('data-unused') === '1';
         // 両条件を AND で評価して表示/非表示を決定（クラスは ifinv-row-hidden に一本化）
         if (matchSearch && matchUnused) {
           row.classList.remove('ifinv-row-hidden');
+          // マッチ行に search-match クラスを付与（強調表示）
+          if (q) {
+            row.classList.add('search-match');
+          } else {
+            row.classList.remove('search-match');
+          }
         } else {
           row.classList.add('ifinv-row-hidden');
+          row.classList.remove('search-match');
         }
       });
     }
@@ -1658,14 +2020,9 @@ _JS = """\
       _applyIfFilters();
     }
 
-    // ifinv-search / ifinv-unused-toggle のイベント登録（DC5: addEventListener）
+    // ifinv-unused-toggle のイベント登録（DC5: addEventListener）
+    // #ifinv-search は撤去済み（グローバル検索 #search-input に統合）のためリスナーなし
     (function() {
-      var searchInput = document.getElementById('ifinv-search');
-      if (searchInput) {
-        searchInput.addEventListener('input', function() {
-          filterIfRows(searchInput.value);
-        });
-      }
       var unusedToggle = document.getElementById('ifinv-unused-toggle');
       if (unusedToggle) {
         unusedToggle.addEventListener('change', function() {
@@ -1835,7 +2192,9 @@ def build_html(
 
   <div class="controls">
     <span class="controls-label" style="margin-left:0;">Search:</span>
-    <input type="search" id="search-input" placeholder="hostname / IP..." oninput="filterNodes(this.value)">
+    <input type="search" id="search-input" placeholder="hostname / IP / CIDR..." oninput="filterNodes(this.value)">
+    <button id="search-next" class="zoom-btn" title="次のマッチへ（Enter）" style="margin-left:4px;">次へ</button>
+    <span id="search-count" style="margin-left:8px;font-size:0.8rem;color:#6b7280;"></span>
   </div>
 
   {node_filter_html}
