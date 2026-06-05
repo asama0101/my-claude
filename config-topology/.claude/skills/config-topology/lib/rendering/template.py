@@ -12,11 +12,17 @@ from lib.rendering.svg import _esc
 _CSS = """\
     /* CSS 変数によるカラースキーム（拡張用） */
     :root {
+      /* --- 意味色（アクセント: 両テーマで判別性を保つ） --- */
       --color-node-fill: #dbeafe;
       --color-node-stroke: #3b82f6;
       --color-node-text: #1e3a5f;
+      --color-node-fill-hover: #bfdbfe;   /* ノードホバー/ハイライト塗りつぶし（ライト） */
+      --color-node-fill-selected: #fef08a; /* ノード選択時塗りつぶし（ライト） */
+      --color-node-fill-dimmed: #f3f4f6;  /* dimmed ノード塗りつぶし（ライト）*/
+      --color-node-stroke-dimmed: #d1d5db; /* dimmed ノード枠線（ライト）*/
       --color-seg-fill: #fef3c7;
       --color-seg-stroke: #d97706;
+      --color-seg-label: #92400e;          /* セグメントラベル文字色（ライト: seg-fill上でコントラスト確保）*/
       --color-link: #6b7280;
       --color-bgp-ebgp: #2563eb;
       --color-bgp-ibgp: #d97706;
@@ -25,10 +31,115 @@ _CSS = """\
       --color-highlight: #f59e0b;
       --color-selected: #ef4444;
       --color-card-bg: #f9fafb;
-      --color-card-border: #e5e7eb;
+      /* --color-card-border は --border-color に統一（二重定義解消）。参照箇所は var(--border-color) を使用 */
       --color-ospf: #059669;  /* OSPFラベル・テーマ色（緑系）*/
       --font-main: 'Segoe UI', Arial, sans-serif;
       --font-mono: 'Consolas', 'Courier New', monospace;
+      /* --- 構造色（ライトテーマ既定値）--- */
+      --bg-page: #f3f4f6;
+      --bg-surface: #fff;
+      --bg-elevated: #e5e7eb;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --text-heading: #1e3a5f;
+      --header-bg: #1e3a5f;
+      --header-text: #fff;
+      --tab-underline: #3b82f6;
+      --border-color: #e5e7eb;
+      --stripe-bg: #f3f4f6;
+      --kbd-bg: #e5e7eb;
+      --kbd-border: #9ca3af;
+      /* --- UI コンポーネント色 --- */
+      --btn-bg: rgba(255, 255, 255, 0.92);  /* zoom-btn 背景（ライト）*/
+      --btn-fg: var(--text-main);            /* zoom-btn 文字色 */
+      --btn-hover-bg: #e0e7ff;               /* zoom-btn ホバー背景（ライト）*/
+      --btn-hover-border: #6366f1;           /* zoom-btn ホバー枠線（ライト）*/
+      --btn-hover-fg: #3730a3;               /* zoom-btn ホバー文字色（ライト）*/
+      --overlay-bg: rgba(255, 255, 255, 0.88); /* chip-legend 等の不透明オーバーレイ背景（ライト）*/
+      /* --- テーブルハイライト（意味色: ライト固定値→ダークで上書き）--- */
+      --color-row-selected-bg: #fef08a;      /* 選択行の背景（ライト: 黄）*/
+      --color-row-highlighted-bg: #fef3c7;   /* ハイライト行の背景（ライト: 薄黄）*/
+      --color-row-unused-bg: #fff7ed;        /* 未使用候補行の背景（ライト: 薄橙）*/
+      --color-row-unused-fg: #92400e;        /* 未使用候補行の文字色（ライト）*/
+      --color-row-route-bg: #d1fae5;         /* ルート選択行の背景（ライト: 薄緑）*/
+      --color-row-search-bg: #fef3c7;        /* 検索マッチ行の背景（ライト: 薄黄）*/
+      /* --- バッジ（カード内: ライト固定値→ダークで上書き）--- */
+      --badge-vendor-bg: #e0e7ff;
+      --badge-vendor-fg: #3730a3;
+      --badge-as-bg: #d1fae5;
+      --badge-as-fg: #065f46;
+      --ifinv-badge-up-bg: #d1fae5;
+      --ifinv-badge-up-fg: #065f46;
+      --ifinv-badge-down-bg: #fee2e2;
+      --ifinv-badge-down-fg: #991b1b;
+      /* --- external ピアノード（BGPビュー）--- */
+      --color-external-fill: #f9fafb;        /* BGP 外部ピアノード塗りつぶし（ライト）*/
+      --color-external-fill-hover: #f3f4f6;  /* BGP 外部ピアノードホバー（ライト）*/
+      --color-external-stroke: #9ca3af;      /* BGP 外部ピアノード枠線（ライト）*/
+    }
+
+    /* ダークテーマ上書き
+       NOTE: localStorage が file:// スキームやプライベートブラウズ環境では保持されない場合がある。
+             その場合は既定（ライト）テーマで表示される。
+       NOTE: AS枠の fill_rgba（svg.py _AS_COLOR_PALETTE 出力）はPythonインライン style のため
+             ここでは上書きできない。stroke で識別可能なため許容（別バックログ）。
+       NOTE: 意味色（--color-bgp-ebgp/--color-ospf/--color-highlight/--color-selected）は
+             両テーマで視認可能なため上書きしない（誤上書き退行防止）。 */
+    [data-theme="dark"] {
+      /* --- 構造色 --- */
+      --bg-page: #0f172a;
+      --bg-surface: #1e293b;
+      --bg-elevated: #334155;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-heading: #93c5fd;
+      --header-bg: #0f172a;
+      --header-text: #e2e8f0;
+      --tab-underline: #60a5fa;
+      --border-color: #334155;
+      --stripe-bg: #1e293b;
+      --kbd-bg: #334155;
+      --kbd-border: #475569;
+      /* --- 意味色: ダーク用に明度確保（色覚配慮: 青/橙/緑/赤の判別を維持） --- */
+      --color-node-fill: #1e3a8a;
+      --color-node-stroke: #60a5fa;          /* ダーク背景での視認性向上（ライト #3b82f6 → 明るい青）*/
+      --color-node-text: #dbeafe;
+      --color-node-fill-hover: #2d4fa0;      /* ダーク: ホバー塗りつぶしを濃色に（白ジャンプ防止）*/
+      --color-node-fill-selected: #78350f;   /* ダーク: 選択ノードは橙系暗色（黄 #fef08a との差別化）*/
+      --color-node-fill-dimmed: #1e293b;     /* ダーク: dimmed はページ背景相当（意図: 目立たない）*/
+      --color-node-stroke-dimmed: #334155;   /* ダーク: dimmed 枠線 */
+      --color-seg-fill: #78350f;
+      --color-seg-label: #fed7aa;            /* ダーク: seg-fill(#78350f)上でコントラスト確保（明橙系）*/
+      --color-card-bg: #1e293b;
+      --color-link: #94a3b8;
+      --color-bgp-ebgp: #60a5fa;             /* ダーク背景 #1e293b 上で WCAG 3:1 確保（コントラスト比 約4.5:1）*/
+      /* --- UI コンポーネント色 (ダーク) --- */
+      --btn-bg: #334155;                     /* zoom-btn 背景（ダーク: 暗青系）*/
+      --btn-fg: #e2e8f0;                     /* zoom-btn 文字色（ダーク: 明色）*/
+      --btn-hover-bg: #1e40af;               /* zoom-btn ホバー背景（ダーク: 中青）*/
+      --btn-hover-border: #60a5fa;           /* zoom-btn ホバー枠線（ダーク）*/
+      --btn-hover-fg: #bfdbfe;               /* zoom-btn ホバー文字色（ダーク）*/
+      --overlay-bg: rgba(15, 23, 42, 0.92);  /* chip-legend オーバーレイ背景（ダーク: --bg-page 相当）*/
+      /* --- テーブルハイライト (ダーク: 暗色で意味の色相を維持) --- */
+      --color-row-selected-bg: #713f12;      /* ダーク: 選択行 黄→暗橙（色相維持）*/
+      --color-row-highlighted-bg: #451a03;   /* ダーク: ハイライト行 薄黄→極暗橙 */
+      --color-row-unused-bg: #431407;        /* ダーク: 未使用候補行 薄橙→暗赤橙 */
+      --color-row-unused-fg: #fed7aa;        /* ダーク: 未使用候補行文字 → 明橙 */
+      --color-row-route-bg: #064e3b;         /* ダーク: ルート選択行 薄緑→暗緑 */
+      --color-row-search-bg: #451a03;        /* ダーク: 検索マッチ行 薄黄→暗橙 */
+      /* --- バッジ (ダーク) --- */
+      --badge-vendor-bg: #1e3a8a;
+      --badge-vendor-fg: #bfdbfe;
+      --badge-as-bg: #064e3b;
+      --badge-as-fg: #a7f3d0;
+      --ifinv-badge-up-bg: #064e3b;
+      --ifinv-badge-up-fg: #a7f3d0;
+      --ifinv-badge-down-bg: #7f1d1d;
+      --ifinv-badge-down-fg: #fca5a5;
+      /* --- external ピアノード (ダーク) --- */
+      --color-external-fill: #1e293b;        /* ダーク: BGP外部ピア塗りつぶし（暗系）*/
+      --color-external-fill-hover: #334155;  /* ダーク: BGP外部ピアホバー */
+      --color-external-stroke: #64748b;      /* ダーク: BGP外部ピア枠線 */
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -39,8 +150,8 @@ _CSS = """\
 
     body {
       font-family: var(--font-main);
-      background: #f3f4f6;
-      color: #111827;
+      background: var(--bg-page);
+      color: var(--text-main);
       display: flex;
       flex-direction: column;
       height: 100vh;
@@ -48,8 +159,8 @@ _CSS = """\
     }
 
     header {
-      background: #1e3a5f;
-      color: #fff;
+      background: var(--header-bg);
+      color: var(--header-text);
       padding: 12px 20px;
       display: flex;
       align-items: center;
@@ -63,8 +174,8 @@ _CSS = """\
 
     /* ビュー切替タブ */
     .view-tabs {
-      background: #fff;
-      border-bottom: 2px solid var(--color-card-border);
+      background: var(--bg-surface);
+      border-bottom: 2px solid var(--border-color);
       padding: 0 20px;
       display: flex;
       gap: 0;
@@ -76,7 +187,7 @@ _CSS = """\
       font-weight: 600;
       border: none;
       background: transparent;
-      color: #6b7280;
+      color: var(--text-muted);
       cursor: pointer;
       border-bottom: 3px solid transparent;
       margin-bottom: -2px;
@@ -84,17 +195,17 @@ _CSS = """\
     }
 
     .view-tab:hover {
-      color: #1e3a5f;
+      color: var(--text-heading);
     }
 
     .view-tab.active {
-      color: #1e3a5f;
-      border-bottom-color: #3b82f6;
+      color: var(--text-heading);
+      border-bottom-color: var(--tab-underline);
     }
 
     .controls {
-      background: #fff;
-      border-bottom: 1px solid var(--color-card-border);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
       padding: 8px 20px;
       display: flex;
       flex-wrap: wrap;
@@ -105,7 +216,7 @@ _CSS = """\
     .controls-label {
       font-size: 0.8rem;
       font-weight: 600;
-      color: #6b7280;
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -118,28 +229,28 @@ _CSS = """\
       cursor: pointer;
       padding: 3px 8px;
       border-radius: 4px;
-      border: 1px solid var(--color-card-border);
+      border: 1px solid var(--border-color);
       background: var(--color-card-bg);
       user-select: none;
     }
 
     .layer-toggle:hover {
-      background: #e5e7eb;
+      background: var(--bg-elevated);
     }
 
     /* 検索ボックス */
     #search-input {
       padding: 4px 10px;
       font-size: 0.85rem;
-      border: 1px solid var(--color-card-border);
+      border: 1px solid var(--border-color);
       border-radius: 4px;
       min-width: 200px;
     }
 
     kbd {
       font-family: var(--font-mono);
-      background: #e5e7eb;
-      border: 1px solid #9ca3af;
+      background: var(--kbd-bg);
+      border: 1px solid var(--kbd-border);
       border-radius: 3px;
       padding: 1px 5px;
       font-size: 0.75rem;
@@ -157,7 +268,7 @@ _CSS = """\
       overflow: auto;
       flex: 1;
       min-height: 120px;
-      background: #fff;
+      background: var(--bg-surface);
       cursor: grab;
       position: relative;
     }
@@ -165,16 +276,16 @@ _CSS = """\
     /* 上下ペイン境界バー（ドラッグで高さ可変） */
     #split-divider {
       height: 6px;
-      background: #e5e7eb;
-      border-top: 1px solid #d1d5db;
-      border-bottom: 1px solid #d1d5db;
+      background: var(--bg-elevated);
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
       cursor: row-resize;
       flex-shrink: 0;
       user-select: none;
     }
 
     #split-divider:hover {
-      background: #93c5fd;
+      background: var(--tab-underline);
     }
 
     #svg-container:active {
@@ -195,19 +306,19 @@ _CSS = """\
 
     .device-node:hover .node-rect,
     .device-node.highlighted .node-rect {
-      fill: #bfdbfe;
+      fill: var(--color-node-fill-hover);
       stroke-width: 3;
     }
 
     .device-node.selected .node-rect {
-      fill: #fef08a;
+      fill: var(--color-node-fill-selected);
       stroke: var(--color-selected);
       stroke-width: 3;
     }
 
     .device-node.dimmed .node-rect {
-      fill: #f3f4f6;
-      stroke: #d1d5db;
+      fill: var(--color-node-fill-dimmed);
+      stroke: var(--color-node-stroke-dimmed);
       opacity: 0.4;
     }
 
@@ -229,26 +340,26 @@ _CSS = """\
 
     .node-sublabel {
       font-size: 10px;
-      fill: #6b7280;
+      fill: var(--text-muted);
       pointer-events: none;
     }
 
     /* BGP 外部ピアノード（B4: topology 外のピア。BGP ビューのみ表示） */
     .external-rect {
-      fill: #f9fafb;
-      stroke: #9ca3af;
+      fill: var(--color-external-fill);
+      stroke: var(--color-external-stroke);
       stroke-width: 1.5;
       stroke-dasharray: 5 3;
     }
 
     .device-node.external-node:hover .external-rect,
     .device-node.external-node.highlighted .external-rect {
-      fill: #f3f4f6;
+      fill: var(--color-external-fill-hover);
       stroke-width: 2.5;
     }
 
     .external-label {
-      fill: #6b7280;
+      fill: var(--text-muted);
       font-weight: 600;
     }
 
@@ -261,7 +372,7 @@ _CSS = """\
 
     .seg-label {
       font-size: 10px;
-      fill: #92400e;
+      fill: var(--color-seg-label);
       pointer-events: none;
     }
 
@@ -332,7 +443,7 @@ _CSS = """\
       font-size: 1rem;
       font-weight: 700;
       margin-bottom: 12px;
-      color: #374151;
+      color: var(--text-main);
     }
 
     .cards-grid {
@@ -343,7 +454,7 @@ _CSS = """\
 
     .device-card {
       background: var(--color-card-bg);
-      border: 1px solid var(--color-card-border);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 16px;
     }
@@ -361,7 +472,7 @@ _CSS = """\
     .device-card h4 {
       font-size: 0.8rem;
       font-weight: 600;
-      color: #6b7280;
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.04em;
       margin: 10px 0 4px;
@@ -369,8 +480,8 @@ _CSS = """\
 
     .badge-vendor {
       font-size: 0.7rem;
-      background: #e0e7ff;
-      color: #3730a3;
+      background: var(--badge-vendor-bg);
+      color: var(--badge-vendor-fg);
       padding: 2px 6px;
       border-radius: 10px;
       font-weight: 500;
@@ -378,8 +489,8 @@ _CSS = """\
 
     .badge-as {
       font-size: 0.7rem;
-      background: #d1fae5;
-      color: #065f46;
+      background: var(--badge-as-bg);
+      color: var(--badge-as-fg);
       padding: 2px 6px;
       border-radius: 10px;
       font-weight: 500;
@@ -394,14 +505,14 @@ _CSS = """\
     th {
       text-align: left;
       padding: 3px 6px;
-      background: #f3f4f6;
-      color: #6b7280;
+      background: var(--stripe-bg);
+      color: var(--text-muted);
       font-weight: 600;
     }
 
     td {
       padding: 3px 6px;
-      border-bottom: 1px solid #f3f4f6;
+      border-bottom: 1px solid var(--stripe-bg);
       font-family: var(--font-mono);
       word-break: break-all;
     }
@@ -417,11 +528,11 @@ _CSS = """\
     }
 
     tr.selected td {
-      background: #fef08a;
+      background: var(--color-row-selected-bg);
     }
 
     tr.highlighted td {
-      background: #fef3c7;
+      background: var(--color-row-highlighted-bg);
       font-weight: 600;
     }
 
@@ -432,8 +543,8 @@ _CSS = """\
 
     /* ノードフィルタ UI パネル */
     .node-filter-panel {
-      background: #fff;
-      border-bottom: 1px solid var(--color-card-border);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
       padding: 6px 20px;
       display: flex;
       flex-wrap: wrap;
@@ -449,45 +560,47 @@ _CSS = """\
       cursor: pointer;
       padding: 2px 6px;
       border-radius: 4px;
-      border: 1px solid var(--color-card-border);
+      border: 1px solid var(--border-color);
       background: var(--color-card-bg);
       user-select: none;
     }
 
     .node-filter-label:hover {
-      background: #e5e7eb;
+      background: var(--bg-elevated);
     }
 
     .node-filter-btn {
       padding: 3px 10px;
       font-size: 0.82rem;
-      border: 1px solid var(--color-card-border);
+      border: 1px solid var(--border-color);
       border-radius: 4px;
-      background: #e0e7ff;
-      color: #3730a3;
+      background: var(--badge-vendor-bg);
+      color: var(--badge-vendor-fg);
       cursor: pointer;
       font-weight: 600;
     }
 
     .node-filter-btn:hover {
-      background: #c7d2fe;
+      background: var(--btn-hover-bg);
+      border-color: var(--btn-hover-border);
+      color: var(--btn-hover-fg);
     }
 
     /* IF チップ（Physical ビュー ノード内の接続IF/Loopback 表示、iteration-3 #2） */
     .if-chip circle {
-      fill: #bfdbfe;
-      stroke: #3b82f6;
+      fill: var(--color-node-fill-hover);
+      stroke: var(--color-node-stroke);
       stroke-width: 1.5;
       transition: fill 0.1s;
     }
 
     .if-chip:hover circle {
-      fill: #93c5fd;
+      fill: var(--tab-underline);
     }
 
     .if-chip-shutdown circle {
-      fill: #f3f4f6;
-      stroke: #d1d5db;
+      fill: var(--color-node-fill-dimmed);
+      stroke: var(--color-node-stroke-dimmed);
       opacity: 0.5;
     }
 
@@ -504,15 +617,15 @@ _CSS = """\
 
     /* #7: Loopback かつ shutdown の複合状態（緑系薄表示） */
     .if-chip-loopback.if-chip-shutdown circle {
-      fill: #d1fae5;
-      stroke: #6b7280;
+      fill: var(--ifinv-badge-up-bg);
+      stroke: var(--text-muted);
       opacity: 0.5;
     }
 
     /* P2 #1: IF チップ／IF一覧行 双方向ハイライト（クリックで .highlighted トグル） */
     .if-chip.highlighted circle {
-      fill: #fef08a;
-      stroke: #f59e0b;
+      fill: var(--color-node-fill-selected);
+      stroke: var(--color-highlight);
       stroke-width: 2.5;
     }
 
@@ -525,25 +638,25 @@ _CSS = """\
       display: flex;
       gap: 10px;
       align-items: center;
-      background: rgba(255,255,255,0.88);
-      border: 1px solid #e5e7eb;
+      background: var(--overlay-bg);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 4px 10px;
       font-size: 0.75rem;
       font-family: var(--font-mono);
-      color: #374151;
+      color: var(--text-main);
       pointer-events: none;
     }
 
     /* HC2: static 経路 next-hop ノードのハイライト（手動選択 .selected と独立） */
     .device-node.route-target .node-rect {
-      fill: #d1fae5;
-      stroke: #059669;
+      fill: var(--color-row-route-bg);
+      stroke: var(--color-ospf);
       stroke-width: 3;
     }
 
     .device-card.route-target {
-      border: 2px solid #059669;
+      border: 2px solid var(--color-ospf);
       box-shadow: 0 0 6px rgba(5,150,105,0.4);
     }
 
@@ -561,18 +674,18 @@ _CSS = """\
       padding: 4px 8px;
       font-size: 0.8rem;
       font-weight: 600;
-      border: 1px solid var(--color-card-border);
+      border: 1px solid var(--border-color);
       border-radius: 4px;
-      background: rgba(255, 255, 255, 0.92);
-      color: #374151;
+      background: var(--btn-bg);
+      color: var(--btn-fg);
       cursor: pointer;
       line-height: 1;
     }
 
     .zoom-btn:hover {
-      background: #e0e7ff;
-      border-color: #6366f1;
-      color: #3730a3;
+      background: var(--btn-hover-bg);
+      border-color: var(--btn-hover-border);
+      color: var(--btn-hover-fg);
     }
 
     /* 統合凡例パネル（右上 zoom-controls の下、絶対配置） */
@@ -581,8 +694,8 @@ _CSS = """\
       position: absolute;
       top: 44px;
       right: 8px;
-      background: #fff;
-      border: 1px solid var(--color-card-border);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 10px 14px;
       z-index: 20;
@@ -590,20 +703,20 @@ _CSS = """\
       max-height: 60vh;
       overflow-y: auto;
       font-size: 0.8rem;
-      color: #374151;
+      color: var(--text-main);
       box-shadow: 0 4px 12px rgba(0,0,0,0.12);
     }
 
     #legend-panel .legend-section-title {
       font-weight: 700;
       font-size: 0.75rem;
-      color: #6b7280;
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.04em;
       margin-top: 8px;
       margin-bottom: 4px;
       padding-bottom: 2px;
-      border-bottom: 1px solid var(--color-card-border);
+      border-bottom: 1px solid var(--border-color);
     }
 
     #legend-panel .legend-row {
@@ -613,20 +726,21 @@ _CSS = """\
       padding: 2px 0;
     }
 
-    /* 凡例トグルボタン（ヘッダ内） */
-    #legend-toggle {
+    /* ヘッダ内ボタン共通クラス（凡例トグル・テーマ切替）
+       header 背景（--header-bg）の上に配置されるため rgba 透明度ベースで統一 */
+    .header-btn {
       padding: 4px 10px;
       font-size: 0.8rem;
       font-weight: 600;
       border: 1px solid rgba(255,255,255,0.4);
       border-radius: 4px;
       background: rgba(255,255,255,0.15);
-      color: #fff;
+      color: var(--header-text);
       cursor: pointer;
       line-height: 1.4;
     }
 
-    #legend-toggle:hover {
+    .header-btn:hover {
       background: rgba(255,255,255,0.25);
     }
 
@@ -650,8 +764,8 @@ _CSS = """\
 
     /* #3: Static 行クリック時の行マーキング */
     tr.route-row-selected td {
-      background: #d1fae5;
-      outline: 2px solid #059669;
+      background: var(--color-row-route-bg);
+      outline: 2px solid var(--color-ospf);
       outline-offset: -2px;
       font-weight: 600;
     }
@@ -677,7 +791,7 @@ _CSS = """\
       overflow: auto;
       flex: 1;
       min-height: 120px;
-      background: #fff;
+      background: var(--bg-surface);
       padding: 12px 20px;
       box-sizing: border-box;
     }
@@ -698,9 +812,9 @@ _CSS = """\
       font-family: var(--font-mono);
     }
 
-    .ifinv-badge-up { background: #d1fae5; color: #065f46; }
-    .ifinv-badge-down { background: #fee2e2; color: #991b1b; }
-    .ifinv-badge-admindown { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+    .ifinv-badge-up { background: var(--ifinv-badge-up-bg); color: var(--ifinv-badge-up-fg); }
+    .ifinv-badge-down { background: var(--ifinv-badge-down-bg); color: var(--ifinv-badge-down-fg); }
+    .ifinv-badge-admindown { background: var(--stripe-bg); color: var(--text-muted); border: 1px solid var(--border-color); }
 
     /* ツールバー（検索・フィルタ） */
     .ifinv-toolbar {
@@ -714,7 +828,7 @@ _CSS = """\
     #ifinv-search {
       padding: 4px 10px;
       font-size: 0.85rem;
-      border: 1px solid var(--color-card-border);
+      border: 1px solid var(--border-color);
       border-radius: 4px;
       min-width: 260px;
     }
@@ -734,18 +848,18 @@ _CSS = """\
     .ifinv-th {
       text-align: left;
       padding: 4px 8px;
-      background: #f3f4f6;
-      color: #6b7280;
+      background: var(--stripe-bg);
+      color: var(--text-muted);
       font-weight: 600;
       white-space: nowrap;
       user-select: none;
     }
 
-    .ifinv-th:hover { background: #e5e7eb; }
+    .ifinv-th:hover { background: var(--bg-elevated); }
 
     .ifinv-table td {
       padding: 3px 8px;
-      border-bottom: 1px solid #f3f4f6;
+      border-bottom: 1px solid var(--stripe-bg);
       font-family: var(--font-mono);
       word-break: break-all;
     }
@@ -754,8 +868,8 @@ _CSS = """\
 
     /* 未使用候補行のハイライト */
     .ifinv-table tr[data-unused="1"] td {
-      background: #fff7ed;
-      color: #92400e;
+      background: var(--color-row-unused-bg);
+      color: var(--color-row-unused-fg);
     }
 
     /* 検索/フィルタ非表示（_applyIfFilters により ifinv-row-hidden に一本化） */
@@ -772,7 +886,7 @@ _CSS = """\
 
     /* B-pass1b: ifinv ヒット行強調（グローバル検索マッチ） */
     tr.search-match td {
-      background: #fef3c7;
+      background: var(--color-row-search-bg);
     }\
 """
 
@@ -781,6 +895,33 @@ _CSS = """\
 # ---------------------------------------------------------------------------
 
 _JS = """\
+    // ============================================================
+    // テーマ切替（ライト / ダーク）
+    // ============================================================
+    var _THEME_KEY = 'ct-theme';
+
+    function toggleTheme() {
+      var root = document.documentElement;
+      var current = root.getAttribute('data-theme') || 'light';
+      var next = current === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(_THEME_KEY, next); } catch(e) {}
+      var btn = document.getElementById('theme-toggle');
+      if (btn) { btn.textContent = next === 'dark' ? '☀' : '🌙'; }
+    }
+
+    // DOMContentLoaded でテーマを復元（localStorage から）
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        var saved = localStorage.getItem(_THEME_KEY);
+        if (saved === 'dark' || saved === 'light') {
+          document.documentElement.setAttribute('data-theme', saved);
+          var btn = document.getElementById('theme-toggle');
+          if (btn) { btn.textContent = saved === 'dark' ? '☀' : '🌙'; }
+        }
+      } catch(e) {}
+    });
+
     // ============================================================
     // 統合凡例パネル トグル
     // ============================================================
@@ -2674,7 +2815,8 @@ def build_html(
     <span style="font-size:0.75rem;opacity:0.7;">
       <kbd>F</kbd> 全体表示　<kbd>Esc</kbd> リセット　<kbd>1</kbd>〜<kbd>5</kbd> ビュー切替　<kbd>/</kbd> 検索　ホイール=ズーム　ドラッグ=パン　クリック=ノード選択
     </span>
-    <button id="legend-toggle" onclick="toggleLegend()" title="凡例を表示/非表示">凡例</button>
+    <button id="legend-toggle" class="header-btn" onclick="toggleLegend()" title="凡例を表示/非表示">凡例</button>
+    <button id="theme-toggle" class="header-btn" onclick="toggleTheme()" title="ダーク/ライトテーマ切替">🌙</button>
   </header>
 
   <!-- ビュー切替タブ -->
@@ -2686,7 +2828,7 @@ def build_html(
     <span class="controls-label" style="margin-left:0;">Search:</span>
     <input type="search" id="search-input" placeholder="hostname / IP / CIDR..." oninput="filterNodes(this.value)">
     <button id="search-next" class="zoom-btn" title="次のマッチへ（Enter）" style="margin-left:4px;">次へ</button>
-    <span id="search-count" style="margin-left:8px;font-size:0.8rem;color:#6b7280;"></span>
+    <span id="search-count" style="margin-left:8px;font-size:0.8rem;color:var(--text-muted);"></span>
     <button id="filter-connected" class="zoom-btn" onclick="filterConnected()" style="margin-left:12px;" title="選択ノードと接続先のみ表示">接続先のみ</button>
     <button id="invert-selection" class="zoom-btn" onclick="invertSelection()" style="margin-left:4px;" title="選択反転">選択反転</button>
   </div>

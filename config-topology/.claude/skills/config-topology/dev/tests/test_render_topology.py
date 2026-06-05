@@ -18205,3 +18205,646 @@ def test_roundc_legend_bgp_and_ospf_both_present_with_both_protocols(rendered_ht
     panel_region = rendered_html[panel_start:]
     assert "eBGP" in panel_region, "BGP+OSPF topology の legend-panel 内に eBGP がない"
     assert "OSPF リンク" in panel_region, "BGP+OSPF topology の legend-panel 内に OSPF リンクがない"
+
+
+# ===========================================================================
+# Round D: ダークモード（色覚配慮含む）
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# D1: テーマトグルUI — id="theme-toggle" ボタンの存在
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_theme_toggle_button_exists(rendered_html):
+    """D1: ヘッダに id="theme-toggle" ボタンが存在する"""
+    assert 'id="theme-toggle"' in rendered_html, \
+        'ヘッダに id="theme-toggle" ボタンが存在しない'
+
+
+@pytest.mark.unit
+def test_roundd_theme_toggle_in_header(rendered_html):
+    """D1: theme-toggle ボタンが header タグ内に配置されている"""
+    header_start = rendered_html.find('<header')
+    header_end = rendered_html.find('</header>', header_start)
+    assert header_start != -1, "header タグが見つからない"
+    header_region = rendered_html[header_start:header_end]
+    assert 'id="theme-toggle"' in header_region, \
+        'theme-toggle ボタンが header 内に配置されていない'
+
+
+# ---------------------------------------------------------------------------
+# D2: JS — toggleTheme 関数の存在
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_toggle_theme_function_exists(rendered_html):
+    """D2: toggleTheme JS 関数が HTML に含まれる"""
+    assert 'toggleTheme' in rendered_html, \
+        'toggleTheme JS 関数が HTML に含まれていない'
+
+
+@pytest.mark.unit
+def test_roundd_toggle_theme_switches_data_theme(rendered_html):
+    """D2: toggleTheme 関数本体が data-theme を setAttribute で操作する（偽陽性修正: 関数本体スコープで検証）"""
+    # toggleTheme 関数本体を抽出して検証（HTML全体の 'data-theme' は偽陽性になりうる）
+    func_match = re.search(
+        r'function\s+toggleTheme\s*\(\s*\)\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}',
+        rendered_html, re.DOTALL
+    )
+    assert func_match is not None, 'toggleTheme 関数が見つからない'
+    func_body = func_match.group(1)
+    assert 'setAttribute' in func_body, \
+        'toggleTheme 関数本体に setAttribute がない（data-theme を設定していない）'
+    assert 'data-theme' in func_body, \
+        'toggleTheme 関数本体に data-theme 属性の操作がない'
+
+
+# ---------------------------------------------------------------------------
+# D3: CSS — [data-theme="dark"] セレクタの存在
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_dark_theme_css_selector_exists(rendered_html):
+    """D3: CSS に [data-theme="dark"] セレクタが存在する"""
+    assert '[data-theme="dark"]' in rendered_html, \
+        'CSS に [data-theme="dark"] セレクタが存在しない'
+
+
+@pytest.mark.unit
+def test_roundd_dark_theme_block_has_bg_page(rendered_html):
+    """D3: [data-theme="dark"] ブロックに --bg-page の暗色定義がある"""
+    # [data-theme="dark"] ブロック全体を抽出
+    m = re.search(
+        r'\[data-theme=["\']dark["\']\]\s*\{([^}]+)\}',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, \
+        '[data-theme="dark"] CSS ブロックが存在しない'
+    dark_block = m.group(1)
+    assert '--bg-page' in dark_block, \
+        '[data-theme="dark"] ブロックに --bg-page 変数定義がない'
+
+
+@pytest.mark.unit
+def test_roundd_dark_theme_block_has_text_main(rendered_html):
+    """D3: [data-theme="dark"] ブロックに --text-main の明色定義がある"""
+    m = re.search(
+        r'\[data-theme=["\']dark["\']\]\s*\{([^}]+)\}',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, '[data-theme="dark"] CSS ブロックが存在しない'
+    dark_block = m.group(1)
+    assert '--text-main' in dark_block, \
+        '[data-theme="dark"] ブロックに --text-main 変数定義がない'
+
+
+@pytest.mark.unit
+def test_roundd_dark_theme_block_has_bg_surface(rendered_html):
+    """D3: [data-theme="dark"] ブロックに --bg-surface 定義がある"""
+    m = re.search(
+        r'\[data-theme=["\']dark["\']\]\s*\{([^}]+)\}',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, '[data-theme="dark"] CSS ブロックが存在しない'
+    dark_block = m.group(1)
+    assert '--bg-surface' in dark_block, \
+        '[data-theme="dark"] ブロックに --bg-surface 変数定義がない'
+
+
+# ---------------------------------------------------------------------------
+# D4: CSS — :root に構造変数が定義されている（ライト既定値）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_root_has_bg_page_variable(rendered_html):
+    """D4: :root に --bg-page 変数が定義されている（ライト既定 #f3f4f6 相当）"""
+    m = re.search(r'--bg-page\s*:\s*([^;]+);', rendered_html)
+    assert m is not None, ':root に --bg-page 変数が定義されていない'
+    val = m.group(1).strip().lower()
+    # ライト既定はページ背景色 #f3f4f6
+    assert val == '#f3f4f6', \
+        f'--bg-page のライト既定値が #f3f4f6 でない: {val!r}'
+
+
+@pytest.mark.unit
+def test_roundd_root_has_bg_surface_variable(rendered_html):
+    """D4: :root に --bg-surface 変数が定義されている（ライト既定 #fff 相当）"""
+    m = re.search(r'--bg-surface\s*:\s*([^;]+);', rendered_html)
+    assert m is not None, ':root に --bg-surface 変数が定義されていない'
+    val = m.group(1).strip().lower()
+    assert val in ('#fff', '#ffffff'), \
+        f'--bg-surface のライト既定値が白でない: {val!r}'
+
+
+@pytest.mark.unit
+def test_roundd_root_has_text_main_variable(rendered_html):
+    """D4: :root に --text-main 変数が定義されている（ライト既定 #111827）"""
+    m = re.search(r'--text-main\s*:\s*([^;]+);', rendered_html)
+    assert m is not None, ':root に --text-main 変数が定義されていない'
+    val = m.group(1).strip().lower()
+    assert val == '#111827', \
+        f'--text-main のライト既定値が #111827 でない: {val!r}'
+
+
+@pytest.mark.unit
+def test_roundd_root_has_text_muted_variable(rendered_html):
+    """D4: :root に --text-muted 変数が定義されている（ライト既定 #6b7280）"""
+    m = re.search(r'--text-muted\s*:\s*([^;]+);', rendered_html)
+    assert m is not None, ':root に --text-muted 変数が定義されていない'
+    val = m.group(1).strip().lower()
+    assert val == '#6b7280', \
+        f'--text-muted のライト既定値が #6b7280 でない: {val!r}'
+
+
+@pytest.mark.unit
+def test_roundd_root_has_header_bg_variable(rendered_html):
+    """D4: :root に --header-bg 変数が定義されている（ライト既定 #1e3a5f）"""
+    m = re.search(r'--header-bg\s*:\s*([^;]+);', rendered_html)
+    assert m is not None, ':root に --header-bg 変数が定義されていない'
+    val = m.group(1).strip().lower()
+    assert val == '#1e3a5f', \
+        f'--header-bg のライト既定値が #1e3a5f でない: {val!r}'
+
+
+@pytest.mark.unit
+def test_roundd_root_has_text_heading_variable(rendered_html):
+    """D4: :root に --text-heading 変数が定義されている（ライト既定 #1e3a5f）"""
+    m = re.search(r'--text-heading\s*:\s*([^;]+);', rendered_html)
+    assert m is not None, ':root に --text-heading 変数が定義されていない'
+    val = m.group(1).strip().lower()
+    assert val == '#1e3a5f', \
+        f'--text-heading のライト既定値が #1e3a5f でない: {val!r}'
+
+
+# ---------------------------------------------------------------------------
+# D5: ライト既定の非回帰 — body/header の色が変数参照になっている
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_body_background_uses_variable(rendered_html):
+    """D5: body の background が var(--bg-page) を参照している（ハードコード廃止）"""
+    # "html, body" ではなく "body" 単体ルールを対象にする
+    # 行頭またはセレクタ区切りで body { ... } を探す（html, body は除外）
+    matches = re.findall(r'(?<![,\w])body\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    body_blocks = [m for m in matches if 'background' in m or 'color' in m]
+    assert body_blocks, 'CSS に background/color を持つ body ブロックが存在しない'
+    combined = '\n'.join(body_blocks)
+    assert 'var(--bg-page)' in combined, \
+        f'body の background が var(--bg-page) を使っていない: {combined.strip()!r}'
+
+
+@pytest.mark.unit
+def test_roundd_body_color_uses_variable(rendered_html):
+    """D5: body の color が var(--text-main) を参照している（ハードコード廃止）"""
+    matches = re.findall(r'(?<![,\w])body\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    body_blocks = [m for m in matches if 'background' in m or 'color' in m]
+    assert body_blocks, 'CSS に background/color を持つ body ブロックが存在しない'
+    combined = '\n'.join(body_blocks)
+    assert 'var(--text-main)' in combined, \
+        f'body の color が var(--text-main) を使っていない: {combined.strip()!r}'
+
+
+@pytest.mark.unit
+def test_roundd_header_background_uses_variable(rendered_html):
+    """D5: header の background が var(--header-bg) を参照している（ハードコード廃止）"""
+    m = re.search(r'\bheader\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert m is not None, 'CSS に header ブロックが存在しない'
+    header_block = m.group(1)
+    assert 'var(--header-bg)' in header_block, \
+        f'header の background が var(--header-bg) を使っていない: {header_block.strip()!r}'
+
+
+@pytest.mark.unit
+def test_roundd_header_color_uses_variable(rendered_html):
+    """D5: header の color が var(--header-text) を参照している（ハードコード廃止）"""
+    m = re.search(r'\bheader\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert m is not None, 'CSS に header ブロックが存在しない'
+    header_block = m.group(1)
+    assert 'var(--header-text)' in header_block, \
+        f'header の color が var(--header-text) を使っていない: {header_block.strip()!r}'
+
+
+# ---------------------------------------------------------------------------
+# D6: ダーク変数値の検証（暗色であること）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_dark_bg_page_is_dark(rendered_html):
+    """D6: ダークテーマの --bg-page は暗色（輝度が低い）であること"""
+    # [data-theme="dark"] ブロック内の --bg-page 値を抽出
+    m_block = re.search(
+        r'\[data-theme=["\']dark["\']\]\s*\{([^}]+)\}',
+        rendered_html, re.DOTALL
+    )
+    assert m_block is not None, '[data-theme="dark"] ブロックが存在しない'
+    dark_block = m_block.group(1)
+    m_val = re.search(r'--bg-page\s*:\s*(#[0-9a-fA-F]{6})', dark_block)
+    assert m_val is not None, \
+        '[data-theme="dark"] の --bg-page に hex 色値がない'
+    hex_color = m_val.group(1)
+    # RGB から輝度を計算: 暗色は R+G+B の合計が 600 未満（255*3=765 が白）
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+    brightness = r + g + b
+    assert brightness < 200, \
+        f'ダーク --bg-page={hex_color} が暗色でない (R+G+B={brightness}, 期待 <200)'
+
+
+@pytest.mark.unit
+def test_roundd_dark_text_main_is_light(rendered_html):
+    """D6: ダークテーマの --text-main は明色（輝度が高い）であること"""
+    m_block = re.search(
+        r'\[data-theme=["\']dark["\']\]\s*\{([^}]+)\}',
+        rendered_html, re.DOTALL
+    )
+    assert m_block is not None, '[data-theme="dark"] ブロックが存在しない'
+    dark_block = m_block.group(1)
+    m_val = re.search(r'--text-main\s*:\s*(#[0-9a-fA-F]{6})', dark_block)
+    assert m_val is not None, \
+        '[data-theme="dark"] の --text-main に hex 色値がない'
+    hex_color = m_val.group(1)
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+    brightness = r + g + b
+    assert brightness > 550, \
+        f'ダーク --text-main={hex_color} が明色でない (R+G+B={brightness}, 期待 >550)'
+
+
+# ---------------------------------------------------------------------------
+# D7: localStorage による永続化 — DOMContentLoaded でテーマ復元
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_localstorage_theme_key_in_js(rendered_html):
+    """D7: JS に localStorage を使ったテーマ永続化コードが含まれる"""
+    assert 'localStorage' in rendered_html, \
+        'JS に localStorage を使ったテーマ永続化がない'
+
+
+@pytest.mark.unit
+def test_roundd_domcontentloaded_restores_theme(rendered_html):
+    """D7: DOMContentLoaded でテーマを復元するコードが存在する（偽陽性修正: localStorage.getItem と共存を検証）"""
+    # HTML全体に 'DOMContentLoaded' があるだけでは偽陽性になりうる（zoomFit 用の DOMContentLoaded も存在）
+    # テーマ復元ブロックでは DOMContentLoaded と localStorage.getItem が共存すること
+    assert re.search(
+        r'DOMContentLoaded.*?localStorage\.getItem',
+        rendered_html, re.DOTALL
+    ) is not None, \
+        'DOMContentLoaded ハンドラ内に localStorage.getItem がない（テーマ復元コードが存在しない）'
+
+
+# ---------------------------------------------------------------------------
+# D8: 自己完結性 — 外部URL参照なし
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_no_external_url_reference(rendered_html):
+    """D8: ダークモード追加後も外部 URL 参照が増えていない（href/src/url() で http から始まるもの）"""
+    # w3.org xmlns 属性は除外（SVG の標準属性）
+    # href="http..." または src="http..." または url(http...) を検索
+    external_refs = re.findall(
+        r'(?:href|src)\s*=\s*["\']https?://(?!.*w3\.org)[^"\']+["\']',
+        rendered_html
+    )
+    assert len(external_refs) == 0, \
+        f'外部 URL 参照が存在する: {external_refs}'
+
+
+# ---------------------------------------------------------------------------
+# D9: 決定性 — render を2回呼んで同一出力
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_render_deterministic(sample_topology):
+    """D9: ダークモード追加後も render() は決定的（2回呼んで同一）"""
+    from lib.rendering import render
+    import copy
+    html1 = render(copy.deepcopy(sample_topology))
+    html2 = render(copy.deepcopy(sample_topology))
+    assert html1 == html2, \
+        'ダークモード追加後に render() が非決定的になっている'
+
+
+# ===========================================================================
+# ダークモード取り残し色防止テスト（darkmode 包括修正 regression prevention）
+# ===========================================================================
+
+def _extract_root_block(html: str) -> str:
+    """:root { ... } ブロックのみを抽出（ダークブロックと混同しないよう先頭一致）。"""
+    m = re.search(r':root\s*\{([^}]+)\}', html, re.DOTALL)
+    return m.group(1) if m else ''
+
+
+def _extract_dark_block(html: str) -> str:
+    """[data-theme="dark"] { ... } ブロックを抽出（最初のもの）。"""
+    m = re.search(
+        r'\[data-theme=["\']dark["\']\]\s*\{([^}]+)\}',
+        html, re.DOTALL
+    )
+    return m.group(1) if m else ''
+
+
+# ---------------------------------------------------------------------------
+# T21: toggleTheme キー名 (_THEME_KEY) と localStorage 永続化の検証
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_theme_key_defined_in_js(rendered_html):
+    """T21: _THEME_KEY 変数が JS に定義されている"""
+    assert '_THEME_KEY' in rendered_html, \
+        '_THEME_KEY 変数が JS に定義されていない'
+
+
+@pytest.mark.unit
+def test_roundd_theme_key_value_is_ct_theme(rendered_html):
+    """T21: _THEME_KEY の値が 'ct-theme' である"""
+    m = re.search(r"_THEME_KEY\s*=\s*['\"]([^'\"]+)['\"]", rendered_html)
+    assert m is not None, '_THEME_KEY の値が見つからない'
+    assert m.group(1) == 'ct-theme', \
+        f"_THEME_KEY の値が 'ct-theme' でない: {m.group(1)!r}"
+
+
+@pytest.mark.unit
+def test_roundd_toggletheme_uses_theme_key(rendered_html):
+    """T21: toggleTheme 関数本体が _THEME_KEY または 'ct-theme' を参照する"""
+    func_m = re.search(
+        r'function\s+toggleTheme\s*\(\s*\)\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}',
+        rendered_html, re.DOTALL
+    )
+    assert func_m is not None, 'toggleTheme 関数が見つからない'
+    func_body = func_m.group(1)
+    assert '_THEME_KEY' in func_body or 'ct-theme' in func_body, \
+        'toggleTheme 関数本体が _THEME_KEY/'+"'ct-theme'"+'を参照していない'
+
+
+# ---------------------------------------------------------------------------
+# T22: :root ブロック限定での変数存在確認（スコープ限定で誤検知防止）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_root_block_has_btn_bg(rendered_html):
+    """T22: :root ブロックに --btn-bg が定義されている（ダークブロックとの混同防止）"""
+    root_block = _extract_root_block(rendered_html)
+    assert root_block, ':root ブロックが抽出できない'
+    assert '--btn-bg' in root_block, \
+        ':root ブロックに --btn-bg が定義されていない'
+
+
+@pytest.mark.unit
+def test_roundd_root_block_has_overlay_bg(rendered_html):
+    """T22: :root ブロックに --overlay-bg が定義されている"""
+    root_block = _extract_root_block(rendered_html)
+    assert root_block, ':root ブロックが抽出できない'
+    assert '--overlay-bg' in root_block, \
+        ':root ブロックに --overlay-bg が定義されていない'
+
+
+@pytest.mark.unit
+def test_roundd_root_block_has_color_row_selected_bg(rendered_html):
+    """T22: :root ブロックに --color-row-selected-bg が定義されている"""
+    root_block = _extract_root_block(rendered_html)
+    assert root_block, ':root ブロックが抽出できない'
+    assert '--color-row-selected-bg' in root_block, \
+        ':root ブロックに --color-row-selected-bg が定義されていない'
+
+
+# ---------------------------------------------------------------------------
+# T23: ダークブロックが意味色を上書きしないこと（退行防止）
+# 例外: --color-bgp-ebgp はダーク背景でのコントラスト確保のため上書きを許容する。
+#       残り3つ（--color-ospf / --color-highlight / --color-selected）は上書き禁止。
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_dark_block_overrides_color_bgp_ebgp_for_contrast(rendered_html):
+    """T23: [data-theme="dark"] が --color-bgp-ebgp をコントラスト確保のため上書きしている"""
+    dark_block = _extract_dark_block(rendered_html)
+    assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
+    assert '--color-bgp-ebgp' in dark_block, \
+        '[data-theme="dark"] に --color-bgp-ebgp の上書きがない（WCAG 3:1 コントラスト確保のため必要）'
+
+
+@pytest.mark.unit
+def test_roundd_dark_color_bgp_ebgp_is_not_original_value(rendered_html):
+    """T23: ダーク時 --color-bgp-ebgp がライト既定値 #2563eb ではない（明度を上げた値であること）"""
+    dark_block = _extract_dark_block(rendered_html)
+    assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
+    m = re.search(r'--color-bgp-ebgp\s*:\s*(#[0-9a-fA-F]{3,8})', dark_block)
+    assert m is not None, '[data-theme="dark"] の --color-bgp-ebgp に hex 色値がない'
+    dark_value = m.group(1).lower()
+    assert dark_value != '#2563eb', \
+        f'ダーク時 --color-bgp-ebgp が #2563eb のまま（明度を上げた値に変更されていない）。実際の値: {dark_value}'
+
+
+@pytest.mark.unit
+def test_roundd_root_color_bgp_ebgp_is_original_value(rendered_html):
+    """T23: :root の --color-bgp-ebgp がライト既定値 #2563eb のままである"""
+    root_block = _extract_root_block(rendered_html)
+    assert root_block, ':root ブロックが抽出できない'
+    m = re.search(r'--color-bgp-ebgp\s*:\s*(#[0-9a-fA-F]{3,8})', root_block)
+    assert m is not None, ':root に --color-bgp-ebgp の定義がない'
+    light_value = m.group(1).lower()
+    assert light_value == '#2563eb', \
+        f':root の --color-bgp-ebgp がライト既定値 #2563eb でない。実際の値: {light_value}'
+
+
+@pytest.mark.unit
+def test_roundd_dark_block_does_not_override_color_ospf(rendered_html):
+    """T23: [data-theme="dark"] が --color-ospf を上書きしていない（意味色保護）"""
+    dark_block = _extract_dark_block(rendered_html)
+    assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
+    assert '--color-ospf' not in dark_block, \
+        '[data-theme="dark"] が --color-ospf を上書きしている（意味色の誤上書き）'
+
+
+@pytest.mark.unit
+def test_roundd_dark_block_does_not_override_color_highlight(rendered_html):
+    """T23: [data-theme="dark"] が --color-highlight を上書きしていない（意味色保護）"""
+    dark_block = _extract_dark_block(rendered_html)
+    assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
+    assert '--color-highlight' not in dark_block, \
+        '[data-theme="dark"] が --color-highlight を上書きしている（意味色の誤上書き）'
+
+
+@pytest.mark.unit
+def test_roundd_dark_block_does_not_override_color_selected(rendered_html):
+    """T23: [data-theme="dark"] が --color-selected を上書きしていない（意味色保護）"""
+    dark_block = _extract_dark_block(rendered_html)
+    assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
+    assert '--color-selected' not in dark_block, \
+        '[data-theme="dark"] が --color-selected を上書きしている（意味色の誤上書き）'
+
+
+# ---------------------------------------------------------------------------
+# T24: ダーク対応後の重要変数が暗色であること
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_dark_btn_bg_is_dark(rendered_html):
+    """T24: ダークテーマの --btn-bg は暗色（輝度が低い）であること"""
+    dark_block = _extract_dark_block(rendered_html)
+    assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
+    m = re.search(r'--btn-bg\s*:\s*(#[0-9a-fA-F]{6})', dark_block)
+    assert m is not None, \
+        '[data-theme="dark"] の --btn-bg に hex 色値がない'
+    hex_color = m.group(1)
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+    brightness = r + g + b
+    assert brightness < 300, \
+        f'ダーク --btn-bg={hex_color} が暗色でない (R+G+B={brightness}, 期待 <300)'
+
+
+@pytest.mark.unit
+def test_roundd_dark_color_node_stroke_overridden(rendered_html):
+    """T24: ダークテーマで --color-node-stroke が上書きされている（ダーク背景での視認性）"""
+    dark_block = _extract_dark_block(rendered_html)
+    assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
+    assert '--color-node-stroke' in dark_block, \
+        '[data-theme="dark"] に --color-node-stroke の上書きがない（ダーク背景で視認性低下）'
+
+
+# ---------------------------------------------------------------------------
+# T25: 「取り残し」literal 色が操作要素に残っていないこと（再発防止）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_roundd_zoom_btn_no_literal_white_bg(rendered_html):
+    """T25: .zoom-btn に rgba(255,255,255... のリテラル白背景が残っていない"""
+    # .zoom-btn { ... } ブロックを抽出
+    m = re.search(r'\.zoom-btn\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert m is not None, '.zoom-btn CSS ブロックが見つからない'
+    block = m.group(1)
+    assert 'rgba(255,255,255' not in block and 'rgba(255, 255, 255' not in block, \
+        '.zoom-btn に rgba(255,255,255...) のリテラル白背景が残っている（var(--btn-bg) を使うこと）'
+    assert 'var(--btn-bg)' in block, \
+        '.zoom-btn の background が var(--btn-bg) を使っていない'
+
+
+@pytest.mark.unit
+def test_roundd_chip_legend_no_literal_white_bg(rendered_html):
+    """T25: #chip-legend に rgba(255,255,255... のリテラル白背景が残っていない"""
+    m = re.search(r'#chip-legend\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert m is not None, '#chip-legend CSS ブロックが見つからない'
+    block = m.group(1)
+    assert 'rgba(255,255,255' not in block and 'rgba(255, 255, 255' not in block, \
+        '#chip-legend に rgba(255,255,255...) のリテラル白背景が残っている（var(--overlay-bg) を使うこと）'
+    assert 'var(--overlay-bg)' in block, \
+        '#chip-legend の background が var(--overlay-bg) を使っていない'
+
+
+@pytest.mark.unit
+def test_roundd_external_rect_no_literal_white(rendered_html):
+    """T25: .external-rect にリテラル白系色 (#f9fafb/#f3f4f6) が残っていない"""
+    m = re.search(r'\.external-rect\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert m is not None, '.external-rect CSS ブロックが見つからない'
+    block = m.group(1)
+    assert '#f9fafb' not in block, \
+        '.external-rect に #f9fafb のリテラル色が残っている（var(--color-external-fill) を使うこと）'
+    assert '#f3f4f6' not in block, \
+        '.external-rect に #f3f4f6 のリテラル色が残っている'
+    assert 'var(--color-external-fill)' in block, \
+        '.external-rect の fill が var(--color-external-fill) を使っていない'
+
+
+@pytest.mark.unit
+def test_roundd_seg_label_no_literal_color(rendered_html):
+    """T25: .seg-label にリテラル色 #92400e が残っていない"""
+    m = re.search(r'\.seg-label\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert m is not None, '.seg-label CSS ブロックが見つからない'
+    block = m.group(1)
+    assert '#92400e' not in block, \
+        '.seg-label に #92400e のリテラル色が残っている（var(--color-seg-label) を使うこと）'
+    assert 'var(--color-seg-label)' in block, \
+        '.seg-label の fill が var(--color-seg-label) を使っていない'
+
+
+@pytest.mark.unit
+def test_roundd_dimmed_node_no_literal_light_color(rendered_html):
+    """T25: .device-node.dimmed .node-rect にリテラル白系色が残っていない（dimmed の意図逆転防止）"""
+    m = re.search(r'\.device-node\.dimmed\s+\.node-rect\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert m is not None, '.device-node.dimmed .node-rect CSS ブロックが見つからない'
+    block = m.group(1)
+    assert '#f3f4f6' not in block, \
+        '.device-node.dimmed .node-rect に #f3f4f6 が残っている（ダークで意図逆転する）'
+    assert '#d1d5db' not in block, \
+        '.device-node.dimmed .node-rect に #d1d5db が残っている（var 参照にすること）'
+    assert 'var(--color-node-fill-dimmed)' in block, \
+        '.device-node.dimmed .node-rect の fill が var(--color-node-fill-dimmed) を使っていない'
+
+
+@pytest.mark.unit
+def test_roundd_search_count_no_literal_color(rendered_html):
+    """T25: #search-count の inline style にリテラル色 #6b7280 が残っていない"""
+    # id="search-count" のインラインstyle 部分を抽出
+    m = re.search(r'id="search-count"[^>]*style="([^"]*)"', rendered_html)
+    assert m is not None, 'id="search-count" の style 属性が見つからない'
+    inline_style = m.group(1)
+    assert '#6b7280' not in inline_style, \
+        'search-count の inline style に #6b7280 のリテラル色が残っている（var(--text-muted) を使うこと）'
+    assert 'var(--text-muted)' in inline_style, \
+        'search-count の inline style が var(--text-muted) を使っていない'
+
+
+@pytest.mark.unit
+def test_roundd_header_btns_use_header_btn_class(rendered_html):
+    """T25: legend-toggle と theme-toggle が共通 .header-btn クラスを使っている（DRY）"""
+    # header-btn CSS クラスが存在すること
+    assert '.header-btn' in rendered_html, \
+        '.header-btn CSS クラスが定義されていない'
+    # 両ボタンが class="header-btn" を持つこと
+    assert re.search(r'id="legend-toggle"[^>]*class="[^"]*header-btn', rendered_html) or \
+           re.search(r'class="[^"]*header-btn[^"]*"[^>]*id="legend-toggle"', rendered_html), \
+        'legend-toggle ボタンが header-btn クラスを持っていない'
+    assert re.search(r'id="theme-toggle"[^>]*class="[^"]*header-btn', rendered_html) or \
+           re.search(r'class="[^"]*header-btn[^"]*"[^>]*id="theme-toggle"', rendered_html), \
+        'theme-toggle ボタンが header-btn クラスを持っていない'
+
+
+@pytest.mark.unit
+def test_roundd_theme_toggle_no_inline_literal_style(rendered_html):
+    """T25: theme-toggle ボタンにリテラル rgba(255,255,255... inline style が残っていない"""
+    m = re.search(r'id="theme-toggle"([^>]*)', rendered_html)
+    assert m is not None, 'id="theme-toggle" が見つからない'
+    attrs = m.group(1)
+    assert 'rgba(255,255,255' not in attrs and 'rgba(255, 255, 255' not in attrs, \
+        'theme-toggle に rgba(255,255,255...) のリテラルinline styleが残っている（.header-btn クラスで管理すること）'
+
+
+@pytest.mark.unit
+def test_roundd_dark_overlay_bg_is_dark(rendered_html):
+    """T25: ダークテーマの --overlay-bg は暗色（chip-legend が暗背景になること）"""
+    dark_block = _extract_dark_block(rendered_html)
+    assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
+    assert '--overlay-bg' in dark_block, \
+        '[data-theme="dark"] に --overlay-bg の上書きがない'
+    # rgba(r, g, b, a) 形式の場合も暗色であることを確認
+    m = re.search(r'--overlay-bg\s*:\s*rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)', dark_block)
+    if m:
+        r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        brightness = r + g + b
+        assert brightness < 150, \
+            f'ダーク --overlay-bg の RGB({r},{g},{b}) が暗色でない (合計={brightness}, 期待 <150)'
+
+
+@pytest.mark.unit
+def test_roundd_node_filter_btn_uses_variables(rendered_html):
+    """T25: .node-filter-btn がリテラル色 #e0e7ff/#3730a3 を使っていない"""
+    m = re.search(r'\.node-filter-btn\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert m is not None, '.node-filter-btn CSS ブロックが見つからない'
+    block = m.group(1)
+    assert '#e0e7ff' not in block, \
+        '.node-filter-btn に #e0e7ff のリテラル色が残っている（変数参照にすること）'
+    assert '#3730a3' not in block, \
+        '.node-filter-btn に #3730a3 のリテラル色が残っている（変数参照にすること）'
+
+
+@pytest.mark.unit
+def test_roundd_no_color_card_border_references(rendered_html):
+    """T25: --color-card-border 変数参照がなくなっている（--border-color に統一済み）"""
+    # :root の定義コメント行を除いて var(--color-card-border) 参照がないこと
+    assert 'var(--color-card-border)' not in rendered_html, \
+        'var(--color-card-border) の参照が残っている（--border-color に統一すること）'
