@@ -757,48 +757,31 @@ def _build_view_ospf(
         my = (y1 + y2) / 2 - 15
 
         if ospf_area is not None:
-            # A5: dual-stack 時は v4/v6 subnet を別 tspan 行で表示
-            # ospf_subnets（OSPF 参加のみ）を使うため v4 のみ OSPF 参加の場合は1行
-            if len(ospf_subnets) > 1:
-                v4_subnets = [s for s in ospf_subnets if s and ":" not in s]
-                v6_subnets = [s for s in ospf_subnets if s and ":" in s]
-                is_dual_stack_ospf = bool(v4_subnets and v6_subnets)
-                if is_dual_stack_ospf:
-                    # 1行目: "area X · v4subnet"、2行目以降: v6subnet
-                    v4_label = " / ".join(_esc(s) for s in v4_subnets)
-                    line1 = OSPF_AREA_LABEL_FORMAT.format(
-                        area=_esc(ospf_area), subnet=v4_label
-                    )
-                    extra_tspans = "".join(
-                        f'<tspan x="{mx:.1f}" dy="14">{_esc(s)}</tspan>'
-                        for s in v6_subnets
-                    )
-                    label_elem = (
-                        f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
-                        f'class="link-label layer-ospf">'
-                        f'<tspan x="{mx:.1f}" dy="0">{line1}</tspan>'
-                        f'{extra_tspans}'
-                        f'</text>'
-                    )
-                else:
-                    subnets_label = " / ".join(_esc(s) for s in ospf_subnets if s)
-                    label_line1 = OSPF_AREA_LABEL_FORMAT.format(
-                        area=_esc(ospf_area), subnet=subnets_label
-                    )
-                    label_elem = (
-                        f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
-                        f'class="link-label layer-ospf">{label_line1}</text>'
-                    )
+            # #7: area を必ず独立 tspan 行にする。
+            # 1行目: "area {area}"
+            # 2行目以降: ospf_subnets の各 subnet を1つずつ別 tspan 行（v4→v6 の決定的順）
+            # single-stack(subnet1個) → 2行（area / subnet）
+            # dual-stack(2個) → 3行（area / v4 / v6）
+            area_tspan = f'<tspan x="{mx:.1f}" dy="0">{_esc("area " + str(ospf_area))}</tspan>'
+            if ospf_subnets:
+                # v4→v6 の決定的順（":" なし → v4, ":" あり → v6）
+                v4_subs = [s for s in ospf_subnets if s and ":" not in s]
+                v6_subs = [s for s in ospf_subnets if s and ":" in s]
+                ordered_subnets = v4_subs + v6_subs
+                subnet_tspans = "".join(
+                    f'<tspan x="{mx:.1f}" dy="14">{_esc(s)}</tspan>'
+                    for s in ordered_subnets
+                )
             else:
-                # 単一 OSPF 参加 subnet（v6 のみ OSPF 参加 or single-stack）
-                ospf_primary = _esc(ospf_subnets[0]) if ospf_subnets else primary_subnet
-                label_line1 = OSPF_AREA_LABEL_FORMAT.format(
-                    area=_esc(ospf_area), subnet=ospf_primary
-                )
-                label_elem = (
-                    f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
-                    f'class="link-label layer-ospf">{label_line1}</text>'
-                )
+                # ospf_subnets が空: primary_subnet をフォールバック
+                subnet_tspans = f'<tspan x="{mx:.1f}" dy="14">{primary_subnet}</tspan>'
+            label_elem = (
+                f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
+                f'class="link-label layer-ospf">'
+                f'{area_tspan}'
+                f'{subnet_tspans}'
+                f'</text>'
+            )
         else:
             # ospf_area 欠如: subnet のみ表示（後方互換）
             label_elem = (

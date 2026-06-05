@@ -318,6 +318,151 @@ def _build_bgp_session_map(
     return result
 
 
+def _build_ibgp_loopback_map(
+    bgp_entries: list[dict],
+    interfaces: list[dict],
+) -> dict[tuple[str, str], str]:
+    """iBGP エントリから (device, neighbor_ip) → loopback_iface_id マップを構築する。
+
+    iBGP セッション（type == "ibgp"）の各エントリについて、その機器（device）の
+    Loopback IF の iface_id を解決して返す。
+
+    解決ルール:
+    - その機器の IF のうち ``_is_loopback(name)`` が True のものを探す
+    - local_ip が IF の ip フィールド（アドレス部）と一致するものを優先
+    - 一致しない場合はその機器の最初の Loopback IF を返す
+    - Loopback が存在しない場合はスキップ（エントリを含まない）
+
+    Args:
+        bgp_entries: routing["bgp"] のエントリリスト
+        interfaces:  topology の interfaces リスト
+
+    Returns:
+        ``{(device_id, neighbor_ip): loopback_iface_id}`` 辞書（安定順序）。
+        解決できないエントリはキーを持たない。
+    """
+    from lib.rendering.svg import _is_loopback
+
+    # device -> Loopback IF リスト（name ソート）
+    loopback_by_device: dict[str, list[dict]] = {}
+    for iface in interfaces:
+        if _is_loopback(iface.get("name", "")):
+            dev = iface.get("device", "")
+            if dev:
+                loopback_by_device.setdefault(dev, []).append(iface)
+
+    # 決定性のため IF を name ソート
+    for dev in loopback_by_device:
+        loopback_by_device[dev].sort(key=lambda i: i.get("name", ""))
+
+    result: dict[tuple[str, str], str] = {}
+    for entry in sorted(bgp_entries, key=lambda e: (e.get("device", ""), e.get("neighbor_ip", ""))):
+        if entry.get("type") != "ibgp":
+            continue
+        dev_id = entry.get("device", "")
+        neighbor_ip = entry.get("neighbor_ip", "")
+        local_ip = entry.get("local_ip", "") or ""
+        if not (dev_id and neighbor_ip):
+            continue
+
+        loopbacks = loopback_by_device.get(dev_id, [])
+        if not loopbacks:
+            continue
+
+        # local_ip と一致する Loopback を優先
+        matched_iface = None
+        for lo_iface in loopbacks:
+            lo_ip_cidr = lo_iface.get("ip") or ""
+            lo_ip_only = lo_ip_cidr.split("/")[0]
+            if local_ip and lo_ip_only == local_ip:
+                matched_iface = lo_iface
+                break
+
+        if matched_iface is None:
+            # フォールバック: その機器の最初の Loopback
+            matched_iface = loopbacks[0]
+
+        result[(dev_id, neighbor_ip)] = matched_iface["id"]
+
+    return result
+
+
+def _build_static_loopback_map(
+    static_entries: list[dict],
+    interfaces: list[dict],
+) -> dict[tuple[str, str], str]:
+    """static ルートの宛先 /32 から宛先機器の Loopback iface_id マップを構築する（A3）。
+
+    static ルートの ``prefix`` が /32 または /128 で、その IP が他機器の
+    Loopback IF の ip フィールド（アドレス部）と一致する場合に解決する。
+
+    解決ルール:
+    - prefix が /32 または /128 でなければスキップ
+    - prefix の IP アドレス部（CIDR プレフィックスを除いた部分）を取得
+    - その IP が他機器（自機器以外）の IF の ip フィールドのアドレス部と一致し、
+      かつその IF が Loopback の場合、その iface_id を返す
+    - 解決不能はスキップ（エントリを含まない）
+
+    Args:
+        static_entries: routing["static"] のエントリリスト
+        interfaces:     topology の interfaces リスト
+
+    Returns:
+        ``{(device_id, prefix): loopback_iface_id}`` 辞書（安定順序）。
+        解決できないエントリはキーを持たない。
+    """
+    from lib.rendering.svg import _is_loopback
+
+    # ip_address_only -> (device_id, iface_id, is_loopback) マップ
+    # Loopback IF のみ登録
+    loopback_ip_map: dict[str, tuple[str, str]] = {}
+    for iface in interfaces:
+        if not _is_loopback(iface.get("name", "")):
+            continue
+        ip_cidr = iface.get("ip") or ""
+        if not ip_cidr:
+            continue
+        ip_only = ip_cidr.split("/")[0]
+        if ip_only:
+            dev_id = iface.get("device", "")
+            iface_id = iface.get("id", "")
+            if dev_id and iface_id:
+                loopback_ip_map[ip_only] = (dev_id, iface_id)
+
+    result: dict[tuple[str, str], str] = {}
+    for entry in sorted(
+        static_entries,
+        key=lambda e: (e.get("device", ""), e.get("prefix", "")),
+    ):
+        dev_id = entry.get("device", "")
+        prefix = entry.get("prefix", "")
+        if not (dev_id and prefix):
+            continue
+        # /32 または /128 のみ対象
+        if "/" not in prefix:
+            continue
+        prefix_len_str = prefix.split("/")[-1]
+        try:
+            prefix_len = int(prefix_len_str)
+        except ValueError:
+            continue
+        if prefix_len not in (32, 128):
+            continue
+
+        # IP アドレス部を取得
+        dest_ip = prefix.split("/")[0]
+        match = loopback_ip_map.get(dest_ip)
+        if match is None:
+            continue
+        dest_dev, dest_iface_id = match
+        # 自機器へのルートは除外（通常はスタティックにしない）
+        if dest_dev == dev_id:
+            continue
+        result[(dev_id, prefix)] = dest_iface_id
+
+    return result
+
+
 def _build_iface_seg_id(segments: list[dict]) -> dict[str, str]:
     """iface_id -> seg_id マップを構築する。
 
@@ -494,6 +639,22 @@ def render(topology: dict) -> str:
         routing.get("ospf", []),
     )
 
+    # ---------------------------------------------------------------------------
+    # P2 #1-G: iBGP Loopback マップ（iBGP BGP 行に data-loopback-iface-id を付与するため）
+    # ---------------------------------------------------------------------------
+    ibgp_loopback_map = _build_ibgp_loopback_map(
+        routing.get("bgp", []),
+        interfaces,
+    )
+
+    # ---------------------------------------------------------------------------
+    # A3: static Loopback マップ（static /32 行に data-loopback-iface-id を付与するため）
+    # ---------------------------------------------------------------------------
+    static_loopback_map = _build_static_loopback_map(
+        routing.get("static", []),
+        interfaces,
+    )
+
     # 機器カード
     cards_html = _device_cards(
         devices, interfaces, routing,
@@ -502,6 +663,8 @@ def render(topology: dict) -> str:
         static_route_map=static_route_map,
         bgp_session_map=bgp_session_map,
         ospf_marking_map=ospf_marking_map,
+        ibgp_loopback_map=ibgp_loopback_map,
+        static_loopback_map=static_loopback_map,
     )
 
     # データのある routing キーを一度だけ計算し、トグルと CSS 両方に使用

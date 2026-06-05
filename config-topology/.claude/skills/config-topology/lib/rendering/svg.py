@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import html
 import ipaddress
+import math as _math
 from collections import defaultdict, OrderedDict
 from typing import Any
 
@@ -226,10 +227,50 @@ def _svg_if_row(cx: float, if_start_y: float, k: int, iface: dict) -> str:
 
 
 # IF チップ定数
-_IF_CHIP_R = 5       # チップ円の半径（px）
-_IF_CHIP_GAP = 14    # チップ間隔（px）
+_IF_CHIP_R = 7       # チップ円の半径（px）— P1b #2: 5→7 に拡大して視認性向上
+_IF_CHIP_GAP = 16    # チップ間隔（px）— 拡大に伴い 14→16
 _IF_CHIP_OFFSET_X = 8   # ノード左端からの開始 x オフセット（px）
 _IF_CHIP_OFFSET_Y = 12  # ノードヘッダー下端からの y オフセット（px）
+
+# P1b #2: 折返し定数
+# per_row = floor(( _NODE_WIDTH - 2 * _IF_CHIP_OFFSET_X ) / _IF_CHIP_GAP)
+# _NODE_WIDTH=120, _IF_CHIP_OFFSET_X=8, _IF_CHIP_GAP=16 → (120-16)/16 = 6.5 → 6
+_IF_CHIP_PER_ROW: int = max(1, int((_NODE_WIDTH - 2 * _IF_CHIP_OFFSET_X) // _IF_CHIP_GAP))
+_IF_CHIP_ROW_H: int = 16    # チップ行間隔（px）
+
+
+def _chip_rows_for(num_chips: int) -> int:
+    """チップ数からチップ行数を返す純粋ヘルパー（P1b #2）。
+
+    Args:
+        num_chips: チップ総数（0 以上）
+
+    Returns:
+        必要な行数（0 チップのとき 0 を返す）
+    """
+    if num_chips <= 0:
+        return 0
+    return _math.ceil(num_chips / _IF_CHIP_PER_ROW)
+
+
+def _chip_node_size_for(num_chips: int) -> tuple[float, float]:
+    """チップ数からノードの (width, height) を返すヘルパー（P1b #2）。
+
+    チップあり時は ``_NODE_HEADER_H + chip_rows * _IF_CHIP_ROW_H + _IF_CHIP_OFFSET_Y``
+    チップなし時は ``_NODE_HEIGHT``（基本高さ）を返す。
+
+    Args:
+        num_chips: このノードのチップ総数（0 のときチップなし扱い）
+
+    Returns:
+        ``(width, height)`` — width は常に ``_NODE_WIDTH``。
+    """
+    if num_chips <= 0:
+        return float(_NODE_WIDTH), float(_NODE_HEIGHT)
+    rows = _chip_rows_for(num_chips)
+    h = _NODE_HEADER_H + _IF_CHIP_OFFSET_Y + rows * _IF_CHIP_ROW_H
+    h = max(float(_NODE_HEIGHT), float(h))
+    return float(_NODE_WIDTH), h
 
 
 def _is_loopback(name: str) -> bool:
@@ -252,6 +293,32 @@ def _is_loopback(name: str) -> bool:
     return False
 
 
+def _chip_xy_for(k: int, nx: float, chip_start_y: float) -> tuple[float, float]:
+    """チップインデックス k からチップ中心座標 (cx, cy) を返す純粋ヘルパー（C HIGH-2）。
+
+    ``_svg_if_chip`` と ``_chip_positions`` の座標計算を一元化する。
+
+    座標計算:
+        col = k % _IF_CHIP_PER_ROW
+        row = k // _IF_CHIP_PER_ROW
+        cx  = nx + _IF_CHIP_OFFSET_X + col * _IF_CHIP_GAP
+        cy  = chip_start_y + _IF_CHIP_OFFSET_Y + row * _IF_CHIP_ROW_H
+
+    Args:
+        k:            チップインデックス（0 始まり・name ソート順）
+        nx:           ノード矩形左端 x 座標
+        chip_start_y: チップ列開始 y 座標（= ny + _NODE_HEADER_H）
+
+    Returns:
+        ``(cx, cy)`` チップ中心座標
+    """
+    col = k % _IF_CHIP_PER_ROW
+    row = k // _IF_CHIP_PER_ROW
+    cx = nx + _IF_CHIP_OFFSET_X + col * _IF_CHIP_GAP
+    cy = chip_start_y + _IF_CHIP_OFFSET_Y + row * _IF_CHIP_ROW_H
+    return cx, cy
+
+
 def _chip_positions(
     dev: dict,
     chip_iface_ids: set[str],
@@ -264,11 +331,11 @@ def _chip_positions(
     描画と座標供給で共用する。IF を name ソート順でインデックス付けして
     ``{iface_id: (cx, cy)}`` を返す（決定的）。
 
-    座標計算:
-        ny = node_cy - node_h / 2  （node_cy を起点にノード上端を算出）
-        cy = ny + _NODE_HEADER_H + _IF_CHIP_OFFSET_Y
-        cx = nx + _IF_CHIP_OFFSET_X + k * _IF_CHIP_GAP  （k は name ソート順インデックス）
-        node_h は _node_size_for(1) から取得（チップあり=1行分固定）。
+    座標計算（C HIGH-2: _chip_xy_for に集約）:
+        ny            = node_cy - node_h / 2  （node_cy を起点にノード上端を算出）
+        chip_start_y  = ny + _NODE_HEADER_H
+        (cx, cy)      = _chip_xy_for(k, nx, chip_start_y)
+        node_h        は _chip_node_size_for(num_chips) から取得（チップ行数に応じた高さ）。
 
     Args:
         dev:            device 辞書（id を持つ）
@@ -291,17 +358,16 @@ def _chip_positions(
     if not chip_ifaces:
         return {}
 
-    # ノード矩形の左端・上端を計算（node_cx/ny は中心座標）
-    # _svg_nodes と同じく「チップあり=1行分」で高さを算出（横1行配置の設計）
-    _w, node_h = _node_size_for(1)
+    # P1b #2: チップ数に応じた実ノード高さで左端・上端を計算
+    num_chips = len(chip_ifaces)
+    _w, node_h = _chip_node_size_for(num_chips)
     nx = node_cx - _NODE_WIDTH / 2
     ny = node_cy - node_h / 2
     chip_start_y = ny + _NODE_HEADER_H
 
     result: dict[str, tuple[float, float]] = {}
     for k, iface in enumerate(chip_ifaces):
-        cx = nx + _IF_CHIP_OFFSET_X + k * _IF_CHIP_GAP
-        cy = chip_start_y + _IF_CHIP_OFFSET_Y
+        cx, cy = _chip_xy_for(k, nx, chip_start_y)
         result[iface["id"]] = (cx, cy)
     return result
 
@@ -328,9 +394,8 @@ def _svg_if_chip(
         k:            チップインデックス（0 始まり）
         iface:        IF 辞書
     """
-    # チップを横に並べる: 各チップの中心 x
-    cx = nx + _IF_CHIP_OFFSET_X + k * _IF_CHIP_GAP
-    cy = chip_start_y + _IF_CHIP_OFFSET_Y
+    # P1b #2 / C HIGH-2: 折返し配置 — _chip_xy_for に集約
+    cx, cy = _chip_xy_for(k, nx, chip_start_y)
 
     if_name = iface.get("name", "")
     if_id = iface.get("id", "")
@@ -439,11 +504,11 @@ def _svg_nodes(
             chip_ifaces = []
 
         use_chips = bool(chip_ifaces)
-        # チップは横1行: n_chip = チップ有無（1 or 0）のみで高さを計算（従来通り）
-        n_chip = 1 if use_chips else 0
+        # P1b #2: チップ数（折返し行数）に応じた実ノード高を算出
+        n_chip = len(chip_ifaces) if use_chips else 0
 
         if use_chips:
-            _w, node_h = _node_size_for(n_chip)
+            _w, node_h = _chip_node_size_for(n_chip)
         else:
             _w, node_h = float(_NODE_WIDTH), float(_NODE_HEIGHT)
         nx = x - _NODE_WIDTH / 2
@@ -736,17 +801,20 @@ def _svg_ospf_segments(segments: list[dict], positions: dict) -> str:
         # #1B: ospf_network または subnet から ospf_id を正規化して取得
         ospf_id = _normalize_subnet(seg.get("ospf_network") or subnet_raw)
         ospf_id_attr = f' data-ospf-id="{_esc(ospf_id)}"' if ospf_id else ""
-        area_label = OSPF_AREA_LABEL_FORMAT.format(
-            area=_esc(ospf_area), subnet=subnet
-        )
+        # A1: セグメントラベルも tspan 2行（area 行 / subnet 行）に分けて表示
+        # リンクラベルと同方式: <tspan dy="0">area N</tspan><tspan dy="14">subnet</tspan>
+        area_text = f"area {_esc(ospf_area)}"
+        subnet_text = subnet  # 既に _esc 済み
         # data-ospf-id は <g> のみに付与し <ellipse> には付与しない（クリックは <g> で拾う設計）
         parts.append(
             f'<g class="segment-node layer-ospf" data-segment="{seg_id}"{ospf_id_attr}>'
             f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{_SEG_RX}" ry="{_SEG_RY}" '
             f'class="seg-ellipse layer-ospf"/>'
-            f'<text x="{x:.1f}" y="{y + 5:.1f}" text-anchor="middle" '
+            f'<text x="{x:.1f}" y="{y - 2:.1f}" text-anchor="middle" '
             f'class="seg-label layer-ospf">'
-            f'{area_label}</text>'
+            f'<tspan x="{x:.1f}" dy="0">{area_text}</tspan>'
+            f'<tspan x="{x:.1f}" dy="14">{subnet_text}</tspan>'
+            f'</text>'
             f'</g>'
         )
     return "\n".join(parts)
@@ -1313,6 +1381,34 @@ def _svg_bgp_as_groups(
 
     _nsizes = node_sizes or {}
 
+    # #6: AS ラベルチップ座標の衝突検出・回避用（配置済みチップの矩形リスト）
+    # 各要素: (x, y, w, h) — ラベルチップ背景矩形の左上座標と幅高さ
+    placed_chips: list[tuple[float, float, float, float]] = []
+
+    def _chips_overlap(ax: float, ay: float, aw: float, ah: float,
+                       bx: float, by: float, bw: float, bh: float) -> bool:
+        """2つのチップ矩形が重なるか判定する（軸平行矩形の AABB 判定）"""
+        return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
+
+    def _resolve_chip_pos(cx: float, cy: float, cw: float, ch: float) -> tuple[float, float]:
+        """衝突しない位置を決定的に解決する（y 方向下にオフセット、動的試行上限）。
+
+        A2: 試行上限を ``max(20, len(placed_chips) + 5)`` の動的値にし、
+        AS 多数時（placed_chips が多い）でも収束させる（決定的）。
+        """
+        x, y = cx, cy
+        offset_step = ch + 4  # チップ高 + 余白 4px 単位でシフト
+        max_tries = max(20, len(placed_chips) + 5)
+        for _ in range(max_tries):
+            overlap = any(
+                _chips_overlap(x, y, cw, ch, px, py, pw, ph)
+                for px, py, pw, ph in placed_chips
+            )
+            if not overlap:
+                break
+            y += offset_step
+        return x, y
+
     parts = []
     for asn in sorted(asn_to_devs.keys()):
         dev_ids = asn_to_devs[asn]
@@ -1346,18 +1442,17 @@ def _svg_bgp_as_groups(
 
         # M5: <g class="as-group-container" data-as="{asn}"> でラップ
         # #4: ラベルを左上チップ（背景 rect + text）として配置
-        chip_x = min_x + 8
-        chip_y = min_y - 9   # 枠上端より少し上にはみ出してチップを置く
-        chip_text = f"AS {_esc(asn)}"
         # チップ背景矩形のサイズ算出（#8: font-size 15px 対応）:
         #   chip_w = len(label) * 9 + 12
-        #     - 9: 拡大フォント（15px）における1文字あたりの概算幅（px）
-        #     - 12: 左右パディング合計（各6px）
-        #     - 例: "AS 65001"(8文字) → 8*9+12 = 84px
-        #   chip_h = 20: 拡大フォント（15px）を余裕を持って収める高さ
-        #   text_y = chip_y + chip_h * 0.7: ベースラインをボックス上端から70%に設定
+        chip_text = f"AS {_esc(asn)}"
         chip_w = len(f"AS {asn}") * 9 + 12
         chip_h = 20
+        # 初期候補位置（枠上端より少し上にはみ出すデフォルト位置）
+        chip_x_base = min_x + 8
+        chip_y_base = min_y - 9
+        # #6: 衝突回避（asn 昇順で処理するため決定的）
+        chip_x, chip_y = _resolve_chip_pos(chip_x_base, chip_y_base, chip_w, chip_h)
+        placed_chips.append((chip_x, chip_y, chip_w, chip_h))
         # テキスト y: 背景矩形の垂直中央（chip_h の約 70% をベースラインとして使用）
         text_y = chip_y + chip_h * 0.7
         parts.append(

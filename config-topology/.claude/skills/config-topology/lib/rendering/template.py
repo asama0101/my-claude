@@ -509,6 +509,13 @@ _CSS = """\
       opacity: 0.5;
     }
 
+    /* P2 #1: IF チップ／IF一覧行 双方向ハイライト（クリックで .highlighted トグル） */
+    .if-chip.highlighted circle {
+      fill: #fef08a;
+      stroke: #f59e0b;
+      stroke-width: 2.5;
+    }
+
     /* #7: IF チップ凡例（左下固定オーバーレイ）。全ビュー常時表示。
        チップが無いビューでも表示されるが意図的（凡例は常に視認できる）。 */
     #chip-legend {
@@ -767,6 +774,9 @@ _JS = """\
             svg.setAttribute('viewBox', bbox);
           }
         }
+
+        // ビュー切替時に自動 fit（そのビューの bbox に合わせる）
+        if (window._zoomFit) { window._zoomFit(); }
       }
 
       // タブのアクティブ状態更新
@@ -788,8 +798,14 @@ _JS = """\
       }
     }
 
-    // 初期ビューを設定
+    // 初期ビューを設定（zoomFit は IIFE 定義後に window._zoomFit 経由で呼ぶ）
     selectView('physical');
+    // A5: 初期表示で全体が収まるよう DOMContentLoaded で zoomFit（IIFE 定義後に window._zoomFit が確実に存在）
+    if (typeof window !== 'undefined') {
+      document.addEventListener('DOMContentLoaded', function() {
+        if (window._zoomFit) { window._zoomFit(); }
+      });
+    }
 
     // ============================================================
     // 検索 / フィルタ
@@ -1417,6 +1433,8 @@ _JS = """\
             _selectedNodes.add(deviceId);
           }
           _updateCardFilter();
+          // P2 #5: 複数ノード選択時にノード間エッジをハイライト
+          _updateEdgeHighlightForSelection();
         });
       });
 
@@ -1509,6 +1527,60 @@ _JS = """\
       _selectedOspf.clear();
     }
 
+    // ============================================================
+    // P2 #5: 複数ノード選択 → ノード間エッジ + BGP 表行ハイライト
+    // ============================================================
+    // _updateEdgeHighlightForSelection: _selectedNodes に基づいて
+    // 両端が _selectedNodes に含まれるエッジ（.bgp-session / .link-edge）を highlighted にする。
+    // 選択ノードが1以下の場合はエッジハイライトを解除する。
+    function _updateEdgeHighlightForSelection() {
+      // まず既存の「選択由来」エッジハイライトをクリア
+      // （_selectedLinks・_selectedBgp の保持分は除外して選択由来分だけ解除）
+      document.querySelectorAll('.bgp-session.selection-edge-hl').forEach(function(el) {
+        el.classList.remove('highlighted');
+        el.classList.remove('selection-edge-hl');
+      });
+      document.querySelectorAll('.link-edge.selection-edge-hl').forEach(function(el) {
+        el.classList.remove('highlighted');
+        el.classList.remove('selection-edge-hl');
+      });
+      document.querySelectorAll('tr.selection-edge-hl').forEach(function(row) {
+        row.classList.remove('highlighted');
+        row.classList.remove('selection-edge-hl');
+      });
+
+      if (_selectedNodes.size <= 1) return;
+
+      // .bgp-session: data-a / data-b 両方が _selectedNodes に含まれるものをハイライト
+      document.querySelectorAll('.bgp-session[data-a][data-b]').forEach(function(el) {
+        var a = el.getAttribute('data-a');
+        var b = el.getAttribute('data-b');
+        if (_selectedNodes.has(a) && _selectedNodes.has(b)) {
+          el.classList.add('highlighted');
+          el.classList.add('selection-edge-hl');
+          // 対応する BGP 表行もハイライト
+          var bgpId = el.getAttribute('data-bgp-id');
+          if (bgpId) {
+            var bgpAttr = 'data-bgp-id';
+            document.querySelectorAll('tr[' + bgpAttr + '="' + CSS.escape(bgpId) + '"]').forEach(function(row) {
+              row.classList.add('highlighted');
+              row.classList.add('selection-edge-hl');
+            });
+          }
+        }
+      });
+
+      // .link-edge: data-a / data-b 両方が _selectedNodes に含まれるものをハイライト
+      document.querySelectorAll('.link-edge[data-a][data-b]').forEach(function(el) {
+        var a = el.getAttribute('data-a');
+        var b = el.getAttribute('data-b');
+        if (_selectedNodes.has(a) && _selectedNodes.has(b)) {
+          el.classList.add('highlighted');
+          el.classList.add('selection-edge-hl');
+        }
+      });
+    }
+
     // カード→ノード選択（カードクリックで対応ノードを selected 強調・累積トグル）
     (function() {
       document.querySelectorAll('.device-card').forEach(function(card) {
@@ -1532,6 +1604,8 @@ _JS = """\
           }
           // 多ノードC: 選択変化をカード絞り込みに反映
           _updateCardFilter();
+          // P2 #5: カードクリック時も複数選択エッジハイライトを更新
+          _updateEdgeHighlightForSelection();
         });
       });
     })();
@@ -1592,7 +1666,7 @@ _JS = """\
     // 非表示デバイスの集合（両端判定に使用）
     var _hiddenNodes = new Set();
 
-    function setNodeVisibility(deviceId, visible) {
+    function setNodeVisibility(deviceId, visible, skipFilter) {
       // 非表示デバイス集合を更新
       if (visible) {
         _hiddenNodes.delete(deviceId);
@@ -1644,20 +1718,32 @@ _JS = """\
       if (card) {
         card.classList.toggle('node-filtered', !visible);
       }
+
+      // A6: skipFilter が true の場合は _applyIfFilters を呼ばない（一括呼び出し側で担う）
+      // P2 #3: node-filter 変更後に IF一覧フィルタを再評価
+      if (!skipFilter) {
+        _applyIfFilters();
+      }
     }
 
     function selectAllNodes() {
+      // A6: ループ中は skipFilter=true にして _applyIfFilters の多重呼び出しを抑制
       document.querySelectorAll('.node-filter-cb').forEach(function(cb) {
         cb.checked = true;
-        setNodeVisibility(cb.dataset.nodeFilter, true);
+        setNodeVisibility(cb.dataset.nodeFilter, true, true);
       });
+      // P2 #3: 全選択後に IF一覧を再評価（最後に1回のみ）
+      _applyIfFilters();
     }
 
     function clearAllNodes() {
+      // A6: ループ中は skipFilter=true にして _applyIfFilters の多重呼び出しを抑制
       document.querySelectorAll('.node-filter-cb').forEach(function(cb) {
         cb.checked = false;
-        setNodeVisibility(cb.dataset.nodeFilter, false);
+        setNodeVisibility(cb.dataset.nodeFilter, false, true);
       });
+      // P2 #3: 全解除後に IF一覧を再評価（最後に1回のみ）
+      _applyIfFilters();
     }
 
     // ノードフィルタ checkbox のイベントリスナー登録（DC5: onchange インライン不使用）
@@ -2021,8 +2107,11 @@ _JS = """\
         var matchAf = !_ifinvAfFilter || row.getAttribute('data-af') === _ifinvAfFilter;
         var matchStatus = !_ifinvStatusFilter || row.getAttribute('data-status') === _ifinvStatusFilter;
         var matchL2l3 = !_ifinvL2l3Filter || row.getAttribute('data-l2l3') === _ifinvL2l3Filter;
+        // P2 #3: node-filter 非表示機器の行を隠す（_hiddenNodes との AND）
+        var rowDevice = row.getAttribute('data-device') || '';
+        var matchNodeFilter = !rowDevice || !_hiddenNodes.has(rowDevice);
         // 全条件を AND で評価して表示/非表示を決定（クラスは ifinv-row-hidden に一本化）
-        if (matchSearch && matchUnused && matchDevice && matchAf && matchStatus && matchL2l3) {
+        if (matchSearch && matchUnused && matchDevice && matchAf && matchStatus && matchL2l3 && matchNodeFilter) {
           row.classList.remove('ifinv-row-hidden');
           // マッチ行に search-match クラスを付与（強調表示）
           if (q) {
@@ -2140,7 +2229,78 @@ _JS = """\
       });
 
       rows.forEach(function(row) { tbody.appendChild(row); });
-    }\
+    }
+
+    // ============================================================
+    // P2 #1: IF チップ ↔ IF一覧 双方向ハイライト（toggleIfChipHighlight）
+    // ============================================================
+    // toggleIfChipHighlight(ifaceId): 全ビューの if-chip[data-iface-id] と
+    // ifinv の tr[data-iface-id] を .highlighted でトグルする。
+    // iBGP/static 行の data-loopback-iface-id 連動も本関数が担う。
+    function toggleIfChipHighlight(ifaceId) {
+      if (!ifaceId) return;
+      var escaped = CSS.escape(ifaceId);
+      var chips = document.querySelectorAll('[data-iface-id="' + escaped + '"]');
+      // A4: 非表示要素が先頭でも正しくトグルできるよう some() ベースに変更
+      var isHighlighted = Array.from(chips).some(function(el) {
+        return el.classList.contains('highlighted');
+      });
+      chips.forEach(function(el) {
+        if (isHighlighted) {
+          el.classList.remove('highlighted');
+        } else {
+          el.classList.add('highlighted');
+        }
+      });
+      // ifinv 行（tr[data-iface-id]）も同期
+      document.querySelectorAll('tr[data-iface-id="' + escaped + '"]').forEach(function(row) {
+        if (isHighlighted) {
+          row.classList.remove('highlighted');
+        } else {
+          row.classList.add('highlighted');
+        }
+      });
+    }
+
+    // IF チップ（SVG <g class="if-chip">）クリック登録
+    (function() {
+      document.querySelectorAll('.if-chip[data-iface-id]').forEach(function(chip) {
+        var ifaceId = chip.getAttribute('data-iface-id');
+        if (!ifaceId) return;
+        chip.style.cursor = 'pointer';
+        chip.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleIfChipHighlight(ifaceId);
+        });
+      });
+
+      // ifinv 行クリック → toggleIfChipHighlight（data-iface-id を持つ行）
+      document.querySelectorAll('tr[data-iface-id]').forEach(function(row) {
+        var ifaceId = row.getAttribute('data-iface-id');
+        if (!ifaceId) return;
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleIfChipHighlight(ifaceId);
+          // data-loopback-iface-id がある行（iBGP/static）は Loopback チップも連動
+          var loopbackIfaceId = row.getAttribute('data-loopback-iface-id');
+          if (loopbackIfaceId) {
+            toggleIfChipHighlight(loopbackIfaceId);
+          }
+        });
+      });
+
+      // BGP/static 行（data-loopback-iface-id のみ持つ行）のクリック登録
+      document.querySelectorAll('tr[data-loopback-iface-id]:not([data-iface-id])').forEach(function(row) {
+        var loopbackIfaceId = row.getAttribute('data-loopback-iface-id');
+        if (!loopbackIfaceId) return;
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleIfChipHighlight(loopbackIfaceId);
+        });
+      });
+    })();\
 """
 
 

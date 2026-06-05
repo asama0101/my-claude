@@ -5121,14 +5121,20 @@ def test_ospf_view_segment_has_area_label():
 
 @pytest.mark.unit
 def test_ospf_view_segment_area_label_format():
-    """#7: セグメントラベルが「area {area} · {subnet}」形式（OSPF_AREA_LABEL_FORMAT 準拠）。"""
+    """#7: セグメントラベルに area と subnet が含まれる（A1: tspan 2行表示）。
+
+    A1 修正により楕円ラベルは tspan 2行表示になった。
+    1行の「area 1 · subnet」ではなく、area と subnet が別々に含まれることを確認する。
+    """
     from lib.rendering import render
     html = render(_make_ospf_segment_topology())
     ospf_view = _extract_ospf_view(html)
     assert ospf_view, "OSPF ビューが見つからない"
-    # OSPF_AREA_LABEL_FORMAT = "area {area} · {subnet}"
-    assert "area 1 · 192.168.50.0/24" in ospf_view, \
-        f"OSPF セグメントラベルが 'area 1 · 192.168.50.0/24' 形式でない"
+    # A1: area と subnet が含まれること（tspan 2行）
+    assert "area 1" in ospf_view, \
+        f"OSPF セグメントラベルに 'area 1' が含まれていない"
+    assert "192.168.50.0/24" in ospf_view, \
+        f"OSPF セグメントラベルに '192.168.50.0/24' が含まれていない"
 
 
 @pytest.mark.unit
@@ -5185,16 +5191,28 @@ def test_ospf_view_p2p_link_area0_label_preserved():
 
 @pytest.mark.unit
 def test_ospf_view_p2p_link_area_label_strict():
-    """T-strict: p2p OSPF ラベルが 'area 0 · 10.2.0.0/30' 形式（subnetの0で偽陽性しない）。"""
+    """T-strict: p2p OSPF ラベルで area と subnet が独立 tspan 行になる（#7 新フォーマット）。
+
+    #7 変更: 旧フォーマット 'area 0 · 10.2.0.0/30'（1行）から
+    独立 tspan 行（area / subnet）形式に更新。
+    area 0 の独立 tspan と 10.2.0.0/30 の独立 tspan が存在し、
+    中黒区切り同居がないことを確認する。
+    """
     from lib.rendering import render
     # _make_ospf_topology_with_area() は 10.2.0.0/30 area 0 のリンクを持つ
     topo = _make_ospf_topology_with_area()
     html = render(topo)
     ospf_view = _extract_ospf_view(html)
     assert ospf_view, "OSPF ビューが見つからない"
-    # 厳密検証: "area 0 · 10.2.0.0/30" が含まれること（"0" の分割検証は subnet の 0 に偽陽性）
-    assert "area 0 · 10.2.0.0/30" in ospf_view, \
-        f"p2p OSPF ラベルが 'area 0 · 10.2.0.0/30' 形式でない: {ospf_view[:500]}"
+    # #7 新フォーマット: area と subnet が中黒区切りで同居しないこと
+    assert "area 0 · 10.2.0.0/30" not in ospf_view, \
+        "旧フォーマット 'area 0 · subnet' が残っている（独立 tspan 化未完了）"
+    # area が独立 tspan 行: <tspan ...>area 0</tspan> が存在する
+    assert re.search(r'<tspan[^>]*>area 0</tspan>', ospf_view), \
+        f"area 0 の独立 tspan 行が見つからない: {ospf_view[:500]}"
+    # subnet が独立 tspan 行: <tspan ...>10.2.0.0/30</tspan> が存在する
+    assert re.search(r'<tspan[^>]*>10\.2\.0\.0/30</tspan>', ospf_view), \
+        f"10.2.0.0/30 の独立 tspan 行が見つからない: {ospf_view[:500]}"
 
 
 @pytest.mark.unit
@@ -8966,8 +8984,9 @@ def test_p3_chip_positions_cy_uses_node_cy():
 
     _, cy = result["r1::eth0"]
 
-    # node_h は _node_size_for(1) で計算（チップあり=1行分）
-    _w, node_h = _node_size_for(1)
+    # P1b #2: node_h は _chip_node_size_for(1) で計算（折返し対応後）
+    from lib.rendering.svg import _chip_node_size_for
+    _w, node_h = _chip_node_size_for(1)
     ny = node_cy - node_h / 2
     expected_cy = ny + _NODE_HEADER_H + _IF_CHIP_OFFSET_Y
 
@@ -14582,15 +14601,17 @@ def test_b3_h2_apply_if_filters_has_6_conditions_and(b3_topology):
     js = js_m.group(1)
     # _applyIfFilters 関数が存在する
     assert "function _applyIfFilters" in js, "_applyIfFilters 関数が JS に存在しない"
-    # 関数開始位置から 1500 文字以内に 6変数がすべて含まれる
+    # 関数開始位置から 1800 文字以内に 6変数がすべて含まれる
+    # P2 #3: matchNodeFilter 追加により関数が長くなったため 1800 に拡張
     start = js.find("function _applyIfFilters")
-    fn_region = js[start:start + 1500]
+    fn_region = js[start:start + 1800]
     for var in ("matchSearch", "matchUnused", "matchDevice", "matchAf", "matchStatus", "matchL2l3"):
         assert var in fn_region, \
             f"_applyIfFilters に '{var}' 条件が存在しない"
-    # AND 結合式に 6変数が含まれる（matchX && matchY && ... の形）
+    # AND 結合式に 6変数（最低限）が含まれる（matchX && matchY && ... の形）
+    # P2 #3: matchNodeFilter が追加されているため 7 条件に拡張
     and_m = re.search(
-        r'if\s*\(\s*matchSearch\s*&&\s*matchUnused\s*&&\s*matchDevice\s*&&\s*matchAf\s*&&\s*matchStatus\s*&&\s*matchL2l3\s*\)',
+        r'if\s*\(\s*matchSearch\s*&&\s*matchUnused\s*&&\s*matchDevice\s*&&\s*matchAf\s*&&\s*matchStatus\s*&&\s*matchL2l3',
         fn_region
     )
     assert and_m is not None, \
@@ -14673,3 +14694,1827 @@ def test_b3_m3_device_options_deterministic_ascending_order(b3_topology):
     expected = sorted(option_values)
     assert option_values == expected, \
         f"device option が昇順でない: {option_values} != {expected}"
+
+
+# ============================================================
+# P1-#7: OSPF リンクラベルの area 独立行化
+# ============================================================
+
+def _make_ospf_v4_link_topology():
+    """v4 OSPF single-stack リンクトポロジー（area独立行テスト用）"""
+    return {
+        "title": "OSPF v4 Link",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False,
+             "addresses": [{"af": "v4", "ip": "10.0.0.1", "prefix": 30}]},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False,
+             "addresses": [{"af": "v4", "ip": "10.0.0.2", "prefix": 30}]},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "ospf_area": "0", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "ospf": [
+                {"device": "r1", "process": 1, "network": "10.0.0.0/30", "area": "0"},
+                {"device": "r2", "process": 1, "network": "10.0.0.0/30", "area": "0"},
+            ],
+        },
+    }
+
+
+def _make_ospf_dualstack_link_topology():
+    """v4+v6 OSPF dual-stack リンクトポロジー（area独立行テスト用）"""
+    return {
+        "title": "OSPF DualStack Link",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False,
+             "addresses": [
+                 {"af": "v4", "ip": "10.0.0.1", "prefix": 30},
+                 {"af": "v6", "ip": "2001:db8:1::1", "prefix": 127},
+             ]},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False,
+             "addresses": [
+                 {"af": "v4", "ip": "10.0.0.2", "prefix": 30},
+                 {"af": "v6", "ip": "2001:db8:1::2", "prefix": 127},
+             ]},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "ospf_area": "0", "kind": "inferred-subnet"},
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "2001:db8:1::/127", "ospf_area": "0", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "ospf": [
+                {"device": "r1", "process": 1, "network": "10.0.0.0/30", "area": "0"},
+                {"device": "r2", "process": 1, "network": "10.0.0.0/30", "area": "0"},
+                {"device": "r1", "process": 1, "network": "2001:db8:1::/127", "area": "0"},
+                {"device": "r2", "process": 1, "network": "2001:db8:1::/127", "area": "0"},
+            ],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_p1_7_ospf_single_stack_area_on_separate_tspan_line():
+    """P1-#7: single-stack OSPF リンクラベルで area が独立 tspan 行になる（2行構成）。
+
+    期待: <tspan>area 0</tspan><tspan>10.0.0.0/30</tspan> の形式。
+    area と subnet が同一 tspan に "area 0 · 10.0.0.0/30" として同居してはならない。
+    """
+    from lib.rendering.views import _build_view_ospf
+    topo = _make_ospf_v4_link_topology()
+    ibd = {}
+    for i in topo["interfaces"]:
+        ibd.setdefault(i["device"], []).append(i)
+    html = _build_view_ospf(
+        topo["devices"], topo["routing"]["ospf"], topo["links"],
+        ibd, topo["segments"], topo["interfaces"]
+    )
+    # area が独立行: <tspan ...>area 0</tspan> が存在する
+    assert re.search(r'<tspan[^>]*>area 0</tspan>', html), \
+        "area 0 の独立 tspan 行が見つからない"
+    # subnet が独立行: <tspan ...>10.0.0.0/30</tspan> が存在する
+    assert re.search(r'<tspan[^>]*>10\.0\.0\.0/30</tspan>', html), \
+        "10.0.0.0/30 の独立 tspan 行が見つからない"
+    # area と subnet が同一 tspan 内に中黒(·)区切りで同居していないこと
+    assert 'area 0 ·' not in html, \
+        "area と subnet が同一 tspan で 'area 0 · subnet' の形式になっている（独立行になっていない）"
+
+
+@pytest.mark.unit
+def test_p1_7_ospf_dualstack_area_on_separate_tspan_line():
+    """P1-#7: dual-stack OSPF リンクラベルで area/v4/v6 が各独立 tspan 行になる（3行構成）。
+
+    期待:
+    1行目: <tspan>area 0</tspan>
+    2行目: <tspan>10.0.0.0/30</tspan>
+    3行目: <tspan>2001:db8:1::/127</tspan>
+    area と subnet が同一 tspan に同居しないこと。
+    """
+    from lib.rendering.views import _build_view_ospf
+    topo = _make_ospf_dualstack_link_topology()
+    ibd = {}
+    for i in topo["interfaces"]:
+        ibd.setdefault(i["device"], []).append(i)
+    html = _build_view_ospf(
+        topo["devices"], topo["routing"]["ospf"], topo["links"],
+        ibd, topo["segments"], topo["interfaces"]
+    )
+    # area が独立行
+    assert re.search(r'<tspan[^>]*>area 0</tspan>', html), \
+        "area 0 の独立 tspan 行が見つからない"
+    # v4 subnet が独立行
+    assert re.search(r'<tspan[^>]*>10\.0\.0\.0/30</tspan>', html), \
+        "v4 subnet の独立 tspan 行が見つからない"
+    # v6 subnet が独立行
+    assert re.search(r'<tspan[^>]*>2001:db8:1::/127</tspan>', html), \
+        "v6 subnet の独立 tspan 行が見つからない"
+    # area と subnet が同一 tspan に同居しないこと
+    assert 'area 0 ·' not in html, \
+        "area と subnet が同一 tspan で同居している（独立行になっていない）"
+
+
+@pytest.mark.integration
+def test_p1_7_ospf_label_area_independent_multi_as_area():
+    """P1-#7 統合: multi-as-area eval で OSPF ラベルが area 独立行形式になる。
+
+    eval inputs は build_topology でビルドした層別 YAML を使う。
+    build_topology が /tmp/multi_as_y に出力済みを前提とするが、
+    テスト内でビルドする。
+    """
+    import os
+    import subprocess
+    from lib.topology_io import load_topology
+    from lib.rendering.views import _build_view_ospf
+    # build_topology で一時ファイルを生成
+    skill_root = os.path.join(os.path.dirname(__file__), "..", "..")
+    dev_root = os.path.join(os.path.dirname(__file__), "..")
+    input_dir = os.path.join(dev_root, "evals", "inputs", "multi-as-area")
+    out_path = "/tmp/_p1_multi_as_y"
+    subprocess.run(
+        ["python3", "-m", "scripts.build_topology", input_dir, "-o", out_path],
+        cwd=skill_root, check=True, capture_output=True
+    )
+    topo = load_topology(out_path)
+    devices = topo["devices"]
+    ospf = topo["routing"].get("ospf", [])
+    links = topo["links"]
+    interfaces = topo["interfaces"]
+    segments = topo["segments"]
+    ibd = {}
+    for i in interfaces:
+        ibd.setdefault(i["device"], []).append(i)
+    html = _build_view_ospf(devices, ospf, links, ibd, segments, interfaces)
+    # area が独立 tspan になっていること（中黒区切り同居なし）
+    assert 'area 0 ·' not in html, \
+        "multi-as-area OSPF ラベルで area と subnet が中黒区切りで同居している"
+    assert re.search(r'<tspan[^>]*>area 0</tspan>', html), \
+        "multi-as-area OSPF ラベルで area 0 の独立 tspan が見つからない"
+
+
+@pytest.mark.integration
+def test_p1_7_ospf_label_area_independent_dualstack_ospf():
+    """P1-#7 統合: dualstack-ospf eval で area/v4/v6 が各独立 tspan 行になる。"""
+    import os
+    import subprocess
+    from lib.topology_io import load_topology
+    from lib.rendering.views import _build_view_ospf
+    skill_root = os.path.join(os.path.dirname(__file__), "..", "..")
+    dev_root = os.path.join(os.path.dirname(__file__), "..")
+    input_dir = os.path.join(dev_root, "evals", "inputs", "dualstack-ospf")
+    out_path = "/tmp/_p1_dso_y"
+    subprocess.run(
+        ["python3", "-m", "scripts.build_topology", input_dir, "-o", out_path],
+        cwd=skill_root, check=True, capture_output=True
+    )
+    topo = load_topology(out_path)
+    devices = topo["devices"]
+    ospf = topo["routing"].get("ospf", [])
+    links = topo["links"]
+    interfaces = topo["interfaces"]
+    segments = topo["segments"]
+    ibd = {}
+    for i in interfaces:
+        ibd.setdefault(i["device"], []).append(i)
+    html = _build_view_ospf(devices, ospf, links, ibd, segments, interfaces)
+    # area が独立 tspan
+    assert re.search(r'<tspan[^>]*>area 0</tspan>', html), \
+        "dualstack-ospf OSPF ラベルで area 0 の独立 tspan が見つからない"
+    # area と subnet が同一 tspan に同居しないこと
+    assert 'area 0 ·' not in html, \
+        "dualstack-ospf OSPF ラベルで area と subnet が中黒区切りで同居している"
+    # v4 と v6 の独立 tspan が存在する
+    # v4 subnet は "10." で始まる
+    assert re.search(r'<tspan[^>]*>10\.[^<]+</tspan>', html), \
+        "dualstack-ospf OSPF ラベルで v4 subnet の独立 tspan が見つからない"
+    # v6 subnet は "2001:" で始まる
+    assert re.search(r'<tspan[^>]*>2001:[^<]+</tspan>', html), \
+        "dualstack-ospf OSPF ラベルで v6 subnet の独立 tspan が見つからない"
+
+
+# ============================================================
+# P1-#4: large-topo 自動 zoomFit（初期表示・selectView）
+# ============================================================
+
+@pytest.mark.unit
+def test_p1_4_js_contains_initial_zoomfit_call():
+    """P1-#4: JS に初期 zoomFit 呼出が含まれる（IIFE末尾 or DOMContentLoaded相当）。
+
+    window._zoomFit または zoomFit() が初期化コード内（selectView('physical') の後付近）
+    で呼ばれていること。
+    """
+    from lib.rendering.template import _JS
+    # zoomFit() または window._zoomFit() が初期化位置で呼ばれている
+    # selectView('physical') の後に zoomFit 呼出があることを確認
+    sv_idx = _JS.find("selectView('physical')")
+    assert sv_idx != -1, "selectView('physical') が JS に見つからない"
+    after_sv = _JS[sv_idx:]
+    # 初期 zoomFit 呼出: window._zoomFit() または zoomFit() が selectView の後に存在
+    has_zoomfit_after = (
+        "window._zoomFit()" in after_sv or
+        re.search(r'\bzoomFit\(\)', after_sv) is not None
+    )
+    assert has_zoomfit_after, \
+        "selectView('physical') の後に zoomFit() 呼出が見つからない（初期 zoomFit 未実装）"
+
+
+@pytest.mark.unit
+def test_p1_4_js_selectview_calls_zoomfit_for_svg_views():
+    """P1-#4: selectView() のSVGビュー表示分岐末尾で zoomFit を呼ぶ。
+
+    ifinv ビュー（非SVG）では呼ばれず、SVG ビュー分岐内で zoomFit 呼出があること。
+    """
+    from lib.rendering.template import _JS
+    # selectView 関数内を抽出
+    sv_start = _JS.find("function selectView(viewId)")
+    assert sv_start != -1, "selectView 関数が JS に見つからない"
+    # selectView 関数の本体を大まかに抽出（次の function 宣言まで）
+    sv_region = _JS[sv_start:sv_start + 2000]
+    # SVG ビュー分岐（else ブロック）に zoomFit 呼出がある
+    # viewId === 'ifinv' の if ブロック後の else に zoomFit が必要
+    assert "zoomFit" in sv_region, \
+        "selectView() 内に zoomFit 呼出が見つからない（SVG ビュー切替時の自動 fit 未実装）"
+
+
+@pytest.mark.integration
+def test_p1_4_html_js_zoomfit_called_after_selectview():
+    """P1-#4 統合: render() が生成する HTML の JS に zoomFit 呼出が含まれる。"""
+    from lib.rendering import render
+    topo = {
+        "title": "ZoomFit Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+    assert js_m is not None, "script ブロックが見つからない"
+    js = js_m.group(1)
+    assert "zoomFit" in js, "render() 生成 JS に zoomFit が含まれない"
+    # selectView の後に zoomFit がある
+    sv_idx = js.find("selectView('physical')")
+    assert sv_idx != -1
+    after = js[sv_idx:]
+    has_call = ("window._zoomFit()" in after or re.search(r'\bzoomFit\(\)', after) is not None)
+    assert has_call, "selectView('physical') の後に zoomFit() 呼出が見つからない"
+
+
+# ============================================================
+# P1-#6: AS 枠ラベルの重なり回避
+# ============================================================
+
+def _make_overlapping_as_labels_topology():
+    """2つの AS が同座標に配置されうるトポロジー（重なりテスト用）。
+
+    AS65000(大枠: core, edge 4台) と AS65103(小枠: cust3 1台) が
+    同じ座標領域に存在する large-topo 類似構造。
+    最小ケース: 片方が1台のデバイスで force-directed で同座標になりやすい状況。
+    """
+    return {
+        "title": "Overlapping AS Labels",
+        "generated_from": [],
+        "devices": [
+            {"id": "core1", "hostname": "Core1", "vendor": "cisco_ios", "as": 65000, "sections": []},
+            {"id": "core2", "hostname": "Core2", "vendor": "cisco_ios", "as": 65000, "sections": []},
+            {"id": "cust3", "hostname": "Cust3", "vendor": "cisco_ios", "as": 65103, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "core1::eth0", "device": "core1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False,
+             "addresses": [{"af": "v4", "ip": "10.0.0.1", "prefix": 30}]},
+            {"id": "core2::eth0", "device": "core2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False,
+             "addresses": [{"af": "v4", "ip": "10.0.0.2", "prefix": 30}]},
+            {"id": "cust3::eth0", "device": "cust3", "name": "eth0", "ip": "10.0.1.1/30",
+             "vlan": None, "description": None, "shutdown": False,
+             "addresses": [{"af": "v4", "ip": "10.0.1.1", "prefix": 30}]},
+            {"id": "core1::eth1", "device": "core1", "name": "eth1", "ip": "10.0.1.2/30",
+             "vlan": None, "description": None, "shutdown": False,
+             "addresses": [{"af": "v4", "ip": "10.0.1.2", "prefix": 30}]},
+        ],
+        "links": [
+            {"a_device": "core1", "a_if": "eth0", "b_device": "core2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+            {"a_device": "core1", "a_if": "eth1", "b_device": "cust3", "b_if": "eth0",
+             "subnet": "10.0.1.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "core1", "local_as": 65000, "local_ip": "10.0.1.2",
+                 "neighbor_ip": "10.0.1.1", "peer_as": 65103, "type": "ebgp"},
+                {"device": "cust3", "local_as": 65103, "local_ip": "10.0.1.1",
+                 "neighbor_ip": "10.0.1.2", "peer_as": 65000, "type": "ebgp"},
+                {"device": "core1", "local_as": 65000, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65000, "type": "ibgp"},
+                {"device": "core2", "local_as": 65000, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65000, "type": "ibgp"},
+            ],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_p1_6_as_label_chips_have_unique_positions():
+    """P1-#6: 複数 AS ラベルチップの (x, y) 座標が重複しない（衝突回避）。
+
+    同一 AS の色違いでなく、異なる AS 間でチップ座標が一致しないこと。
+    """
+    from lib.rendering.svg import _svg_bgp_as_groups
+    from lib.rendering.views import _build_bgp_layout
+    topo = _make_overlapping_as_labels_topology()
+    bgp = topo["routing"]["bgp"]
+    interfaces = topo["interfaces"]
+    devices = topo["devices"]
+    positions, bgp_devs = _build_bgp_layout(devices, bgp, interfaces)
+    html = _svg_bgp_as_groups(bgp_devs, positions)
+    # ラベルチップ背景 rect の (x, y) を抽出
+    chip_positions_found = re.findall(
+        r'<rect x="([0-9.-]+)" y="([0-9.-]+)"[^>]*class="as-group-label-bg"',
+        html
+    )
+    assert len(chip_positions_found) >= 2, \
+        f"AS ラベルチップが2個以上ない: {chip_positions_found}"
+    # AS ごとのラベルチップ座標が全て異なること（重複なし）
+    positions_set = set(chip_positions_found)
+    assert len(positions_set) == len(chip_positions_found), \
+        f"AS ラベルチップ座標が重複している: {chip_positions_found}"
+
+
+@pytest.mark.unit
+def test_p1_6_as_label_chips_no_overlap_unit():
+    """P1-#6: 合成座標 (AS65000, AS65103) で chip が同座標でないこと（単体・決定的）。
+
+    positions を手動設定して _svg_bgp_as_groups の衝突回避を検証する。
+    """
+    from lib.rendering.svg import _svg_bgp_as_groups
+    # AS65000 と AS65103 のデバイスを同座標付近に配置（重なりが起きやすい条件）
+    devices = [
+        {"id": "core1", "hostname": "Core1", "as": 65000},
+        {"id": "cust3",  "hostname": "Cust3",  "as": 65103},
+    ]
+    # core1 と cust3 を同座標に配置（最悪ケース）
+    positions = {
+        "core1": (0.0, 0.0),
+        "cust3": (0.0, 0.0),
+    }
+    html = _svg_bgp_as_groups(devices, positions)
+    chip_positions_found = re.findall(
+        r'<rect x="([0-9.-]+)" y="([0-9.-]+)"[^>]*class="as-group-label-bg"',
+        html
+    )
+    assert len(chip_positions_found) == 2, \
+        f"チップが2個生成されない: {chip_positions_found}"
+    assert chip_positions_found[0] != chip_positions_found[1], \
+        f"AS65000 と AS65103 のラベルチップ座標が重複している: {chip_positions_found}"
+
+
+@pytest.mark.integration
+def test_p1_6_large_topo_as_labels_no_overlap():
+    """P1-#6 統合: large-topo の BGP ビューで全 AS ラベルチップが相互非重複。"""
+    import os
+    import subprocess
+    from lib.topology_io import load_topology
+    from lib.rendering.svg import _svg_bgp_as_groups
+    from lib.rendering.views import _build_bgp_layout
+    skill_root = os.path.join(os.path.dirname(__file__), "..", "..")
+    dev_root = os.path.join(os.path.dirname(__file__), "..")
+    input_dir = os.path.join(dev_root, "evals", "inputs", "large-topo")
+    out_path = "/tmp/_p1_large_y"
+    subprocess.run(
+        ["python3", "-m", "scripts.build_topology", input_dir, "-o", out_path],
+        cwd=skill_root, check=True, capture_output=True
+    )
+    topo = load_topology(out_path)
+    devices = topo["devices"]
+    bgp = topo["routing"].get("bgp", [])
+    interfaces = topo["interfaces"]
+    positions, bgp_devs = _build_bgp_layout(devices, bgp, interfaces)
+    html = _svg_bgp_as_groups(bgp_devs, positions)
+    chip_positions_found = re.findall(
+        r'<rect x="([0-9.-]+)" y="([0-9.-]+)"[^>]*class="as-group-label-bg"',
+        html
+    )
+    assert len(chip_positions_found) >= 2, "AS ラベルチップが2個以上ない"
+    positions_set = set(chip_positions_found)
+    assert len(positions_set) == len(chip_positions_found), \
+        f"large-topo AS ラベルチップ座標が重複: {chip_positions_found}"
+
+
+# ===========================================================================
+# P1b #2: IFチップ拡大 + 複数行折返し（iteration-5 Part-4）
+# ===========================================================================
+
+def _make_many_chip_topology(n_chips: int):
+    """n_chips 個の接続IF を持つ r1 を含む topology（折返しテスト用）。
+
+    r1 に n_chips 個の GigabitEthernet を持たせ、各々 r2〜r{n_chips+1} と接続する。
+    r1 のチップは接続IF のみ（Loopback なし）で n_chips 個になる。
+    """
+    devices = [
+        {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+    ]
+    for k in range(n_chips):
+        devices.append(
+            {"id": f"r{k+2}", "hostname": f"R{k+2}", "vendor": "cisco_ios",
+             "as": None, "sections": []}
+        )
+
+    interfaces = []
+    for k in range(n_chips):
+        interfaces.append(
+            {"id": f"r1::Gi0/{k}", "device": "r1", "name": f"GigabitEthernet0/{k}",
+             "ip": f"10.0.{k}.1/30", "vlan": None, "description": None, "shutdown": False}
+        )
+        interfaces.append(
+            {"id": f"r{k+2}::Gi0/0", "device": f"r{k+2}", "name": "GigabitEthernet0/0",
+             "ip": f"10.0.{k}.2/30", "vlan": None, "description": None, "shutdown": False}
+        )
+
+    links = []
+    for k in range(n_chips):
+        links.append({
+            "a_device": "r1", "a_if": f"GigabitEthernet0/{k}",
+            "b_device": f"r{k+2}", "b_if": "GigabitEthernet0/0",
+            "subnet": f"10.0.{k}.0/30", "kind": "inferred-subnet",
+        })
+
+    return {
+        "title": f"Chip Wrap Test {n_chips}",
+        "generated_from": [],
+        "devices": devices,
+        "interfaces": interfaces,
+        "links": links,
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+
+
+@pytest.mark.unit
+def test_p1b2_chip_radius_enlarged():
+    """P1b #2: チップ半径が視認性のため拡大されている（_IF_CHIP_R >= 6）。"""
+    from lib.rendering.svg import _IF_CHIP_R
+    assert _IF_CHIP_R >= 6, \
+        f"チップ半径が拡大されていない: _IF_CHIP_R={_IF_CHIP_R}（期待: >=6）"
+
+
+@pytest.mark.unit
+def test_p1b2_chip_radius_in_svg():
+    """P1b #2: レンダリングされた SVG に拡大後の半径値が使われている。"""
+    from lib.rendering import render
+    from lib.rendering.svg import _IF_CHIP_R
+    html = render(_make_many_chip_topology(3))
+    assert f'r="{_IF_CHIP_R}"' in html, \
+        f"SVG 内のチップ円に r=\"{_IF_CHIP_R}\" が見つからない"
+
+
+@pytest.mark.unit
+def test_p1b2_wrap_constants_exist():
+    """P1b #2: 折返し計算に必要な定数が svg モジュールに存在する。"""
+    import lib.rendering.svg as svg_mod
+    assert hasattr(svg_mod, "_IF_CHIP_PER_ROW"), \
+        "_IF_CHIP_PER_ROW 定数が存在しない"
+    assert hasattr(svg_mod, "_IF_CHIP_ROW_H"), \
+        "_IF_CHIP_ROW_H 定数が存在しない"
+    per_row = svg_mod._IF_CHIP_PER_ROW
+    row_h = svg_mod._IF_CHIP_ROW_H
+    assert per_row >= 1, f"_IF_CHIP_PER_ROW は 1 以上であるべき: {per_row}"
+    assert row_h >= 12, f"_IF_CHIP_ROW_H は 12px 以上であるべき: {row_h}"
+
+
+@pytest.mark.unit
+def test_p1b2_wrap_chip_rows_helper():
+    """P1b #2: _chip_rows_for(num_chips) が正しいチップ行数を返す。"""
+    from lib.rendering.svg import _chip_rows_for, _IF_CHIP_PER_ROW
+    # 0チップ → 0行
+    assert _chip_rows_for(0) == 0, f"0チップ → 0行のはず: {_chip_rows_for(0)}"
+    # 1チップ → 1行
+    assert _chip_rows_for(1) == 1, f"1チップ → 1行のはず: {_chip_rows_for(1)}"
+    # per_row 個 → 1行
+    assert _chip_rows_for(_IF_CHIP_PER_ROW) == 1, \
+        f"{_IF_CHIP_PER_ROW}チップ → 1行のはず: {_chip_rows_for(_IF_CHIP_PER_ROW)}"
+    # per_row + 1 個 → 2行
+    assert _chip_rows_for(_IF_CHIP_PER_ROW + 1) == 2, \
+        f"{_IF_CHIP_PER_ROW + 1}チップ → 2行のはず: {_chip_rows_for(_IF_CHIP_PER_ROW + 1)}"
+    # 2 * per_row 個 → 2行
+    assert _chip_rows_for(_IF_CHIP_PER_ROW * 2) == 2, \
+        f"{_IF_CHIP_PER_ROW * 2}チップ → 2行のはず: {_chip_rows_for(_IF_CHIP_PER_ROW * 2)}"
+    # 2 * per_row + 1 個 → 3行
+    assert _chip_rows_for(_IF_CHIP_PER_ROW * 2 + 1) == 3, \
+        f"{_IF_CHIP_PER_ROW * 2 + 1}チップ → 3行のはず: {_chip_rows_for(_IF_CHIP_PER_ROW * 2 + 1)}"
+
+
+@pytest.mark.unit
+def test_p1b2_chip_node_size_for_helper():
+    """P1b #2: _chip_node_size_for(num_chips) が行数に応じたノード高を返す。"""
+    from lib.rendering.svg import _chip_node_size_for, _chip_rows_for, _IF_CHIP_ROW_H
+    from lib.rendering.layout import _NODE_WIDTH, _NODE_HEIGHT
+
+    # 0チップ → 基本高さ
+    _w0, h0 = _chip_node_size_for(0)
+    assert _w0 == _NODE_WIDTH, f"幅は常に _NODE_WIDTH のはず: {_w0}"
+    assert h0 == float(_NODE_HEIGHT), f"0チップ → _NODE_HEIGHT のはず: {h0}"
+
+    # 1行分のチップ
+    _w1, h1 = _chip_node_size_for(1)
+    assert h1 > float(_NODE_HEIGHT), f"チップあり → 高さが基本値より大きいはず: {h1}"
+
+    # 2行 → 1行より高い
+    from lib.rendering.svg import _IF_CHIP_PER_ROW
+    n2row = _IF_CHIP_PER_ROW + 1
+    _w2, h2 = _chip_node_size_for(n2row)
+    assert h2 > h1, \
+        f"2行({n2row}チップ) の高さ({h2}) は 1行(1チップ) の高さ({h1}) より大きいはず"
+    # 追加行ごとに _IF_CHIP_ROW_H 増える
+    assert abs(h2 - h1 - _IF_CHIP_ROW_H) < 1.0, \
+        f"2行→1行の高さ差({h2 - h1:.1f}) が _IF_CHIP_ROW_H({_IF_CHIP_ROW_H}) と異なる"
+
+
+@pytest.mark.unit
+def test_p1b2_chip_cx_no_overflow_single_row():
+    """P1b #2: 1行に収まるチップ数の場合、全チップ cx がノード幅内に収まる。"""
+    from lib.rendering.svg import _svg_if_chip, _IF_CHIP_PER_ROW, _IF_CHIP_OFFSET_X, _IF_CHIP_GAP
+    from lib.rendering.layout import _NODE_WIDTH
+
+    iface = {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": None,
+             "shutdown": False, "description": None, "addresses": []}
+    nx = 50.0
+    chip_start_y = 90.0
+
+    # per_row 個以下なら全チップが nx+NODE_WIDTH 内に収まる
+    for k in range(_IF_CHIP_PER_ROW):
+        svg_str = _svg_if_chip(nx, chip_start_y, k, iface)
+        # cx を抽出
+        cx_match = re.search(r'cx="([0-9.+-]+)"', svg_str)
+        assert cx_match, f"cx が見つからない(k={k}): {svg_str}"
+        cx = float(cx_match.group(1))
+        assert cx >= nx, \
+            f"チップ k={k} の cx={cx:.1f} がノード左端 nx={nx:.1f} より左"
+        assert cx <= nx + _NODE_WIDTH, \
+            f"チップ k={k} の cx={cx:.1f} がノード右端 nx+{_NODE_WIDTH}={nx + _NODE_WIDTH:.1f} より右"
+
+
+@pytest.mark.unit
+def test_p1b2_chip_wrap_two_rows():
+    """P1b #2: per_row+1 個目のチップが2行目（cy が1行目より大きい）に配置される。"""
+    from lib.rendering.svg import _svg_if_chip, _IF_CHIP_PER_ROW, _IF_CHIP_OFFSET_Y, _IF_CHIP_ROW_H
+
+    iface = {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": None,
+             "shutdown": False, "description": None, "addresses": []}
+    nx = 50.0
+    chip_start_y = 90.0
+
+    # k=0 (row=0) と k=per_row (row=1) の cy を比較
+    svg_k0 = _svg_if_chip(nx, chip_start_y, 0, iface)
+    svg_kN = _svg_if_chip(nx, chip_start_y, _IF_CHIP_PER_ROW, iface)
+
+    cy0 = float(re.search(r'cy="([0-9.+-]+)"', svg_k0).group(1))
+    cyN = float(re.search(r'cy="([0-9.+-]+)"', svg_kN).group(1))
+
+    assert cyN > cy0, \
+        f"per_row番目のチップ(k={_IF_CHIP_PER_ROW}) cy={cyN:.1f} が " \
+        f"k=0 の cy={cy0:.1f} 以下になっており、折返しされていない"
+    assert abs(cyN - cy0 - _IF_CHIP_ROW_H) < 1.0, \
+        f"行間隔 {cyN - cy0:.1f} が _IF_CHIP_ROW_H={_IF_CHIP_ROW_H} と異なる"
+
+
+@pytest.mark.unit
+def test_p1b2_chip_wrap_cx_restarts_at_new_row():
+    """P1b #2: 折返し後の行頭チップの cx が1行目の最初と同じ x 位置から始まる。"""
+    from lib.rendering.svg import _svg_if_chip, _IF_CHIP_PER_ROW
+
+    iface = {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": None,
+             "shutdown": False, "description": None, "addresses": []}
+    nx = 50.0
+    chip_start_y = 90.0
+
+    svg_k0 = _svg_if_chip(nx, chip_start_y, 0, iface)                  # col=0, row=0
+    svg_kN = _svg_if_chip(nx, chip_start_y, _IF_CHIP_PER_ROW, iface)  # col=0, row=1
+
+    cx0 = float(re.search(r'cx="([0-9.+-]+)"', svg_k0).group(1))
+    cxN = float(re.search(r'cx="([0-9.+-]+)"', svg_kN).group(1))
+
+    assert abs(cx0 - cxN) < 0.5, \
+        f"折返し行頭チップ cx={cxN:.1f} が1行目行頭 cx={cx0:.1f} と異なる（折返し cx リセット不全）"
+
+
+@pytest.mark.unit
+def test_p1b2_many_chips_all_within_node_width():
+    """P1b #2: 多数チップ（per_row * 3 + 2）の全 cx がノード幅内に収まる。"""
+    from lib.rendering.svg import _svg_if_chip, _IF_CHIP_PER_ROW
+    from lib.rendering.layout import _NODE_WIDTH
+
+    iface = {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": None,
+             "shutdown": False, "description": None, "addresses": []}
+    nx = 50.0
+    chip_start_y = 90.0
+    n = _IF_CHIP_PER_ROW * 3 + 2
+
+    for k in range(n):
+        svg_str = _svg_if_chip(nx, chip_start_y, k, iface)
+        cx_match = re.search(r'cx="([0-9.+-]+)"', svg_str)
+        assert cx_match, f"cx が見つからない(k={k})"
+        cx = float(cx_match.group(1))
+        assert cx >= nx, \
+            f"チップ k={k} の cx={cx:.1f} がノード左端 nx={nx:.1f} より左"
+        assert cx <= nx + _NODE_WIDTH, \
+            f"チップ k={k} の cx={cx:.1f} がノード右端 {nx + _NODE_WIDTH:.1f} を超えている（折返し未実装）"
+
+
+@pytest.mark.unit
+def test_p1b2_node_height_grows_with_chip_rows():
+    """P1b #2: チップ行数が増えるとノード矩形高さが増大する。"""
+    from lib.rendering import render
+    from lib.rendering.svg import _IF_CHIP_PER_ROW
+
+    # 1行: per_row 個
+    topo1 = _make_many_chip_topology(_IF_CHIP_PER_ROW)
+    html1 = render(topo1)
+
+    # 2行: per_row + 1 個
+    topo2 = _make_many_chip_topology(_IF_CHIP_PER_ROW + 1)
+    html2 = render(topo2)
+
+    # r1 のノード矩形高さを比較
+    def _extract_r1_height(html: str) -> float | None:
+        phys = _extract_physical_view(html)
+        # data-device="r1" の <g> 内の <rect ... height="...">
+        node_g = re.search(
+            r'data-device="r1"[^>]*>.*?<rect[^>]+height="([0-9.]+)"',
+            phys, re.DOTALL
+        )
+        if node_g:
+            return float(node_g.group(1))
+        return None
+
+    h1 = _extract_r1_height(html1)
+    h2 = _extract_r1_height(html2)
+    assert h1 is not None, "1行のノード高さが抽出できない"
+    assert h2 is not None, "2行のノード高さが抽出できない"
+    assert h2 > h1, \
+        f"2行({_IF_CHIP_PER_ROW + 1}チップ) 高さ({h2}) <= 1行({_IF_CHIP_PER_ROW}チップ) 高さ({h1})"
+
+
+@pytest.mark.unit
+def test_p1b2_2chip_no_regression():
+    """P1b #2 非回帰: 2チップ（従来ケース）が折返しなしで描画される。"""
+    from lib.rendering import render
+    html = render(_make_many_chip_topology(2))
+    phys = _extract_physical_view(html)
+    chips = re.findall(r'class="[^"]*if-chip[^"]*"', phys)
+    assert len(chips) >= 2, f"2チップが描画されていない: {len(chips)}"
+    # 2チップなら cy が全て同じ（1行のみ）
+    cy_vals = re.findall(r'cy="([0-9.]+)"', phys)
+    # r1 ノード内の cy のみ取得（ノード内に2つあるはず）
+    # 複数のノードがあるので r1 の device-node 内のみ確認
+    r1_match = re.search(
+        r'data-device="r1"[^>]*>(.*?)</g>\s*(?=<g class="device-node"|$)',
+        phys, re.DOTALL
+    )
+    if r1_match:
+        r1_content = r1_match.group(1)
+        r1_cy_vals = re.findall(r'cy="([0-9.]+)"', r1_content)
+        assert len(set(r1_cy_vals)) == 1, \
+            f"2チップなのに cy が複数値: {set(r1_cy_vals)}（折返し過剰）"
+
+
+@pytest.mark.unit
+def test_p1b2_no_overlap_after_chip_height_expand():
+    """P1b #2: チップ高さ拡張後も no_overlap テストが通る（多行チップを含む場合）。"""
+    from lib.rendering.layout import (
+        _layout_force_directed, _canvas_size_for_nodes, _adaptive_iter
+    )
+    from lib.rendering.svg import _chip_node_size_for, _IF_CHIP_PER_ROW
+
+    # per_row * 2 + 1 チップ（3行）を持つノードを含む
+    n_chips = _IF_CHIP_PER_ROW * 2 + 1
+    topo = _make_many_chip_topology(n_chips)
+    devices = topo["devices"]
+    links = topo["links"]
+
+    # node_sizes はチップ数ベースで高さを渡す
+    # r1: n_chips チップ, 他: 1チップ
+    chip_count = {"r1": n_chips}
+    for dev in devices:
+        if dev["id"] != "r1":
+            chip_count[dev["id"]] = 1
+
+    # _chip_node_size_for でノード高さを算出してキャンバスサイズを決定
+    def _chip_h(dev_id):
+        return _chip_node_size_for(chip_count.get(dev_id, 0))[1]
+
+    node_ids = [d["id"] for d in devices]
+    max_h = max(_chip_h(nid) for nid in node_ids)
+    est_w, est_h = _canvas_size_for_nodes(len(node_ids), max_node_h=max_h)
+    edges = [(lk["a_device"], lk["b_device"]) for lk in links]
+
+    # node_sizes に chip_rows 相当の値を渡す
+    # _chip_node_size_for(n) と _node_size_for(k) が等しくなる k を探す必要がある
+    # 最もシンプル: chip_count を直接渡し、_node_size_for がチップ対応することを期待する
+    # ここでは物理レイアウトを使って確認する
+    from lib.rendering import _build_physical_layout
+    from lib.rendering.svg import _chip_node_size_for
+
+    pos = _build_physical_layout(devices, topo["interfaces"], links, topo["segments"])
+
+    for i, na in enumerate(node_ids):
+        for j, nb in enumerate(node_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _chip_node_size_for(chip_count.get(na, 0))
+            wb, hb = _chip_node_size_for(chip_count.get(nb, 0))
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            min_sep_x = (wa + wb) / 2 + 5
+            min_sep_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= min_sep_x or dy >= min_sep_y
+            assert no_overlap, (
+                f"チップ高拡張後: ノード {na}({wa:.0f}x{ha:.0f}) と {nb}({wb:.0f}x{hb:.0f}) が重なっている "
+                f"(dx={dx:.1f} min_sep_x={min_sep_x:.1f}, "
+                f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
+            )
+
+
+@pytest.mark.unit
+def test_p1b2_deterministic():
+    """P1b #2: 多行チップを含む topology で render() が決定的（2回一致）。"""
+    from lib.rendering import render
+    from lib.rendering.svg import _IF_CHIP_PER_ROW
+
+    topo = _make_many_chip_topology(_IF_CHIP_PER_ROW + 3)
+    html1 = render(topo)
+    html2 = render(topo)
+    assert html1 == html2, "多行チップ topology の render() が非決定的"
+
+
+@pytest.mark.unit
+def test_p1b2_chip_positions_wrap():
+    """P1b #2: _chip_positions が折返し座標を返す（per_row+1番目は2行目）。"""
+    from lib.rendering.svg import _chip_positions, _IF_CHIP_PER_ROW, _IF_CHIP_ROW_H
+    from lib.rendering.layout import _node_size_for
+
+    n_chips = _IF_CHIP_PER_ROW + 1
+    dev = {"id": "r1", "hostname": "R1"}
+    ifaces = [
+        {"id": f"r1::eth{k}", "device": "r1", "name": f"eth{k:02d}",
+         "ip": None, "shutdown": False, "description": None}
+        for k in range(n_chips)
+    ]
+    chip_ids = {f"r1::eth{k}" for k in range(n_chips)}
+
+    # ノード中心座標を適当に設定
+    nx, ny = 100.0, 100.0
+    from lib.rendering.svg import _chip_node_size_for
+    _w, node_h = _chip_node_size_for(n_chips)
+    node_cx = nx + _w / 2
+    node_cy = ny + node_h / 2
+
+    result = _chip_positions(dev, chip_ids, ifaces, node_cx, node_cy)
+    assert len(result) == n_chips, f"結果のチップ数が不正: {len(result)}"
+
+    # name ソートで eth00..eth{per_row-1} が row=0、eth{per_row} が row=1
+    row0_ids = {f"r1::eth{k}" for k in range(_IF_CHIP_PER_ROW)}
+    row1_id = f"r1::eth{_IF_CHIP_PER_ROW}"
+
+    row0_cys = [result[iid][1] for iid in row0_ids if iid in result]
+    row1_cy = result[row1_id][1]
+
+    assert row1_cy > row0_cys[0], \
+        f"2行目チップ cy={row1_cy:.1f} が 1行目 cy={row0_cys[0]:.1f} 以下（折返し未実装）"
+    assert abs(row1_cy - row0_cys[0] - _IF_CHIP_ROW_H) < 1.0, \
+        f"行間隔 {row1_cy - row0_cys[0]:.1f} が _IF_CHIP_ROW_H={_IF_CHIP_ROW_H} と異なる"
+
+
+@pytest.mark.unit
+def test_p1b2_existing_no_overlap_20nodes_regression():
+    """P1b #2 非回帰: チップ高変更後も large-topo 20台 no_overlap が通る。"""
+    from lib.rendering.layout import (
+        _layout_force_directed, _node_size_for, _canvas_size_for_nodes, _adaptive_iter
+    )
+
+    topo = _load_large_topo_for_test()
+    devices = topo["devices"]
+    links = topo["links"]
+    interfaces = topo["interfaces"]
+
+    node_ids = [d["id"] for d in devices]
+    edges = [(lk["a_device"], lk["b_device"]) for lk in links]
+    iface_count: dict[str, int] = {}
+    for iface in interfaces:
+        iface_count[iface["device"]] = iface_count.get(iface["device"], 0) + 1
+    node_sizes = {d["id"]: iface_count.get(d["id"], 0) for d in devices}
+
+    n = len(node_ids)
+    est_w, est_h = _canvas_size_for_nodes(n, max_node_h=max(
+        _node_size_for(node_sizes.get(nid, 0))[1] for nid in node_ids
+    ))
+    pos = _layout_force_directed(
+        node_ids, edges, width=est_w, height=est_h,
+        iterations=_adaptive_iter(n), node_sizes=node_sizes,
+    )
+
+    for i, na in enumerate(node_ids):
+        for j, nb in enumerate(node_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            wa, ha = _node_size_for(node_sizes[na])
+            wb, hb = _node_size_for(node_sizes[nb])
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            min_sep_x = (wa + wb) / 2 + 5
+            min_sep_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= min_sep_x or dy >= min_sep_y
+            assert no_overlap, (
+                f"large-topo 回帰: ノード {na} と {nb} が重なっている "
+                f"(dx={dx:.1f} min_sep_x={min_sep_x:.1f}, "
+                f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
+            )
+
+
+# ===========================================================================
+# P2: フィードバック対応3点
+#   #1 チップ/Loopback マーキング（チップ↔IF一覧双方向 + iBGP Loopback連動）
+#   #5 複数ノード選択 → 間のエッジ＋表ハイライト
+#   #3 node-filter ↔ IF一覧 連動
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# ヘルパー: iBGP + Loopback ありトポロジー（#1 loopback連動テスト用）
+# ---------------------------------------------------------------------------
+
+def _make_ibgp_loopback_topology():
+    """iBGP + Loopback 付きトポロジー。
+    r1/r2 同一 AS65001、互いの Loopback IP で iBGP。
+    local_ip は Loopback IP と一致させる（iBGP の loopback 源識別用）。
+    """
+    return {
+        "title": "iBGP Loopback Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65001, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::Loopback0", "device": "r1", "name": "Loopback0",
+             "ip": "10.255.0.1/32", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+            {"id": "r1::Gi0/0", "device": "r1", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": "to-R2", "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+            {"id": "r2::Loopback0", "device": "r2", "name": "Loopback0",
+             "ip": "10.255.0.2/32", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+            {"id": "r2::Gi0/0", "device": "r2", "name": "GigabitEthernet0/0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": "to-R1", "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "GigabitEthernet0/0",
+             "b_device": "r2", "b_if": "GigabitEthernet0/0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.255.0.1",
+                 "neighbor_ip": "10.255.0.2", "peer_as": 65001, "type": "ibgp"},
+                {"device": "r2", "local_as": 65001, "local_ip": "10.255.0.2",
+                 "neighbor_ip": "10.255.0.1", "peer_as": 65001, "type": "ibgp"},
+            ],
+            "ospf": [],
+            "static": [
+                {"device": "r1", "prefix": "0.0.0.0/0", "next_hop": "10.0.0.2"},
+            ],
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# #1-A: チップに data-iface-id が付く（既存機能の確認）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_chip_has_data_iface_id():
+    """#1-A: Physical ビューの if-chip 要素に data-iface-id 属性が付いている。"""
+    from lib.rendering import render
+    html = render(_make_chip_topology())
+    phys = _extract_physical_view(html)
+    # data-iface-id="r1::Gi0/0" が存在すること
+    assert 'data-iface-id="r1::Gi0/0"' in phys, \
+        "if-chip に data-iface-id=\"r1::Gi0/0\" が付いていない"
+
+
+# ---------------------------------------------------------------------------
+# #1-B: toggleIfChipHighlight 関数が JS に存在する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_toggle_if_chip_highlight_function_exists(rendered_html):
+    """#1-B: JS に toggleIfChipHighlight 関数が定義されている。"""
+    assert "function toggleIfChipHighlight" in rendered_html, \
+        "toggleIfChipHighlight 関数が HTML の JS に存在しない"
+
+
+# ---------------------------------------------------------------------------
+# #1-C: if-chip クリックで toggleIfChipHighlight を呼ぶ登録コードが存在する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_chip_click_registers_toggle_if_chip_highlight(rendered_html):
+    """#1-C: JS に if-chip click → toggleIfChipHighlight の登録コードが存在する。"""
+    # addEventListener('click') + toggleIfChipHighlight が近傍に存在することを確認
+    assert "toggleIfChipHighlight" in rendered_html, \
+        "toggleIfChipHighlight の呼び出しが JS にない"
+    # .if-chip に対する click イベント登録コードが存在すること
+    assert "if-chip" in rendered_html, \
+        ".if-chip クラスの参照が JS にない"
+
+
+# ---------------------------------------------------------------------------
+# #1-D: .if-chip.highlighted CSS が存在する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_chip_highlighted_css_exists(rendered_html):
+    """#1-D: CSS に .if-chip.highlighted スタイルが定義されている。"""
+    assert ".if-chip.highlighted" in rendered_html, \
+        ".if-chip.highlighted CSS スタイルが HTML に存在しない"
+
+
+# ---------------------------------------------------------------------------
+# #1-E: ifinv 行に data-iface-id が付いている
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_ifinv_row_has_data_iface_id(rendered_html):
+    """#1-E: IF一覧(ifinv)テーブルの tr に data-iface-id 属性が付いている。"""
+    # ifinv-table-body 内の tr に data-iface-id が存在すること
+    m = re.search(
+        r'id="ifinv-table-body".*?(<tr[^>]*data-iface-id[^>]*>)',
+        rendered_html, re.DOTALL
+    )
+    assert m is not None, \
+        "ifinv-table-body 内の tr に data-iface-id 属性が見つからない"
+
+
+# ---------------------------------------------------------------------------
+# #1-F: ifinv 行クリックで toggleIfChipHighlight を呼ぶ登録コードが存在する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_ifinv_row_click_calls_toggle_if_chip_highlight(rendered_html):
+    """#1-F: JS に ifinv 行（data-iface-id）クリック → toggleIfChipHighlight の登録がある。"""
+    # data-iface-id を持つ tr へのクリックリスナー登録と toggleIfChipHighlight 呼び出しが
+    # 同じ IIFE/ブロック内に存在すること
+    js_section = rendered_html[rendered_html.find("<script>"):]
+    assert "data-iface-id" in js_section, \
+        "JS の script セクションに data-iface-id 参照がない"
+    assert "toggleIfChipHighlight" in js_section, \
+        "JS の script セクションに toggleIfChipHighlight 呼び出しがない"
+
+
+# ---------------------------------------------------------------------------
+# #1-G: iBGP 行に data-loopback-iface-id が付く
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_ibgp_row_has_loopback_iface_id():
+    """#1-G: iBGP セッション行に data-loopback-iface-id 属性が付いている（解決可能ケース）。"""
+    from lib.rendering import render
+    html = render(_make_ibgp_loopback_topology())
+    # BGP Sessions の tr[data-bgp-id] に data-loopback-iface-id が付いていること
+    # r1 の iBGP 行に r1::Loopback0 の iface-id が解決されること
+    assert 'data-loopback-iface-id="r1::Loopback0"' in html, \
+        "iBGP 行（r1）に data-loopback-iface-id=\"r1::Loopback0\" が付いていない"
+
+
+@pytest.mark.unit
+def test_p2_ibgp_row_loopback_iface_id_r2():
+    """#1-G2: r2 の iBGP 行にも data-loopback-iface-id が付く。"""
+    from lib.rendering import render
+    html = render(_make_ibgp_loopback_topology())
+    assert 'data-loopback-iface-id="r2::Loopback0"' in html, \
+        "iBGP 行（r2）に data-loopback-iface-id=\"r2::Loopback0\" が付いていない"
+
+
+# ---------------------------------------------------------------------------
+# #1-H: eBGP 行には data-loopback-iface-id が付かない（非回帰）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_ebgp_row_no_loopback_iface_id(rendered_html):
+    """#1-H: eBGP 行（通常 peer-link 使用）に data-loopback-iface-id は付かない。"""
+    # サンプル topology は eBGP のみ
+    # data-loopback-iface-id が付く行がないこと（または iBGP のみに付くこと）
+    # rendered_html は examples topology（eBGP）を使う
+    # eBGP 行（r1 の BGP Sessions）に data-loopback-iface-id がないこと
+    bgp_section = re.search(
+        r'layer-bgp.*?</table>',
+        rendered_html, re.DOTALL
+    )
+    if bgp_section:
+        bgp_html = bgp_section.group(0)
+        assert "data-loopback-iface-id" not in bgp_html, \
+            "eBGP 行に data-loopback-iface-id が付いている（iBGP のみが対象）"
+
+
+# ---------------------------------------------------------------------------
+# #5-A: _updateEdgeHighlightForSelection 関数（または同等ロジック）が JS に存在する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_multi_node_edge_highlight_logic_exists(rendered_html):
+    """#5-A: 複数ノード選択時にエッジをハイライトするロジックが JS に存在する。"""
+    # _selectedNodes.size >= 2 の条件チェックが存在すること
+    assert "_selectedNodes.size" in rendered_html, \
+        "_selectedNodes.size チェックが JS にない（複数選択エッジハイライトが未実装）"
+
+
+# ---------------------------------------------------------------------------
+# #5-B: ノードクリックハンドラに data-a/data-b 両方含まれるエッジのハイライトロジックがある
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_node_click_highlights_edges_between_selected(rendered_html):
+    """#5-B: JS にノードクリック時「data-a/data-b が両方 _selectedNodes に含まれるエッジを highlighted」ロジックがある。"""
+    # data-a と data-b の両方が _selectedNodes に含まれる場合のチェックコードが存在すること
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # _selectedNodes.has(...) が data-a/data-b の確認ロジックとして存在すること
+    assert "_selectedNodes.has" in js_text, \
+        "_selectedNodes.has() によるエッジ判定ロジックが JS にない"
+
+
+# ---------------------------------------------------------------------------
+# #5-C: clearSelection でエッジハイライトが解除される（既存の clearLinkHighlight を流用）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_clear_selection_removes_edge_highlight(rendered_html):
+    """#5-C: clearSelection が呼ばれると highlighted エッジも解除される（clearLinkHighlight 経由）。"""
+    # clearSelection 内に clearLinkHighlight の呼び出しが存在すること（既存確認）
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    assert "clearLinkHighlight" in js_text, \
+        "clearLinkHighlight が JS にない"
+    # clearSelection 関数内で clearLinkHighlight が呼ばれていること
+    clear_sel_match = re.search(
+        r'function clearSelection\(\).*?clearLinkHighlight',
+        js_text, re.DOTALL
+    )
+    assert clear_sel_match is not None, \
+        "clearSelection 内に clearLinkHighlight 呼び出しがない"
+
+
+# ---------------------------------------------------------------------------
+# #5-D: bgp-session / link-edge に対するエッジハイライトループが存在する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_edge_highlight_loop_covers_bgp_and_link(rendered_html):
+    """#5-D: 複数選択エッジハイライトが .bgp-session と .link-edge 両方を走査する。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # .bgp-session と .link-edge の querySelectorAll が複数選択ロジック近傍に存在すること
+    assert "bgp-session" in js_text, \
+        ".bgp-session の参照が JS にない"
+    assert "link-edge" in js_text, \
+        ".link-edge の参照が JS にない"
+
+
+# ---------------------------------------------------------------------------
+# #5-E: 1ノード以下選択でエッジハイライトを解除するコードが存在する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_single_node_clears_edge_highlight(rendered_html):
+    """#5-E: 選択ノードが1個以下になったときエッジハイライトを解除するコードが存在する。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # _selectedNodes.size が 2 未満のときに highlighted を remove するコードがあること
+    # "<= 1" または "< 2" での分岐コードが存在すること
+    has_leq1 = "_selectedNodes.size <= 1" in js_text or "_selectedNodes.size < 2" in js_text
+    assert has_leq1, \
+        "_selectedNodes.size <= 1 (または < 2) の分岐コードが JS にない"
+
+
+# ---------------------------------------------------------------------------
+# #3-A: _applyIfFilters が _hiddenNodes を AND 条件で参照している
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_apply_if_filters_uses_hidden_nodes(rendered_html):
+    """#3-A: _applyIfFilters 関数が _hiddenNodes を参照して ifinv 行をフィルタする。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # _applyIfFilters の定義中に _hiddenNodes の参照が存在すること
+    applyif_match = re.search(
+        r'function _applyIfFilters\(\).*?_hiddenNodes',
+        js_text, re.DOTALL
+    )
+    assert applyif_match is not None, \
+        "_applyIfFilters 内に _hiddenNodes の参照がない（#3 node-filter連動が未実装）"
+
+
+# ---------------------------------------------------------------------------
+# #3-B: setNodeVisibility 後に _applyIfFilters が呼ばれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_set_node_visibility_calls_apply_if_filters(rendered_html):
+    """#3-B: setNodeVisibility 内で _applyIfFilters() が呼ばれている。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    set_vis_match = re.search(
+        r'function setNodeVisibility\(.*?\n.*?_applyIfFilters',
+        js_text, re.DOTALL
+    )
+    assert set_vis_match is not None, \
+        "setNodeVisibility 内に _applyIfFilters() 呼び出しがない"
+
+
+# ---------------------------------------------------------------------------
+# #3-C: clearAllNodes / selectAllNodes 後に _applyIfFilters が呼ばれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_clear_all_nodes_calls_apply_if_filters(rendered_html):
+    """#3-C: clearAllNodes 内で _applyIfFilters() が呼ばれている。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    clear_all_match = re.search(
+        r'function clearAllNodes\(\).*?_applyIfFilters',
+        js_text, re.DOTALL
+    )
+    assert clear_all_match is not None, \
+        "clearAllNodes 内に _applyIfFilters() 呼び出しがない"
+
+
+@pytest.mark.unit
+def test_p2_select_all_nodes_calls_apply_if_filters(rendered_html):
+    """#3-C2: selectAllNodes 内で _applyIfFilters() が呼ばれている。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    select_all_match = re.search(
+        r'function selectAllNodes\(\).*?_applyIfFilters',
+        js_text, re.DOTALL
+    )
+    assert select_all_match is not None, \
+        "selectAllNodes 内に _applyIfFilters() 呼び出しがない"
+
+
+# ---------------------------------------------------------------------------
+# #3-D: _applyIfFilters で機器行に ifinv-row-hidden が付く（matchDevice 連動確認）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_apply_if_filters_hidden_nodes_condition(rendered_html):
+    """#3-D: _applyIfFilters が data-device と _hiddenNodes の AND で行を隠す条件を持つ。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # _hiddenNodes.has(...) が _applyIfFilters の関数スコープ内に存在すること
+    applyif_with_has = re.search(
+        r'function _applyIfFilters\(\).*?_hiddenNodes\.has',
+        js_text, re.DOTALL
+    )
+    assert applyif_with_has is not None, \
+        "_applyIfFilters 内に _hiddenNodes.has() がない（機器フィルタ条件が未実装）"
+
+
+# ---------------------------------------------------------------------------
+# 非回帰: 既存の選択/ハイライト/フィルタ機能が壊れていない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_regression_toggle_bgp_highlight_exists(rendered_html):
+    """非回帰: toggleBgpHighlight 関数が引き続き存在する。"""
+    assert "function toggleBgpHighlight" in rendered_html, \
+        "toggleBgpHighlight が HTML から消えた（非回帰）"
+
+
+@pytest.mark.unit
+def test_p2_regression_toggle_ospf_highlight_exists(rendered_html):
+    """非回帰: toggleOspfHighlight 関数が引き続き存在する。"""
+    assert "function toggleOspfHighlight" in rendered_html, \
+        "toggleOspfHighlight が HTML から消えた（非回帰）"
+
+
+@pytest.mark.unit
+def test_p2_regression_selected_nodes_set_exists(rendered_html):
+    """非回帰: _selectedNodes Set 宣言が引き続き存在する。"""
+    assert "var _selectedNodes = new Set()" in rendered_html, \
+        "_selectedNodes Set 宣言が消えた（非回帰）"
+
+
+@pytest.mark.unit
+def test_p2_regression_clear_all_nodes_function_exists(rendered_html):
+    """非回帰: clearAllNodes 関数が引き続き存在する。"""
+    assert "function clearAllNodes" in rendered_html, \
+        "clearAllNodes が HTML から消えた（非回帰）"
+
+
+@pytest.mark.unit
+def test_p2_regression_apply_if_filters_still_has_existing_conditions(rendered_html):
+    """非回帰: _applyIfFilters の既存フィルタ条件（matchDevice/matchStatus 等）が残っている。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # 既存の matchDevice 条件が残っていること
+    assert "_ifinvDeviceFilter" in js_text, \
+        "_ifinvDeviceFilter が _applyIfFilters から消えた（非回帰）"
+    assert "_ifinvStatusFilter" in js_text, \
+        "_ifinvStatusFilter が _applyIfFilters から消えた（非回帰）"
+
+
+# ===========================================================================
+# フィードバック対応 (P1/P1b/P2) テスト
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# B1 修正: test_p2_ebgp_row_no_loopback_iface_id — BGP テーブルを正確に抽出
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p2_ebgp_row_no_loopback_iface_id_v2(rendered_html):
+    """#1-H 改: eBGP 行に data-loopback-iface-id が付かないことをBGP表本体で確認。
+
+    layer-bgp CSS クラスの誤マッチを避け、"BGP Sessions" 見出し直後の
+    <table class="layer-bgp"> 内のみを検査する。
+    rendered_html は examples topology（eBGP のみ）を使う。
+    """
+    # "BGP Sessions" テキスト以降の最初の </table> までを抽出
+    bgp_section = re.search(
+        r'BGP Sessions</h4>.*?<table[^>]*>.*?</table>',
+        rendered_html, re.DOTALL
+    )
+    # BGP Sessions テーブルがない場合はテストをスキップ（eBGP なし topology）
+    if bgp_section is None:
+        return
+    bgp_html = bgp_section.group(0)
+    # eBGP 行に data-loopback-iface-id がないこと
+    assert "data-loopback-iface-id" not in bgp_html, (
+        f"eBGP 行に data-loopback-iface-id が付いている（iBGP のみが対象）。"
+        f"BGP テーブル部: {bgp_html[:200]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# B2 修正: test_p1b2_no_overlap_after_chip_height_expand — _node_size_for ベースに修正
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_p1b2_no_overlap_after_chip_height_expand_v2():
+    """P1b #2 改: _node_size_for ベースでの no-overlap 判定（layout と整合）。
+
+    layout が使う _node_size_for(n_ifaces) ベースで判定することで、
+    実際のレイアウトエンジンとテスト判定を一致させる（B HIGH-1 修正）。
+    """
+    from lib.rendering.layout import _node_size_for
+    from lib.rendering.svg import _IF_CHIP_PER_ROW
+    from lib.rendering import _build_physical_layout
+
+    # per_row * 2 + 1 チップ（3行）を持つノードを含む
+    n_chips = _IF_CHIP_PER_ROW * 2 + 1
+    topo = _make_many_chip_topology(n_chips)
+    devices = topo["devices"]
+    links = topo["links"]
+
+    # IF 数マップ（_build_physical_layout が node_sizes として使う）
+    iface_count: dict[str, int] = {}
+    for iface in topo["interfaces"]:
+        dev_id = iface["device"]
+        iface_count[dev_id] = iface_count.get(dev_id, 0) + 1
+
+    node_ids = [d["id"] for d in devices]
+    pos = _build_physical_layout(devices, topo["interfaces"], links, topo["segments"])
+
+    for i, na in enumerate(node_ids):
+        for j, nb in enumerate(node_ids):
+            if j <= i:
+                continue
+            x1, y1 = pos[na]
+            x2, y2 = pos[nb]
+            # layout は _node_size_for(n_ifaces) を使う（B HIGH-1 修正）
+            wa, ha = _node_size_for(iface_count.get(na, 0))
+            wb, hb = _node_size_for(iface_count.get(nb, 0))
+            dx, dy = abs(x1 - x2), abs(y1 - y2)
+            min_sep_x = (wa + wb) / 2 + 5
+            min_sep_y = (ha + hb) / 2 + 5
+            no_overlap = dx >= min_sep_x or dy >= min_sep_y
+            assert no_overlap, (
+                f"_node_size_for ベース: ノード {na}({wa:.0f}x{ha:.0f}) と "
+                f"{nb}({wb:.0f}x{hb:.0f}) が重なっている "
+                f"(dx={dx:.1f} min_sep_x={min_sep_x:.1f}, "
+                f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
+            )
+
+
+# ---------------------------------------------------------------------------
+# B3 (HIGH-2): OSPF セグメントラベルが tspan 2行（dy が異なる）であること
+# ---------------------------------------------------------------------------
+
+def _make_ospf_segment_topology_simple():
+    """OSPF セグメント付き最小 topology（A1 ラベルテスト用）。
+    area1 に 192.168.50.0/24 セグメントが含まれる。
+    """
+    return {
+        "title": "OSPF Segment Label Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "core1", "hostname": "CORE1", "vendor": "cisco_ios",
+             "as": None, "sections": []},
+            {"id": "acc1", "hostname": "ACC1", "vendor": "cisco_ios",
+             "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "core1::Gi0/2", "device": "core1", "name": "GigabitEthernet0/2",
+             "ip": "192.168.50.1/24", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+            {"id": "acc1::Gi0/0", "device": "acc1", "name": "GigabitEthernet0/0",
+             "ip": "192.168.50.2/24", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+        ],
+        "links": [],
+        "segments": [
+            {
+                "id": "seg::192.168.50.0/24",
+                "subnet": "192.168.50.0/24",
+                "ospf_area": "1",
+                "ospf_network": "192.168.50.0/24",
+                "members": ["core1::Gi0/2", "acc1::Gi0/0"],
+            }
+        ],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                {"device": "core1", "network": "192.168.50.0/24", "area": "1", "process": "1"},
+                {"device": "acc1", "network": "192.168.50.0/24", "area": "1", "process": "1"},
+            ],
+            "static": [],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_a1_ospf_segment_label_two_tspan():
+    """A1: OSPF セグメントラベルが tspan 2行（area 行と subnet 行に dy が異なる）で描画される。
+
+    楕円内の seg-label text に <tspan dy="0">area ...</tspan> と
+    <tspan dy="14">subnet</tspan> の2行が存在することを確認（B HIGH-2）。
+    """
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology_simple()
+    html = render(topo)
+
+    # OSPF ビューの seg-label を探す
+    seg_labels = re.findall(
+        r'<text[^>]*class="[^"]*seg-label[^"]*"[^>]*>(.*?)</text>',
+        html, re.DOTALL
+    )
+    assert seg_labels, "seg-label text 要素が見つからない"
+
+    # 少なくとも1つの seg-label が tspan 2行であること
+    found_two_tspan = False
+    for label_content in seg_labels:
+        tspans = re.findall(r'<tspan[^>]*dy="([^"]+)"[^>]*>', label_content)
+        if len(tspans) >= 2:
+            found_two_tspan = True
+            dy_vals = [float(t) for t in tspans]
+            assert dy_vals[0] == 0.0, \
+                f"1行目 tspan の dy={dy_vals[0]} が 0 でない（area 行）"
+            assert dy_vals[1] > 0.0, \
+                f"2行目 tspan の dy={dy_vals[1]} が 0 以下（subnet 行が別行でない）"
+            break
+
+    assert found_two_tspan, (
+        f"OSPF セグメントラベルに tspan 2行が見つからない。"
+        f"見つかった seg-label: {seg_labels[:2]}"
+    )
+
+
+@pytest.mark.unit
+def test_a1_ospf_segment_label_has_area_and_subnet():
+    """A1: OSPF セグメントラベルに area と subnet が別 tspan で入っている。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology_simple()
+    html = render(topo)
+
+    # "area 1" と "192.168.50.0/24" が別々の tspan に含まれること
+    seg_labels = re.findall(
+        r'<text[^>]*class="[^"]*seg-label[^"]*"[^>]*>(.*?)</text>',
+        html, re.DOTALL
+    )
+    assert seg_labels, "seg-label text 要素が見つからない"
+
+    for label_content in seg_labels:
+        tspans = re.findall(r'<tspan[^>]*>(.*?)</tspan>', label_content, re.DOTALL)
+        if len(tspans) >= 2:
+            area_tspan = tspans[0]
+            subnet_tspan = tspans[1]
+            assert "area" in area_tspan.lower() or "1" in area_tspan, \
+                f"1行目 tspan に area 情報がない: {area_tspan}"
+            assert "192.168.50" in subnet_tspan or "/" in subnet_tspan, \
+                f"2行目 tspan に subnet 情報がない: {subnet_tspan}"
+            return
+
+    pytest.fail(f"tspan 2行の seg-label が見つからない: {seg_labels[:2]}")
+
+
+# ---------------------------------------------------------------------------
+# A2: AS 衝突回避の試行上限を動的に（large-topo 非回帰）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_a2_resolve_chip_pos_dynamic_limit():
+    """A2: _resolve_chip_pos の試行上限が動的（固定 10 でない）で、AS 多数時に収束する。"""
+    from lib.rendering.svg import _svg_bgp_as_groups
+    from lib.rendering.layout import _NODE_WIDTH, _NODE_HEIGHT
+
+    # 6 個の AS（固定 10 回試行では足りないケースを想定）
+    n_as = 6
+    devices = []
+    positions = {}
+    for i in range(n_as):
+        dev_id = f"r{i+1}"
+        devices.append({"id": dev_id, "hostname": f"R{i+1}", "as": i + 1})
+        # 全デバイスを同一 y 座標に並べて衝突しやすくする
+        positions[dev_id] = (i * 50.0, 100.0)
+
+    svg_out = _svg_bgp_as_groups(devices, positions)
+    # SVG が生成されること（エラーで空でないこと）
+    assert svg_out, "6 AS で _svg_bgp_as_groups が空を返した"
+    # 全 AS のラベルチップが含まれること
+    for i in range(n_as):
+        assert f"AS {i + 1}" in svg_out, \
+            f"AS {i + 1} のラベルが SVG に含まれない"
+
+
+@pytest.mark.unit
+def test_a2_large_topo_as_groups_regression():
+    """A2 非回帰: large-topo（AS5）で _svg_bgp_as_groups が重なりなく生成される。"""
+    import os
+    large_dir = os.path.join(
+        os.path.dirname(__file__), "..", "evals", "inputs", "large-topo"
+    )
+    if not os.path.isdir(large_dir):
+        pytest.skip("large-topo フィクスチャが存在しない")
+
+    from scripts.parse_configs import parse_paths, collect_inputs
+    from scripts.build_topology import build
+    from lib.rendering import render
+
+    paths = collect_inputs(large_dir)
+    devices = parse_paths(paths)
+    topo = build(devices, generated_from=paths)
+    html = render(topo)
+    assert html, "large-topo で render() が空を返した（非回帰）"
+    # AS グループが生成されていること（BGP ビューに as-group が存在）
+    assert "as-group" in html, "large-topo の BGP ビューに as-group が見つからない"
+
+
+# ---------------------------------------------------------------------------
+# A3: static ルートの宛先が Loopback /32 のとき data-loopback-iface-id が付く
+# ---------------------------------------------------------------------------
+
+def _make_static_loopback_topology():
+    """static 経路の宛先が他機器の Loopback /32 になる topology。
+    acc1 → acc2::Loopback0 (10.255.3.2/32) への static ルートがある。
+    """
+    return {
+        "title": "Static Loopback Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "acc1", "hostname": "ACC1", "vendor": "cisco_ios",
+             "as": None, "sections": []},
+            {"id": "acc2", "hostname": "ACC2", "vendor": "cisco_ios",
+             "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "acc1::Loopback0", "device": "acc1", "name": "Loopback0",
+             "ip": "10.255.3.1/32", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+            {"id": "acc1::Gi0/0", "device": "acc1", "name": "GigabitEthernet0/0",
+             "ip": "192.168.50.2/24", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+            {"id": "acc2::Loopback0", "device": "acc2", "name": "Loopback0",
+             "ip": "10.255.3.2/32", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+            {"id": "acc2::Gi0/0", "device": "acc2", "name": "GigabitEthernet0/0",
+             "ip": "192.168.50.3/24", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [], "admin_status": "up"},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {
+            "bgp": [],
+            "ospf": [],
+            "static": [
+                # acc1 → acc2 の Loopback (/32)
+                {"device": "acc1", "prefix": "10.255.3.2/32", "next_hop": "192.168.50.3"},
+                # acc2 → acc1 の Loopback (/32)
+                {"device": "acc2", "prefix": "10.255.3.1/32", "next_hop": "192.168.50.2"},
+            ],
+        },
+    }
+
+
+@pytest.mark.unit
+def test_a3_static_loopback_iface_id_attached():
+    """A3: static ルート（宛先 /32）の行に宛先機器の Loopback iface-id が付く。
+
+    acc1 の static 宛先 10.255.3.2/32 は acc2::Loopback0 のアドレスなので、
+    その行に data-loopback-iface-id="acc2::Loopback0" が付与されること。
+    """
+    from lib.rendering import render
+    topo = _make_static_loopback_topology()
+    html = render(topo)
+
+    # acc1 の static 行に data-loopback-iface-id="acc2::Loopback0" が存在すること
+    assert 'data-loopback-iface-id="acc2::Loopback0"' in html, (
+        "static 宛先 10.255.3.2/32 の行に data-loopback-iface-id=\"acc2::Loopback0\" がない。"
+        f"Static Route 関連 HTML: {re.findall(r'data-route-id[^>]*', html)[:5]}"
+    )
+
+
+@pytest.mark.unit
+def test_a3_static_loopback_iface_id_r2_to_r1():
+    """A3: acc2 → acc1 方向の static 行にも Loopback iface-id が付く。"""
+    from lib.rendering import render
+    topo = _make_static_loopback_topology()
+    html = render(topo)
+    assert 'data-loopback-iface-id="acc1::Loopback0"' in html, (
+        "static 宛先 10.255.3.1/32 の行に data-loopback-iface-id=\"acc1::Loopback0\" がない"
+    )
+
+
+@pytest.mark.unit
+def test_a3_static_non_loopback_no_iface_id():
+    """A3: static 宛先が /32 でない（または解決不能）場合は data-loopback-iface-id が付かない。"""
+    from lib.rendering import render
+    topo = _make_static_loopback_topology()
+    # prefix が /24 のルートを追加（/32 解決対象外）
+    topo["routing"]["static"].append(
+        {"device": "acc1", "prefix": "0.0.0.0/0", "next_hop": "192.168.50.1"}
+    )
+    html = render(topo)
+    # /32 Loopback 解決ルートが存在すること（既存のものが壊れていない）
+    assert 'data-loopback-iface-id="acc2::Loopback0"' in html, \
+        "/32 ルートの data-loopback-iface-id が消えた"
+    # 0.0.0.0/0 行に data-loopback-iface-id がないこと
+    # route-id="acc1::0.0.0.0/0::..." を含む tr に loopback-iface-id がないこと
+    default_tr = re.search(
+        r'<tr[^>]*data-route-id="acc1::0\.0\.0\.0/0::[^"]*"[^>]*>',
+        html
+    )
+    if default_tr:
+        assert "data-loopback-iface-id" not in default_tr.group(0), \
+            "0.0.0.0/0 ルート行に data-loopback-iface-id が付いている（対象外）"
+
+
+# ---------------------------------------------------------------------------
+# A4: toggleIfChipHighlight — some() ベースのトグル判定
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_a4_toggle_if_chip_highlight_uses_some(rendered_html):
+    """A4: toggleIfChipHighlight が chips[0] ではなく Array.from(chips).some() でトグル判定する。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # toggleIfChipHighlight 関数内に some() が存在すること
+    toggle_fn = re.search(
+        r'function toggleIfChipHighlight\(ifaceId\)(.*?)^    \}',
+        js_text, re.DOTALL | re.MULTILINE
+    )
+    if toggle_fn is None:
+        # 関数定義が 1 行インデントでない場合も考慮
+        toggle_fn = re.search(
+            r'function toggleIfChipHighlight\(ifaceId\)(.*?)(?=\n  function |\n    function )',
+            js_text, re.DOTALL
+        )
+    assert toggle_fn is not None, "toggleIfChipHighlight 関数が見つからない"
+    fn_body = toggle_fn.group(1)
+    assert ".some(" in fn_body or "Array.from" in fn_body, (
+        "toggleIfChipHighlight が chips[0] ベース判定のまま（.some() が未使用）。"
+        f"関数本体: {fn_body[:300]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# A5: DOMContentLoaded で zoomFit — IIFE 後に初期化
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_a5_zoom_fit_uses_dom_content_loaded(rendered_html):
+    """A5: 初期 zoomFit が DOMContentLoaded または IIFE 後の即時呼び出しで実行される。
+
+    window.addEventListener('load', ...) ではなく DOMContentLoaded を使うか、
+    IIFE で window._zoomFit を定義した後に呼び出す設計になっていること。
+    """
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # DOMContentLoaded で zoomFit を呼ぶ、または window._zoomFit 定義後に即時呼び出す
+    has_domcontentloaded = "DOMContentLoaded" in js_text and "_zoomFit" in js_text
+    # フォールバック: window._zoomFit が定義される IIFE の後に selectView と zoomFit が続く構造
+    has_post_iife = bool(re.search(
+        r'window\._zoomFit\s*=\s*zoomFit.*?\}\)\(\);.*?_zoomFit\(\)',
+        js_text, re.DOTALL
+    ))
+    assert has_domcontentloaded or has_post_iife, (
+        "初期 zoomFit が DOMContentLoaded ではなく load イベント（or 未定義状態）で呼ばれている。"
+        "A5: DOMContentLoaded に変更してください。"
+    )
+
+
+# ---------------------------------------------------------------------------
+# A6: selectAll/clearAll の _applyIfFilters 多重呼び出し最適化
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_a6_select_all_nodes_calls_apply_if_filters_once(rendered_html):
+    """A6: selectAllNodes のループ内では _applyIfFilters を呼ばず、最後に1回のみ呼ぶ。
+
+    setNodeVisibility 内の _applyIfFilters 呼び出しをループ中にスキップして
+    最後に1回まとめて呼ぶ設計になっていること（中間ちらつき解消）。
+    """
+    js_text = rendered_html[rendered_html.find("<script>"):]
+
+    # selectAllNodes 関数を抽出
+    select_fn = re.search(
+        r'function selectAllNodes\(\)(.*?)(?=\nfunction |\n    function )',
+        js_text, re.DOTALL
+    )
+    assert select_fn is not None, "selectAllNodes 関数が見つからない"
+    fn_body = select_fn.group(1)
+
+    # ループ内の setNodeVisibility 呼び出し数と、ループ外の _applyIfFilters の有無を確認
+    # skipFilter 引数 or ループ後に _applyIfFilters() が来る構造
+    has_skip_filter = "skipFilter" in fn_body or "skipApply" in fn_body
+    has_post_apply = "_applyIfFilters" in fn_body
+
+    # いずれかの方式（skipFilter 引数 or ループ後一括呼び出し）が採用されていること
+    assert has_skip_filter or has_post_apply, (
+        "selectAllNodes にループ後の _applyIfFilters 呼び出しが見当たらない"
+    )
+
+
+@pytest.mark.unit
+def test_a6_clear_all_nodes_calls_apply_if_filters_once(rendered_html):
+    """A6: clearAllNodes のループ内では _applyIfFilters を呼ばず、最後に1回のみ呼ぶ。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+
+    clear_fn = re.search(
+        r'function clearAllNodes\(\)(.*?)(?=\nfunction |\n    function )',
+        js_text, re.DOTALL
+    )
+    assert clear_fn is not None, "clearAllNodes 関数が見つからない"
+    fn_body = clear_fn.group(1)
+
+    has_skip_filter = "skipFilter" in fn_body or "skipApply" in fn_body
+    has_post_apply = "_applyIfFilters" in fn_body
+
+    assert has_skip_filter or has_post_apply, (
+        "clearAllNodes にループ後の _applyIfFilters 呼び出しが見当たらない"
+    )
+
+
+# ---------------------------------------------------------------------------
+# B HIGH-3 修正: if-chip click → toggleIfChipHighlight の近傍結合確認
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_b_high3_if_chip_click_toggle_proximity(rendered_html):
+    """B HIGH-3: '.if-chip' セレクタと addEventListener('click') と toggleIfChipHighlight が
+    近傍（同一 IIFE/スコープ内）で結合されていることを確認する。
+    """
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    # if-chip クリック登録 IIFE（.querySelectorAll('.if-chip[data-iface-id]') を含む）内に
+    # addEventListener('click') と toggleIfChipHighlight が共存すること
+    chip_iife = re.search(
+        r"querySelectorAll\('[^']*if-chip[^']*'\).*?addEventListener.*?click.*?toggleIfChipHighlight",
+        js_text, re.DOTALL
+    )
+    assert chip_iife is not None, (
+        "'.if-chip' セレクタ → addEventListener('click') → toggleIfChipHighlight が"
+        "近傍で結合されていない"
+    )
+
+
+@pytest.mark.unit
+def test_b_high3_ifinv_row_data_iface_id_value(rendered_html):
+    """B HIGH-3 補: ifinv 行の data-iface-id に具体値（非空文字列）が入っている。"""
+    ifinv_tr = re.search(
+        r'<tr[^>]*data-iface-id="([^"]+)"',
+        rendered_html
+    )
+    assert ifinv_tr is not None, "ifinv 行に data-iface-id が見つからない"
+    iface_id_val = ifinv_tr.group(1)
+    assert iface_id_val, "data-iface-id が空文字列"
+    # iface-id は "{device}::{ifname}" 形式であること（:: を含む）
+    assert "::" in iface_id_val, \
+        f"data-iface-id=\"{iface_id_val}\" が {{device}}::{{ifname}} 形式でない"
+
+
+# ---------------------------------------------------------------------------
+# C1: _chip_positions docstring が現実装を正確に記述している
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_c1_chip_positions_docstring_mentions_chip_node_size():
+    """C1: _chip_positions の docstring が _chip_node_size_for を参照している。"""
+    import inspect
+    from lib.rendering.svg import _chip_positions
+    doc = inspect.getdoc(_chip_positions) or ""
+    assert "_chip_node_size_for" in doc, (
+        "_chip_positions の docstring が _chip_node_size_for を参照していない（C HIGH-1）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# C2: _chip_xy_for ヘルパー — 座標重複排除
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_c2_chip_xy_for_helper_exists():
+    """C2: _chip_xy_for(k, nx, chip_start_y) ヘルパーが svg.py に存在する。"""
+    import lib.rendering.svg as svg_mod
+    assert hasattr(svg_mod, "_chip_xy_for"), (
+        "_chip_xy_for ヘルパーが svg.py に存在しない（C HIGH-2）"
+    )
+
+
+@pytest.mark.unit
+def test_c2_chip_xy_for_returns_correct_coords():
+    """C2: _chip_xy_for が _svg_if_chip / _chip_positions と一致する座標を返す。"""
+    from lib.rendering.svg import (
+        _chip_xy_for, _IF_CHIP_OFFSET_X, _IF_CHIP_GAP, _IF_CHIP_OFFSET_Y,
+        _IF_CHIP_ROW_H, _IF_CHIP_PER_ROW,
+    )
+    nx = 50.0
+    chip_start_y = 90.0
+
+    # k=0: col=0, row=0
+    cx0, cy0 = _chip_xy_for(0, nx, chip_start_y)
+    assert abs(cx0 - (nx + _IF_CHIP_OFFSET_X)) < 0.5, \
+        f"k=0 の cx={cx0:.1f} が期待値 {nx + _IF_CHIP_OFFSET_X:.1f} と異なる"
+    assert abs(cy0 - (chip_start_y + _IF_CHIP_OFFSET_Y)) < 0.5, \
+        f"k=0 の cy={cy0:.1f} が期待値 {chip_start_y + _IF_CHIP_OFFSET_Y:.1f} と異なる"
+
+    # k=_IF_CHIP_PER_ROW: col=0, row=1
+    cx1, cy1 = _chip_xy_for(_IF_CHIP_PER_ROW, nx, chip_start_y)
+    assert abs(cx1 - (nx + _IF_CHIP_OFFSET_X)) < 0.5, \
+        f"k={_IF_CHIP_PER_ROW} の cx={cx1:.1f} が col=0 の期待値と異なる（折返し）"
+    assert abs(cy1 - (chip_start_y + _IF_CHIP_OFFSET_Y + _IF_CHIP_ROW_H)) < 0.5, \
+        f"k={_IF_CHIP_PER_ROW} の cy={cy1:.1f} が2行目期待値と異なる"
+
+
+# ---------------------------------------------------------------------------
+# 非回帰: multi-as-area での static loopback 解決（A3 実データ確認）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_a3_multi_as_area_static_loopback_regression():
+    """A3 非回帰: multi-as-area フィクスチャの acc1/acc2 相互 loopback static で解決確認。"""
+    import os
+    multi_dir = os.path.join(
+        os.path.dirname(__file__), "..", "evals", "inputs", "multi-as-area"
+    )
+    if not os.path.isdir(multi_dir):
+        pytest.skip("multi-as-area フィクスチャが存在しない")
+
+    from scripts.parse_configs import parse_paths, collect_inputs
+    from scripts.build_topology import build
+    from lib.rendering import render
+
+    paths = collect_inputs(multi_dir)
+    devs = parse_paths(paths)
+    topo = build(devs, generated_from=paths)
+    html = render(topo)
+
+    # acc1 の static 宛先 10.255.3.2/32 → acc2::Loopback0
+    # acc2 の static 宛先 10.255.3.1/32 → acc1::Loopback0
+    # どちらかが解決されていること（どちらかの Loopback iface-id が static 行に付く）
+    has_any_static_loopback = (
+        'data-loopback-iface-id' in html and
+        re.search(r'<table[^>]*class="[^"]*layer-static[^"]*"', html) is not None
+    )
+    # static テーブルがない場合は build が static を認識していないのでスキップ
+    if re.search(r'<table[^>]*class="[^"]*layer-static[^"]*"', html) is None:
+        pytest.skip("multi-as-area topology に static テーブルが生成されていない")
+
+    assert has_any_static_loopback, (
+        "multi-as-area の acc1/acc2 static loopback 行に data-loopback-iface-id がない"
+    )

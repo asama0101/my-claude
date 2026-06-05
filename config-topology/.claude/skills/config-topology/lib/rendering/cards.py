@@ -71,24 +71,32 @@ def _device_cards(
     static_route_map: dict[tuple[str, str], dict] | None = None,
     bgp_session_map: dict[tuple[str, str], str] | None = None,
     ospf_marking_map: dict[tuple[str, str], str] | None = None,
+    ibgp_loopback_map: dict[tuple[str, str], str] | None = None,
+    static_loopback_map: dict[tuple[str, str], str] | None = None,
 ) -> str:
     """機器ごとのカード HTML を生成する（図の下に表示）
 
     Args:
-        devices:           デバイスリスト
-        interfaces:        インタフェースリスト
-        routing:           ルーティング dict
-        iface_link_id:     ``{iface_id: link_id}`` マップ。
-                           リンク端点の IF 行 <tr> に ``data-link-id`` を付与するために使用する。
-                           None の場合は付与しない（後方互換）。
-        iface_seg_id:      ``{iface_id: seg_id}`` マップ（#7）。
-                           セグメントメンバーの IF 行 <tr> に ``data-seg-id`` を付与する。
-        static_route_map:  ``{(device, prefix): {route_edge_id, nexthop_device_id}}`` マップ（#2/#6）。
-                           static 行に ``data-route-edge`` / ``data-route-nexthop-device`` を付与する。
-        bgp_session_map:   ``{(device, neighbor_ip): bgp_id}`` マップ（#5）。
-                           BGP Sessions 行に ``data-bgp-id`` を付与する。
-        ospf_marking_map:  ``{(device, network): ospf_id}`` マップ（#1B）。
-                           OSPF Networks 行に ``data-ospf-id`` を付与する。
+        devices:              デバイスリスト
+        interfaces:           インタフェースリスト
+        routing:              ルーティング dict
+        iface_link_id:        ``{iface_id: link_id}`` マップ。
+                              リンク端点の IF 行 <tr> に ``data-link-id`` を付与するために使用する。
+                              None の場合は付与しない（後方互換）。
+        iface_seg_id:         ``{iface_id: seg_id}`` マップ（#7）。
+                              セグメントメンバーの IF 行 <tr> に ``data-seg-id`` を付与する。
+        static_route_map:     ``{(device, prefix): {route_edge_id, nexthop_device_id}}`` マップ（#2/#6）。
+                              static 行に ``data-route-edge`` / ``data-route-nexthop-device`` を付与する。
+        bgp_session_map:      ``{(device, neighbor_ip): bgp_id}`` マップ（#5）。
+                              BGP Sessions 行に ``data-bgp-id`` を付与する。
+        ospf_marking_map:     ``{(device, network): ospf_id}`` マップ（#1B）。
+                              OSPF Networks 行に ``data-ospf-id`` を付与する。
+        ibgp_loopback_map:    ``{(device, neighbor_ip): loopback_iface_id}`` マップ（P2 #1-G）。
+                              iBGP BGP Sessions 行に ``data-loopback-iface-id`` を付与する。
+                              None の場合は付与しない（後方互換）。
+        static_loopback_map:  ``{(device, prefix): loopback_iface_id}`` マップ（A3）。
+                              static /32 行に ``data-loopback-iface-id`` を付与する（宛先 Loopback 連動）。
+                              None の場合は付与しない（後方互換）。
     """
     if iface_link_id is None:
         iface_link_id = {}
@@ -100,6 +108,10 @@ def _device_cards(
         bgp_session_map = {}
     if ospf_marking_map is None:
         ospf_marking_map = {}
+    if ibgp_loopback_map is None:
+        ibgp_loopback_map = {}
+    if static_loopback_map is None:
+        static_loopback_map = {}
 
     # device_id -> interfaces マップ
     iface_by_device: dict[str, list[dict]] = {}
@@ -161,12 +173,16 @@ def _device_cards(
             )
         if_rows = "".join(if_row_parts)
 
-        # BGP サマリー（#5: data-bgp-id 付与）
+        # BGP サマリー（#5: data-bgp-id 付与、P2 #1-G: iBGP 行に data-loopback-iface-id 付与）
         bgp_row_parts = []
         for b in bgp_by_device.get(dev_id, []):
             neighbor_ip = b.get("neighbor_ip", "")
             bgp_id = bgp_session_map.get((dev_id, neighbor_ip), "")
             tr_bgp_attrs = f' data-bgp-id="{_esc(bgp_id)}"' if bgp_id else ""
+            # P2 #1-G: iBGP 行に data-loopback-iface-id を付与（解決できた場合のみ）
+            loopback_iface_id = ibgp_loopback_map.get((dev_id, neighbor_ip), "")
+            if loopback_iface_id:
+                tr_bgp_attrs += f' data-loopback-iface-id="{_esc(loopback_iface_id)}"'
             bgp_row_parts.append(
                 f"<tr{tr_bgp_attrs}>"
                 f"<td>{_esc(neighbor_ip)}</td>"
@@ -206,6 +222,10 @@ def _device_cards(
                 tr_attrs += f' data-route-edge="{_esc(route_edge_id)}"'
             if nexthop_device_id:
                 tr_attrs += f' data-route-nexthop-device="{_esc(nexthop_device_id)}"'
+            # A3: static /32 行に宛先 Loopback iface-id を付与（解決できた場合のみ）
+            static_lb_iface_id = static_loopback_map.get((dev_id, prefix), "")
+            if static_lb_iface_id:
+                tr_attrs += f' data-loopback-iface-id="{_esc(static_lb_iface_id)}"'
             static_row_parts.append(
                 f"<tr{tr_attrs}>"
                 f"<td>{_esc(prefix)}</td>"
