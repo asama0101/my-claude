@@ -8683,22 +8683,18 @@ def test_p3b7_css_loopback_fill_differs_from_normal(rendered_html):
 
 @pytest.mark.unit
 def test_p3b7_legend_exists_in_html(rendered_html):
-    """#7: 図に #chip-legend 要素が存在し、loopback クラス付き circle と Loopback ラベルを含む
+    """#16: 旧 #chip-legend オーバーレイは撤去済み（統合凡例パネルへ統合・重複排除）。
 
-    "Loopback" in html は CSS コメントにマッチして常時真になるため、
-    id="chip-legend" の存在、凡例内の if-chip-loopback クラス、
-    Loopback ラベルテキストの3点をそれぞれ検証する。
+    IF チップ凡例は統合凡例パネル（#legend-panel）の「IF チップ」節に含まれるため、
+    左下固定オーバーレイ #chip-legend は不要。撤去されていること＋統合凡例パネルに
+    IF チップ節が残存すること（非回帰）を検証する。
     """
-    assert 'id="chip-legend"' in rendered_html, \
-        "図に id='chip-legend' 要素が存在しない"
-    # chip-legend 要素の内容部分を抽出
-    legend_start = rendered_html.find('id="chip-legend"')
-    legend_end = rendered_html.find('</div>', legend_start)
-    legend_html = rendered_html[legend_start:legend_end + 6]
-    assert "if-chip-loopback" in legend_html, \
-        "chip-legend 内に if-chip-loopback クラスの circle が存在しない"
-    assert "Loopback" in legend_html, \
-        "chip-legend 内に Loopback ラベルテキストが存在しない"
+    assert 'id="chip-legend"' not in rendered_html, \
+        "#chip-legend オーバーレイは撤去されているべき（統合凡例パネルに統合済み）"
+    # 統合凡例パネルに IF チップ節が残ること（非回帰）。
+    # この section-title 文字列は legend-panel inner にのみ現れる（CSS コメントとは別形）。
+    assert '<div class="legend-section-title">IF チップ</div>' in rendered_html, \
+        "統合凡例パネルに『IF チップ』節が無い（IF チップ凡例の非回帰失敗）"
 
 @pytest.mark.unit
 def test_p3b7_loopback_chip_in_physical_view():
@@ -15940,14 +15936,17 @@ def test_roundd_zoom_btn_no_literal_white_bg(rendered_html):
 
 @pytest.mark.unit
 def test_roundd_chip_legend_no_literal_white_bg(rendered_html):
-    """T25: #chip-legend に rgba(255,255,255... のリテラル白背景が残っていない"""
-    m = re.search(r'#chip-legend\s*\{([^}]+)\}', rendered_html, re.DOTALL)
-    assert m is not None, '#chip-legend CSS ブロックが見つからない'
-    block = m.group(1)
-    assert 'rgba(255,255,255' not in block and 'rgba(255, 255, 255' not in block, \
-        '#chip-legend に rgba(255,255,255...) のリテラル白背景が残っている（var(--overlay-bg) を使うこと）'
-    assert 'var(--overlay-bg)' in block, \
-        '#chip-legend の background が var(--overlay-bg) を使っていない'
+    """T25/#16: #chip-legend オーバーレイは撤去済み。CSS ブロックも残っていないこと。
+
+    IF チップ凡例は #legend-panel に統合済み。overlay 背景変数 var(--overlay-bg) は
+    ミニマップが引き続き使用するため変数自体は残存する（ミニマップで使用を検証）。
+    """
+    assert re.search(r'#chip-legend\s*\{', rendered_html) is None, \
+        '#chip-legend CSS ブロックが残っている（撤去されているべき）'
+    # ミニマップが var(--overlay-bg) を使うこと（変数の残存確認）
+    mm = re.search(r'\.minimap\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert mm is not None and 'var(--overlay-bg)' in mm.group(1), \
+        'ミニマップが var(--overlay-bg) を使っていない（--overlay-bg 変数の残存確認）'
 
 @pytest.mark.unit
 def test_roundd_external_rect_no_literal_white(rendered_html):
@@ -16024,7 +16023,7 @@ def test_roundd_theme_toggle_no_inline_literal_style(rendered_html):
 
 @pytest.mark.unit
 def test_roundd_dark_overlay_bg_is_dark(rendered_html):
-    """T25: ダークテーマの --overlay-bg は暗色（chip-legend が暗背景になること）"""
+    """T25: ダークテーマの --overlay-bg は暗色（ミニマップ等オーバーレイが暗背景になること）"""
     dark_block = _extract_dark_block(rendered_html)
     assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
     assert '--overlay-bg' in dark_block, \

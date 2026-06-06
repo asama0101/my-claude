@@ -405,26 +405,30 @@ class TestExternalNodeDedup:
 # ================================================================
 
 class TestBgpLegendExternalPeerChip:
-    """BGP ビューの chip-legend に「外部ピア（点線枠）」の説明が含まれる。"""
+    """統合凡例パネル(#legend-panel)に「外部ピア（topology外）」の説明が含まれる。
+
+    #16 で旧 #chip-legend オーバーレイは撤去され、外部ピア説明は統合凡例パネルの
+    ノード節に統合された。
+    """
 
     @pytest.mark.unit
     def test_chip_legend_has_external_peer_description(self, external_bgp_html):
-        """chip-legend 内に外部ピア（点線枠 = topology 外）の説明チップが存在する（D）。"""
-        # chip-legend ブロックを抽出して確認（ページ全体ではなく凡例内に絞る）
-        legend_block = re.search(
-            r'<div id="chip-legend"[^>]*>(.*?)</div>',
-            external_bgp_html, re.DOTALL
-        )
-        assert legend_block, "chip-legend ブロックが見つからない"
-        legend_content = legend_block.group(1)
-        # 凡例内に外部ピアに関する説明が含まれること（external クラスか「外部」テキスト）
+        """統合凡例パネル内に外部ピア（点線枠 = topology 外）の説明チップが存在する（D/#16）。"""
+        # 旧オーバーレイは撤去済み
+        assert 'id="chip-legend"' not in external_bgp_html, \
+            "#chip-legend オーバーレイは撤去されているべき（統合凡例パネルに統合済み）"
+        # 統合凡例パネルの範囲を抽出（id="legend-panel" 以降〜split-divider 手前）
+        panel_start = external_bgp_html.find('id="legend-panel"')
+        assert panel_start != -1, "#legend-panel が存在しない"
+        divider_idx = external_bgp_html.find('id="split-divider"', panel_start)
+        legend_content = external_bgp_html[panel_start: divider_idx if divider_idx != -1 else panel_start + 6000]
+        # 凡例パネル内に外部ピアに関する説明が含まれること（external クラスか「外部」テキスト）
         has_ext_in_legend = (
             "external-rect" in legend_content
-            or "external" in legend_content.lower()
             or "外部" in legend_content
         )
         assert has_ext_in_legend, \
-            f"chip-legend 内に外部ピア（点線枠）の説明が含まれていない (D 修正が必要): {legend_content[:200]}"
+            f"統合凡例パネル内に外部ピア（点線枠）の説明が含まれていない: {legend_content[:200]}"
 
 # ================================================================
 # Section 9: 決定性・自己完結

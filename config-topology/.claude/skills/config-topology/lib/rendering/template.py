@@ -55,7 +55,7 @@ _CSS = """\
       --btn-hover-bg: #e0e7ff;               /* zoom-btn ホバー背景（ライト）*/
       --btn-hover-border: #6366f1;           /* zoom-btn ホバー枠線（ライト）*/
       --btn-hover-fg: #3730a3;               /* zoom-btn ホバー文字色（ライト）*/
-      --overlay-bg: rgba(255, 255, 255, 0.88); /* chip-legend 等の不透明オーバーレイ背景（ライト）*/
+      --overlay-bg: rgba(255, 255, 255, 0.88); /* ミニマップ等の不透明オーバーレイ背景（ライト）*/
       /* --- テーブルハイライト（意味色: ライト固定値→ダークで上書き）--- */
       --color-row-selected-bg: #fef08a;      /* 選択行の背景（ライト: 黄）*/
       --color-row-highlighted-bg: #fef3c7;   /* ハイライト行の背景（ライト: 薄黄）*/
@@ -121,7 +121,7 @@ _CSS = """\
       --btn-hover-bg: #1e40af;               /* zoom-btn ホバー背景（ダーク: 中青）*/
       --btn-hover-border: #60a5fa;           /* zoom-btn ホバー枠線（ダーク）*/
       --btn-hover-fg: #bfdbfe;               /* zoom-btn ホバー文字色（ダーク）*/
-      --overlay-bg: rgba(15, 23, 42, 0.92);  /* chip-legend オーバーレイ背景（ダーク: --bg-page 相当）*/
+      --overlay-bg: rgba(15, 23, 42, 0.92);  /* ミニマップ等オーバーレイ背景（ダーク: --bg-page 相当）*/
       /* --- テーブルハイライト (ダーク: 暗色で意味の色相を維持) --- */
       --color-row-selected-bg: #713f12;      /* ダーク: 選択行 黄→暗橙（色相維持）*/
       --color-row-highlighted-bg: #451a03;   /* ダーク: ハイライト行 薄黄→極暗橙 */
@@ -676,24 +676,9 @@ _CSS = """\
       stroke-width: 2.5;
     }
 
-    /* #7: IF チップ凡例（左下固定オーバーレイ）。全ビュー常時表示。
-       チップが無いビューでも表示されるが意図的（凡例は常に視認できる）。 */
-    #chip-legend {
-      position: absolute;
-      bottom: 8px;
-      left: 8px;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      background: var(--overlay-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 4px 10px;
-      font-size: 0.75rem;
-      font-family: var(--font-mono);
-      color: var(--text-main);
-      pointer-events: none;
-    }
+    /* #16: 旧 IF チップ凡例オーバーレイ(#chip-legend)の CSS は撤去。
+       IF チップ凡例は統合凡例パネル(#legend-panel)に統合済み。
+       overlay 背景変数 var(--overlay-bg) はミニマップが引き続き使用するため残存。 */
 
     /* HC2: static 経路 next-hop ノードのハイライト（手動選択 .selected と独立） */
     .device-node.route-target .node-rect {
@@ -860,7 +845,8 @@ _CSS = """\
     /* ミニマップ（Round D: 大規模対策） */
     /* NOTE: left 配置（右から左下へ移動）— legend-panel は right:8px/z-index:20 のため
              右側に置くと凡例パネルが縦伸びしたとき覆われるバグを回避する。
-             chip-legend は bottom:8px/高さ約30px なので bottom:44px で上に乗る。
+             bottom:44px は旧 #chip-legend（撤去済み）との重なり回避の名残だが、
+             位置は据え置く（左下の安定した参照位置）。
              z-index:21 は legend-panel(20) より高く将来の重なりでも前面を維持する。 */
     .minimap {
       position: absolute;
@@ -3150,12 +3136,8 @@ def build_html(
         <use id="minimap-use" href=""/>
         <rect id="minimap-viewport" class="minimap-viewport"/>
       </svg>
-      <!-- #7: IF チップ凡例（左下固定オーバーレイ）。スタイルは CSS #chip-legend で管理 -->
-      <div id="chip-legend">
-        <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip"><circle cx="6" cy="6" r="5"/></g></svg><span>接続IF</span>
-        <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip if-chip-loopback"><circle cx="6" cy="6" r="5"/></g></svg><span>Loopback</span>
-        <svg width="22" height="12" style="flex-shrink:0"><rect x="1" y="1" width="20" height="10" rx="2" ry="2" class="node-rect external-rect"/></svg><span>外部ピア（topology外）</span>
-      </div>
+      <!-- #16: 旧 IF チップ凡例オーバーレイ(#chip-legend)は撤去。
+           IF チップ凡例は統合凡例パネル(#legend-panel)の「IF チップ」節に統合済み（重複排除）。 -->
       <!-- 統合凡例パネル（右上 zoom-controls の下、初期表示） -->
       <div id="legend-panel">
 {legend_panel_inner}
