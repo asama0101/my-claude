@@ -894,16 +894,20 @@ _CSS = """\
     }
 
     /* ミニマップ（Round D: 大規模対策） */
+    /* NOTE: left 配置（右から左下へ移動）— legend-panel は right:8px/z-index:20 のため
+             右側に置くと凡例パネルが縦伸びしたとき覆われるバグを回避する。
+             chip-legend は bottom:8px/高さ約30px なので bottom:44px で上に乗る。
+             z-index:21 は legend-panel(20) より高く将来の重なりでも前面を維持する。 */
     .minimap {
       position: absolute;
-      bottom: 40px;
-      right: 8px;
+      bottom: 44px;
+      left: 8px;
       width: 180px;
       height: 130px;
       border: 1px solid var(--border-color);
       border-radius: 4px;
       background: var(--overlay-bg);
-      z-index: 9;
+      z-index: 21;
       overflow: hidden;
       cursor: crosshair;
     }

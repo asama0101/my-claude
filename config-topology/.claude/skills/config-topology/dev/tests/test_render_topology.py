@@ -19722,3 +19722,45 @@ def test_js_update_minimap_assignment_present(rendered_html):
         "window._updateMinimap = _updateMinimap の代入が JS に存在しない"
         "（ミニマップ IIFE の公開が壊れている）"
     )
+
+
+# ---- ミニマップ配置バグ修正: legend-panel との重なり回避 ----
+
+@pytest.mark.unit
+def test_css_minimap_placed_left_not_right(rendered_html):
+    """.minimap が左下（left:）配置になっており、right: 8px を持たないこと。
+
+    legend-panel は右側（right:8px）に配置されるため、ミニマップも右側に置くと
+    legend-panel が縦に伸びたとき z-index 差で覆われるバグがある。
+    修正後: .minimap { left: 8px; } で左下配置に変更し重なりを回避する。
+    """
+    css_block = re.search(r'\.minimap\s*\{([^}]+)\}', rendered_html)
+    assert css_block, ".minimap CSS ブロックが見つからない"
+    block = css_block.group(1)
+    # left: が含まれること
+    assert re.search(r'left\s*:', block), (
+        ".minimap に left: 配置がない（左下移動されていない）"
+    )
+    # right: 8px が含まれないこと（右側配置のままでないこと）
+    assert not re.search(r'right\s*:\s*8px', block), (
+        ".minimap に right: 8px が残っている（legend-panel と重なるバグが修正されていない）"
+    )
+
+
+@pytest.mark.unit
+def test_css_minimap_zindex_greater_than_legend_panel(rendered_html):
+    """.minimap の z-index が legend-panel(z-index:20) より大きい（≥21）こと。
+
+    ミニマップを左下に移動しても、将来の重なりに備えて z-index を
+    legend-panel(20) より高く設定しておく。
+    """
+    css_block = re.search(r'\.minimap\s*\{([^}]+)\}', rendered_html)
+    assert css_block, ".minimap CSS ブロックが見つからない"
+    block = css_block.group(1)
+    m = re.search(r'z-index\s*:\s*(\d+)', block)
+    assert m, ".minimap CSS ブロックに z-index が定義されていない"
+    zindex = int(m.group(1))
+    assert zindex >= 21, (
+        f".minimap の z-index={zindex} が legend-panel(20) 以下。"
+        "将来の重なりでミニマップが覆われる可能性がある（≥21 にすること）"
+    )
