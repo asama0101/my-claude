@@ -10836,28 +10836,23 @@ def test_p1b_card_lookup_matches_normalized_network():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-def test_p1b_ospf_link_edge_no_dual_attr():
-    """修正後: OSPF ビューの link-edge <g> に data-link-id と data-ospf-id が同時に付与されていない。
+def test_p1b_ospf_link_edge_has_both_data_attrs():
+    """仕様変更後: OSPF ビューの link-edge <g> に data-link-id と data-ospf-id の両方が付与される。
 
-    OSPF ビューの <g class='link-edge'> は data-ospf-id のみ持ち、
-    data-link-id は付与しない（クリック二重発火防止）。
+    Interfaces 表行連動（data-link-id）と OSPF Networks 表行連動（data-ospf-id）の
+    両方を同一 link-edge に付与することで、2種類の表行マーキングが機能する。
     """
     from lib.rendering import render
     html = render(_make_ospf_highlight_topology())
     ospf_view = _extract_ospf_view(html)
     assert ospf_view, "OSPF ビューが見つからない"
-    # link-edge に data-link-id と data-ospf-id が同時に存在するものがないこと
+    # link-edge に data-link-id と data-ospf-id が両方付与されていること
     dual_attrs = re.findall(
-        r'<g[^>]*class="link-edge"[^>]*data-link-id="[^"]*"[^>]*data-ospf-id="[^"]*"',
-        ospf_view
-    )
-    dual_attrs2 = re.findall(
         r'<g[^>]*class="link-edge"[^>]*data-ospf-id="[^"]*"[^>]*data-link-id="[^"]*"',
         ospf_view
     )
-    all_dual = dual_attrs + dual_attrs2
-    assert len(all_dual) == 0, \
-        f"OSPF ビューの link-edge に data-link-id と data-ospf-id が同時付与されている: {len(all_dual)} 件"
+    assert len(dual_attrs) >= 1, \
+        "OSPF ビューの link-edge に data-link-id と data-ospf-id の両方が付与されていない（Interfaces表連動用に両方必要）"
 
 @pytest.mark.unit
 def test_p1b_ospf_card_row_count_exact():
@@ -17502,4 +17497,307 @@ def test_bug3_4_as_group_rect_still_before_device_node():
     assert device_node_pos != -1, "device-node が見つからない"
     assert as_group_pos < device_node_pos, (
         f"as-group ({as_group_pos}) が device-node ({device_node_pos}) より後に出力されている"
+    )
+
+
+# ===========================================================================
+# 表連動マーキング: Physical/OSPF 直結2ノード選択時に Interfaces 表行も連動
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# TM-1: Physical 分岐 — JS 関数本体に tr[data-link-id 表行マーキング配線があること
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_tm1_physical_branch_highlights_interface_table_rows(rendered_html):
+    """TM-1: _updateEdgeHighlightForSelection の physical 分岐が
+    tr[data-link-id=...] を highlighted に追加するコードを持つ。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+
+    # physical 分岐を抽出
+    phys_match = re.search(
+        r"_currentView === 'physical'(.*?)(?=} else if|$)",
+        func_body, re.DOTALL
+    )
+    assert phys_match is not None, "physical 分岐が _updateEdgeHighlightForSelection に見つからない"
+    phys_body = phys_match.group(1)
+
+    # tr[data-link-id=... への参照があること
+    assert "data-link-id" in phys_body, \
+        "TM-1: physical 分岐に tr[data-link-id=...] の Interfaces 表行マーキングがない"
+
+
+# ---------------------------------------------------------------------------
+# TM-2: OSPF 分岐 — JS 関数本体に data-link-id 表連動 + data-ospf-id 連動が両方あること
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_tm2_ospf_branch_highlights_both_ospf_and_interface_rows(rendered_html):
+    """TM-2: _updateEdgeHighlightForSelection の ospf 分岐が
+    tr[data-ospf-id] と tr[data-link-id] の両方を highlighted に追加するコードを持つ。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+
+    # ospf 分岐を抽出
+    ospf_match = re.search(
+        r"_currentView === 'ospf'(.*?)(?=\n      }$|\Z)",
+        func_body, re.DOTALL
+    )
+    assert ospf_match is not None, "ospf 分岐が _updateEdgeHighlightForSelection に見つからない"
+    ospf_body = ospf_match.group(1)
+
+    # 既存: data-ospf-id 連動が保持されること（非回帰）
+    assert "data-ospf-id" in ospf_body, \
+        "TM-2 非回帰: ospf 分岐の data-ospf-id 連動が消えた"
+
+    # 追加: data-link-id 連動があること
+    assert "data-link-id" in ospf_body, \
+        "TM-2: ospf 分岐に tr[data-link-id=...] の Interfaces 表行マーキングがない"
+
+
+# ---------------------------------------------------------------------------
+# TM-3: OSPF render 出力 — link-edge（線側 <g>）に data-link-id 属性が付く
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_tm3_ospf_link_edge_has_data_link_id():
+    """TM-3: OSPF ビューの link-edge <g> に data-link-id 属性が付与される。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+
+    # link-edge <g> に data-link-id が付いていること
+    assert 'data-link-id=' in ospf_view, \
+        "TM-3: OSPF ビューの link-edge に data-link-id 属性が付いていない"
+
+    # 期待される link_id 値（r1::eth0|r2::eth0 — sorted）
+    expected_link_id = "r1::eth0|r2::eth0"
+    assert expected_link_id in ospf_view, \
+        f"TM-3: OSPF link-edge に期待される data-link-id={expected_link_id!r} が見つからない"
+
+
+# ---------------------------------------------------------------------------
+# TM-4: 決定性 + 既存マーキング非回帰
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_tm4_physical_ospf_render_deterministic():
+    """TM-4: Physical/OSPF 表連動追加後も render() が決定的（2回一致）。"""
+    import copy
+    from lib.rendering import render
+    # OSPF
+    topo_ospf = _make_ospf_topology_with_area()
+    html1 = render(copy.deepcopy(topo_ospf))
+    html2 = render(copy.deepcopy(topo_ospf))
+    assert html1 == html2, "TM-4: OSPF render() が非決定的になった"
+
+    # Physical（サンプルトポロジー）
+    topo_phys = _make_ospf_topology_with_area()  # Physical ビューも含む
+    html3 = render(copy.deepcopy(topo_phys))
+    html4 = render(copy.deepcopy(topo_phys))
+    assert html3 == html4, "TM-4: Physical render() が非決定的になった"
+
+
+@pytest.mark.unit
+def test_tm4_bgp_table_marking_not_broken(rendered_html):
+    """TM-4 非回帰: BGP 表行マーキング（data-bgp-id 連動）が壊れていない。"""
+    js_text = rendered_html[rendered_html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    assert func_match is not None, \
+        "_updateEdgeHighlightForSelection 関数が JS に見つからない"
+    func_body = func_match.group(1)
+    # bgp 分岐の data-bgp-id 連動が保持されること
+    assert "data-bgp-id" in func_body, \
+        "TM-4 非回帰: _updateEdgeHighlightForSelection から data-bgp-id 連動が消えた"
+
+
+# ===========================================================================
+# レビュー修正テスト（DRY/as-group-container/data-ospf-id）
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# DRY: _svg_bgp_edges/_svg_bgp_as_groups がラッパとして _split 版と同一出力を返す
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_dry_bgp_edges_wrapper_same_output_as_split():
+    """DRY: _svg_bgp_edges の出力が _svg_bgp_edges_split の結合結果と一致する。"""
+    from lib.rendering.svg import _svg_bgp_edges, _svg_bgp_edges_split
+    bgp_entries = [
+        {"device": "r1", "neighbor_ip": "10.0.0.2", "type": "ebgp",
+         "local_as": "65001", "peer_as": "65002", "local_ip": "10.0.0.1"},
+        {"device": "r2", "neighbor_ip": "10.0.0.1", "type": "ebgp",
+         "local_as": "65002", "peer_as": "65001", "local_ip": "10.0.0.2"},
+    ]
+    interfaces = [
+        {"id": "r1::ge0", "device": "r1", "name": "ge-0/0/0",
+         "ip": "10.0.0.1/30", "addresses": [{"ip": "10.0.0.1"}]},
+        {"id": "r2::ge0", "device": "r2", "name": "ge-0/0/0",
+         "ip": "10.0.0.2/30", "addresses": [{"ip": "10.0.0.2"}]},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+
+    # ラッパの出力
+    wrapper_out = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    # split 版の結合
+    lines, badges = _svg_bgp_edges_split(bgp_entries, interfaces, positions)
+    split_combined = "\n".join(filter(None, [lines, badges]))
+
+    assert wrapper_out == split_combined, (
+        "_svg_bgp_edges の出力が _svg_bgp_edges_split の結合と一致しない"
+    )
+
+
+@pytest.mark.unit
+def test_dry_bgp_edges_wrapper_returns_str():
+    """DRY: _svg_bgp_edges がラッパ化後も文字列を返す（型・インタフェース不変）。"""
+    from lib.rendering.svg import _svg_bgp_edges
+    result = _svg_bgp_edges([], [], {})
+    assert isinstance(result, str)
+
+
+@pytest.mark.unit
+def test_dry_bgp_as_groups_wrapper_same_output_as_split():
+    """DRY: _svg_bgp_as_groups の出力が _svg_bgp_as_groups_split の結合結果と一致する。"""
+    from lib.rendering.svg import _svg_bgp_as_groups, _svg_bgp_as_groups_split
+    devs = [
+        {"id": "r1", "hostname": "R1", "as": 65001},
+        {"id": "r2", "hostname": "R2", "as": 65002},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+
+    wrapper_out = _svg_bgp_as_groups(devs, positions)
+    rects, labels = _svg_bgp_as_groups_split(devs, positions)
+    split_combined = "\n".join(filter(None, [rects, labels]))
+
+    assert wrapper_out == split_combined, (
+        "_svg_bgp_as_groups の出力が _svg_bgp_as_groups_split の結合と一致しない"
+    )
+
+
+@pytest.mark.unit
+def test_dry_bgp_as_groups_wrapper_returns_str():
+    """DRY: _svg_bgp_as_groups がラッパ化後も文字列を返す（型・インタフェース不変）。"""
+    from lib.rendering.svg import _svg_bgp_as_groups
+    result = _svg_bgp_as_groups([], {})
+    assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# as-group-container class: rect 側 <g> に class="as-group-container" が付く
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_as_group_container_class_on_rect_side():
+    """as-group-container class が _svg_bgp_as_groups_split の rect 側 <g> に付く。"""
+    from lib.rendering.svg import _svg_bgp_as_groups_split
+    devs = [{"id": "r1", "hostname": "R1", "as": 65001}]
+    positions = {"r1": (300.0, 300.0)}
+    rects, labels = _svg_bgp_as_groups_split(devs, positions)
+    assert 'class="as-group-container"' in rects, (
+        "rect 側 <g> に class=\"as-group-container\" がない"
+    )
+
+
+@pytest.mark.unit
+def test_as_group_container_class_data_as_on_rect_side():
+    """as-group-container <g> に data-as 属性も付く（rect 側）。"""
+    from lib.rendering.svg import _svg_bgp_as_groups_split
+    devs = [
+        {"id": "r1", "hostname": "R1", "as": 65001},
+        {"id": "r2", "hostname": "R2", "as": 65002},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+    rects, _labels = _svg_bgp_as_groups_split(devs, positions)
+    assert 'data-as="65001"' in rects, "rect 側に data-as=\"65001\" がない"
+    assert 'data-as="65002"' in rects, "rect 側に data-as=\"65002\" がない"
+
+
+@pytest.mark.unit
+def test_as_group_container_class_in_bgp_view():
+    """BGP ビュー HTML に as-group-container class が出力される。"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    assert 'class="as-group-container"' in bgp_view, (
+        "BGP ビューに as-group-container class がない"
+    )
+
+
+# ---------------------------------------------------------------------------
+# data-ospf-id: link-label-group には data-ospf-id が不要（link-edge 側のみ保持）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_link_label_group_no_data_ospf_id():
+    """link-label-group の <g> に data-ospf-id が付かない（線側 link-edge のみ保持）。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+
+    # link-label-group の <g> タグを全て抽出して data-ospf-id がないことを確認
+    label_groups = re.findall(r'<g[^>]+class="link-label-group"[^>]*>', ospf_view)
+    assert label_groups, "link-label-group が見つからない"
+    for g_tag in label_groups:
+        assert 'data-ospf-id' not in g_tag, (
+            f"link-label-group に data-ospf-id が残っている: {g_tag}"
+        )
+
+
+@pytest.mark.unit
+def test_link_edge_has_data_ospf_id():
+    """link-edge の <g> に data-ospf-id が保持される（JS 連動に必要）。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+
+    # link-edge の <g> に data-ospf-id があること
+    link_edges = re.findall(r'<g[^>]+class="link-edge"[^>]*>', ospf_view)
+    assert link_edges, "link-edge が見つからない"
+    has_ospf_id = any('data-ospf-id' in g for g in link_edges)
+    assert has_ospf_id, "link-edge に data-ospf-id がない（JS 連動が壊れる）"
+
+
+@pytest.mark.unit
+def test_ospf_data_ospf_id_count_link_edge_only():
+    """data-ospf-id は link-edge 側にのみ存在し、link-label-group には存在しない。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+
+    # link-edge 側: data-ospf-id があること
+    link_edge_tags = re.findall(r'<g[^>]+class="link-edge"[^>]*>', ospf_view)
+    link_label_tags = re.findall(r'<g[^>]+class="link-label-group"[^>]*>', ospf_view)
+
+    edge_count = sum(1 for t in link_edge_tags if 'data-ospf-id' in t)
+    label_count = sum(1 for t in link_label_tags if 'data-ospf-id' in t)
+
+    assert edge_count > 0, "link-edge に data-ospf-id が1つもない"
+    assert label_count == 0, (
+        f"link-label-group に data-ospf-id が {label_count} 個残っている（0 であるべき）"
     )

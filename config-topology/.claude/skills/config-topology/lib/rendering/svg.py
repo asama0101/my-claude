@@ -874,22 +874,20 @@ def _svg_bgp_edges(
     positions: dict,
     chip_positions: dict[str, tuple[float, float]] | None = None,
 ) -> str:
-    """BGP ピアリングエッジを生成する（ebgp=青、ibgp=橙）。
+    """BGP ピアリングエッジを生成する（_svg_bgp_edges_split の薄いラッパ）。
+
+    _svg_bgp_edges_split が単一の実装（source of truth）であり、
+    本関数はその lines と badges を結合して返す後方互換ラッパ。
+    元関数を直接呼ぶテストはこのシグネチャ経由で引き続き動作する。
 
     data-bgp-id 属性: 両端 device id を sorted して '|' で結合した決定的な値。
     例: r1 と r2 のセッションなら "r1|r2"（どちらの方向から呼んでも同一）。
 
     Phase 3I [HIGH3]: 同一機器ペアに v4/v6 両 BGP セッションがある場合、
     統合エッジの <title>/badge に全 af セッションの local_ip↔neighbor_ip を併記する。
-    - 双方向エントリ（r1→r2, r2→r1）は1本に統合（従来通り）
-    - v4/v6 複数 af も1本に統合し、IP ペアを " / " 区切りで列挙
-    - single-stack は従来通り変化なし
 
     iteration-4 #6: chip_positions が渡された場合、
     BGP セッション端点を該当チップ座標にアンカーする。
-    - A 側: local_ip → iface_id → chip_positions
-    - B 側: neighbor_ip → iface_id → chip_positions
-    チップが無い端点はノード中心にフォールバック（local_ip 欠損時も含む）。
 
     Args:
         bgp_entries:    BGP エントリリスト
@@ -897,214 +895,8 @@ def _svg_bgp_edges(
         positions:      デバイスID → (cx, cy) 座標辞書
         chip_positions: iface_id → (cx, cy) チップ座標辞書（None のときフォールバック）
     """
-    # local_ip -> device_id 逆引き（共通ヘルパーを使用）
-    ip_to_device = _build_ip_to_device(interfaces)
-
-    # ip_only -> iface_id マップ（チップアンカー用: 共通ヘルパーを使用）
-    ip_to_iface_id: dict[str, str] = _build_ip_to_iface_id(interfaces) if chip_positions is not None else {}
-
-    # Phase 3I [HIGH3]: ペアごとに全セッションを収集（v4/v6 統合用）
-    # pair(frozenset) → list[(dev_id, neighbor_dev, entry)]
-    pair_sessions: dict[frozenset, list[tuple[str, str, dict]]] = {}
-    pair_order: list[frozenset] = []  # 決定的順序保持
-
-    for entry in sorted(bgp_entries, key=lambda e: (e["device"], e.get("neighbor_ip", ""))):
-        dev_id = entry["device"]
-        neighbor_ip = entry.get("neighbor_ip", "")
-
-        neighbor_dev = ip_to_device.get(neighbor_ip)
-        if not neighbor_dev or neighbor_dev == dev_id:
-            continue
-
-        if dev_id not in positions or neighbor_dev not in positions:
-            continue
-
-        pair = frozenset([dev_id, neighbor_dev])
-
-        # 既にこのペアを「逆向き」として登録済みの場合も同じ pair に収集
-        # ペア内の「正規代表」は sorted で小さい方を先にする
-        canonical_dev, canonical_nbr = sorted([dev_id, neighbor_dev])
-        # 既登録エントリが逆向き（neighbor_dev が canonical_dev に該当）の場合は収集のみ
-        if pair not in pair_sessions:
-            pair_sessions[pair] = []
-            pair_order.append(pair)
-
-        # 重複（同じ dev_id + neighbor_ip の組）は skip
-        already_registered = any(
-            e.get("device") == entry.get("device") and
-            e.get("neighbor_ip") == entry.get("neighbor_ip")
-            for _, _, e in pair_sessions[pair]
-        )
-        if not already_registered:
-            pair_sessions[pair].append((dev_id, neighbor_dev, entry))
-
-    parts = []
-    seen_pairs: set[frozenset] = set()
-
-    for pair in pair_order:
-        if pair in seen_pairs:
-            continue
-        seen_pairs.add(pair)
-
-        sessions = pair_sessions[pair]
-        if not sessions:
-            continue
-
-        # 代表エントリ（1件目）から dev_id/neighbor_dev/bgp_type/as 情報を取得
-        dev_id, neighbor_dev, repr_entry = sessions[0]
-        bgp_type = repr_entry.get("type", "unknown")
-        peer_as = _esc(repr_entry.get("peer_as", ""))
-        local_as = _esc(repr_entry.get("local_as", ""))
-
-        # デフォルト: ノード中心
-        x1, y1 = positions[dev_id]
-        x2, y2 = positions[neighbor_dev]
-
-        # チップアンカー（A6c: af 対応解決 — sessions を走査して解決できる最初のセッションを使う）
-        if chip_positions is not None:
-            # A 側: dev_id 側のセッションを決定的順（af→neighbor_ip ソート順）に走査し、
-            # local_ip が chip_positions に解決できる最初のセッションのチップ座標を使う。
-            # local_ip が全て null（iBGP Loopback 源）のフォールバックは維持。
-            # ※ sessions には双方向エントリが混在するため dev_id でフィルタする。
-            sorted_sessions = sorted(
-                sessions,
-                key=lambda t: (t[2].get("af", "v4"), t[2].get("neighbor_ip", "")),
-            )
-            a_side = [(s_dev, s_nbr, sess) for s_dev, s_nbr, sess in sorted_sessions if s_dev == dev_id]
-            b_side = [(s_dev, s_nbr, sess) for s_dev, s_nbr, sess in sorted_sessions if s_dev == neighbor_dev]
-            # フォールバック: dev_id フィルタで空になる場合（逆向きのみの場合）は全体を使う
-            if not a_side:
-                a_side = sorted_sessions
-            if not b_side:
-                b_side = sorted_sessions
-
-            a_anchored = False
-            for _, _, sess_a in a_side:
-                local_ip_raw = sess_a.get("local_ip") or ""
-                if local_ip_raw:
-                    a_iface_id = ip_to_iface_id.get(local_ip_raw)
-                    if a_iface_id and a_iface_id in chip_positions:
-                        x1, y1 = chip_positions[a_iface_id]
-                        a_anchored = True
-                        break
-            if not a_anchored:
-                # local_ip が全て null か全て解決失敗: iBGP Loopback フォールバック
-                has_any_local_ip = any(
-                    (sess.get("local_ip") or "") for _, _, sess in a_side
-                )
-                if not has_any_local_ip:
-                    lb_candidates = sorted(
-                        iface_id for iface_id in chip_positions
-                        if iface_id.startswith(f"{dev_id}::")
-                        and _is_loopback(iface_id[len(dev_id) + 2:])
-                    )
-                    if lb_candidates:
-                        x1, y1 = chip_positions[lb_candidates[0]]
-            # B 側: neighbor_dev 側のセッションで neighbor_ip が解決できる最初のものを使う
-            for _, _, sess_b in b_side:
-                neighbor_ip_raw = sess_b.get("local_ip") or ""  # B側から見た local_ip = A側の neighbor_ip
-                if neighbor_ip_raw:
-                    b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
-                    if b_iface_id and b_iface_id in chip_positions:
-                        x2, y2 = chip_positions[b_iface_id]
-                        break
-            # B 側: b_side が空か全て解決失敗の場合は a_side の neighbor_ip でフォールバック
-            if (x2, y2) == tuple(positions[neighbor_dev]):
-                for _, _, sess_a in a_side:
-                    neighbor_ip_raw = sess_a.get("neighbor_ip") or ""
-                    if neighbor_ip_raw:
-                        b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
-                        if b_iface_id and b_iface_id in chip_positions:
-                            x2, y2 = chip_positions[b_iface_id]
-                            break
-
-        css_class = f"bgp-edge bgp-{_esc(bgp_type)} layer-bgp"
-
-        # エッジを少しオフセットして重なりを防ぐ
-        mx = (x1 + x2) / 2
-        my = (y1 + y2) / 2 - 15
-
-        # Phase 3I [HIGH3]: 全セッションの IP ペアを収集（決定的: af ソート v4→v6）
-        # 双方向エントリのうち dev_id が canonical 側のものだけを収集（重複防止）
-        canonical_dev, canonical_nbr = sorted([dev_id, neighbor_dev])
-        ip_pairs: list[str] = []
-        seen_ip_pairs: set[tuple[str, str]] = set()
-        for _, _, sess_entry in sorted(
-            sessions,
-            key=lambda t: (t[2].get("af", "v4"), t[2].get("neighbor_ip", "")),
-        ):
-            # canonical 側（dev_id が canonical_dev）のエントリのみ使用
-            sess_dev = sess_entry.get("device", "")
-            if sess_dev != canonical_dev:
-                continue
-            local_ip = sess_entry.get("local_ip") or ""
-            neighbor_ip = sess_entry.get("neighbor_ip") or ""
-            pair_key = (local_ip, neighbor_ip)
-            if pair_key in seen_ip_pairs:
-                continue
-            seen_ip_pairs.add(pair_key)
-            if local_ip and neighbor_ip:
-                ip_pairs.append(f"{_esc(local_ip)}↔{_esc(neighbor_ip)}")
-            elif neighbor_ip:
-                ip_pairs.append(_esc(neighbor_ip))
-
-        # A4: dual-stack 時は v4/v6 ペアを別リストに分ける（":" 有無で判定）
-        v4_pairs = [p for p in ip_pairs if ":" not in p]
-        v6_pairs = [p for p in ip_pairs if ":" in p]
-        is_dual_stack = bool(v4_pairs and v6_pairs)
-
-        ip_label = " / ".join(ip_pairs)
-
-        # <title> に完全情報（AS + 全 IP ペア）を埋め込む
-        title_parts = [f"{_esc(bgp_type)} AS{local_as}↔AS{peer_as}"]
-        if ip_label:
-            title_parts.append(ip_label)
-        title_text = " | ".join(title_parts)
-
-        # バッジ: 上段に type/AS、以降は IP ペア行
-        # dual-stack 時: v4ペア行 + v6ペア行 = 最大3行
-        # single-stack 時: 従来通り 2行（type/AS + IPペア）
-        if ip_label:
-            if is_dual_stack:
-                # v4 行 + v6 行を別 tspan で表現
-                v4_label = " / ".join(v4_pairs)
-                v6_label = " / ".join(v6_pairs)
-                badge_svg = (
-                    f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
-                    f'class="bgp-badge layer-bgp">'
-                    f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
-                    f'<tspan x="{mx:.1f}" dy="12">{v4_label}</tspan>'
-                    f'<tspan x="{mx:.1f}" dy="12">{v6_label}</tspan>'
-                    f'</text>'
-                )
-            else:
-                badge_svg = (
-                    f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
-                    f'class="bgp-badge layer-bgp">'
-                    f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
-                    f'<tspan x="{mx:.1f}" dy="12">{ip_label}</tspan>'
-                    f'</text>'
-                )
-        else:
-            badge_svg = (
-                f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '
-                f'class="bgp-badge layer-bgp">{_esc(bgp_type)} {local_as}↔{peer_as}</text>'
-            )
-
-        # #5: 決定的 bgp-id（両端 device id を sorted して結合）
-        bgp_id = "|".join(sorted([dev_id, neighbor_dev]))
-
-        parts.append(
-            f'<g class="bgp-session" data-type="{_esc(bgp_type)}" '
-            f'data-a="{_esc(dev_id)}" data-b="{_esc(neighbor_dev)}" '
-            f'data-bgp-id="{_esc(bgp_id)}">'
-            f'<path d="M{x1:.1f},{y1:.1f} Q{mx:.1f},{my:.1f} {x2:.1f},{y2:.1f}" '
-            f'class="{css_class}" fill="none"/>'
-            f'<title>{title_text}</title>'
-            f'{badge_svg}'
-            f'</g>'
-        )
-    return "\n".join(parts)
+    lines, badges = _svg_bgp_edges_split(bgp_entries, interfaces, positions, chip_positions)
+    return "\n".join(filter(None, [lines, badges]))
 
 
 def _svg_bgp_external_nodes(
@@ -1345,7 +1137,11 @@ def _svg_bgp_as_groups(
     padding: float = _AS_GROUP_PADDING,
     node_sizes: dict[str, int] | None = None,
 ) -> str:
-    """BGP ビュー用 AS グルーピング枠を生成する。
+    """BGP ビュー用 AS グルーピング枠を生成する（_svg_bgp_as_groups_split の薄いラッパ）。
+
+    _svg_bgp_as_groups_split が単一の実装（source of truth）であり、
+    本関数はその rects と labels を結合して返す後方互換ラッパ。
+    元関数を直接呼ぶテストはこのシグネチャ経由で引き続き動作する。
 
     同一 local_as（device["as"]）の BGP 参加機を
     <g class="as-group-container" data-as="{asn}"> で囲み、
@@ -1369,109 +1165,8 @@ def _svg_bgp_as_groups(
         padding:      枠とノード矩形間のパディング（px）
         node_sizes:   デバイスID → n_ifaces マップ（None のとき固定高）
     """
-    # device["as"] を local_as として使用（build 済みなので信頼する）
-    # asn -> [device_id, ...] のマップを AS 番号昇順で構築
-    asn_to_devs: dict[int, list[str]] = defaultdict(list)
-    for dev in sorted(bgp_devices, key=lambda d: d["id"]):
-        asn = dev.get("as")
-        if asn is None:
-            continue
-        if dev["id"] in positions:
-            asn_to_devs[asn].append(dev["id"])
-
-    _nsizes = node_sizes or {}
-
-    # #6: AS ラベルチップ座標の衝突検出・回避用（配置済みチップの矩形リスト）
-    # 各要素: (x, y, w, h) — ラベルチップ背景矩形の左上座標と幅高さ
-    placed_chips: list[tuple[float, float, float, float]] = []
-
-    def _chips_overlap(ax: float, ay: float, aw: float, ah: float,
-                       bx: float, by: float, bw: float, bh: float) -> bool:
-        """2つのチップ矩形が重なるか判定する（軸平行矩形の AABB 判定）"""
-        return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
-
-    def _resolve_chip_pos(cx: float, cy: float, cw: float, ch: float) -> tuple[float, float]:
-        """衝突しない位置を決定的に解決する（y 方向下にオフセット、動的試行上限）。
-
-        A2: 試行上限を ``max(20, len(placed_chips) + 5)`` の動的値にし、
-        AS 多数時（placed_chips が多い）でも収束させる（決定的）。
-        """
-        x, y = cx, cy
-        offset_step = ch + 4  # チップ高 + 余白 4px 単位でシフト
-        max_tries = max(20, len(placed_chips) + 5)
-        for _ in range(max_tries):
-            overlap = any(
-                _chips_overlap(x, y, cw, ch, px, py, pw, ph)
-                for px, py, pw, ph in placed_chips
-            )
-            if not overlap:
-                break
-            y += offset_step
-        return x, y
-
-    parts = []
-    for asn in sorted(asn_to_devs.keys()):
-        dev_ids = asn_to_devs[asn]
-        if not dev_ids:
-            continue
-
-        # Phase 1C #5: AS番号から決定的色を取得（色は svg のインライン style で AS 別に付与）
-        stroke_color, fill_color, label_bg_color = _as_color(asn)
-
-        # bounding box を計算（実ノード高対応: iteration-4 #6）
-        xs = [positions[d][0] for d in dev_ids]
-        ys = [positions[d][1] for d in dev_ids]
-
-        # 各デバイスの実ノード高を使って上下端を個別計算
-        tops = []
-        bottoms = []
-        for d in dev_ids:
-            cy = positions[d][1]
-            n_if = _nsizes.get(d, 0)
-            _w, node_h = _node_size_for(n_if)
-            tops.append(cy - node_h / 2)
-            bottoms.append(cy + node_h / 2)
-
-        min_x = min(xs) - _NODE_WIDTH / 2 - padding
-        min_y = min(tops) - padding
-        max_x = max(xs) + _NODE_WIDTH / 2 + padding
-        max_y = max(bottoms) + padding
-
-        rect_w = max_x - min_x
-        rect_h = max_y - min_y
-
-        # M5: <g class="as-group-container" data-as="{asn}"> でラップ
-        # #4: ラベルを左上チップ（背景 rect + text）として配置
-        # チップ背景矩形のサイズ算出（#8: font-size 15px 対応）:
-        #   chip_w = len(label) * 9 + 12
-        chip_text = f"AS {_esc(asn)}"
-        chip_w = len(f"AS {asn}") * 9 + 12
-        chip_h = 20
-        # 初期候補位置（枠上端より少し上にはみ出すデフォルト位置）
-        chip_x_base = min_x + 8
-        chip_y_base = min_y - 9
-        # #6: 衝突回避（asn 昇順で処理するため決定的）
-        chip_x, chip_y = _resolve_chip_pos(chip_x_base, chip_y_base, chip_w, chip_h)
-        placed_chips.append((chip_x, chip_y, chip_w, chip_h))
-        # テキスト y: 背景矩形の垂直中央（chip_h の約 70% をベースラインとして使用）
-        text_y = chip_y + chip_h * 0.7
-        parts.append(
-            f'<g class="as-group-container" data-as="{_esc(asn)}">'
-            f'<rect x="{min_x:.1f}" y="{min_y:.1f}" '
-            f'width="{rect_w:.1f}" height="{rect_h:.1f}" '
-            f'rx="{_AS_GROUP_RX}" ry="{_AS_GROUP_RY}" class="as-group" '
-            f'style="stroke:{stroke_color};fill:{fill_color};"/>'
-            f'<rect x="{chip_x:.1f}" y="{chip_y:.1f}" '
-            f'width="{chip_w:.1f}" height="{chip_h:.1f}" '
-            f'rx="4" ry="4" class="as-group-label-bg" '
-            f'style="fill:{label_bg_color};"/>'
-            f'<text x="{chip_x + 5:.1f}" y="{text_y:.1f}" '
-            f'text-anchor="start" class="as-group-label" '
-            f'style="fill:#ffffff;">'
-            f'{chip_text}</text>'
-            f'</g>'
-        )
-    return "\n".join(parts)
+    rects, labels = _svg_bgp_as_groups_split(bgp_devices, positions, padding, node_sizes)
+    return "\n".join(filter(None, [rects, labels]))
 
 
 def _svg_bgp_as_groups_split(
@@ -1482,12 +1177,35 @@ def _svg_bgp_as_groups_split(
 ) -> tuple[str, str]:
     """BGP ビュー用 AS グルーピングを「枠 rect 群」と「ラベル群」に分けて生成する。
 
+    単一の実装（source of truth）。_svg_bgp_as_groups はこの関数を呼ぶ薄いラッパ。
+
     SVG z-order 修正（#4-B2）: AS枠 rect をノードの背面、AS番号ラベルをノードの前面に
     配置するため、rect と label を別々の文字列として返す。
 
+    決定性: AS 番号昇順・同一 AS 内はデバイス ID 昇順でソートして処理する。
+
+    iteration-4 #6: node_sizes={device_id: n_ifaces} を渡すことで
+    実ノード高（チップ有り時は _node_size_for(n_ifaces)[1]）を使って
+    bounding box を計算する。None のとき固定 _NODE_HEIGHT を使用（従来動作）。
+
+    Phase 1C #5: AS番号ごとに決定的に異なる色を割当（_AS_COLOR_PALETTE 固定パレット循環）。
+    枠線(stroke)・淡塗り(fill)・ラベルチップ背景(label-bg) に AS別インライン style を適用。
+
+    ラベルチップ衝突回避:
+    - _chips_overlap: 軸平行矩形の AABB 判定（2チップが重なるか判定）
+    - _resolve_chip_pos: y 方向下にオフセットして衝突しない位置を決定的に解決
+      試行上限は ``max(20, len(placed_chips) + 5)``（AS 多数時でも収束）
+
+    Args:
+        bgp_devices:  BGP 参加デバイスリスト
+        positions:    デバイスID → (cx, cy) 座標辞書
+        padding:      枠とノード矩形間のパディング（px）
+        node_sizes:   デバイスID → n_ifaces マップ（None のとき固定高）
+
     Returns:
         (rects_str, labels_str) のタプル
-        - rects_str: ``<g data-as="{asn}"><rect class="as-group" .../></g>`` 群
+        - rects_str: ``<g class="as-group-container" data-as="{asn}">
+                       <rect class="as-group" .../></g>`` 群
         - labels_str: ``<g data-as="{asn}"><rect class="as-group-label-bg" .../>
                        <text class="as-group-label" .../></g>`` 群
     """
@@ -1558,7 +1276,7 @@ def _svg_bgp_as_groups_split(
         text_y = chip_y + chip_h * 0.7
 
         rect_parts.append(
-            f'<g data-as="{_esc(asn)}">'
+            f'<g class="as-group-container" data-as="{_esc(asn)}">'
             f'<rect x="{min_x:.1f}" y="{min_y:.1f}" '
             f'width="{rect_w:.1f}" height="{rect_h:.1f}" '
             f'rx="{_AS_GROUP_RX}" ry="{_AS_GROUP_RY}" class="as-group" '
@@ -1595,8 +1313,18 @@ def _svg_bgp_edges_split(
     各 bgp-session の data-type/data-a/data-b/data-bgp-id は「線」側の <g> に保持し、
     「バッジ」側の <g> には data-bgp-id のみを付与して連携できるようにする。
 
-    _svg_bgp_edges と同一のセッション収集・チップアンカー・バッジ構築ロジックを使用。
-    違いは `parts.append` の代わりに `line_parts` と `badge_parts` に分けて収集する点のみ。
+    単一の実装（source of truth）。_svg_bgp_edges はこの関数を呼ぶ薄いラッパ。
+
+    セッション収集・チップアンカー・バッジ構築ロジックは元の _svg_bgp_edges と同一。
+    相違点: parts.append の代わりに line_parts と badge_parts に分けて収集する。
+
+    BGPバッジのハイライトについて:
+    CSS には `.bgp-session.highlighted .bgp-edge`（線のみ）の強調規則のみが存在し、
+    バッジ（.bgp-badge）を直接強調する CSS 規則は定義されていない。
+    そのため、z-order 分離でバッジを別 <g> に切り出してもバッジの強調挙動は変化しない
+    （対応不要）。JS の `[data-bgp-id].highlighted` 解除処理は bgp-badge-group の
+    data-bgp-id にも適用されるが、CSS 強調ルールがないためハイライト解除のみ発生し
+    視覚変化はない。
 
     Returns:
         (lines_str, badges_str) のタプル

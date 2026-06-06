@@ -1865,13 +1865,21 @@ _JS = """\
 
       if (_currentView === 'physical') {
         // physical ビュー: .view-physical スコープの .link-edge のみハイライト
-        // BGP 表・OSPF 表には触らない
+        // BGP 表・OSPF 表には触らない。Interfaces 表行（data-link-id）も連動。
         document.querySelectorAll('.view-physical .link-edge[data-a][data-b]').forEach(function(el) {
           var a = el.getAttribute('data-a');
           var b = el.getAttribute('data-b');
           if (_selectedNodes.has(a) && _selectedNodes.has(b)) {
             el.classList.add('highlighted');
             el.classList.add('selection-edge-hl');
+            // 対応する Interfaces 表行もハイライト（data-link-id）
+            var linkId = el.getAttribute('data-link-id');
+            if (linkId) {
+              document.querySelectorAll('tr[data-link-id="' + CSS.escape(linkId) + '"]').forEach(function(row) {
+                row.classList.add('highlighted');
+                row.classList.add('selection-edge-hl');
+              });
+            }
           }
         });
 
@@ -1897,6 +1905,7 @@ _JS = """\
 
       } else if (_currentView === 'ospf') {
         // ospf ビュー: .view-ospf スコープの .link-edge をハイライト + OSPF 表行連動
+        // Interfaces 表行（data-link-id）も連動。
         document.querySelectorAll('.view-ospf .link-edge[data-a][data-b]').forEach(function(el) {
           var a = el.getAttribute('data-a');
           var b = el.getAttribute('data-b');
@@ -1912,6 +1921,14 @@ _JS = """\
                   row.classList.add('highlighted');
                   row.classList.add('selection-edge-hl');
                 });
+              });
+            }
+            // 対応する Interfaces 表行もハイライト（data-link-id）
+            var linkId = el.getAttribute('data-link-id');
+            if (linkId) {
+              document.querySelectorAll('tr[data-link-id="' + CSS.escape(linkId) + '"]').forEach(function(row) {
+                row.classList.add('highlighted');
+                row.classList.add('selection-edge-hl');
               });
             }
           }

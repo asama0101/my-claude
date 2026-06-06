@@ -455,19 +455,24 @@ class TestDualStackEdgeMerge:
         同一 IF ペアの v4/v6 link は同一 link_id になるため、
         統合後は1本のエッジが生成されるはず。
         重複がある場合は同一座標に2本重なり視覚的に重なる。
+        OSPF ビューにも同一 link_id が付与されるため、Physical ビューのみで検証する。
         """
         from lib.rendering import render
         from lib.rendering.svg import _make_link_id
         html = render(dualstack_topology)
 
-        # data-link-id の出現数を数える
+        # Physical ビューのみを抽出してスコープを限定する
+        phys_view = _extract_physical_view(html)
+        assert phys_view, "Physical ビューが見つからない"
+
+        # data-link-id の出現数を数える（Physical ビュー内のみ）
         link_id = _make_link_id("ds-r1", "GigabitEthernet0/0", "ds-r2", "ge-0/0/0")
         # <g class="link-edge" ... data-link-id="..."> は各エッジに1回出現
         # link-line でも出現するため <g class="link-edge" で数える
         pattern = re.compile(
             r'<g[^>]+class="link-edge"[^>]+data-link-id="' + re.escape(link_id) + r'"'
         )
-        matches = pattern.findall(html)
+        matches = pattern.findall(phys_view)
         assert len(matches) == 1, (
             f"Physical ビューで link_id={link_id!r} が {len(matches)} 本生成された（統合後は1本が期待値）。"
             f"dual-stack の v4/v6 エッジが重複している。"

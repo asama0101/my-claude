@@ -270,7 +270,7 @@ def _separate_as_clusters(
         positions:   force-directed 後の {dev_id: (cx, cy)} 座標辞書
         bgp_devices: BGP 参加デバイスリスト
         node_sizes:  {dev_id: n_ifaces} マップ
-        padding:     AS 枠パディング（_svg_bgp_as_groups と同じ値）
+        padding:     AS 枠パディング（_svg_bgp_as_groups_split と同じ値）
         max_iters:   最大反復回数
 
     Returns:
@@ -1126,18 +1126,27 @@ def _build_view_ospf(
             )
 
         # z-order 修正 (#3-OSPF): 線とラベルを分離して収集する
+        # TM-3: link-edge（線側）に data-link-id を付与（Interfaces 表行連動用）
+        link_id_attr = ""
+        a_if_raw = lk.get("a_if") or ""
+        b_if_raw = lk.get("b_if") or ""
+        if a_if_raw and b_if_raw:
+            lid = _esc(_make_link_id(lk["a_device"], a_if_raw, lk["b_device"], b_if_raw))
+            link_id_attr = f' data-link-id="{lid}"'
         parts.append(
             f'<g class="link-edge" data-subnet="{primary_subnet}" '
             f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
-            f'{ospf_id_attr}>'
+            f'{ospf_id_attr}{link_id_attr}>'
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
             f'class="link-line layer-ospf"/>'
             f'</g>'
         )
+        # data-ospf-id はラベル側には不要: JS の表連動は .link-edge[data-ospf-id] のみ参照。
+        # ラベル側に付けると [data-ospf-id].highlighted のクリア対象が二重になるが機能への影響は
+        # 軽微であり、主に整合性のため除去する。data-ospf-id は線側 link-edge にのみ保持。
         label_parts.append(
             f'<g class="link-label-group" data-subnet="{primary_subnet}" '
-            f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
-            f'{ospf_id_attr}>'
+            f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}">'
             f'{label_elem}'
             f'</g>'
         )
