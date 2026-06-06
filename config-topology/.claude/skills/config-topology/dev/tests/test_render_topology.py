@@ -5638,6 +5638,183 @@ def test_i3b5_ebgp_edge_deterministic():
     assert svg1 == svg2, "BGP エッジ IP 表示が非決定的"
 
 # ===========================================================================
+# ⑭: BGP バッジを両端アドレス表示（両方向セッション集約・IP決定的ソート）
+# ===========================================================================
+# 旧実装は canonical_dev（両端をソートした先頭）のセッションだけを見ていたため、
+# 非対称 iBGP（canonical でない側だけが neighbor 文を持つ）でアドレスが消えていた。
+# ⑭ では両方向セッションの endpoint アドレス（local_ip 自端 + neighbor_ip 相手端）を
+# af 別に集約し、IP として数値ソートして A↔B 表示する。
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_b14_asymmetric_ibgp_shows_both_addrs():
+    """⑭: 非対称 iBGP（canonical でない側 r2 だけが neighbor 文を持つ）でも
+    両端アドレスが A↔B 表示される（旧 canonical_dev フィルタの取りこぼし修正）。
+    """
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
+        {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
+    ]
+    # canonical = sorted([r1, r2])[0] = r1 だが、セッションを持つのは r2 のみ（非対称）
+    bgp_entries = [
+        {"device": "r2", "local_as": 65000, "local_ip": "10.255.0.2",
+         "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert "10.255.0.1↔10.255.0.2" in svg, (
+        "非対称 iBGP の両端アドレスが A↔B 表示されていない（旧 canonical フィルタのバグ）。\n"
+        f"svg={svg[:600]}"
+    )
+
+
+@pytest.mark.unit
+def test_b14_asymmetric_ibgp_neighbor_addr_not_lost():
+    """⑭: 非対称 iBGP で相手端アドレス（local_ip=null 側でも neighbor_ip）が消えない。"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
+        {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
+    ]
+    # r2 のみがセッション、local_ip=null（update-source loopback で null になりがち）
+    bgp_entries = [
+        {"device": "r2", "local_as": 65000, "local_ip": None,
+         "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    # neighbor_ip（相手 loopback）が必ず表示される
+    badge_texts = re.findall(r'class="bgp-badge[^"]*"[^>]*>(.*?)</text>', svg, re.DOTALL)
+    joined = " ".join(badge_texts)
+    assert "10.255.0.1" in joined, (
+        f"非対称 iBGP の相手アドレス(10.255.0.1)が消えている: {joined!r}"
+    )
+
+
+@pytest.mark.unit
+def test_b14_symmetric_ibgp_loopback_both_addrs_sorted():
+    """⑭: 対称 iBGP loopback ピアで両ループバックが決定的ソートで A↔B 表示される。"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
+        {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65000, "local_ip": None,
+         "neighbor_ip": "10.255.0.2", "peer_as": 65000, "type": "ibgp"},
+        {"device": "r2", "local_as": 65000, "local_ip": None,
+         "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert "10.255.0.1↔10.255.0.2" in svg, (
+        f"対称 iBGP で両ループバックが A↔B 表示されていない: {svg[:600]}"
+    )
+
+
+@pytest.mark.unit
+def test_b14_ebgp_p2p_both_physical_ips_sorted():
+    """⑭: eBGP p2p で両物理 IP が決定的ソートで A↔B 表示される。"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert "10.0.0.1↔10.0.0.2" in svg, f"eBGP p2p で両物理 IP が A↔B 表示されない: {svg[:600]}"
+
+
+@pytest.mark.unit
+def test_b14_ip_sort_is_numeric_not_lexicographic():
+    """⑭: アドレスソートが数値順（10.2.0.1 < 10.10.0.1）であること。
+
+    文字列順だと "10.10.0.1" < "10.2.0.1" となり逆転するため、数値ソートを検証する。
+    """
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.2.0.1/16"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.10.0.1/16"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.2.0.1",
+         "neighbor_ip": "10.10.0.1", "peer_as": 65002, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert "10.2.0.1↔10.10.0.1" in svg, (
+        f"IP 数値ソートになっていない（10.2.0.1 < 10.10.0.1 が期待）: {svg[:600]}"
+    )
+    assert "10.10.0.1↔10.2.0.1" not in svg, (
+        "文字列順ソート（10.10.0.1 が先）になっている（数値順にすること）"
+    )
+
+
+@pytest.mark.unit
+def test_b14_dual_stack_v4_and_v6_both_shown():
+    """⑭: dual-stack BGP で v4 アドレス行と v6 アドレス行が両方 A↔B 表示される。"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+        {"id": "r1::eth0v6", "device": "r1", "name": "eth0.v6", "ip": "2001:db8::1/127"},
+        {"id": "r2::eth0v6", "device": "r2", "name": "eth0.v6", "ip": "2001:db8::2/127"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp", "af": "v4"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp", "af": "v4"},
+        {"device": "r1", "local_as": 65001, "local_ip": "2001:db8::1",
+         "neighbor_ip": "2001:db8::2", "peer_as": 65002, "type": "ebgp", "af": "v6"},
+        {"device": "r2", "local_as": 65002, "local_ip": "2001:db8::2",
+         "neighbor_ip": "2001:db8::1", "peer_as": 65001, "type": "ebgp", "af": "v6"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert "10.0.0.1↔10.0.0.2" in svg, f"dual-stack の v4 行がない: {svg[:800]}"
+    assert "2001:db8::1↔2001:db8::2" in svg, f"dual-stack の v6 行がない: {svg[:800]}"
+
+
+@pytest.mark.unit
+def test_b14_addr_sort_key_numeric_and_fallback():
+    """⑭: _bgp_addr_sort_key が IP は数値順、パース不能は文字列順フォールバック。"""
+    from lib.rendering.svg import _bgp_addr_sort_key
+    addrs = ["10.10.0.1", "10.2.0.1", "10.1.0.1"]
+    assert sorted(addrs, key=_bgp_addr_sort_key) == ["10.1.0.1", "10.2.0.1", "10.10.0.1"], \
+        "IP 数値ソートになっていない"
+    # パース不能文字列が混ざっても例外を出さず決定的に末尾側へ
+    mixed = ["10.0.0.1", "not-an-ip", "10.0.0.2"]
+    result = sorted(mixed, key=_bgp_addr_sort_key)
+    assert result == ["10.0.0.1", "10.0.0.2", "not-an-ip"], \
+        f"パース不能アドレスの決定的フォールバックが崩れている: {result}"
+
+
+@pytest.mark.unit
+def test_b14_asymmetric_ibgp_deterministic():
+    """⑭: 両端アドレス集約後も render が決定的（2回同一）。"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
+        {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
+    ]
+    bgp_entries = [
+        {"device": "r2", "local_as": 65000, "local_ip": "10.255.0.2",
+         "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg1 = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    svg2 = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert svg1 == svg2, "両端アドレス集約後に BGP バッジが非決定的"
+
+# ===========================================================================
 # iteration-3 Batch3 #6: Static Routes 行の経路ハイライト
 # ===========================================================================
 

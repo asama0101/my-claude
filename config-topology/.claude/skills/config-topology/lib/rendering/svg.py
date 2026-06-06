@@ -1437,6 +1437,21 @@ def _svg_bgp_as_groups_split(
     return "\n".join(rect_parts), "\n".join(label_parts)
 
 
+def _bgp_addr_sort_key(addr: str):
+    """BGP endpoint アドレスの決定的ソートキー（⑭）。
+
+    IP としてパースできれば数値順（例: 10.2.0.1 < 10.10.0.1。文字列順だと逆転する）、
+    パース失敗時は文字列順にフォールバックする。いずれも決定的。
+
+    タプル先頭の 0/1 で「パース可否」を分けるため、(0, int) と (1, str) が
+    比較で型混在することはない（先頭要素が異なれば第2要素は比較されない）。
+    """
+    try:
+        return (0, int(ipaddress.ip_address(addr)))
+    except ValueError:
+        return (1, addr)
+
+
 def _svg_bgp_edges_split(
     bgp_entries: list[dict],
     interfaces: list[dict],
@@ -1571,27 +1586,29 @@ def _svg_bgp_edges_split(
         mx = (x1 + x2) / 2
         my = (y1 + y2) / 2 - 15
 
-        # IP ペア収集（_svg_bgp_edges と同一ロジック）
-        canonical_dev, _ = sorted([dev_id, neighbor_dev])
-        ip_pairs: list[str] = []
-        seen_ip_pairs: set[tuple[str, str]] = set()
-        for _, _, sess_entry in sorted(
-            sessions,
-            key=lambda t: (t[2].get("af", "v4"), t[2].get("neighbor_ip", "")),
-        ):
-            sess_dev = sess_entry.get("device", "")
-            if sess_dev != canonical_dev:
-                continue
-            local_ip = sess_entry.get("local_ip") or ""
+        # ⑭: 両端アドレス表示。両方向セッションの endpoint アドレスを集約する。
+        # 各セッションの neighbor_ip（相手端）と local_ip（自端・あれば）を集合に入れ、
+        # af（v4/v6）別に決定的ソートして A↔B 表示する。
+        # 旧実装の canonical_dev フィルタは廃止（非対称 iBGP では canonical 側に
+        # セッションが無く相手アドレスが消えるバグの根本原因だったため）。
+        #   - p2p eBGP（両端 local+neighbor）→ {local_a, neighbor_a} = 2アドレス
+        #   - loopback iBGP（local=null, neighbor=相手loopback）両方向 → {lo_a, lo_b}
+        #   - 片方向のみ → 1アドレス
+        all_addrs: set[str] = set()
+        for _, _, sess_entry in sessions:
             neighbor_ip_val = sess_entry.get("neighbor_ip") or ""
-            pair_key = (local_ip, neighbor_ip_val)
-            if pair_key in seen_ip_pairs:
-                continue
-            seen_ip_pairs.add(pair_key)
-            if local_ip and neighbor_ip_val:
-                ip_pairs.append(f"{_esc(local_ip)}↔{_esc(neighbor_ip_val)}")
-            elif neighbor_ip_val:
-                ip_pairs.append(_esc(neighbor_ip_val))
+            local_ip = sess_entry.get("local_ip") or ""
+            if neighbor_ip_val:
+                all_addrs.add(neighbor_ip_val)
+            if local_ip:
+                all_addrs.add(local_ip)
+        v4_addrs = sorted((a for a in all_addrs if ":" not in a), key=_bgp_addr_sort_key)
+        v6_addrs = sorted((a for a in all_addrs if ":" in a), key=_bgp_addr_sort_key)
+        v4_join = "↔".join(_esc(a) for a in v4_addrs)
+        v6_join = "↔".join(_esc(a) for a in v6_addrs)
+        # ip_pairs は下流の dual-stack 分岐（v4_pairs/v6_pairs/ip_label）構造に流し込む。
+        # v4_join は ":" を含まず v6_join は含むため、既存の ":" 判定で正しく振り分く。
+        ip_pairs = [p for p in (v4_join, v6_join) if p]
 
         v4_pairs = [p for p in ip_pairs if ":" not in p]
         v6_pairs = [p for p in ip_pairs if ":" in p]
