@@ -18610,3 +18610,435 @@ def test_js_smoke_shared_segment_topology_no_throw():
         f"mousedown リスナーが登録されていない: {data['listeners']}"
     assert data['click'] >= 1, \
         f"click リスナーが登録されていない: {data['listeners']}"
+
+
+# ---------------------------------------------------------------------------
+# edge-label-bg: エッジラベル背景矩形 TDD テスト
+# ---------------------------------------------------------------------------
+
+# --- ヘルパートポロジー ---
+
+def _make_ebgp_with_ip_topology():
+    """eBGP (AS65001 r1 ↔ AS65002 r2) + IP ラベル付き（2行バッジ）。"""
+    return {
+        "title": "eBGP BG Rect Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+def _make_ibgp_with_ip_topology():
+    """iBGP (AS65001 r1 ↔ r2) + IP ラベル付き（in-AS 2行バッジ）。"""
+    return {
+        "title": "iBGP BG Rect Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65001, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::lo0", "device": "r1", "name": "Loopback0",
+             "ip": "10.255.0.1/32", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::lo0", "device": "r2", "name": "Loopback0",
+             "ip": "10.255.0.2/32", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.255.0.1",
+                 "neighbor_ip": "10.255.0.2", "peer_as": 65001, "type": "ibgp"},
+                {"device": "r2", "local_as": 65001, "local_ip": "10.255.0.2",
+                 "neighbor_ip": "10.255.0.1", "peer_as": 65001, "type": "ibgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+def _make_bgp_dual_stack_topology():
+    """BGP dual-stack: r1(AS65001) ↔ r2(AS65002) で v4+v6 セッション（3行バッジ）。"""
+    return {
+        "title": "BGP DualStack BG Rect Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65002, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.0.0.1/30", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [
+                 {"af": "v4", "ip": "10.0.0.1", "prefix": 30},
+                 {"af": "v6", "ip": "2001:db8::1", "prefix": 127},
+             ]},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.0.0.2/30", "vlan": None, "description": None, "shutdown": False,
+             "addresses": [
+                 {"af": "v4", "ip": "10.0.0.2", "prefix": 30},
+                 {"af": "v6", "ip": "2001:db8::2", "prefix": 127},
+             ]},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [
+                {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+                 "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+                {"device": "r1", "local_as": 65001, "local_ip": "2001:db8::1",
+                 "neighbor_ip": "2001:db8::2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "2001:db8::2",
+                 "neighbor_ip": "2001:db8::1", "peer_as": 65001, "type": "ebgp"},
+            ],
+            "ospf": [],
+            "static": [],
+        },
+    }
+
+
+# --- (1) _svg_label_bg_rect: ユニットテスト ---
+
+@pytest.mark.unit
+def test_svg_label_bg_rect_returns_rect_element():
+    """_svg_label_bg_rect: 1行以上のlines で <rect> 要素を返す。"""
+    from lib.rendering.svg import _svg_label_bg_rect
+    result = _svg_label_bg_rect(["eBGP 65001↔65002"], cx=100.0, first_baseline_y=50.0)
+    assert "<rect" in result, f"<rect> が含まれない: {result!r}"
+
+
+@pytest.mark.unit
+def test_svg_label_bg_rect_empty_lines_returns_empty():
+    """_svg_label_bg_rect: 空の lines で空文字を返す。"""
+    from lib.rendering.svg import _svg_label_bg_rect
+    result = _svg_label_bg_rect([], cx=100.0, first_baseline_y=50.0)
+    assert result == "", f"空 lines で空文字でない: {result!r}"
+
+
+@pytest.mark.unit
+def test_svg_label_bg_rect_has_edge_label_bg_class():
+    """_svg_label_bg_rect: class="edge-label-bg" を持つ。"""
+    from lib.rendering.svg import _svg_label_bg_rect
+    result = _svg_label_bg_rect(["eBGP 65001↔65002"], cx=100.0, first_baseline_y=50.0)
+    assert 'class="edge-label-bg"' in result, f"class 属性が不正: {result!r}"
+
+
+@pytest.mark.unit
+def test_svg_label_bg_rect_multi_line_taller():
+    """_svg_label_bg_rect: 複数行の方が1行より高さが大きい。"""
+    from lib.rendering.svg import _svg_label_bg_rect
+    single = _svg_label_bg_rect(["eBGP 65001↔65002"], cx=100.0, first_baseline_y=50.0)
+    multi = _svg_label_bg_rect(
+        ["eBGP 65001↔65002", "10.0.0.1↔10.0.0.2"], cx=100.0, first_baseline_y=50.0
+    )
+    # height 属性値を比較
+    h_single = float(re.search(r'height="([\d.]+)"', single).group(1))
+    h_multi = float(re.search(r'height="([\d.]+)"', multi).group(1))
+    assert h_multi > h_single, (
+        f"複数行のほうが背景矩形が大きくない: single={h_single}, multi={h_multi}"
+    )
+
+
+@pytest.mark.unit
+def test_svg_label_bg_rect_wider_line_wider_rect():
+    """_svg_label_bg_rect: 長い行は幅が大きくなる（決定的）。"""
+    from lib.rendering.svg import _svg_label_bg_rect
+    short = _svg_label_bg_rect(["AB"], cx=100.0, first_baseline_y=50.0)
+    long_ = _svg_label_bg_rect(["A" * 30], cx=100.0, first_baseline_y=50.0)
+    w_short = float(re.search(r'width="([\d.]+)"', short).group(1))
+    w_long = float(re.search(r'width="([\d.]+)"', long_).group(1))
+    assert w_long > w_short, (
+        f"長い行の幅が短い行より小さい: short={w_short}, long={w_long}"
+    )
+
+
+@pytest.mark.unit
+def test_svg_label_bg_rect_deterministic():
+    """_svg_label_bg_rect: 同一引数で同一結果（決定性）。"""
+    from lib.rendering.svg import _svg_label_bg_rect
+    lines = ["eBGP 65001↔65002", "10.0.0.1↔10.0.0.2"]
+    r1 = _svg_label_bg_rect(lines, cx=150.0, first_baseline_y=80.0)
+    r2 = _svg_label_bg_rect(lines, cx=150.0, first_baseline_y=80.0)
+    assert r1 == r2, "同一引数で異なる結果が返った（決定性違反）"
+
+
+@pytest.mark.unit
+def test_svg_label_bg_rect_three_lines():
+    """_svg_label_bg_rect: 3行のときも rect が返る（dual-stack BGP ケース）。"""
+    from lib.rendering.svg import _svg_label_bg_rect
+    lines = ["eBGP 65001↔65002", "10.0.0.1↔10.0.0.2", "2001:db8::1↔2001:db8::2"]
+    result = _svg_label_bg_rect(lines, cx=200.0, first_baseline_y=100.0)
+    assert "<rect" in result
+    assert 'class="edge-label-bg"' in result
+    # 3行は2行より高いはず
+    two_line = _svg_label_bg_rect(lines[:2], cx=200.0, first_baseline_y=100.0)
+    h3 = float(re.search(r'height="([\d.]+)"', result).group(1))
+    h2 = float(re.search(r'height="([\d.]+)"', two_line).group(1))
+    assert h3 > h2, f"3行の高さが2行より大きくない: h3={h3}, h2={h2}"
+
+
+# --- (2) HTML生成: BGP バッジに背景 rect ---
+
+@pytest.mark.unit
+def test_bgp_badge_has_edge_label_bg_rect_ebgp():
+    """eBGP バッジ（外部エッジ）の bgp-badge-group に edge-label-bg rect が存在する。"""
+    from lib.rendering import render
+    html = render(_make_ebgp_with_ip_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    assert 'class="edge-label-bg"' in bgp_view, (
+        "eBGP bgp-badge-group に edge-label-bg rect が存在しない"
+    )
+
+
+@pytest.mark.unit
+def test_bgp_badge_has_edge_label_bg_rect_ibgp():
+    """iBGP バッジ（in-AS エッジ）の bgp-badge-group に edge-label-bg rect が存在する。"""
+    from lib.rendering import render
+    html = render(_make_ibgp_with_ip_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    assert 'class="edge-label-bg"' in bgp_view, (
+        "iBGP bgp-badge-group に edge-label-bg rect が存在しない"
+    )
+
+
+@pytest.mark.unit
+def test_bgp_badge_bg_rect_before_text():
+    """bgp-badge-group 内で edge-label-bg rect が bgp-badge text より前に出力される（背面）。"""
+    from lib.rendering import render
+    html = render(_make_ebgp_with_ip_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    # bgp-badge-group の最初の出現で確認
+    group_m = re.search(r'<g[^>]+class="bgp-badge-group"[^>]*>(.*?)</g>', bgp_view, re.DOTALL)
+    assert group_m, "bgp-badge-group が見つからない"
+    group_content = group_m.group(1)
+    bg_pos = group_content.find('class="edge-label-bg"')
+    text_pos = group_content.find('class="bgp-badge')
+    assert bg_pos != -1, "edge-label-bg rect が bgp-badge-group 内に存在しない"
+    assert text_pos != -1, "bgp-badge text が bgp-badge-group 内に存在しない"
+    assert bg_pos < text_pos, (
+        f"edge-label-bg rect ({bg_pos}) が bgp-badge text ({text_pos}) より後に出力されている"
+    )
+
+
+@pytest.mark.unit
+def test_bgp_badge_bg_rect_dual_stack():
+    """BGP dual-stack（3行バッジ）でも edge-label-bg rect が存在する。"""
+    from lib.rendering import render
+    html = render(_make_bgp_dual_stack_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    assert 'class="edge-label-bg"' in bgp_view, (
+        "dual-stack BGP バッジに edge-label-bg rect が存在しない"
+    )
+
+
+# --- (3) HTML生成: OSPF link-label に背景 rect ---
+
+@pytest.mark.unit
+def test_ospf_link_label_has_edge_label_bg_rect():
+    """OSPF link-label-group に edge-label-bg rect が存在する（area あり）。"""
+    from lib.rendering import render
+    html = render(_make_ospf_topology_with_area())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert 'class="edge-label-bg"' in ospf_view, (
+        "OSPF link-label-group に edge-label-bg rect が存在しない"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_link_label_bg_rect_before_text():
+    """link-label-group 内で edge-label-bg rect が link-label text より前に出力される（背面）。"""
+    from lib.rendering import render
+    html = render(_make_ospf_topology_with_area())
+    ospf_view = _extract_ospf_view(html)
+    group_m = re.search(
+        r'<g[^>]+class="link-label-group"[^>]*>(.*?)</g>', ospf_view, re.DOTALL
+    )
+    assert group_m, "link-label-group が見つからない"
+    group_content = group_m.group(1)
+    bg_pos = group_content.find('class="edge-label-bg"')
+    text_pos = group_content.find('class="link-label')
+    assert bg_pos != -1, "edge-label-bg rect が link-label-group 内に存在しない"
+    assert text_pos != -1, "link-label text が link-label-group 内に存在しない"
+    assert bg_pos < text_pos, (
+        f"edge-label-bg rect ({bg_pos}) が link-label text ({text_pos}) より後に出力されている"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_link_label_bg_rect_no_area():
+    """ospf_area 欠如（subnet のみ表示）でも edge-label-bg rect が存在する。"""
+    from lib.rendering import render
+    # ospf_area なし topology
+    topo = {
+        "title": "OSPF No Area BG Rect Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0",
+             "ip": "10.5.0.1/30", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0",
+             "ip": "10.5.0.2/30", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [
+            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+             "subnet": "10.5.0.0/30", "kind": "inferred-subnet"},
+        ],
+        "segments": [],
+        "routing": {
+            "bgp": [],
+            "ospf": [
+                {"device": "r1", "process": 1, "network": "10.5.0.0/30", "area": "0"},
+                {"device": "r2", "process": 1, "network": "10.5.0.0/30", "area": "0"},
+            ],
+            "static": [],
+        },
+    }
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert 'class="edge-label-bg"' in ospf_view, (
+        "ospf_area 欠如 OSPF リンクに edge-label-bg rect が存在しない"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_dual_stack_link_label_has_edge_label_bg_rect():
+    """OSPF dual-stack リンク（area あり 3行ラベル）でも edge-label-bg rect が存在する。"""
+    from lib.rendering import render
+    html = render(_make_ospf_dualstack_link_topology())
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert 'class="edge-label-bg"' in ospf_view, (
+        "OSPF dual-stack リンクラベルに edge-label-bg rect が存在しない"
+    )
+
+
+# --- (4) CSS: .edge-label-bg テーマ変数 ---
+
+@pytest.mark.unit
+def test_css_edge_label_bg_uses_bg_surface_var(rendered_html):
+    """.edge-label-bg CSS ルールが --bg-surface 変数を使用する。"""
+    assert ".edge-label-bg" in rendered_html, "CSS に .edge-label-bg ルールが存在しない"
+    # CSS ブロックを抽出
+    m = re.search(r'\.edge-label-bg\s*\{([^}]+)\}', rendered_html)
+    assert m, ".edge-label-bg CSS ブロックが見つからない"
+    block = m.group(1)
+    assert "var(--bg-surface)" in block, (
+        f".edge-label-bg に fill: var(--bg-surface) が含まれない: {block!r}"
+    )
+
+
+@pytest.mark.unit
+def test_css_edge_label_bg_has_opacity(rendered_html):
+    """.edge-label-bg CSS ルールに opacity が定義されている。"""
+    m = re.search(r'\.edge-label-bg\s*\{([^}]+)\}', rendered_html)
+    assert m, ".edge-label-bg CSS ブロックが見つからない"
+    block = m.group(1)
+    assert "opacity" in block, (
+        f".edge-label-bg に opacity が含まれない: {block!r}"
+    )
+
+
+@pytest.mark.unit
+def test_css_edge_label_bg_pointer_events_none(rendered_html):
+    """.edge-label-bg CSS ルールに pointer-events: none が定義されている。"""
+    m = re.search(r'\.edge-label-bg\s*\{([^}]+)\}', rendered_html)
+    assert m, ".edge-label-bg CSS ブロックが見つからない"
+    block = m.group(1)
+    assert "pointer-events" in block and "none" in block, (
+        f".edge-label-bg に pointer-events: none が含まれない: {block!r}"
+    )
+
+
+# --- (5) 非回帰: マーキング属性の維持 ---
+
+@pytest.mark.unit
+def test_bgp_badge_group_data_attrs_intact_after_bg_rect():
+    """背景 rect 追加後も bgp-badge-group の data-bgp-id/data-a/data-b が存在する。"""
+    from lib.rendering import render
+    topo = _make_ebgp_with_ip_topology()
+    html = render(topo)
+    badge_groups = re.findall(r'<g[^>]+class="bgp-badge-group"[^>]*>', html)
+    assert badge_groups, "bgp-badge-group が存在しない"
+    for tag in badge_groups:
+        assert 'data-bgp-id=' in tag, f"data-bgp-id が欠落: {tag}"
+        assert 'data-a=' in tag, f"data-a が欠落: {tag}"
+        assert 'data-b=' in tag, f"data-b が欠落: {tag}"
+
+
+@pytest.mark.unit
+def test_bgp_session_data_attrs_intact_after_bg_rect():
+    """背景 rect 追加後も bgp-session の data-type/data-a/data-b/data-bgp-id が存在する。"""
+    from lib.rendering import render
+    topo = _make_ebgp_with_ip_topology()
+    html = render(topo)
+    sessions = re.findall(r'<g[^>]+class="bgp-session"[^>]*>', html)
+    assert sessions, "bgp-session が存在しない"
+    for tag in sessions:
+        assert 'data-type=' in tag, f"data-type が欠落: {tag}"
+        assert 'data-a=' in tag, f"data-a が欠落: {tag}"
+        assert 'data-b=' in tag, f"data-b が欠落: {tag}"
+        assert 'data-bgp-id=' in tag, f"data-bgp-id が欠落: {tag}"
+
+
+@pytest.mark.unit
+def test_link_label_group_data_attrs_intact_after_bg_rect():
+    """背景 rect 追加後も link-label-group の data-subnet/data-a/data-b が存在する。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    groups = re.findall(r'<g[^>]+class="link-label-group"[^>]*>', html)
+    assert groups, "link-label-group が存在しない"
+    for tag in groups:
+        assert 'data-subnet=' in tag, f"data-subnet が欠落: {tag}"
+        assert 'data-a=' in tag, f"data-a が欠落: {tag}"
+        assert 'data-b=' in tag, f"data-b が欠落: {tag}"
+
+
+# --- (6) 決定性 ---
+
+@pytest.mark.unit
+def test_edge_label_bg_render_deterministic():
+    """edge-label-bg を含む HTML の render が2回実行で同一結果（決定性）。"""
+    from lib.rendering import render
+    topo1 = _make_ebgp_with_ip_topology()
+    topo2 = _make_ebgp_with_ip_topology()
+    h1 = render(topo1)
+    h2 = render(topo2)
+    assert h1 == h2, "同一 topology の render 結果が2回で異なる（決定性違反）"

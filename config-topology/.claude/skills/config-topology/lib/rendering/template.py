@@ -760,6 +760,12 @@ _CSS = """\
       opacity: 0.85;
     }
 
+    .edge-label-bg {
+      fill: var(--bg-surface);
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
     /* #3: Static 行クリック時の行マーキング */
     tr.route-row-selected td {
       background: var(--color-row-route-bg);

@@ -62,6 +62,38 @@ def _esc(value: Any) -> str:
     return html.escape(str(value), quote=True)
 
 
+def _svg_label_bg_rect(
+    lines: list[str],
+    cx: float,
+    first_baseline_y: float,
+    *,
+    font_px: float = 10.0,
+    line_h: float = 12.0,
+) -> str:
+    """ラベル text の背後に敷く背景矩形 SVG を返す（text-anchor=middle 前提・決定的）。
+
+    lines: 表示行の文字列リスト（最長行で幅を概算）。
+    cx: テキスト中心 x（text-anchor=middle の x）。
+    first_baseline_y: 1行目のベースライン y（text の y 属性）。
+    font_px: フォントサイズ(px)。line_h: 行間(px)。
+    幅 = 最長行の文字数 × font_px × 0.62 + 左右パディング、
+    高さ = (行数-1)×line_h + font_px + 上下パディング。
+    rect は class="edge-label-bg"（CSS でテーマ色・opacity・pointer-events:none）。
+    """
+    if not lines:
+        return ""
+    pad_x, pad_y = 4.0, 2.0
+    max_len = max((len(s) for s in lines), default=1)
+    w = max_len * font_px * 0.62 + pad_x * 2
+    h = (len(lines) - 1) * line_h + font_px + pad_y * 2
+    rx = cx - w / 2
+    ry = first_baseline_y - font_px  # 1行目アセント分を上に確保
+    return (
+        f'<rect x="{rx:.1f}" y="{ry:.1f}" width="{w:.1f}" height="{h:.1f}" '
+        f'rx="3" ry="3" class="edge-label-bg"/>'
+    )
+
+
 def _normalize_subnet(subnet: object) -> str:
     """サブネット文字列を正規化した CIDR 文字列を返す（OSPF ID 算出用）。
 
@@ -1081,7 +1113,10 @@ def _svg_bgp_external_edges(
             title_text += f" | {ip_label}"
 
         if ip_label:
+            _lines_ext = [f"{_esc(bgp_type)} {local_as}↔{peer_as}", ip_label]
+            _bg_ext = _svg_label_bg_rect(_lines_ext, cx=mx, first_baseline_y=my - 8)
             badge_svg = (
+                f'{_bg_ext}'
                 f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
                 f'class="bgp-badge layer-bgp">'
                 f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
@@ -1089,7 +1124,10 @@ def _svg_bgp_external_edges(
                 f'</text>'
             )
         else:
+            _lines_ext = [f"{_esc(bgp_type)} {local_as}↔{peer_as}"]
+            _bg_ext = _svg_label_bg_rect(_lines_ext, cx=mx, first_baseline_y=my - 5)
             badge_svg = (
+                f'{_bg_ext}'
                 f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '
                 f'class="bgp-badge layer-bgp">{_esc(bgp_type)} {local_as}↔{peer_as}</text>'
             )
@@ -1498,7 +1536,10 @@ def _svg_bgp_edges_split(
             if is_dual_stack:
                 v4_label = " / ".join(v4_pairs)
                 v6_label = " / ".join(v6_pairs)
+                _lines_in = [f"{_esc(bgp_type)} {local_as}↔{peer_as}", v4_label, v6_label]
+                _bg_in = _svg_label_bg_rect(_lines_in, cx=mx, first_baseline_y=my - 8)
                 badge_svg = (
+                    f'{_bg_in}'
                     f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
                     f'class="bgp-badge layer-bgp">'
                     f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
@@ -1507,7 +1548,10 @@ def _svg_bgp_edges_split(
                     f'</text>'
                 )
             else:
+                _lines_in = [f"{_esc(bgp_type)} {local_as}↔{peer_as}", ip_label]
+                _bg_in = _svg_label_bg_rect(_lines_in, cx=mx, first_baseline_y=my - 8)
                 badge_svg = (
+                    f'{_bg_in}'
                     f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
                     f'class="bgp-badge layer-bgp">'
                     f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
@@ -1515,7 +1559,10 @@ def _svg_bgp_edges_split(
                     f'</text>'
                 )
         else:
+            _lines_in = [f"{_esc(bgp_type)} {local_as}↔{peer_as}"]
+            _bg_in = _svg_label_bg_rect(_lines_in, cx=mx, first_baseline_y=my - 5)
             badge_svg = (
+                f'{_bg_in}'
                 f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '
                 f'class="bgp-badge layer-bgp">{_esc(bgp_type)} {local_as}↔{peer_as}</text>'
             )

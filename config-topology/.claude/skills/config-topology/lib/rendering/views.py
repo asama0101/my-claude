@@ -33,6 +33,7 @@ from lib.rendering.svg import (
     _svg_bgp_edges_split,
     _svg_bgp_external_edges,
     _svg_bgp_external_nodes,
+    _svg_label_bg_rect,
     _svg_links,
     _svg_nodes,
     _svg_ospf_segment_edges,
@@ -1177,10 +1178,14 @@ def _build_view_ospf(
                     f'<tspan x="{mx:.1f}" dy="14">{_esc(s)}</tspan>'
                     for s in ordered_subnets
                 )
+                _lines_ospf = ["area " + str(ospf_area)] + ordered_subnets
             else:
                 # ospf_subnets が空: primary_subnet をフォールバック
                 subnet_tspans = f'<tspan x="{mx:.1f}" dy="14">{primary_subnet}</tspan>'
+                _lines_ospf = ["area " + str(ospf_area), primary_subnet_raw]
+            _bg_ospf = _svg_label_bg_rect(_lines_ospf, cx=mx, first_baseline_y=my)
             label_elem = (
+                f'{_bg_ospf}'
                 f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
                 f'class="link-label layer-ospf">'
                 f'{area_tspan}'
@@ -1189,7 +1194,9 @@ def _build_view_ospf(
             )
         else:
             # ospf_area 欠如: subnet のみ表示（後方互換）
+            _bg_ospf = _svg_label_bg_rect([primary_subnet_raw], cx=mx, first_baseline_y=my)
             label_elem = (
+                f'{_bg_ospf}'
                 f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
                 f'class="link-label layer-ospf">{primary_subnet}</text>'
             )
