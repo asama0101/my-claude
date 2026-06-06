@@ -21261,3 +21261,267 @@ def test_cards_toggle_node_smoke_no_throw(rendered_html):
     assert result.returncode == 0, (
         f'toggleCardsPane() 呼び出しで JS が throw した:\n{result.stderr[:1000]}'
     )
+
+
+# ============================================================
+# ResizeObserver によるリサイズ時の倍率・中心保持 (TDD)
+# ============================================================
+
+@pytest.mark.unit
+def test_resize_observer_installed_in_js(rendered_html):
+    """JS に ResizeObserver の設置（new ResizeObserver）が含まれる。"""
+    js = _extract_js_body(rendered_html)
+    assert 'new ResizeObserver' in js, (
+        "JS に new ResizeObserver が見つからない — "
+        "リサイズ時の倍率・中心保持（ResizeObserver 設置）が未実装"
+    )
+
+
+@pytest.mark.unit
+def test_resize_observer_has_typeof_guard(rendered_html):
+    """ResizeObserver の設置前に typeof ResizeObserver ガードがある。"""
+    js = _extract_js_body(rendered_html)
+    assert "typeof ResizeObserver" in js, (
+        "typeof ResizeObserver ガードが JS に見つからない — "
+        "古い環境や jsdom/node テスト環境でクラッシュしないようガードが必要"
+    )
+
+
+@pytest.mark.unit
+def test_resize_observer_base_scale_correction(rendered_html):
+    """ResizeObserver コールバック内に baseOld/baseNew を用いた倍率補正ロジックがある。"""
+    js = _extract_js_body(rendered_html)
+    # baseOld と baseNew 両方が存在すること（倍率保持の中核ロジック）
+    has_base_old = 'baseOld' in js
+    has_base_new = 'baseNew' in js
+    assert has_base_old and has_base_new, (
+        f"baseOld={has_base_old}, baseNew={has_base_new} — "
+        "ResizeObserver コールバックに baseOld/baseNew による倍率補正ロジックがない"
+    )
+
+
+@pytest.mark.unit
+def test_resize_observer_apply_transform_called(rendered_html):
+    """ResizeObserver コールバック内で _applyTransform() が呼ばれる。"""
+    js = _extract_js_body(rendered_html)
+    # ResizeObserver コールバック領域内に applyTransform() 呼び出しがあること
+    ro_idx = js.find('new ResizeObserver')
+    assert ro_idx != -1, "new ResizeObserver が JS に見つからない"
+    # RO コールバック後方 2000 文字以内に applyTransform 呼び出しがあること
+    window_after = js[ro_idx:ro_idx + 2000]
+    assert 'applyTransform' in window_after, (
+        "ResizeObserver コールバック付近に applyTransform() 呼び出しが見つからない"
+    )
+
+
+@pytest.mark.unit
+def test_resize_observer_prev_dimensions_tracked(rendered_html):
+    """ResizeObserver が prevCW/prevCH で前回コンテナ寸法を追跡する。"""
+    js = _extract_js_body(rendered_html)
+    has_prev_cw = 'prevCW' in js
+    has_prev_ch = 'prevCH' in js
+    assert has_prev_cw and has_prev_ch, (
+        f"prevCW={has_prev_cw}, prevCH={has_prev_ch} — "
+        "ResizeObserver が prevCW/prevCH でコンテナ寸法を追跡していない"
+    )
+
+
+@pytest.mark.unit
+def test_resize_observer_zoom_clamp(rendered_html):
+    """ResizeObserver コールバック内で ZOOM_MIN/ZOOM_MAX によるクランプが行われる。"""
+    js = _extract_js_body(rendered_html)
+    ro_idx = js.find('new ResizeObserver')
+    assert ro_idx != -1, "new ResizeObserver が JS に見つからない"
+    # RO の設定付近 3000 文字以内に ZOOM_MIN/ZOOM_MAX 参照があること
+    region = js[ro_idx:ro_idx + 3000]
+    assert 'ZOOM_MIN' in region and 'ZOOM_MAX' in region, (
+        "ResizeObserver コールバック付近に ZOOM_MIN/ZOOM_MAX クランプがない"
+    )
+
+
+@pytest.mark.unit
+def test_resize_observer_minimap_update_called(rendered_html):
+    """ResizeObserver コールバック末尾で _updateMinimap が呼ばれる（ミニマップ同期）。"""
+    js = _extract_js_body(rendered_html)
+    ro_idx = js.find('new ResizeObserver')
+    assert ro_idx != -1, "new ResizeObserver が JS に見つからない"
+    region = js[ro_idx:ro_idx + 3000]
+    assert '_updateMinimap' in region, (
+        "ResizeObserver コールバック付近に _updateMinimap 呼び出しがない — "
+        "リサイズ後にミニマップが更新されない"
+    )
+
+
+@pytest.mark.unit
+def test_resize_observer_no_throw_in_node_smoke(rendered_html):
+    """node smoke: ResizeObserver スタブ有り環境で JS が throw しない。"""
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    js = _extract_js_body(rendered_html)
+
+    # ResizeObserver スタブ付きハーネスを構築
+    escaped = _json.dumps(js)
+    harness = f"""\
+'use strict';
+var _listeners = {{}};
+function _trackListener(type) {{
+  _listeners[type] = (_listeners[type] || 0) + 1;
+}}
+function makeEl(tag) {{
+  var el = {{
+    _tag: tag,
+    style: {{}},
+    dataset: {{}},
+    value: '',
+    checked: false,
+    textContent: '',
+    innerHTML: '',
+    classList: {{
+      add: function() {{}},
+      remove: function() {{}},
+      contains: function() {{ return false; }},
+      toggle: function() {{}},
+    }},
+    addEventListener: function(type) {{ _trackListener(type); }},
+    removeEventListener: function() {{}},
+    getAttribute: function(name) {{
+      if (name === 'viewBox') {{ return '0 0 1200 800'; }}
+      return null;
+    }},
+    setAttribute: function() {{}},
+    getBoundingClientRect: function() {{
+      return {{left:0, top:0, right:100, bottom:100, width:100, height:100}};
+    }},
+    querySelectorAll: function() {{ return []; }},
+    querySelector: function() {{ return null; }},
+    closest: function() {{ return null; }},
+    appendChild: function(c) {{ return c; }},
+    insertBefore: function(c) {{ return c; }},
+    focus: function() {{}},
+    click: function() {{}},
+    clientWidth: 800,
+    clientHeight: 600,
+    offsetHeight: 600,
+  }};
+  return el;
+}}
+global.CSS = {{ escape: function(s) {{ return s; }} }};
+global.document = {{
+  body: makeEl('body'),
+  documentElement: makeEl('html'),
+  addEventListener: function(type, fn) {{
+    if (type !== 'DOMContentLoaded') {{ _trackListener(type); }}
+  }},
+  removeEventListener: function() {{}},
+  getElementById: function() {{ return makeEl('div'); }},
+  querySelector: function() {{ return makeEl('div'); }},
+  querySelectorAll: function() {{ return []; }},
+  createElementNS: function(ns, tag) {{ return makeEl(tag); }},
+  createElement: function(tag) {{ return makeEl(tag); }},
+}};
+global.window = {{
+  addEventListener: function(type) {{ _trackListener(type); }},
+  removeEventListener: function() {{}},
+  _zoomFit: null,
+  innerHeight: 768,
+}};
+global.window.window = global.window;
+global.localStorage = {{
+  getItem: function() {{ return null; }},
+  setItem: function() {{}},
+  removeItem: function() {{}},
+}};
+global.getComputedStyle = function() {{
+  return {{ display: 'block', getPropertyValue: function() {{ return ''; }} }};
+}};
+global.matchMedia = function() {{
+  return {{
+    matches: false,
+    addEventListener: function() {{}},
+    removeEventListener: function() {{}},
+  }};
+}};
+global.requestAnimationFrame = function() {{ return 0; }};
+global.cancelAnimationFrame = function() {{}};
+global.SVGElement = function() {{}};
+global.HTMLElement = function() {{}};
+
+// ResizeObserver スタブ（コールバックを即時呼び出し）
+global.ResizeObserver = function(callback) {{
+  this._callback = callback;
+  this.observe = function(el) {{
+    // 即時コールバック呼び出し（リサイズシミュレーション）
+    try {{ callback([{{ target: el, contentRect: {{ width: 900, height: 700 }} }}]); }} catch(e) {{}}
+  }};
+  this.unobserve = function() {{}};
+  this.disconnect = function() {{}};
+}};
+
+try {{
+  (0, eval)({escaped});
+}} catch (e) {{
+  process.stderr.write('THROW: ' + e.message + '\\n' + (e.stack || '') + '\\n');
+  process.exit(1);
+}}
+
+var total = Object.values(_listeners).reduce(function(s, v) {{ return s + v; }}, 0);
+process.stdout.write(JSON.stringify({{
+  listeners: _listeners,
+  total: total,
+  wheel: _listeners['wheel'] || 0,
+  mousedown: _listeners['mousedown'] || 0,
+  click: _listeners['click'] || 0,
+  pointerdown: _listeners['pointerdown'] || 0,
+}}) + '\\n');
+"""
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_ro_smoke_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"ResizeObserver スタブ有り環境で JS が throw した:\n{result.stderr[:1000]}"
+    )
+
+    data = _json.loads(result.stdout.strip())
+    assert data['wheel'] >= 1, f"wheel リスナーが登録されていない: {data}"
+    assert data['mousedown'] >= 1, f"mousedown リスナーが登録されていない: {data}"
+    assert data['click'] >= 1, f"click リスナーが登録されていない: {data}"
+
+
+@pytest.mark.unit
+def test_resize_observer_no_throw_without_resize_observer_global(rendered_html):
+    """node smoke: ResizeObserver が未定義（古環境）でも JS が throw しない（ガード確認）。"""
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    js = _extract_js_body(rendered_html)
+    # 標準 _build_js_harness（ResizeObserver 未定義）でも throw しないこと
+    harness = _build_js_harness(js)
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_ro_guard_smoke_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"ResizeObserver 未定義環境（ガードなし）で JS が throw した:\n{result.stderr[:1000]}"
+    )

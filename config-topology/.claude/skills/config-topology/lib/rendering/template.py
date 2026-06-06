@@ -1687,6 +1687,96 @@ _JS = """\
       window._applyTransform = applyTransform;
       window._zoomFit = zoomFit;
       window._zoomReset = function() { naturalZoom(); };
+
+      // ============================================================
+      // ResizeObserver: コンテナリサイズ時に倍率・中心を保持する
+      //
+      // 倍率保持の根拠:
+      //   SVG は viewBox + preserveAspectRatio="xMidYMid meet" で
+      //   基底スケール base = min(cw/vbW, ch/vbH) を適用する。
+      //   #viewport の transform scale s が乗り、見た目の倍率 = base × s。
+      //   コンテナ寸法変化後に同じ見た目を保つには:
+      //     base_old × s_old = base_new × s_new
+      //     → s_new = s_old × (base_old / base_new)
+      //   中心点保持: 旧コンテナ中心に写っていた content 座標を
+      //     centerX = (prevCW/2 - translateX_old) / scale_old
+      //     centerY = (prevCH/2 - translateY_old) / scale_old  で求め、
+      //   新寸法で同じ content 点がコンテナ中心になるよう translate を再設定:
+      //     translateX_new = cw/2 - centerX × scale_new
+      //     translateY_new = ch/2 - centerY × scale_new
+      // ============================================================
+      if (typeof ResizeObserver !== 'undefined') {
+        // 前回コンテナ寸法（初期は 0：初回コールバックで prevCW/prevCH を確定し補正しない）
+        var prevCW = 0;
+        var prevCH = 0;
+
+        var _ro = new ResizeObserver(function() {
+          if (!container || !window._zoomState || !window._applyTransform) return;
+
+          var cw = container.clientWidth;
+          var ch = container.clientHeight;
+
+          // 初回 or サイズ変化なし: prev を更新して補正しない
+          if (prevCW === 0 || prevCH === 0 || (cw === prevCW && ch === prevCH)) {
+            prevCW = cw;
+            prevCH = ch;
+            return;
+          }
+
+          // viewBox parse（naturalZoom と同じ方式）
+          var vb = svg.getAttribute('viewBox');
+          if (!vb) {
+            prevCW = cw;
+            prevCH = ch;
+            return;
+          }
+          var parts = vb.split(' ');
+          if (parts.length !== 4) {
+            prevCW = cw;
+            prevCH = ch;
+            return;
+          }
+          var vbW = parseFloat(parts[2]);
+          var vbH = parseFloat(parts[3]);
+          if (!(vbW > 0 && vbH > 0)) {
+            prevCW = cw;
+            prevCH = ch;
+            return;
+          }
+
+          // 基底スケール（min による meet ロジック）
+          var baseOld = Math.min(prevCW / vbW, prevCH / vbH);
+          var baseNew = Math.min(cw / vbW, ch / vbH);
+          if (!(baseNew > 0)) {
+            prevCW = cw;
+            prevCH = ch;
+            return;
+          }
+
+          var z = window._zoomState;
+
+          // 旧コンテナ中心に写っていた content 座標を算出
+          var centerX = (prevCW / 2 - z.translateX) / z.scale;
+          var centerY = (prevCH / 2 - z.translateY) / z.scale;
+
+          // 見た目の倍率保持: s_new = s_old × (baseOld / baseNew)
+          var scaleNew = z.scale * (baseOld / baseNew);
+          z.scale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, scaleNew));
+
+          // 新寸法で同じ content 点がコンテナ中心になるよう translate 再設定
+          z.translateX = cw / 2 - centerX * z.scale;
+          z.translateY = ch / 2 - centerY * z.scale;
+
+          window._applyTransform();
+
+          prevCW = cw;
+          prevCH = ch;
+
+          if (window._updateMinimap) { window._updateMinimap(); }
+        });
+
+        _ro.observe(container);
+      }
     })();
 
     // ============================================================
