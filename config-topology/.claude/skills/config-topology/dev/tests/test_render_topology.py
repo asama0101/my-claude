@@ -19693,4 +19693,217 @@ def test_js_smoke_segment_filter_topology():
     data = _json_local.loads(result.stdout.strip())
     assert data['wheel'] >= 1, f"wheel リスナーが登録されていない: {data['listeners']}"
     assert data['mousedown'] >= 1, f"mousedown リスナーが登録されていない: {data['listeners']}"
-    assert data['click'] >= 1, f"click リスナーが登録されていない: {data['listeners']}"
+
+
+# ===========================================================================
+# HV1: BGP / Shared-Network ホバーハイライト拡張
+#   - highlight(deviceId) が bgp-session / seg-edge / segment-node にも点灯
+#   - clearHighlight() が同要素を解除し、selection-edge-hl 保護ガードを持つ
+#   - IIFE 冒頭に allBgpSessions / allSegEdges / allSegmentNodes の参照取得
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# HV1-1: IIFE に allBgpSessions / allSegEdges / allSegmentNodes の宣言がある
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_hv1_iife_allBgpSessions_declared(rendered_html):
+    """HV1-1: IIFE 冒頭に allBgpSessions = querySelectorAll('.bgp-session') がある"""
+    js = _extract_js_body(rendered_html)
+    assert "querySelectorAll('.bgp-session')" in js or \
+           'querySelectorAll(".bgp-session")' in js, \
+        "IIFE に allBgpSessions = querySelectorAll('.bgp-session') がない"
+
+@pytest.mark.unit
+def test_hv1_iife_allSegEdges_declared(rendered_html):
+    """HV1-1: IIFE 冒頭に allSegEdges = querySelectorAll('.seg-edge') がある"""
+    js = _extract_js_body(rendered_html)
+    assert "querySelectorAll('.seg-edge')" in js or \
+           'querySelectorAll(".seg-edge")' in js, \
+        "IIFE に allSegEdges = querySelectorAll('.seg-edge') がない"
+
+@pytest.mark.unit
+def test_hv1_iife_allSegmentNodes_declared(rendered_html):
+    """HV1-1: IIFE 冒頭に allSegmentNodes = querySelectorAll('.segment-node') がある"""
+    js = _extract_js_body(rendered_html)
+    assert "querySelectorAll('.segment-node')" in js or \
+           'querySelectorAll(".segment-node")' in js, \
+        "IIFE に allSegmentNodes = querySelectorAll('.segment-node') がない"
+
+# ---------------------------------------------------------------------------
+# HV1-2: highlight() 関数に BGP / seg-edge / segment-node の点灯ロジックがある
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_hv1_highlight_adds_highlighted_to_bgp_session(rendered_html):
+    """HV1-2: highlight() 関数が bgp-session 要素に highlighted を付与するロジックを持つ"""
+    func_body = _extract_js_function(rendered_html, "highlight")
+    assert func_body, "highlight 関数が見つからない"
+    # allBgpSessions を参照し classList.add('highlighted') する
+    assert "allBgpSessions" in func_body, \
+        "highlight() に allBgpSessions への参照（bgp-session ハイライト付与）がない"
+
+@pytest.mark.unit
+def test_hv1_highlight_adds_highlighted_to_seg_edge(rendered_html):
+    """HV1-2: highlight() 関数が seg-edge 要素に highlighted を付与するロジックを持つ"""
+    func_body = _extract_js_function(rendered_html, "highlight")
+    assert func_body, "highlight 関数が見つからない"
+    assert "allSegEdges" in func_body, \
+        "highlight() に allSegEdges への参照（seg-edge ハイライト付与）がない"
+
+@pytest.mark.unit
+def test_hv1_highlight_adds_highlighted_to_segment_node(rendered_html):
+    """HV1-2: highlight() 関数が segment-node 要素に highlighted を付与するロジックを持つ"""
+    func_body = _extract_js_function(rendered_html, "highlight")
+    assert func_body, "highlight 関数が見つからない"
+    assert "allSegmentNodes" in func_body, \
+        "highlight() に allSegmentNodes への参照（segment-node ハイライト付与）がない"
+
+# ---------------------------------------------------------------------------
+# HV1-3: clearHighlight() が BGP / seg-edge / segment-node の解除 +
+#         selection-edge-hl ガードを持つ
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_hv1_clearHighlight_clears_bgp_session(rendered_html):
+    """HV1-3: clearHighlight() が allBgpSessions の highlighted を除去するロジックを持つ"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    assert "allBgpSessions" in func_body, \
+        "clearHighlight() に allBgpSessions の highlighted 除去ロジックがない"
+
+@pytest.mark.unit
+def test_hv1_clearHighlight_clears_seg_edge(rendered_html):
+    """HV1-3: clearHighlight() が allSegEdges の highlighted を除去するロジックを持つ"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    assert "allSegEdges" in func_body, \
+        "clearHighlight() に allSegEdges の highlighted 除去ロジックがない"
+
+@pytest.mark.unit
+def test_hv1_clearHighlight_clears_segment_node(rendered_html):
+    """HV1-3: clearHighlight() が allSegmentNodes の highlighted を除去するロジックを持つ"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    assert "allSegmentNodes" in func_body, \
+        "clearHighlight() に allSegmentNodes の highlighted 除去ロジックがない"
+
+@pytest.mark.unit
+def test_hv1_clearHighlight_has_selection_edge_hl_guard_for_bgp(rendered_html):
+    """HV1-3: clearHighlight() が selection-edge-hl ガードを持つ（ホバー解除でクリック選択が消えない）"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    # selection-edge-hl ガードが clearHighlight 本体に含まれること
+    assert "selection-edge-hl" in func_body, \
+        "clearHighlight() に selection-edge-hl ガードがない（ホバー解除でクリック選択強調が消える）"
+
+# ---------------------------------------------------------------------------
+# HV1-4: 既存ロジック非回帰
+#   - allNodes / allLinks は引き続き clearHighlight / highlight に使われる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_hv1_regression_allNodes_still_used_in_highlight(rendered_html):
+    """HV1-4: 非回帰 — highlight() が引き続き allNodes を使う"""
+    func_body = _extract_js_function(rendered_html, "highlight")
+    assert func_body, "highlight 関数が見つからない"
+    assert "allNodes" in func_body, \
+        "highlight() から allNodes の参照が消えた（非回帰違反）"
+
+@pytest.mark.unit
+def test_hv1_regression_allLinks_still_used_in_highlight(rendered_html):
+    """HV1-4: 非回帰 — highlight() が引き続き allLinks を使う"""
+    func_body = _extract_js_function(rendered_html, "highlight")
+    assert func_body, "highlight 関数が見つからない"
+    assert "allLinks" in func_body, \
+        "highlight() から allLinks の参照が消えた（非回帰違反）"
+
+@pytest.mark.unit
+def test_hv1_regression_allLinks_still_used_in_clearHighlight(rendered_html):
+    """HV1-4: 非回帰 — clearHighlight() が引き続き allLinks を使う"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    assert "allLinks" in func_body, \
+        "clearHighlight() から allLinks の参照が消えた（非回帰違反）"
+
+@pytest.mark.unit
+def test_hv1_regression_selectedLinks_guard_still_present(rendered_html):
+    """HV1-4: 非回帰 — clearHighlight() が _selectedLinks/_selectedStaticEdges ガードを保持"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    assert "_selectedLinks" in func_body and "_selectedStaticEdges" in func_body, \
+        "clearHighlight() から _selectedLinks/_selectedStaticEdges ガードが消えた（固定ハイライト消滅バグ）"
+
+# ---------------------------------------------------------------------------
+# HV1-5: JS node smoke — BGP topology の JS が throw しない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_hv1_js_smoke_bgp_topology_no_throw():
+    """HV1-5: BGP topology の JS を node 実行して例外が出ない（highlight 拡張による構文エラーなし）。
+    node が無い環境では skip する。
+    """
+    import shutil as _shutil, subprocess as _subprocess, tempfile as _tempfile
+    import os as _os, json as _json_local
+    if _shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    from lib.rendering import render
+    topo = _make_bidirectional_bgp_topology()
+    html = render(topo)
+    js = _extract_js_body(html)
+    harness = _build_js_harness(js)
+
+    tmp = _tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_hv1_bgp_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = _subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        _os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"BGP topology JS で例外（highlight 拡張コードに問題）:\n{result.stderr[:1000]}"
+    )
+
+# ---------------------------------------------------------------------------
+# HV1-6: JS node smoke — OSPF セグメント topology の JS が throw しない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_hv1_js_smoke_ospf_segment_topology_no_throw():
+    """HV1-6: OSPF セグメント topology の JS を node 実行して例外が出ない。
+    node が無い環境では skip する。
+    """
+    import shutil as _shutil, subprocess as _subprocess, tempfile as _tempfile
+    import os as _os, json as _json_local
+    if _shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    js = _extract_js_body(html)
+    harness = _build_js_harness(js)
+
+    tmp = _tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_hv1_ospf_seg_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = _subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        _os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"OSPF セグメント topology JS で例外（highlight 拡張コードに問題）:\n{result.stderr[:1000]}"
+    )

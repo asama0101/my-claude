@@ -1672,6 +1672,9 @@ _JS = """\
     (function() {
       const allNodes = document.querySelectorAll('.device-node');
       const allLinks = document.querySelectorAll('.link-edge');
+      const allBgpSessions = document.querySelectorAll('.bgp-session');
+      const allSegEdges = document.querySelectorAll('.seg-edge');
+      const allSegmentNodes = document.querySelectorAll('.segment-node');
 
       function highlight(deviceId) {
         allNodes.forEach(function(n) {
@@ -1684,6 +1687,26 @@ _JS = """\
             l.classList.add('highlighted');
           }
         });
+        // BGP セッション: 両端ノードいずれかが deviceId に一致するセッションを点灯
+        allBgpSessions.forEach(function(s) {
+          if (s.dataset.a === deviceId || s.dataset.b === deviceId) {
+            s.classList.add('highlighted');
+          }
+        });
+        // 共有 NW (seg-edge / segment-node): deviceId が接続する seg-edge を点灯し、
+        // そのセグメントノードも一緒に点灯する
+        var litSegIds = [];
+        allSegEdges.forEach(function(s) {
+          if (s.dataset.device === deviceId) {
+            s.classList.add('highlighted');
+            if (s.dataset.segId) { litSegIds.push(s.dataset.segId); }
+          }
+        });
+        allSegmentNodes.forEach(function(sn) {
+          if (litSegIds.indexOf(sn.dataset.segId) !== -1) {
+            sn.classList.add('highlighted');
+          }
+        });
       }
 
       function clearHighlight() {
@@ -1694,6 +1717,23 @@ _JS = """\
           var lid = l.getAttribute('data-link-id');
           if (!_selectedLinks.has(lid) && !_selectedStaticEdges.has(lid)) {
             l.classList.remove('highlighted');
+          }
+        });
+        // BGP セッション: クリック選択由来の selection-edge-hl を持つ要素は解除しない
+        allBgpSessions.forEach(function(s) {
+          if (!s.classList.contains('selection-edge-hl')) {
+            s.classList.remove('highlighted');
+          }
+        });
+        // 共有 NW の seg-edge / segment-node: 同様に selection-edge-hl 保護
+        allSegEdges.forEach(function(s) {
+          if (!s.classList.contains('selection-edge-hl')) {
+            s.classList.remove('highlighted');
+          }
+        });
+        allSegmentNodes.forEach(function(sn) {
+          if (!sn.classList.contains('selection-edge-hl')) {
+            sn.classList.remove('highlighted');
           }
         });
       }
