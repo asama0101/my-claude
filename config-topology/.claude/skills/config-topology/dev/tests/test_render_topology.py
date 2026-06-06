@@ -5241,6 +5241,23 @@ def test_i3_diagram_pane_has_overflow_css(rendered_html):
         "#svg-container または #diagram-pane の CSS に overflow が設定されていない"
 
 @pytest.mark.unit
+def test_svg_container_overflow_hidden(rendered_html):
+    """#svg-container の overflow が hidden に設定されている（transform モデル専用）。
+
+    transform モデルでは SVG が width=100% でコンテナを覆い溢れない。
+    overflow:auto は scroll(px) モデルの遺産であり、スクロールバーの誤表示が発生する。
+    transform モデルでは overflow:hidden が正しい。
+    """
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined_style = "\n".join(style_blocks)
+    # #svg-container { ... overflow: hidden ... } を検証
+    has_hidden = bool(
+        re.search(r'#svg-container\s*\{[^}]*overflow\s*:\s*hidden', combined_style)
+    )
+    assert has_hidden, \
+        "#svg-container の overflow が hidden でない（transform モデルでは hidden が必須）"
+
+@pytest.mark.unit
 def test_i3_diagram_pane_has_max_height_css(rendered_html):
     """#8/#Phase1-A: SVG コンテナの高さ制御が行われている。
     Phase 1 で max-height:70vh は廃止され、flex レイアウトで高さを制御する。
@@ -12739,53 +12756,60 @@ def test_p1_7_ospf_label_area_independent_dualstack_ospf():
         "dualstack-ospf OSPF ラベルで v6 subnet の独立 tspan が見つからない"
 
 # ============================================================
-# P1-#4: large-topo 自動 zoomFit（初期表示・selectView）
+# P1-#4: 初期表示・selectView — 等倍1:1中央（naturalZoom）
 # ============================================================
 
 @pytest.mark.unit
-def test_p1_4_js_contains_initial_zoomfit_call():
-    """P1-#4: JS に初期 zoomFit 呼出が含まれる（IIFE末尾 or DOMContentLoaded相当）。
+def test_p1_4_js_contains_initial_natural_zoom_call():
+    """P1-#4: JS に初期 naturalZoom 呼出が含まれる（DOMContentLoaded または selectView 後）。
 
-    window._zoomFit または zoomFit() が初期化コード内（selectView('physical') の後付近）
-    で呼ばれていること。
+    自動 fit（zoomFit）は廃止し、naturalZoom（等倍1:1中央）で初期化する。
+    selectView('physical') の後付近または DOMContentLoaded 内で
+    naturalZoom / window._naturalZoom が呼ばれていること。
     """
     from lib.rendering.template import _JS
-    # zoomFit() または window._zoomFit() が初期化位置で呼ばれている
-    # selectView('physical') の後に zoomFit 呼出があることを確認
     sv_idx = _JS.find("selectView('physical')")
     assert sv_idx != -1, "selectView('physical') が JS に見つからない"
     after_sv = _JS[sv_idx:]
-    # 初期 zoomFit 呼出: window._zoomFit() または zoomFit() が selectView の後に存在
-    has_zoomfit_after = (
-        "window._zoomFit()" in after_sv or
-        re.search(r'\bzoomFit\(\)', after_sv) is not None
+    # naturalZoom 呼出: window._naturalZoom() または naturalZoom() が selectView の後に存在
+    has_natural_after = (
+        "window._naturalZoom()" in after_sv or
+        re.search(r'\bnaturalZoom\(\)', after_sv) is not None
     )
-    assert has_zoomfit_after, \
-        "selectView('physical') の後に zoomFit() 呼出が見つからない（初期 zoomFit 未実装）"
+    assert has_natural_after, \
+        "selectView('physical') の後に naturalZoom() 呼出が見つからない（初期等倍1:1中央 未実装）"
 
 @pytest.mark.unit
-def test_p1_4_js_selectview_calls_zoomfit_for_svg_views():
-    """P1-#4: selectView() のSVGビュー表示分岐末尾で zoomFit を呼ぶ。
+def test_p1_4_js_selectview_calls_natural_zoom_not_zoom_fit():
+    """P1-#4: selectView() の本体で window._naturalZoom() を実際に呼び出し、自動 zoomFit は呼ばない。
 
-    ifinv ビュー（非SVG）では呼ばれず、SVG ビュー分岐内で zoomFit 呼出があること。
+    コメント文字列内の単純な文字列マッチで通過する偽陽性を防ぐため、
+    window._naturalZoom() の呼び出し構文（括弧付き）を正規表現で検証する。
+    ビュー切替時の自動 fit（zoomFit）を廃止し、naturalZoom に統一する。
     """
     from lib.rendering.template import _JS
-    # selectView 関数内を抽出
     sv_start = _JS.find("function selectView(viewId)")
     assert sv_start != -1, "selectView 関数が JS に見つからない"
-    # selectView 関数の本体を大まかに抽出（次の function 宣言まで）
     sv_region = _JS[sv_start:sv_start + 2000]
-    # SVG ビュー分岐（else ブロック）に zoomFit 呼出がある
-    # viewId === 'ifinv' の if ブロック後の else に zoomFit が必要
-    assert "zoomFit" in sv_region, \
-        "selectView() 内に zoomFit 呼出が見つからない（SVG ビュー切替時の自動 fit 未実装）"
+    # window._naturalZoom() の実呼び出し構文が存在すること（コメント内マッチを排除）
+    has_natural_call = bool(
+        re.search(r'window\._naturalZoom\s*\(\s*\)', sv_region)
+    )
+    assert has_natural_call, \
+        "selectView() 内に window._naturalZoom() 呼出が見つからない（ビュー切替時の等倍1:1中央 未実装）"
+    # 自動 zoomFit 呼出が selectView 内に残っていないこと
+    # （window._zoomFit の代入定義は IIFE 末尾にあるので sv_region 外だが、
+    #   selectView 内の呼び出し "_zoomFit()" はないこと）
+    has_auto_fit = bool(re.search(r'window\._zoomFit\s*\(\)', sv_region))
+    assert not has_auto_fit, \
+        "selectView() 内に自動 window._zoomFit() 呼出が残っている（自動 fit 廃止済みのはず）"
 
 @pytest.mark.integration
-def test_p1_4_html_js_zoomfit_called_after_selectview():
-    """P1-#4 統合: render() が生成する HTML の JS に zoomFit 呼出が含まれる。"""
+def test_p1_4_html_js_natural_zoom_called_after_selectview():
+    """P1-#4 統合: render() が生成する HTML の JS に naturalZoom 呼出が含まれる。"""
     from lib.rendering import render
     topo = {
-        "title": "ZoomFit Test",
+        "title": "NaturalZoom Test",
         "generated_from": [],
         "devices": [
             {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
@@ -12799,13 +12823,35 @@ def test_p1_4_html_js_zoomfit_called_after_selectview():
     js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
     assert js_m is not None, "script ブロックが見つからない"
     js = js_m.group(1)
-    assert "zoomFit" in js, "render() 生成 JS に zoomFit が含まれない"
-    # selectView の後に zoomFit がある
+    assert "naturalZoom" in js, "render() 生成 JS に naturalZoom が含まれない"
+    # selectView の後に naturalZoom がある
     sv_idx = js.find("selectView('physical')")
     assert sv_idx != -1
     after = js[sv_idx:]
-    has_call = ("window._zoomFit()" in after or re.search(r'\bzoomFit\(\)', after) is not None)
-    assert has_call, "selectView('physical') の後に zoomFit() 呼出が見つからない"
+    has_call = (
+        "window._naturalZoom()" in after or
+        re.search(r'\bnaturalZoom\(\)', after) is not None
+    )
+    assert has_call, "selectView('physical') の後に naturalZoom() 呼出が見つからない"
+
+@pytest.mark.unit
+def test_p1_4_zoom_iife_immediate_natural_zoom_call():
+    """P1-#4: zoom IIFE 末尾で naturalZoom() が即時呼び出しされている。
+
+    window._naturalZoom = naturalZoom; の直後に naturalZoom() が即時呼び出しされること。
+    DOMContentLoaded のタイミングに依存せず初期等倍1:1中央が適用される保険。
+    ミニマップ IIFE の即時 _updateMinimap() と同じパターン。
+    """
+    from lib.rendering.template import _JS
+    # window._naturalZoom = naturalZoom; の位置を特定
+    export_idx = _JS.find("window._naturalZoom = naturalZoom;")
+    assert export_idx != -1, "window._naturalZoom = naturalZoom; が JS に見つからない"
+    # エクスポート行の直後300文字に naturalZoom() の即時呼び出しがあること
+    after_export = _JS[export_idx:export_idx + 300]
+    has_immediate_call = bool(re.search(r'\bnaturalZoom\s*\(\s*\)', after_export))
+    assert has_immediate_call, (
+        "zoom IIFE で window._naturalZoom = naturalZoom; の直後に naturalZoom() 即時呼び出しがない"
+    )
 
 # ============================================================
 # P1-#6: AS 枠ラベルの重なり回避
@@ -13976,23 +14022,23 @@ def test_a4_toggle_if_chip_highlight_uses_some(rendered_html):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-def test_a5_zoom_fit_uses_dom_content_loaded(rendered_html):
-    """A5: 初期 zoomFit が DOMContentLoaded または IIFE 後の即時呼び出しで実行される。
+def test_a5_natural_zoom_uses_dom_content_loaded(rendered_html):
+    """A5: 初期 naturalZoom が DOMContentLoaded または IIFE 後の即時呼び出しで実行される。
 
-    window.addEventListener('load', ...) ではなく DOMContentLoaded を使うか、
-    IIFE で window._zoomFit を定義した後に呼び出す設計になっていること。
+    自動 fit（zoomFit）は廃止し、naturalZoom（等倍1:1中央）で初期化する。
+    DOMContentLoaded で naturalZoom を呼ぶか、IIFE 後に即時呼び出す設計になっていること。
     """
     js_text = rendered_html[rendered_html.find("<script>"):]
-    # DOMContentLoaded で zoomFit を呼ぶ、または window._zoomFit 定義後に即時呼び出す
-    has_domcontentloaded = "DOMContentLoaded" in js_text and "_zoomFit" in js_text
-    # フォールバック: window._zoomFit が定義される IIFE の後に selectView と zoomFit が続く構造
+    # DOMContentLoaded で naturalZoom / _naturalZoom を呼ぶ
+    has_domcontentloaded = "DOMContentLoaded" in js_text and "_naturalZoom" in js_text
+    # フォールバック: window._naturalZoom が定義される IIFE の後に naturalZoom が続く構造
     has_post_iife = bool(re.search(
-        r'window\._zoomFit\s*=\s*zoomFit.*?\}\)\(\);.*?_zoomFit\(\)',
+        r'window\._naturalZoom\s*=\s*naturalZoom.*?\}\)\(\);.*?_naturalZoom\(\)',
         js_text, re.DOTALL
     ))
     assert has_domcontentloaded or has_post_iife, (
-        "初期 zoomFit が DOMContentLoaded ではなく load イベント（or 未定義状態）で呼ばれている。"
-        "A5: DOMContentLoaded に変更してください。"
+        "初期 naturalZoom が DOMContentLoaded または IIFE 後即時呼び出しで実行されていない。"
+        "A5: naturalZoom（等倍1:1中央）での初期化に変更してください。"
     )
 
 # ---------------------------------------------------------------------------
@@ -16861,3 +16907,225 @@ def test_css_minimap_zindex_greater_than_legend_panel(rendered_html):
         f".minimap の z-index={zindex} が legend-panel(20) 以下。"
         "将来の重なりでミニマップが覆われる可能性がある（≥21 にすること）"
     )
+
+
+# ===========================================================================
+# naturalZoom（等倍1:1中央）テスト
+# ===========================================================================
+
+@pytest.mark.unit
+def test_natural_zoom_function_defined(rendered_html):
+    """naturalZoom 関数が JS に定義されている。"""
+    assert re.search(r'\bfunction\s+naturalZoom\s*\(', rendered_html) is not None, \
+        "naturalZoom 関数定義が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_natural_zoom_window_export(rendered_html):
+    """window._naturalZoom が公開されている（IIFE 跨ぎ呼び出し用）。"""
+    assert "window._naturalZoom" in rendered_html, \
+        "window._naturalZoom がエクスポートされていない"
+
+
+@pytest.mark.unit
+def test_natural_zoom_uses_max_formula(rendered_html):
+    """naturalZoom が Math.max(vbW / cw, vbH / ch) の自然 scale 算出式そのものを含む。
+
+    fit（min）の逆数として Math.max を使うことで「1 viewBox 単位 ≈ 1 CSS px」を実現する。
+    ZOOM_MIN クランプ行（Math.max(ZOOM_MIN, ...)）との混同を防ぐため、
+    naturalScale 代入式 Math.max(vbW / cw, ...) を直接検証する。
+    """
+    # naturalZoom 関数本体付近を抽出（前後2000文字）
+    m = re.search(r'function\s+naturalZoom\s*\(\)', rendered_html)
+    assert m is not None, "naturalZoom 関数が見つからない"
+    region = rendered_html[m.start():m.start() + 2000]
+    # 自然 scale 算出式: Math.max(vbW / cw, ...) の形が存在すること
+    # ※クランプ行 Math.max(ZOOM_MIN, ...) とは区別した正規表現で検証
+    has_natural_scale_expr = bool(
+        re.search(r'Math\.max\s*\(\s*vbW\s*/\s*cw', region)
+    )
+    assert has_natural_scale_expr, (
+        "naturalZoom に Math.max(vbW / cw, ...) 形式の自然 scale 算出式が含まれない"
+    )
+
+
+@pytest.mark.unit
+def test_natural_zoom_centering_formula(rendered_html):
+    """naturalZoom が centering 式（translateX/Y の計算）を含む。
+
+    vbX/vbY（min-x, min-y）を考慮した
+    translateX = (cw - vbW*scale)/2 - vbX*scale と同等の式が存在すること。
+    単純な "translateX in region" は代入以外でも通過するため、
+    vbX を含む減算式を正規表現で検証する。
+    """
+    m = re.search(r'function\s+naturalZoom\s*\(\)', rendered_html)
+    assert m is not None, "naturalZoom 関数が見つからない"
+    region = rendered_html[m.start():m.start() + 2000]
+    # translateX の centering 代入: (cw - vbW * scale) / 2 - vbX * scale 相当
+    has_tx = bool(re.search(r'translateX\s*=\s*\(', region))
+    assert has_tx, "naturalZoom に translateX = (...) の centering 代入がない"
+    # translateY の centering 代入: (ch - vbH * scale) / 2 - vbY * scale 相当
+    has_ty = bool(re.search(r'translateY\s*=\s*\(', region))
+    assert has_ty, "naturalZoom に translateY = (...) の centering 代入がない"
+    # vbX/vbY を参照している（min-x/min-y を考慮した centering）
+    assert "vbX" in region, "naturalZoom に vbX（min-x centering 補正）の参照がない"
+    assert "vbY" in region, "naturalZoom に vbY（min-y centering 補正）の参照がない"
+
+
+@pytest.mark.unit
+def test_natural_zoom_container_size_guard(rendered_html):
+    """naturalZoom にコンテナ寸法 cw/ch 両方の0ガードが存在する。
+
+    cw だけでなく ch も0ガードすることで、縦方向レイアウト前の初期化時も安全。
+    """
+    m = re.search(r'function\s+naturalZoom\s*\(\)', rendered_html)
+    assert m is not None, "naturalZoom 関数が見つからない"
+    region = rendered_html[m.start():m.start() + 2000]
+    # cw の 0 ガード
+    has_cw_guard = bool(re.search(r'if\s*\(\s*cw\s*===?\s*0', region))
+    assert has_cw_guard, "naturalZoom にコンテナ幅 cw の0ガード（if (cw === 0)）が存在しない"
+    # ch の 0 ガード（cw || ch のどちらかでよい: OR条件も許容）
+    has_ch_guard = bool(
+        re.search(r'ch\s*===?\s*0', region) or
+        re.search(r'if\s*\(\s*cw\s*===?\s*0\s*\|\|', region)
+    )
+    assert has_ch_guard, "naturalZoom にコンテナ高 ch の0ガード（ch === 0 等）が存在しない"
+
+
+@pytest.mark.unit
+def test_natural_zoom_no_auto_call_in_select_view_using_zoom_fit(rendered_html):
+    """selectView() 内の自動 fit 呼出が _naturalZoom であり _zoomFit でないこと。"""
+    sv_start = rendered_html.find("function selectView(viewId)")
+    assert sv_start != -1, "selectView 関数が見つからない"
+    sv_region = rendered_html[sv_start:sv_start + 2000]
+    # _naturalZoom を呼んでいること
+    assert "_naturalZoom" in sv_region or "naturalZoom()" in sv_region, \
+        "selectView 内に _naturalZoom 呼出がない"
+    # window._zoomFit() の自動呼出が残っていないこと
+    assert "window._zoomFit()" not in sv_region, \
+        "selectView 内に window._zoomFit() 自動呼出が残っている（自動 fit 廃止済み）"
+
+
+@pytest.mark.unit
+def test_dom_content_loaded_calls_natural_zoom_not_zoom_fit(rendered_html):
+    """DOMContentLoaded ハンドラで naturalZoom を呼び、zoomFit を呼ばないこと。
+
+    初期表示は等倍1:1中央（naturalZoom）で行い、自動 fit（zoomFit）は廃止する。
+    """
+    # DOMContentLoaded ブロックを大まかに抽出
+    dcl_start = rendered_html.find("DOMContentLoaded")
+    assert dcl_start != -1, "DOMContentLoaded が見つからない"
+    # DOMContentLoaded の前後200文字を見る（複数ある場合は最初の zoom 関連を探す）
+    # naturalZoom に関係する DOMContentLoaded を探す
+    pattern = re.compile(
+        r"document\.addEventListener\(['\"]DOMContentLoaded['\"].*?\}\s*\)",
+        re.DOTALL,
+    )
+    blocks = list(pattern.finditer(rendered_html))
+    # zoom 関連の DOMContentLoaded ブロックを探す
+    zoom_dcl = [b for b in blocks if "_naturalZoom" in b.group() or "naturalZoom" in b.group()]
+    assert len(zoom_dcl) >= 1, \
+        "DOMContentLoaded ハンドラ内で naturalZoom / _naturalZoom を呼ぶブロックが存在しない"
+    # そのブロック内に zoomFit() の自動呼出がないこと
+    for block in zoom_dcl:
+        text = block.group()
+        has_auto_fit = bool(re.search(r'window\._zoomFit\s*\(\)', text))
+        assert not has_auto_fit, \
+            f"DOMContentLoaded ハンドラ内に window._zoomFit() 自動呼出が残っている:\n{text[:300]}"
+
+
+@pytest.mark.unit
+def test_manual_fit_zoom_fit_function_preserved(rendered_html):
+    """手動 fit: zoomFit 関数が維持されている（#zoom-fit ボタン・F キー用）。"""
+    assert re.search(r'\bfunction\s+zoomFit\s*\(', rendered_html) is not None, \
+        "zoomFit 関数定義が削除されている（手動 fit が機能しなくなる）"
+
+
+@pytest.mark.unit
+def test_manual_fit_zoom_fit_button_preserved(rendered_html):
+    """手動 fit: #zoom-fit ボタンが維持されている。"""
+    assert 'id="zoom-fit"' in rendered_html, \
+        "#zoom-fit ボタンが削除されている（手動 fit が機能しなくなる）"
+
+
+@pytest.mark.unit
+def test_manual_fit_window_zoom_fit_exported(rendered_html):
+    """手動 fit: window._zoomFit がエクスポートされている。"""
+    assert "window._zoomFit" in rendered_html, \
+        "window._zoomFit がエクスポートされていない（手動 fit が機能しなくなる）"
+
+
+@pytest.mark.unit
+def test_manual_fit_f_key_calls_zoom_fit(rendered_html):
+    """手動 fit: F/f キーが zoomFit() を呼ぶ（Fキーによる全体表示維持）。"""
+    m = re.search(
+        r"""e\.key\s*===?\s*['"]f['"]\s*\|\|\s*e\.key\s*===?\s*['"]F['"][\s\S]{0,100}?zoomFit\(\)""",
+        rendered_html,
+    )
+    assert m is not None, "f/F キーの keydown ブランチで zoomFit() が呼ばれていない"
+
+
+@pytest.mark.unit
+def test_esc_key_calls_natural_zoom(rendered_html):
+    """Esc キーが naturalZoom() を呼ぶ（等倍1:1中央へリセット）。"""
+    # Escape ブランチ: e.key === 'Escape' の if ブロックを取り出す
+    # return; までを含む最大600文字の範囲を抽出
+    esc_m = re.search(
+        r"e\.key\s*===?\s*['\"]Escape['\"][\s\S]{0,600}?return\s*;",
+        rendered_html,
+    )
+    assert esc_m is not None, "Escape キーのハンドラ（... return;）が見つからない"
+    esc_block = esc_m.group()
+    assert "naturalZoom" in esc_block, \
+        "Escape キーのハンドラで naturalZoom() が呼ばれていない（等倍1:1中央リセット未実装）"
+
+
+@pytest.mark.unit
+def test_zoom_reset_button_calls_natural_zoom(rendered_html):
+    """#zoom-reset ボタンのクリックハンドラが naturalZoom を呼ぶ。"""
+    # zoomResetBtn.addEventListener の近傍（300文字）に naturalZoom があること
+    reset_m = re.search(
+        r"zoomResetBtn\.addEventListener\(['\"]click['\"][\s\S]{0,300}?naturalZoom",
+        rendered_html,
+    )
+    assert reset_m is not None, \
+        "zoomResetBtn.addEventListener の近傍（300文字）に naturalZoom がない"
+
+
+@pytest.mark.unit
+def test_window_zoom_reset_calls_natural_zoom(rendered_html):
+    """window._zoomReset が naturalZoom を呼ぶ。"""
+    # window._zoomReset の代入式の近傍（200文字）に naturalZoom があること
+    m = re.search(
+        r"window\._zoomReset\s*=[\s\S]{0,200}?naturalZoom",
+        rendered_html,
+    )
+    assert m is not None, \
+        "window._zoomReset の定義で naturalZoom が呼ばれていない"
+
+
+@pytest.mark.unit
+def test_free_pan_translate_not_scroll(rendered_html):
+    """自由パン: mousedown/mousemove が translateX/Y を更新する（scrollLeft でない）。"""
+    # mousemove ハンドラ内に translateX/translateY の更新があること
+    mm_m = re.search(
+        r"addEventListener\(['\"]mousemove['\"][\s\S]{0,500}?translateX\s*=",
+        rendered_html,
+    )
+    assert mm_m is not None, \
+        "mousemove ハンドラ内に translateX の更新がない（自由パンが機能しない）"
+    # scrollLeft を使っていないこと（translateX で実装されていること）
+    mm_block = mm_m.group()
+    assert "scrollLeft" not in mm_block, \
+        "mousemove ハンドラが scrollLeft を使っている（translateX による自由パンに変更してください）"
+
+
+@pytest.mark.unit
+def test_natural_zoom_deterministic(sample_topology):
+    """naturalZoom を含む render() が2回同一出力を返す（決定性）。"""
+    from lib.rendering import render
+    import copy
+    html1 = render(copy.deepcopy(sample_topology))
+    html2 = render(copy.deepcopy(sample_topology))
+    assert html1 == html2, "naturalZoom 実装後に render() が非決定的になった"
+    assert "naturalZoom" in html1, "render() 出力に naturalZoom が含まれない"

@@ -261,7 +261,9 @@ _CSS = """\
     }
 
     #svg-container {
-      overflow: auto;
+      /* transform モデル: SVG は width=100% でコンテナを覆うため溢れない。
+         overflow:hidden でスクロールバーの誤表示を防ぐ（overflow:auto は scroll(px)モデルの遺産）。 */
+      overflow: hidden;
       flex: 1;
       min-height: 120px;
       background: var(--bg-surface);
@@ -1005,8 +1007,8 @@ _JS = """\
         }
       }
 
-      // ビュー切替時に自動 fit（そのビューの bbox に合わせる）
-      if (window._zoomFit) { window._zoomFit(); }
+      // ビュー切替時に等倍1:1中央（naturalZoom）
+      if (window._naturalZoom) { window._naturalZoom(); }
 
       // タブのアクティブ状態更新
       var tabs = document.querySelectorAll('.view-tab');
@@ -1033,12 +1035,16 @@ _JS = """\
       if (window._updateMinimap) { window._updateMinimap(); }
     }
 
-    // 初期ビューを設定（zoomFit は IIFE 定義後に window._zoomFit 経由で呼ぶ）
+    // ズーム関数の役割分担:
+    //   naturalZoom  — 初期表示・ビュー切替・Esc・1:1ボタン → 等倍1:1中央
+    //   zoomFit      — 手動 fit（F キー・⛶ ボタン）→ 図全体がコンテナに収まる最大倍率
+    // 初期ビューを naturalZoom 基準で設定（selectView 内で window._naturalZoom() を呼ぶ）
     selectView('physical');
-    // A5: 初期表示で全体が収まるよう DOMContentLoaded で zoomFit（IIFE 定義後に window._zoomFit が確実に存在）
+    // A5: DOMContentLoaded でも再実行（IIFE 内の即時 naturalZoom() の保険）
+    // clientWidth が確定した後に再適用されるため冪等で安全。
     if (typeof window !== 'undefined') {
       document.addEventListener('DOMContentLoaded', function() {
-        if (window._zoomFit) { window._zoomFit(); }
+        if (window._naturalZoom) { window._naturalZoom(); }
       });
     }
 
@@ -1489,6 +1495,56 @@ _JS = """\
         applyTransform();
       }
 
+      // naturalZoom: 等倍1:1中央ビュー
+      //   用途: 初期表示・ビュー切替（selectView）・Esc キー・1:1（reset）ボタン
+      //   zoomFit との違い: zoomFit=図全体収まる最大倍率（手動 F/⛶ 専用）
+      //                   naturalZoom=1 viewBox 単位 ≈ 1 CSS px になる等倍
+      function naturalZoom() {
+        // コンテナ寸法0ガード: レイアウト前（IIFE 即時実行時）やテスト環境では 0 になる場合がある
+        var cw = container.clientWidth;
+        var ch = container.clientHeight;
+        if (cw === 0 || ch === 0) {
+          scale = 1.0; translateX = 0; translateY = 0;
+          applyTransform();
+          return;
+        }
+        // viewBox の全4要素（minX minY W H）を parse して centering を補正
+        var vb = svg.getAttribute('viewBox');
+        if (vb) {
+          var parts = vb.split(' ');
+          if (parts.length === 4) {
+            var vbX = parseFloat(parts[0]);  // min-x（0 以外になりうる）
+            var vbY = parseFloat(parts[1]);  // min-y（0 以外になりうる）
+            var vbW = parseFloat(parts[2]);
+            var vbH = parseFloat(parts[3]);
+            if (vbW > 0 && vbH > 0) {
+              // 自然 scale (等倍1:1):
+              //   fitScale = min(cw/vbW, ch/vbH)  → 図全体がコンテナに収まる最大倍率
+              //   naturalScale = 1/fitScale の最大値 = Math.max(vbW/cw, vbH/ch)
+              //   → 画面px/単位 = scale × fitScale ≈ 1 (等倍)
+              //   図がコンテナより小さければ naturalScale < 1 (実寸・余白あり)
+              //   図がコンテナより大きければ naturalScale > 1 (コンテナを超えるが ZOOM_MIN/MAX でクランプ)
+              var naturalScale = Math.max(vbW / cw, vbH / ch);
+              scale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, naturalScale));
+              // centering: SVG 中心とコンテナ中心を合わせる（vbX/vbY で min-x/min-y を補正）
+              //   translateX = (コンテナ幅 - 図幅×scale) / 2 - min-x×scale
+              translateX = (cw - vbW * scale) / 2 - vbX * scale;
+              translateY = (ch - vbH * scale) / 2 - vbY * scale;
+              applyTransform();
+              return;
+            }
+          }
+        }
+        // フォールバック: scale=1 リセット
+        scale = 1.0; translateX = 0; translateY = 0;
+        applyTransform();
+      }
+      window._naturalZoom = naturalZoom;
+      // 即時初期化: DOM 構築済みなら cw/ch ガードで安全に実行。
+      // DOMContentLoaded より前に評価されても clientWidth=0 ガードがフォールバックするため冪等。
+      // ミニマップ IIFE の即時 _updateMinimap() と同じパターン。
+      naturalZoom();
+
       // キーボード
       document.addEventListener('keydown', function(e) {
         // 入力中ガード: INPUT/TEXTAREA/SELECT または contentEditable にフォーカス中は
@@ -1503,7 +1559,7 @@ _JS = """\
         if (e.key === 'Escape') {
           // Escape は常にハンドル: 入力欄にいれば blur してから clearSelection 等を実行
           if (isEditing) { e.target.blur(); }
-          clearSelection(); scale = 1.0; translateX = 0; translateY = 0; applyTransform();
+          clearSelection(); naturalZoom();
           return;
         }
 
@@ -1546,8 +1602,7 @@ _JS = """\
       });
       if (zoomResetBtn) zoomResetBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        scale = 1.0; translateX = 0; translateY = 0;
-        applyTransform();
+        naturalZoom();
       });
 
       // ズーム状態を共有オブジェクトとして window に露出（_centerOnDevice から利用）
@@ -1562,7 +1617,7 @@ _JS = """\
       };
       window._applyTransform = applyTransform;
       window._zoomFit = zoomFit;
-      window._zoomReset = function() { scale = 1.0; translateX = 0; translateY = 0; applyTransform(); };
+      window._zoomReset = function() { naturalZoom(); };
     })();
 
     // ============================================================
