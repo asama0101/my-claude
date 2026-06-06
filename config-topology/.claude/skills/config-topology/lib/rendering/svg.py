@@ -738,6 +738,8 @@ def _svg_links(
         # チップアンカー: iface_id からチップ座標を解決
         a_pos = positions.get(a_dev, (0.0, 0.0))
         b_pos = positions.get(b_dev, (0.0, 0.0))
+        a_iface_id: str | None = None
+        b_iface_id: str | None = None
         if chip_positions is not None and name_to_iface_id is not None:
             a_iface_id = name_to_iface_id.get((a_dev, a_if_raw))
             b_iface_id = name_to_iface_id.get((b_dev, b_if_raw))
@@ -762,9 +764,16 @@ def _svg_links(
         # data-subnet は最初（primary）の subnet（後方互換）
         primary_subnet = _esc(subnets[0]) if subnets else ""
 
+        # IF チップ端点属性（iface_id が判明した端点のみ付与）
+        iface_attrs = ""
+        if a_iface_id:
+            iface_attrs += f' data-a-iface="{_esc(a_iface_id)}"'
+        if b_iface_id:
+            iface_attrs += f' data-b-iface="{_esc(b_iface_id)}"'
+
         parts.append(
             f'<g class="link-edge" data-subnet="{primary_subnet}" '
-            f'data-a="{_esc(a_dev)}" data-b="{_esc(b_dev)}" data-link-id="{link_id}">'
+            f'data-a="{_esc(a_dev)}" data-b="{_esc(b_dev)}" data-link-id="{link_id}"{iface_attrs}>'
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
             f'class="link-line layer-physical" data-link-id="{link_id}"/>'
             f'<title>{title_text}</title>'

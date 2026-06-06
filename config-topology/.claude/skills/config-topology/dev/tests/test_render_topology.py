@@ -20260,3 +20260,388 @@ def test_el1_sync_edge_labels_link_id_selector_unquoted_css_escape(rendered_html
         "_syncEdgeLabels の data-a フォールバックが CSS.escape(a) 引用符なし連結形式でない。\n"
         "期待: 'data-a=' + CSS.escape(a) + ']'"
     )
+
+
+# ===========================================================================
+# IF1: Physical ノード複数選択時の IF チップ点灯
+# ===========================================================================
+# Physical ビューで2ノードを選択したとき、間の link-edge（線）だけでなく
+# 両端の IF チップ（.if-chip）も highlighted+selection-edge-hl で点灯する機能。
+# ---------------------------------------------------------------------------
+
+def _extract_update_edge_highlight_body(html: str) -> str:
+    """_updateEdgeHighlightForSelection 関数の本体を取り出す。"""
+    js_text = html[html.find("<script>"):]
+    func_match = re.search(
+        r'function _updateEdgeHighlightForSelection\(\)(.*?)(?=\n    function |\n    // ={3,})',
+        js_text, re.DOTALL
+    )
+    if func_match is None:
+        return ""
+    return func_match.group(1)
+
+
+# ---------------------------------------------------------------------------
+# IF1-A: physical link-edge <g> に data-a-iface / data-b-iface が付く
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_if1_a_link_edge_has_data_a_iface_attr(rendered_html):
+    """IF1-A: physical link-edge の <g class="link-edge"> に data-a-iface 属性が付いている。
+    値は該当 iface の id（例: 'r1::GigabitEthernet0/0'）と一致する。
+    """
+    # <g class="link-edge" ... data-a-iface="..."> の存在確認
+    assert 'data-a-iface=' in rendered_html, (
+        "link-edge に data-a-iface 属性がない。svg.py _svg_links で付与が必要。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_a_link_edge_has_data_b_iface_attr(rendered_html):
+    """IF1-A: physical link-edge の <g class="link-edge"> に data-b-iface 属性が付いている。"""
+    assert 'data-b-iface=' in rendered_html, (
+        "link-edge に data-b-iface 属性がない。svg.py _svg_links で付与が必要。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_a_link_edge_iface_value_matches_iface_id(rendered_html):
+    """IF1-A: link-edge の data-a-iface 値が iface の id 形式（'device::ifname' 相当）
+    であり、.if-chip[data-iface-id] と照合できること。
+    サンプルトポロジーの r1 → GigabitEthernet0/0 の iface_id は 'r1::GigabitEthernet0/0'。
+    """
+    # data-a-iface="r1::GigabitEthernet0/0" が HTML 内に存在することを確認
+    assert 'r1::GigabitEthernet0/0' in rendered_html, (
+        "r1 の GigabitEthernet0/0 iface_id が HTML 内に存在しない（if-chip のレンダリング問題）"
+    )
+    # link-edge の data-a-iface に同じ値が付いていること
+    assert 'data-a-iface="r1::GigabitEthernet0/0"' in rendered_html or \
+           "data-a-iface='r1::GigabitEthernet0/0'" in rendered_html, (
+        "link-edge の data-a-iface に 'r1::GigabitEthernet0/0' が含まれていない。\n"
+        "svg.py _svg_links で name_to_iface_id から a_iface_id を取得して付与すること。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_a_link_edge_b_iface_value_matches_iface_id(rendered_html):
+    """IF1-A: link-edge の data-b-iface 値が r2 の ge-0/0/0 iface_id と一致すること。"""
+    assert 'data-b-iface="r2::ge-0/0/0"' in rendered_html or \
+           "data-b-iface='r2::ge-0/0/0'" in rendered_html, (
+        "link-edge の data-b-iface に 'r2::ge-0/0/0' が含まれていない。\n"
+        "svg.py _svg_links で name_to_iface_id から b_iface_id を取得して付与すること。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_a_link_edge_iface_attrs_on_same_g_element(rendered_html):
+    """IF1-A: data-a-iface と data-b-iface が同じ <g class="link-edge"> 要素に付いている。"""
+    # 同一の <g ...> タグ内に両属性が含まれること
+    import re as _re
+    pattern = r'<g\s[^>]*data-a-iface=[^>]*data-b-iface=[^>]*>'
+    alt_pattern = r'<g\s[^>]*data-b-iface=[^>]*data-a-iface=[^>]*>'
+    assert _re.search(pattern, rendered_html) or _re.search(alt_pattern, rendered_html), (
+        "data-a-iface と data-b-iface が同一 <g class=\"link-edge\"> 要素に付いていない。"
+    )
+
+
+# ---------------------------------------------------------------------------
+# IF1-B: _updateEdgeHighlightForSelection physical 分岐でチップ点灯の配線がある
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_if1_b_physical_branch_reads_data_a_iface(rendered_html):
+    """IF1-B: _updateEdgeHighlightForSelection の physical 分岐が data-a-iface を読んでいる。"""
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    assert "data-a-iface" in func_body, (
+        "_updateEdgeHighlightForSelection の physical 分岐に data-a-iface の読み取りがない。\n"
+        "el.getAttribute('data-a-iface') 等の配線が必要。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_b_physical_branch_reads_data_b_iface(rendered_html):
+    """IF1-B: _updateEdgeHighlightForSelection の physical 分岐が data-b-iface を読んでいる。"""
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    assert "data-b-iface" in func_body, (
+        "_updateEdgeHighlightForSelection の physical 分岐に data-b-iface の読み取りがない。\n"
+        "el.getAttribute('data-b-iface') 等の配線が必要。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_b_physical_branch_adds_highlighted_to_if_chip(rendered_html):
+    """IF1-B: physical 分岐が .if-chip[data-iface-id] に highlighted を追加する配線を持つ。"""
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    # if-chip セレクタへの classList.add('highlighted') があること
+    assert "if-chip" in func_body, (
+        "_updateEdgeHighlightForSelection の physical 分岐に .if-chip セレクタがない。\n"
+        ".if-chip[data-iface-id=...] に highlighted を追加する配線が必要。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_b_physical_branch_adds_selection_edge_hl_to_if_chip(rendered_html):
+    """IF1-B: physical 分岐が .if-chip[data-iface-id] に selection-edge-hl を追加する配線を持つ。
+    selection-edge-hl がないとクリア処理で解除されないため必須。
+    """
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    # if-chip 付近に selection-edge-hl の add がある（同じ関数内）
+    assert "selection-edge-hl" in func_body, (
+        "_updateEdgeHighlightForSelection に selection-edge-hl の操作がない（既存チェックが通るはず）"
+    )
+    # if-chip かつ selection-edge-hl の組み合わせを確認（if-chip セレクタの近くに
+    # selection-edge-hl の add があること）
+    # 実装が物理的に近接していることを正規表現で確認
+    import re as _re
+    # if-chip が出現する文脈の前後200文字に selection-edge-hl が含まれるか
+    for m in _re.finditer(r'if-chip', func_body):
+        context = func_body[max(0, m.start()-50):m.end()+200]
+        if "selection-edge-hl" in context:
+            return  # OK
+    assert False, (
+        "_updateEdgeHighlightForSelection の if-chip 操作箇所に selection-edge-hl の付与がない。\n"
+        "チップ点灯時に selection-edge-hl も付与してクリア処理と対称にすること。"
+    )
+
+
+# ---------------------------------------------------------------------------
+# IF1-C: クリア処理に .if-chip.selection-edge-hl の解除が含まれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_if1_c_clear_section_removes_if_chip_selection_edge_hl(rendered_html):
+    """IF1-C: _updateEdgeHighlightForSelection の冒頭クリア処理に
+    '.if-chip.selection-edge-hl' を持つ要素から highlighted と selection-edge-hl を
+    解除するコードがある。
+    """
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    # クリア処理セクション（early return の前）に if-chip.selection-edge-hl があること
+    # 関数本体の前半（_selectedNodes.size <= 1 チェックより前）にある必要がある
+    early_return_pos = func_body.find("_selectedNodes.size")
+    if early_return_pos == -1:
+        early_return_pos = len(func_body)
+    clear_section = func_body[:early_return_pos]
+    assert "if-chip" in clear_section, (
+        "_updateEdgeHighlightForSelection のクリアセクション（早期 return より前）に "
+        ".if-chip.selection-edge-hl の解除がない。\n"
+        "document.querySelectorAll('.if-chip.selection-edge-hl').forEach(...) が必要。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_c_clear_section_removes_highlighted_from_if_chip(rendered_html):
+    """IF1-C: クリアセクションが .if-chip.selection-edge-hl 要素から highlighted を remove する。"""
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    early_return_pos = func_body.find("_selectedNodes.size")
+    if early_return_pos == -1:
+        early_return_pos = len(func_body)
+    clear_section = func_body[:early_return_pos]
+    import re as _re
+    # if-chip が出現し、かつその文脈に remove('highlighted') がある
+    has_if_chip = "if-chip" in clear_section
+    has_remove_highlighted = "remove('highlighted')" in clear_section or 'remove("highlighted")' in clear_section
+    assert has_if_chip and has_remove_highlighted, (
+        "クリアセクションに .if-chip.selection-edge-hl からの highlighted 解除がない。\n"
+        f"if-chip={has_if_chip}, remove('highlighted')={has_remove_highlighted}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# IF1-D: _svg_links 単体 — data-a-iface/data-b-iface が <g> に付く（Python ユニット）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_if1_d_svg_links_emits_data_a_iface_when_iface_id_known():
+    """IF1-D: _svg_links に chip_positions + name_to_iface_id を渡すと
+    link-edge <g> に data-a-iface が付く。
+    両端の iface_id が name_to_iface_id に存在する場合のみ付与する。
+    """
+    from lib.rendering.svg import _svg_links
+    links = [{
+        "a_device": "r1",
+        "a_if": "eth0",
+        "b_device": "r2",
+        "b_if": "eth1",
+        "subnet": "10.0.0.0/30",
+    }]
+    positions = {"r1": (100.0, 100.0), "r2": (200.0, 200.0)}
+    chip_positions = {
+        "r1::eth0": (110.0, 105.0),
+        "r2::eth1": (190.0, 195.0),
+    }
+    name_to_iface_id = {
+        ("r1", "eth0"): "r1::eth0",
+        ("r2", "eth1"): "r2::eth1",
+    }
+    result = _svg_links(links, positions, chip_positions, name_to_iface_id)
+    assert 'data-a-iface="r1::eth0"' in result or "data-a-iface='r1::eth0'" in result, (
+        "_svg_links の出力に data-a-iface='r1::eth0' がない。\n"
+        "link-edge <g> に端点 iface_id を data-a-iface として付与すること。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_d_svg_links_emits_data_b_iface_when_iface_id_known():
+    """IF1-D: _svg_links が link-edge <g> に data-b-iface を付ける。"""
+    from lib.rendering.svg import _svg_links
+    links = [{
+        "a_device": "r1",
+        "a_if": "eth0",
+        "b_device": "r2",
+        "b_if": "eth1",
+        "subnet": "10.0.0.0/30",
+    }]
+    positions = {"r1": (100.0, 100.0), "r2": (200.0, 200.0)}
+    chip_positions = {
+        "r1::eth0": (110.0, 105.0),
+        "r2::eth1": (190.0, 195.0),
+    }
+    name_to_iface_id = {
+        ("r1", "eth0"): "r1::eth0",
+        ("r2", "eth1"): "r2::eth1",
+    }
+    result = _svg_links(links, positions, chip_positions, name_to_iface_id)
+    assert 'data-b-iface="r2::eth1"' in result or "data-b-iface='r2::eth1'" in result, (
+        "_svg_links の出力に data-b-iface='r2::eth1' がない。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_d_svg_links_no_iface_attr_when_iface_id_missing():
+    """IF1-D: name_to_iface_id に存在しない端点は data-a-iface/data-b-iface を付与しない。"""
+    from lib.rendering.svg import _svg_links
+    links = [{
+        "a_device": "r1",
+        "a_if": "eth0",
+        "b_device": "r2",
+        "b_if": "eth1",
+        "subnet": "10.0.0.0/30",
+    }]
+    positions = {"r1": (100.0, 100.0), "r2": (200.0, 200.0)}
+    # name_to_iface_id/chip_positions は None（未知）
+    result = _svg_links(links, positions, None, None)
+    assert 'data-a-iface' not in result, (
+        "name_to_iface_id=None のとき data-a-iface を付与してはいけない。"
+    )
+    assert 'data-b-iface' not in result, (
+        "name_to_iface_id=None のとき data-b-iface を付与してはいけない。"
+    )
+
+
+@pytest.mark.unit
+def test_if1_d_svg_links_no_iface_attr_for_partial_miss():
+    """IF1-D: 片端だけ name_to_iface_id にある場合、その端だけ付与する（もう片端は付与しない）。"""
+    from lib.rendering.svg import _svg_links
+    links = [{
+        "a_device": "r1",
+        "a_if": "eth0",
+        "b_device": "r2",
+        "b_if": "eth1",
+        "subnet": "10.0.0.0/30",
+    }]
+    positions = {"r1": (100.0, 100.0), "r2": (200.0, 200.0)}
+    chip_positions = {"r1::eth0": (110.0, 105.0)}
+    name_to_iface_id = {("r1", "eth0"): "r1::eth0"}  # r2::eth1 は不在
+    result = _svg_links(links, positions, chip_positions, name_to_iface_id)
+    # a 側は付与、b 側は不在なので付与なし
+    assert 'data-a-iface="r1::eth0"' in result or "data-a-iface='r1::eth0'" in result, (
+        "a 側 iface_id が存在するのに data-a-iface が付与されていない。"
+    )
+    assert 'data-b-iface' not in result, (
+        "b 側 iface_id が name_to_iface_id に不在なのに data-b-iface が付与されている。"
+    )
+
+
+# ---------------------------------------------------------------------------
+# IF1-E: bgp/ospf 分岐は if-chip 操作なし（非回帰）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_if1_e_bgp_branch_does_not_touch_if_chip(rendered_html):
+    """IF1-E: _updateEdgeHighlightForSelection の bgp 分岐には .if-chip への操作がない。
+    bgp/ospf 分岐は変更対象外。
+    """
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    # bgp 分岐のブロックを取り出す
+    bgp_block_match = re.search(
+        r"=== ['\"]bgp['\"].*?(?=\s*\}\s*else\s*if|\s*\}\s*// end|\Z)",
+        func_body, re.DOTALL
+    )
+    if bgp_block_match:
+        bgp_block = bgp_block_match.group(0)
+        assert "if-chip" not in bgp_block, (
+            "bgp 分岐に .if-chip への操作がある。bgp/ospf 分岐は変更対象外。"
+        )
+
+
+@pytest.mark.unit
+def test_if1_e_ospf_branch_does_not_touch_if_chip(rendered_html):
+    """IF1-E: _updateEdgeHighlightForSelection の ospf 分岐には .if-chip への操作がない。"""
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    ospf_block_match = re.search(
+        r"=== ['\"]ospf['\"].*?(?=\s*\}\s*// end|\s*\}\s*\n\s*//|\Z)",
+        func_body, re.DOTALL
+    )
+    if ospf_block_match:
+        ospf_block = ospf_block_match.group(0)
+        assert "if-chip" not in ospf_block, (
+            "ospf 分岐に .if-chip への操作がある。bgp/ospf 分岐は変更対象外。"
+        )
+
+
+# ---------------------------------------------------------------------------
+# IF1-F: toggleIfChipHighlight 非回帰 — 関数が存在し、highlighted をトグルする
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_if1_f_toggle_if_chip_highlight_still_exists(rendered_html):
+    """IF1-F: toggleIfChipHighlight 関数が HTML に残っている（非回帰）。"""
+    func_body = _extract_js_function(rendered_html, "toggleIfChipHighlight")
+    assert func_body, "toggleIfChipHighlight 関数が HTML に存在しない（削除・破壊された可能性）"
+
+
+@pytest.mark.unit
+def test_if1_f_toggle_if_chip_highlight_uses_data_iface_id(rendered_html):
+    """IF1-F: toggleIfChipHighlight が data-iface-id セレクタで要素を取得している（非回帰）。"""
+    func_body = _extract_js_function(rendered_html, "toggleIfChipHighlight")
+    assert func_body, "toggleIfChipHighlight 関数が見つからない"
+    assert "data-iface-id" in func_body, (
+        "toggleIfChipHighlight が data-iface-id を参照していない（破壊された可能性）"
+    )
+
+
+@pytest.mark.unit
+def test_if1_f_toggle_if_chip_highlight_toggles_highlighted_class(rendered_html):
+    """IF1-F: toggleIfChipHighlight が highlighted クラスをトグルする（非回帰）。"""
+    func_body = _extract_js_function(rendered_html, "toggleIfChipHighlight")
+    assert func_body, "toggleIfChipHighlight 関数が見つからない"
+    has_add = "add('highlighted')" in func_body or 'add("highlighted")' in func_body
+    has_remove = "remove('highlighted')" in func_body or 'remove("highlighted")' in func_body
+    assert has_add and has_remove, (
+        "toggleIfChipHighlight が highlighted の add/remove を両方持っていない（非回帰失敗）\n"
+        f"add={has_add}, remove={has_remove}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# IF1-G: 決定性 — data-a-iface/data-b-iface を含む HTML が2回同じ出力
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_if1_g_render_with_iface_attrs_is_deterministic(sample_topology):
+    """IF1-G: link-edge の data-a-iface/data-b-iface を含む HTML が決定的（2回同じ）。"""
+    import copy
+    from lib.rendering import render
+    html1 = render(copy.deepcopy(sample_topology))
+    html2 = render(copy.deepcopy(sample_topology))
+    assert html1 == html2, (
+        "render() が非決定的（data-a-iface/data-b-iface 付与後に順序が変わる可能性）"
+    )

@@ -1949,6 +1949,11 @@ _JS = """\
         el.classList.remove('highlighted');
         el.classList.remove('selection-edge-hl');
       });
+      // (2a-2) IF チップ（if-chip）の選択由来ハイライトをクリア
+      document.querySelectorAll('.if-chip.selection-edge-hl').forEach(function(el) {
+        el.classList.remove('highlighted');
+        el.classList.remove('selection-edge-hl');
+      });
 
       if (_selectedNodes.size <= 1) {
         if (typeof window._syncEdgeLabels === 'function') { window._syncEdgeLabels(); }
@@ -2013,6 +2018,21 @@ _JS = """\
               document.querySelectorAll('tr[data-link-id="' + CSS.escape(linkId) + '"]').forEach(function(row) {
                 row.classList.add('highlighted');
                 row.classList.add('selection-edge-hl');
+              });
+            }
+            // 端点 IF チップ（if-chip）を点灯（data-a-iface / data-b-iface）
+            var aIface = el.getAttribute('data-a-iface');
+            var bIface = el.getAttribute('data-b-iface');
+            if (aIface) {
+              document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(aIface) + '"]').forEach(function(chip) {
+                chip.classList.add('highlighted');
+                chip.classList.add('selection-edge-hl');
+              });
+            }
+            if (bIface) {
+              document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(bIface) + '"]').forEach(function(chip) {
+                chip.classList.add('highlighted');
+                chip.classList.add('selection-edge-hl');
               });
             }
           }
