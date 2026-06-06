@@ -703,6 +703,17 @@ _CSS = """\
       color: var(--btn-hover-fg);
     }
 
+    .zoom-btn.active {
+      background: var(--btn-hover-bg);
+      border-color: var(--btn-hover-border);
+      color: var(--btn-hover-fg);
+    }
+
+    /* Cards pane collapse: #split-pane-container.cards-collapsed */
+    #split-pane-container.cards-collapsed #cards-section,
+    #split-pane-container.cards-collapsed #split-divider { display: none; }
+    #split-pane-container.cards-collapsed #svg-container { flex: 1; height: auto !important; }
+
     /* 統合凡例パネル（右上 zoom-controls の下、絶対配置） */
     #legend-panel {
       position: absolute;
@@ -883,6 +894,42 @@ _JS = """\
       // getComputedStyle を使うことで CSS 由来の display:none も正しく検出する
       var isHidden = window.getComputedStyle(panel).display === 'none';
       panel.style.display = isHidden ? 'block' : 'none';
+    }
+
+    // ============================================================
+    // Cards ペイントグル（表の表示/最小化）
+    // ============================================================
+    var _cardsCollapsedSavedHeight = null;
+    var _cardsCollapsedSavedFlex = null;
+    function toggleCardsPane() {
+      var container = document.getElementById('split-pane-container');
+      var svgContainer = document.getElementById('svg-container');
+      var btn = document.getElementById('cards-toggle');
+      if (!container || !svgContainer) return;
+      var isCollapsed = container.classList.contains('cards-collapsed');
+      if (!isCollapsed) {
+        // 折りたたみ: height/flex を退避してから解除
+        _cardsCollapsedSavedHeight = svgContainer.style.height || null;
+        _cardsCollapsedSavedFlex = svgContainer.style.flex || null;
+        svgContainer.style.height = '';
+        svgContainer.style.flex = '';
+        container.classList.add('cards-collapsed');
+        if (btn) btn.classList.add('active');
+      } else {
+        // 復元: 退避した height/flex を戻す
+        container.classList.remove('cards-collapsed');
+        if (_cardsCollapsedSavedHeight) {
+          svgContainer.style.height = _cardsCollapsedSavedHeight;
+          svgContainer.style.flex = 'none';
+        } else {
+          svgContainer.style.height = '';
+          svgContainer.style.flex = _cardsCollapsedSavedFlex || '';
+        }
+        _cardsCollapsedSavedHeight = null;
+        _cardsCollapsedSavedFlex = null;
+        if (btn) btn.classList.remove('active');
+      }
+      if (window._updateMinimap) { window._updateMinimap(); }
     }
 
     // ============================================================
@@ -2958,6 +3005,7 @@ def build_html(
         <button id="zoom-reset" class="zoom-btn" title="等倍リセット">1:1</button>
         <button id="minimap-toggle" class="zoom-btn" title="ミニマップ表示/非表示">⊞</button>
         <button id="legend-toggle" class="zoom-btn" onclick="toggleLegend()" title="凡例を表示/非表示">凡例</button>
+        <button id="cards-toggle" class="zoom-btn" onclick="toggleCardsPane()" title="表の表示/最小化（図のみ）">表</button>
       </div>
       <!-- Round D: ミニマップ（右下オーバーレイ） -->
       <svg id="minimap" class="minimap" preserveAspectRatio="xMidYMid meet" aria-hidden="true">

@@ -5307,8 +5307,11 @@ def test_i3_cards_toggle_js_function_removed_in_phase1(rendered_html):
     旧テスト名 test_i3_cards_toggle_js_function_exists は「存在する」と名乗りながら
     廃止確認していた（名前と内容の乖離）。Phase1 後は toggleCards が存在しないことを
     明示的に検証する（test_p1b_toggle_cards_function_removed と同趣旨の確認）。
+    toggleCardsPane 等のサフィックス付き別関数は対象外。
     """
-    assert "toggleCards" not in rendered_html, \
+    # "function toggleCards(" または "toggleCards(" のみ（独立した関数名として）が存在しないこと
+    # toggleCardsPane 等のサフィックス付き関数は別物なので除外する
+    assert not re.search(r'\btoggleCards\s*\(', rendered_html), \
         "toggleCards 関数が JS に残存している（Phase1 で廃止されるべき）"
 
 # ===========================================================================
@@ -6533,8 +6536,10 @@ def test_p1a_cards_section_overflow_auto(rendered_html):
 
 @pytest.mark.unit
 def test_p1b_toggle_cards_function_removed(rendered_html):
-    """Phase1-B: toggleCards() 関数が HTML/JS に存在しない"""
-    assert "toggleCards" not in rendered_html, \
+    """Phase1-B: toggleCards() 関数（旧折りたたみ関数）が HTML/JS に存在しない。
+    toggleCardsPane 等のサフィックス付き別関数は対象外。"""
+    # toggleCards( という独立した呼び出しパターンが存在しないこと
+    assert not re.search(r'\btoggleCards\s*\(', rendered_html), \
         "toggleCards 関数が JS に残存している（廃止されるべき）"
 
 @pytest.mark.unit
@@ -21055,3 +21060,204 @@ def test_cards_header_render_deterministic(sample_topology):
     html1 = render(sample_topology)
     html2 = render(sample_topology)
     assert html1 == html2, 'render() が非決定的（sticky ヘッダ追加後）'
+
+
+# ============================================================
+# Cards Pane Toggle（表の表示/最小化トグル）
+# ============================================================
+
+@pytest.mark.unit
+def test_cards_toggle_button_exists_in_zoom_controls(rendered_html):
+    """#cards-toggle ボタンが #zoom-controls 内に存在する"""
+    # zoom-controls div の開始位置から近傍を取得
+    pos = rendered_html.find('id="zoom-controls"')
+    assert pos >= 0, 'id="zoom-controls" が見つからない'
+    # zoom-controls の div 閉じタグまでの範囲を取得（最大 2000 文字）
+    window_text = rendered_html[pos:pos + 2000]
+    assert 'id="cards-toggle"' in window_text, \
+        '#zoom-controls 内に id="cards-toggle" ボタンが存在しない'
+
+
+@pytest.mark.unit
+def test_cards_toggle_button_has_onclick_toggle_cards_pane(rendered_html):
+    """#cards-toggle ボタンが onclick="toggleCardsPane()" を持つ"""
+    pos = rendered_html.find('id="cards-toggle"')
+    assert pos >= 0, 'id="cards-toggle" が見つからない'
+    window_text = rendered_html[max(0, pos - 50):pos + 300]
+    assert 'toggleCardsPane()' in window_text, \
+        '#cards-toggle ボタンに onclick="toggleCardsPane()" がない'
+
+
+@pytest.mark.unit
+def test_cards_toggle_button_has_zoom_btn_class(rendered_html):
+    """#cards-toggle ボタンが class="zoom-btn" を持つ"""
+    pos = rendered_html.find('id="cards-toggle"')
+    assert pos >= 0, 'id="cards-toggle" が見つからない'
+    window_text = rendered_html[max(0, pos - 50):pos + 300]
+    assert 'zoom-btn' in window_text, \
+        '#cards-toggle ボタンに zoom-btn クラスがない'
+
+
+@pytest.mark.unit
+def test_toggle_cards_pane_function_defined(rendered_html):
+    """toggleCardsPane 関数が HTML 内に定義されている"""
+    assert 'function toggleCardsPane()' in rendered_html, \
+        'toggleCardsPane() 関数が定義されていない'
+
+
+@pytest.mark.unit
+def test_toggle_cards_pane_toggles_cards_collapsed_class(rendered_html):
+    """toggleCardsPane 関数が split-pane-container に cards-collapsed クラスをトグルする実装を含む"""
+    start = rendered_html.find('function toggleCardsPane()')
+    assert start != -1, 'toggleCardsPane 関数が見つからない'
+    # 関数本体（最大 2000 文字）を取得
+    func_body = rendered_html[start:start + 2000]
+    assert 'cards-collapsed' in func_body, \
+        'toggleCardsPane 内に cards-collapsed クラスのトグル処理がない'
+    assert 'split-pane-container' in func_body or 'split-pane' in func_body, \
+        'toggleCardsPane 内に split-pane-container への参照がない'
+
+
+@pytest.mark.unit
+def test_toggle_cards_pane_saves_and_restores_height(rendered_html):
+    """toggleCardsPane 関数が #svg-container の height を退避/復元する実装を含む"""
+    start = rendered_html.find('function toggleCardsPane()')
+    assert start != -1, 'toggleCardsPane 関数が見つからない'
+    func_body = rendered_html[start:start + 2000]
+    # height の退避（style.height への参照）
+    has_height_save = (
+        "style.height" in func_body or
+        "savedHeight" in func_body or
+        "_savedHeight" in func_body or
+        "_cardsCollapsedSavedHeight" in func_body
+    )
+    assert has_height_save, \
+        'toggleCardsPane 内に height 退避/復元の処理がない'
+
+
+@pytest.mark.unit
+def test_toggle_cards_pane_calls_update_minimap(rendered_html):
+    """toggleCardsPane 関数が _updateMinimap を呼ぶ配線を含む"""
+    start = rendered_html.find('function toggleCardsPane()')
+    assert start != -1, 'toggleCardsPane 関数が見つからない'
+    func_body = rendered_html[start:start + 2000]
+    assert '_updateMinimap' in func_body, \
+        'toggleCardsPane 内で _updateMinimap が呼ばれていない'
+
+
+@pytest.mark.unit
+def test_css_cards_collapsed_hides_cards_section(rendered_html):
+    """CSS に .cards-collapsed #cards-section { display:none } ルールがある"""
+    style_m = re.search(r'<style>(.*?)</style>', rendered_html, re.DOTALL)
+    assert style_m, '<style> ブロックが見つからない'
+    css = style_m.group(1)
+    assert re.search(
+        r'cards-collapsed[^{]*#cards-section[^{]*\{[^}]*display\s*:\s*none',
+        css, re.DOTALL
+    ) or re.search(
+        r'#split-pane-container\.cards-collapsed\s+#cards-section\s*\{[^}]*display\s*:\s*none',
+        css, re.DOTALL
+    ), 'CSS に .cards-collapsed #cards-section { display:none } ルールが存在しない'
+
+
+@pytest.mark.unit
+def test_css_cards_collapsed_hides_split_divider(rendered_html):
+    """CSS に .cards-collapsed #split-divider { display:none } ルールがある"""
+    style_m = re.search(r'<style>(.*?)</style>', rendered_html, re.DOTALL)
+    assert style_m, '<style> ブロックが見つからない'
+    css = style_m.group(1)
+    # #cards-section と #split-divider が同一 {} または別々のルールで display:none を持つこと
+    # （カンマ区切りセレクタも許容）
+    has_rule = bool(re.search(
+        r'cards-collapsed[^{]*#split-divider',
+        css, re.DOTALL
+    ))
+    assert has_rule, \
+        'CSS に .cards-collapsed #split-divider の display:none ルールが存在しない'
+
+
+@pytest.mark.unit
+def test_css_cards_collapsed_svg_container_flex_one(rendered_html):
+    """CSS に .cards-collapsed #svg-container { flex:1; height:auto !important } ルールがある"""
+    style_m = re.search(r'<style>(.*?)</style>', rendered_html, re.DOTALL)
+    assert style_m, '<style> ブロックが見つからない'
+    css = style_m.group(1)
+    # .cards-collapsed #svg-container ルールが flex: 1 を含むこと
+    block_m = re.search(
+        r'cards-collapsed[^{]*#svg-container\s*\{([^}]*)\}',
+        css, re.DOTALL
+    )
+    assert block_m, \
+        'CSS に .cards-collapsed #svg-container ルールが存在しない'
+    block = block_m.group(1)
+    assert 'flex' in block, \
+        '.cards-collapsed #svg-container に flex 設定がない'
+
+
+@pytest.mark.unit
+def test_cards_toggle_is_inside_zoom_controls_before_end_tag(rendered_html):
+    """#cards-toggle が #zoom-controls の閉じ div タグより前に存在する"""
+    zoom_pos = rendered_html.find('id="zoom-controls"')
+    assert zoom_pos >= 0, 'id="zoom-controls" が見つからない'
+    toggle_pos = rendered_html.find('id="cards-toggle"')
+    assert toggle_pos >= 0, 'id="cards-toggle" が見つからない'
+    # zoom-controls の開始位置より後に cards-toggle が存在すること
+    assert toggle_pos > zoom_pos, \
+        '#cards-toggle が #zoom-controls の開始より前にある'
+    # zoom-controls 領域内に cards-toggle が収まること（zoom-controls は最大 1000 文字程度）
+    zoom_area = rendered_html[zoom_pos:zoom_pos + 1500]
+    assert 'id="cards-toggle"' in zoom_area, \
+        '#cards-toggle が #zoom-controls 内に収まっていない（ボタンが外に出ている）'
+
+
+@pytest.mark.unit
+def test_cards_toggle_render_deterministic(sample_topology):
+    """cards-toggle 追加後も render() の決定性を維持する"""
+    from lib.rendering import render
+    html1 = render(sample_topology)
+    html2 = render(sample_topology)
+    assert html1 == html2, 'render() が非決定的（cards-toggle 追加後）'
+
+
+@pytest.mark.unit
+def test_toggle_cards_pane_toggles_active_class_on_button(rendered_html):
+    """toggleCardsPane 関数がボタンの active クラスまたは aria-pressed をトグルする"""
+    start = rendered_html.find('function toggleCardsPane()')
+    assert start != -1, 'toggleCardsPane 関数が見つからない'
+    func_body = rendered_html[start:start + 2000]
+    has_active = (
+        "active" in func_body or
+        "aria-pressed" in func_body
+    )
+    assert has_active, \
+        'toggleCardsPane 内にボタンの押下状態表示（active クラスまたは aria-pressed）がない'
+
+
+@pytest.mark.unit
+def test_cards_toggle_node_smoke_no_throw(rendered_html):
+    """node smoke: toggleCardsPane() を呼び出しても JS が throw しない"""
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    js = _extract_js_body(rendered_html)
+
+    # toggleCardsPane 呼び出しを JS 末尾に追加
+    js_with_call = js + '\ntoggleCardsPane();\ntoggleCardsPane();\n'
+    harness = _build_js_harness(js_with_call)
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_cards_toggle_smoke_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f'toggleCardsPane() 呼び出しで JS が throw した:\n{result.stderr[:1000]}'
+    )
