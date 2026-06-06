@@ -807,7 +807,7 @@ def _build_view_physical(
     bbox = _make_bbox_str(positions)
     inner = "\n".join(filter(None, [seg_edges, links_str, segs_str, nodes_str]))
     return (
-        f'<g class="view view-physical" data-bbox="{bbox}">\n'
+        f'<g class="view view-physical" id="view-physical" data-bbox="{bbox}">\n'
         f'{inner}\n'
         f'</g>'
     )
@@ -912,7 +912,7 @@ def _build_view_bgp(
 
     inner = "\n".join(filter(None, [as_groups_str, bgp_str, ext_edges_str, nodes_str, ext_nodes_str]))
     return (
-        f'<g class="view view-bgp" data-bbox="{bbox}" style="display:none">\n'
+        f'<g class="view view-bgp" id="view-bgp" data-bbox="{bbox}" style="display:none">\n'
         f'{inner}\n'
         f'</g>'
     )
@@ -1131,7 +1131,7 @@ def _build_view_ospf(
         ospf_seg_edges_str, edges_str, ospf_segs_str, nodes_str
     ]))
     return (
-        f'<g class="view view-ospf" data-bbox="{bbox}" style="display:none">\n'
+        f'<g class="view view-ospf" id="view-ospf" data-bbox="{bbox}" style="display:none">\n'
         f'{inner}\n'
         f'</g>'
     )
@@ -1168,7 +1168,7 @@ def _build_view_generic(
     bbox = _make_bbox_str(positions)
     inner = "\n".join(filter(None, [edges_str, nodes_str]))
     return (
-        f'<g class="view view-{_esc(view_id)}" data-bbox="{bbox}" style="display:none">\n'
+        f'<g class="view view-{_esc(view_id)}" id="view-{_esc(view_id)}" data-bbox="{bbox}" style="display:none">\n'
         f'{inner}\n'
         f'</g>'
     )

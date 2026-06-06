@@ -19088,3 +19088,637 @@ def test_js_smoke_no_throw_and_listeners_registered(rendered_html):
         f"click リスナーが登録されていない（click={data['click']}）\n"
         f"listeners={data['listeners']}"
     )
+
+
+# ============================================================
+# Round D: ミニマップ テスト
+# ============================================================
+
+# ---- ① ビューグループ id 付与 ----
+
+@pytest.mark.unit
+def test_view_physical_has_id(rendered_html):
+    """Physical ビュー <g> に id="view-physical" が付与されている。"""
+    assert 'id="view-physical"' in rendered_html, (
+        "view-physical グループに id 属性がない"
+    )
+
+
+@pytest.mark.unit
+def test_view_bgp_has_id(rendered_html):
+    """BGP ビュー <g> に id="view-bgp" が付与されている（BGP ビューが存在する topology）。"""
+    if 'class="view view-bgp"' not in rendered_html:
+        pytest.skip("sample topology に BGP ビューがない")
+    assert 'id="view-bgp"' in rendered_html, (
+        "view-bgp グループに id 属性がない"
+    )
+
+
+@pytest.mark.unit
+def test_view_ospf_has_id():
+    """OSPF ビュー <g> に id="view-ospf" が付与されている。"""
+    from lib.rendering import render
+    topo = {
+        "title": "OSPF id test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "r1", "vendor": "cisco"},
+            {"id": "r2", "hostname": "r2", "vendor": "cisco"},
+        ],
+        "interfaces": [
+            {"id": "r1-e0", "device": "r1", "name": "Ethernet0/0", "ipv4": "10.0.0.1/30"},
+            {"id": "r2-e0", "device": "r2", "name": "Ethernet0/0", "ipv4": "10.0.0.2/30"},
+        ],
+        "links": [
+            {"a_device": "r1", "b_device": "r2", "subnet": "10.0.0.0/30",
+             "a_if": "Ethernet0/0", "b_if": "Ethernet0/0", "ospf_area": "0"},
+        ],
+        "segments": [],
+        "routing": {
+            "ospf": [
+                {"device": "r1", "network": "10.0.0.0/30", "area": "0"},
+                {"device": "r2", "network": "10.0.0.0/30", "area": "0"},
+            ],
+            "bgp": [],
+            "static": [],
+        },
+    }
+    html = render(topo)
+    assert 'class="view view-ospf"' in html, "OSPF ビューが生成されていない"
+    assert 'id="view-ospf"' in html, "view-ospf グループに id 属性がない"
+
+
+@pytest.mark.unit
+def test_view_generic_has_id():
+    """汎用ビュー <g> に id="view-{view_id}" が付与されている。"""
+    from lib.rendering import render
+    topo = {
+        "title": "Generic id test",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "r1", "vendor": "cisco"},
+            {"id": "r2", "hostname": "r2", "vendor": "cisco"},
+        ],
+        "interfaces": [
+            {"id": "r1-e0", "device": "r1", "name": "Ethernet0/0", "ipv4": "10.0.1.1/30"},
+            {"id": "r2-e0", "device": "r2", "name": "Ethernet0/0", "ipv4": "10.0.1.2/30"},
+        ],
+        "links": [
+            {"a_device": "r1", "b_device": "r2", "subnet": "10.0.1.0/30",
+             "a_if": "Ethernet0/0", "b_if": "Ethernet0/0"},
+        ],
+        "segments": [],
+        "routing": {
+            "isis": [
+                {"device": "r1", "network": "10.0.1.0/30"},
+                {"device": "r2", "network": "10.0.1.0/30"},
+            ],
+            "bgp": [],
+            "ospf": [],
+            "static": [],
+        },
+    }
+    html = render(topo)
+    assert 'class="view view-isis"' in html, "汎用(isis)ビューが生成されていない"
+    assert 'id="view-isis"' in html, "view-isis グループに id 属性がない"
+
+
+# ---- ② ミニマップ HTML 要素 ----
+
+@pytest.mark.unit
+def test_minimap_svg_element_exists(rendered_html):
+    """ミニマップ SVG 要素 id="minimap" が存在する。"""
+    assert 'id="minimap"' in rendered_html, "id='minimap' 要素が存在しない"
+
+
+@pytest.mark.unit
+def test_minimap_use_element_exists(rendered_html):
+    """ミニマップ内 <use id="minimap-use"> が存在する。"""
+    assert 'id="minimap-use"' in rendered_html, "id='minimap-use' 要素が存在しない"
+
+
+@pytest.mark.unit
+def test_minimap_viewport_element_exists(rendered_html):
+    """ミニマップ内 <rect id="minimap-viewport"> が存在する。"""
+    assert 'id="minimap-viewport"' in rendered_html, "id='minimap-viewport' 要素が存在しない"
+
+
+@pytest.mark.unit
+def test_minimap_toggle_button_exists(rendered_html):
+    """ミニマップ表示/非表示トグルボタン id="minimap-toggle" が存在する。"""
+    assert 'id="minimap-toggle"' in rendered_html, "id='minimap-toggle' ボタンが存在しない"
+
+
+@pytest.mark.unit
+def test_minimap_has_aria_hidden(rendered_html):
+    """ミニマップ SVG に aria-hidden="true" が付与されている（スクリーンリーダー対策）。"""
+    import re
+    m = re.search(r'id="minimap"[^>]*aria-hidden="true"', rendered_html)
+    m2 = re.search(r'aria-hidden="true"[^>]*id="minimap"', rendered_html)
+    assert m or m2, "minimap SVG に aria-hidden='true' がない"
+
+
+@pytest.mark.unit
+def test_minimap_class_on_svg(rendered_html):
+    """ミニマップ SVG に class="minimap" が付与されている。"""
+    import re
+    m = re.search(r'id="minimap"[^>]*class="minimap"', rendered_html)
+    m2 = re.search(r'class="minimap"[^>]*id="minimap"', rendered_html)
+    assert m or m2, "minimap SVG に class='minimap' がない"
+
+
+# ---- ③ ミニマップ CSS ----
+
+@pytest.mark.unit
+def test_css_minimap_class_defined(rendered_html):
+    """.minimap クラスが CSS に定義されている。"""
+    assert '.minimap' in rendered_html, ".minimap CSS が存在しない"
+
+
+@pytest.mark.unit
+def test_css_minimap_position_absolute(rendered_html):
+    """.minimap に position:absolute が含まれる（オーバーレイ配置）。"""
+    import re
+    # .minimap { ... position: absolute ... } を探す
+    css_block = re.search(r'\.minimap\s*\{([^}]+)\}', rendered_html)
+    assert css_block, ".minimap CSS ブロックが見つからない"
+    assert 'absolute' in css_block.group(1), ".minimap に position:absolute がない"
+
+
+@pytest.mark.unit
+def test_css_minimap_viewport_class_defined(rendered_html):
+    """.minimap-viewport クラスが CSS に定義されている。"""
+    assert '.minimap-viewport' in rendered_html, ".minimap-viewport CSS が存在しない"
+
+
+@pytest.mark.unit
+def test_css_minimap_viewport_vector_effect(rendered_html):
+    """.minimap-viewport に vector-effect: non-scaling-stroke が含まれる。"""
+    import re
+    css_block = re.search(r'\.minimap-viewport\s*\{([^}]+)\}', rendered_html)
+    assert css_block, ".minimap-viewport CSS ブロックが見つからない"
+    assert 'non-scaling-stroke' in css_block.group(1), (
+        ".minimap-viewport に vector-effect: non-scaling-stroke がない"
+    )
+
+
+@pytest.mark.unit
+def test_css_minimap_uses_theme_variable(rendered_html):
+    """ミニマップ CSS がテーマ変数（--overlay-bg 等）を使用している（ダーク追従）。"""
+    import re
+    # .minimap ブロックに var(--...) があることを確認
+    css_block = re.search(r'\.minimap\s*\{([^}]+)\}', rendered_html)
+    assert css_block, ".minimap CSS ブロックが見つからない"
+    assert 'var(--' in css_block.group(1), (
+        ".minimap CSS にテーマ変数(var(--...))が使われていない（ダーク非対応）"
+    )
+
+
+@pytest.mark.unit
+def test_css_minimap_overflow_hidden(rendered_html):
+    """.minimap に overflow:hidden が含まれる。"""
+    import re
+    css_block = re.search(r'\.minimap\s*\{([^}]+)\}', rendered_html)
+    assert css_block, ".minimap CSS ブロックが見つからない"
+    assert 'overflow' in css_block.group(1) and 'hidden' in css_block.group(1), (
+        ".minimap に overflow:hidden がない"
+    )
+
+
+# ---- ④ ミニマップ JS ----
+
+@pytest.mark.unit
+def test_js_update_minimap_function_defined(rendered_html):
+    """JS に function _updateMinimap が定義されている。"""
+    js = _extract_js_body(rendered_html)
+    assert 'function _updateMinimap' in js, "function _updateMinimap が JS に存在しない"
+
+
+@pytest.mark.unit
+def test_js_update_minimap_exposed_on_window(rendered_html):
+    """_updateMinimap が window に公開されている（window._updateMinimap = ...）。"""
+    js = _extract_js_body(rendered_html)
+    assert 'window._updateMinimap' in js, (
+        "window._updateMinimap の公開が JS に存在しない"
+    )
+
+
+@pytest.mark.unit
+def test_js_apply_transform_calls_update_minimap(rendered_html):
+    """applyTransform 関数本体内で _updateMinimap が呼び出されている。"""
+    js = _extract_js_body(rendered_html)
+    # applyTransform 関数本体スコープを抽出（偽陽性回避: 関数内のみを検索）
+    import re
+    m = re.search(r'function applyTransform\(\)\s*\{(.*?)(?=\n\s{6}function |\n\s{4}function |\Z)',
+                  js, re.DOTALL)
+    assert m, "applyTransform 関数が JS に見つからない"
+    body = m.group(1)
+    assert '_updateMinimap' in body, (
+        "applyTransform 内に _updateMinimap 呼び出しがない（パン/ズーム時にミニマップが更新されない）"
+    )
+
+
+@pytest.mark.unit
+def test_js_select_view_calls_update_minimap(rendered_html):
+    """selectView 関数内で _updateMinimap が呼び出されている。"""
+    js = _extract_js_body(rendered_html)
+    import re
+    m = re.search(r'function selectView\(viewId\)\s*\{(.*?)(?=\n    function |\Z)',
+                  js, re.DOTALL)
+    assert m, "selectView 関数が JS に見つからない"
+    body = m.group(1)
+    assert '_updateMinimap' in body, (
+        "selectView 内に _updateMinimap 呼び出しがない（ビュー切替時にミニマップが更新されない）"
+    )
+
+
+@pytest.mark.unit
+def test_js_update_minimap_has_guard(rendered_html):
+    """_updateMinimap 呼び出しが if (window._updateMinimap) ガードで保護されている。"""
+    js = _extract_js_body(rendered_html)
+    # applyTransform または selectView でガードされた呼び出しを確認
+    import re
+    # window._updateMinimap を直接呼ぶ前に存在確認ガードがある
+    guarded = re.search(r'if\s*\(\s*window\._updateMinimap\s*\)', js)
+    assert guarded, (
+        "window._updateMinimap 呼び出しに if (window._updateMinimap) ガードがない"
+    )
+
+
+@pytest.mark.unit
+def test_js_minimap_has_get_screen_ctm(rendered_html):
+    """ミニマップのクリック/ドラッグ処理で getScreenCTM が使われている。"""
+    js = _extract_js_body(rendered_html)
+    assert 'getScreenCTM' in js, "getScreenCTM がJS中に存在しない（ミニマップクリック座標変換）"
+
+
+@pytest.mark.unit
+def test_js_minimap_pan_uses_center_on_formula(rendered_html):
+    """ミニマップクリックの中央寄せ算が _centerOnDevice と同じ算法を使用している。"""
+    js = _extract_js_body(rendered_html)
+    # 既存の _centerOnDevice と同じ算法: cw/2 - x*scale 等が存在するか
+    import re
+    # cw/2 - ... * scale または cw / 2 - ... * scale のパターン
+    m = re.search(r'cw\s*/\s*2\s*-\s*\S+\s*\*\s*\S*scale', js)
+    assert m, (
+        "ミニマップクリックのパン算法（cw/2 - x*scale）が見つからない"
+    )
+
+
+@pytest.mark.unit
+def test_js_minimap_ifinv_hide_guard(rendered_html):
+    """_updateMinimap 内で ifinv ビュー時にミニマップを非表示にするガードがある。"""
+    js = _extract_js_body(rendered_html)
+    import re
+    m = re.search(r'function _updateMinimap\(\)\s*\{(.*?)(?=\n\s{4}function |\n    function |\Z)',
+                  js, re.DOTALL)
+    assert m, "function _updateMinimap が JS に見つからない"
+    body = m.group(1)
+    assert 'ifinv' in body, (
+        "_updateMinimap 内に ifinv ガードが存在しない"
+    )
+
+
+# ---- ⑤ 決定性・自己完結の再確認 ----
+
+@pytest.mark.unit
+def test_minimap_elements_deterministic(sample_topology):
+    """ミニマップ要素を含む render() が2回同一出力を返す（決定性）。"""
+    from lib.rendering import render
+    html1 = render(sample_topology)
+    html2 = render(sample_topology)
+    for elem_id in ('id="minimap"', 'id="minimap-use"', 'id="minimap-viewport"', 'id="minimap-toggle"'):
+        assert html1.count(elem_id) == html2.count(elem_id), (
+            f"{elem_id} の出現回数が2回のレンダリングで異なる（非決定的）"
+        )
+
+
+@pytest.mark.unit
+def test_minimap_no_external_urls(rendered_html):
+    """ミニマップ関連マークアップに外部 URL が含まれない（自己完結）。"""
+    import re
+    # minimap SVG 要素を取り出す
+    m = re.search(r'id="minimap"[^>]*/>', rendered_html)
+    if not m:
+        m = re.search(r'id="minimap"[^>]*>.*?</svg>', rendered_html, re.DOTALL)
+    # URL を使っていないこと（data: も外部 URL も href="http..." も無し）
+    if m:
+        snippet = m.group(0)
+        assert 'http://' not in snippet and 'https://' not in snippet, (
+            "minimap マークアップに外部 URL が含まれている"
+        )
+
+
+# ---- ⑥ node smoke テスト拡張（getScreenCTM/createSVGPoint スタブ追加） ----
+
+@pytest.mark.unit
+def test_js_smoke_minimap_no_throw(rendered_html):
+    """ミニマップ追加後も JS トップレベル実行で例外が発生せず、
+    wheel/mousedown/click リスナーが維持されている。
+    getScreenCTM/createSVGPoint 等をスタブとして追加して検証する。
+    node が無い環境では skip。
+    """
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    js = _extract_js_body(rendered_html)
+
+    # getScreenCTM/createSVGPoint スタブを追加したハーネスを生成
+    escaped = _json.dumps(js)
+    harness = f"""\
+'use strict';
+var _listeners = {{}};
+function _trackListener(type) {{
+  _listeners[type] = (_listeners[type] || 0) + 1;
+}}
+
+function makeEl(tag) {{
+  var el = {{
+    _tag: tag,
+    style: {{}},
+    dataset: {{}},
+    value: '',
+    checked: false,
+    textContent: '',
+    innerHTML: '',
+    classList: {{
+      add: function() {{}},
+      remove: function() {{}},
+      contains: function() {{ return false; }},
+      toggle: function() {{}},
+    }},
+    addEventListener: function(type) {{ _trackListener(type); }},
+    removeEventListener: function() {{}},
+    getAttribute: function() {{ return null; }},
+    setAttribute: function() {{}},
+    getBoundingClientRect: function() {{
+      return {{left:0, top:0, right:100, bottom:100, width:100, height:100}};
+    }},
+    querySelectorAll: function() {{ return []; }},
+    querySelector: function() {{ return null; }},
+    closest: function() {{ return null; }},
+    appendChild: function(c) {{ return c; }},
+    insertBefore: function(c) {{ return c; }},
+    focus: function() {{}},
+    click: function() {{}},
+    clientWidth: 800,
+    clientHeight: 600,
+    offsetHeight: 600,
+    // minimap SVG スタブ用
+    getScreenCTM: function() {{
+      return {{
+        inverse: function() {{ return {{ a:1,b:0,c:0,d:1,e:0,f:0 }}; }},
+      }};
+    }},
+    createSVGPoint: function() {{
+      return {{
+        x: 0, y: 0,
+        matrixTransform: function(m) {{ return {{ x:0, y:0 }}; }},
+      }};
+    }},
+  }};
+  return el;
+}}
+
+global.CSS = {{ escape: function(s) {{ return s; }} }};
+
+global.document = {{
+  body: makeEl('body'),
+  documentElement: makeEl('html'),
+  addEventListener: function(type, fn) {{
+    if (type !== 'DOMContentLoaded') {{ _trackListener(type); }}
+  }},
+  removeEventListener: function() {{}},
+  getElementById: function() {{ return makeEl('div'); }},
+  querySelector: function() {{ return makeEl('div'); }},
+  querySelectorAll: function() {{ return []; }},
+  createElementNS: function(ns, tag) {{ return makeEl(tag); }},
+  createElement: function(tag) {{ return makeEl(tag); }},
+}};
+
+global.window = {{
+  addEventListener: function(type) {{ _trackListener(type); }},
+  removeEventListener: function() {{}},
+  _zoomFit: null,
+}};
+global.window.window = global.window;
+
+global.localStorage = {{
+  getItem: function() {{ return null; }},
+  setItem: function() {{}},
+  removeItem: function() {{}},
+}};
+
+global.getComputedStyle = function() {{
+  return {{ display: 'block', getPropertyValue: function() {{ return ''; }} }};
+}};
+
+global.matchMedia = function() {{
+  return {{
+    matches: false,
+    addEventListener: function() {{}},
+    removeEventListener: function() {{}},
+  }};
+}};
+
+global.requestAnimationFrame = function() {{ return 0; }};
+global.cancelAnimationFrame = function() {{}};
+global.SVGElement = function() {{}};
+global.HTMLElement = function() {{}};
+
+try {{
+  (0, eval)({escaped});
+}} catch (e) {{
+  process.stderr.write('THROW: ' + e.message + '\\n' + (e.stack || '') + '\\n');
+  process.exit(1);
+}}
+
+var total = Object.values(_listeners).reduce(function(s, v) {{ return s + v; }}, 0);
+process.stdout.write(JSON.stringify({{
+  listeners: _listeners,
+  total: total,
+  wheel: _listeners['wheel'] || 0,
+  mousedown: _listeners['mousedown'] || 0,
+  click: _listeners['click'] || 0,
+  pointerdown: _listeners['pointerdown'] || 0,
+}}) + '\\n');
+"""
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_minimap_smoke_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"ミニマップ追加後にJS例外が発生:\n{result.stderr[:1000]}"
+    )
+
+    data = _json.loads(result.stdout.strip())
+    assert data['wheel'] >= 1, f"wheel リスナー未登録 (wheel={data['wheel']})"
+    assert data['mousedown'] >= 1, f"mousedown リスナー未登録 (mousedown={data['mousedown']})"
+    assert data['click'] >= 1, f"click リスナー未登録 (click={data['click']})"
+    # ミニマップ drag 配線（pointerdown リスナー登録）を確認
+    assert data.get('pointerdown', 0) >= 1, (
+        f"pointerdown リスナー未登録 (pointerdown={data.get('pointerdown', 0)}) — "
+        "ミニマップのクリック/ドラッグ配線が壊れている"
+    )
+
+
+# ============================================================
+# ミニマップ修正テスト（HIGH/MEDIUM 指摘）
+# ============================================================
+
+# ---- HIGH-1: トグル永続フラグ _mmHidden ----
+
+@pytest.mark.unit
+def test_js_minimap_mm_hidden_flag_in_update(rendered_html):
+    """_mmHidden フラグが _updateMinimap 本体内で参照されている（トグル非表示が維持される）。"""
+    js = _extract_js_body(rendered_html)
+    func = _extract_js_function(js, '_updateMinimap')
+    assert func, "function _updateMinimap が JS に見つからない"
+    assert '_mmHidden' in func, (
+        "_updateMinimap 内に _mmHidden フラグ参照がない（トグル非表示が次のズーム/ビュー切替で失われる）"
+    )
+
+
+@pytest.mark.unit
+def test_js_minimap_mm_hidden_flag_in_toggle(rendered_html):
+    """トグルハンドラ内で _mmHidden が更新されている。"""
+    js = _extract_js_body(rendered_html)
+    # minimapToggle の click コールバックに _mmHidden 代入があること
+    import re
+    # minimap-toggle の click ハンドラ周辺を抽出
+    m = re.search(r'minimapToggle\.addEventListener\s*\(\s*[\'"]click[\'"](.*?)(?=\n\s{4,6}(?:if\s*\(|var |function |//\s*=)|\Z)',
+                  js, re.DOTALL)
+    assert m, "minimapToggle.addEventListener('click', ...) が見つからない"
+    body = m.group(1)
+    assert '_mmHidden' in body, (
+        "トグルハンドラ内に _mmHidden の更新がない（トグル状態が _updateMinimap に伝わらない）"
+    )
+
+
+# ---- HIGH-2: pan 競合修正 ----
+
+@pytest.mark.unit
+def test_js_mousedown_has_minimap_guard(rendered_html):
+    """container の mousedown ハンドラに #minimap ガードが含まれる（ミニマップクリックでの pan 防止）。"""
+    js = _extract_js_body(rendered_html)
+    # mousedown ハンドラ本体を抽出
+    import re
+    m = re.search(r"container\.addEventListener\s*\(\s*['\"]mousedown['\"].*?function\s*\(e\)\s*\{(.*?)(?=\n\s{6}(?:container|document)\.addEventListener|\Z)",
+                  js, re.DOTALL)
+    assert m, "container.addEventListener('mousedown', ...) が見つからない"
+    body = m.group(1)
+    assert "'#minimap'" in body or '"#minimap"' in body, (
+        "container mousedown に '#minimap' ガードがない（ミニマップクリックで図も pan してしまう）"
+    )
+
+
+# ---- HIGH-3: 即時初期化 ----
+
+@pytest.mark.unit
+def test_js_minimap_immediate_init(rendered_html):
+    """window._updateMinimap = _updateMinimap; の直後付近に _updateMinimap(); 即時呼出がある。"""
+    js = _extract_js_body(rendered_html)
+    import re
+    # 代入文の後（50文字以内）に _updateMinimap() 呼び出し
+    m = re.search(
+        r'window\._updateMinimap\s*=\s*_updateMinimap\s*;'
+        r'.{0,200}_updateMinimap\s*\(\s*\)',
+        js, re.DOTALL
+    )
+    assert m, (
+        "window._updateMinimap = _updateMinimap; の直後付近に _updateMinimap() 即時呼出がない"
+        "（DOMContentLoaded 前に呼ばれないため初期ミニマップが空のままになる）"
+    )
+
+
+# ---- HIGH-4 / MEDIUM: DRY（共通ヘルパーに集約） ----
+
+@pytest.mark.unit
+def test_js_pan_to_content_point_helper_exists(rendered_html):
+    """共通ヘルパー _panToContentPoint（または window._panToContentPoint）が定義されている。"""
+    js = _extract_js_body(rendered_html)
+    assert '_panToContentPoint' in js, (
+        "_panToContentPoint 共通ヘルパーが定義されていない"
+        "（_mmPanTo / _centerOnDevice の中央寄せ算が重複する）"
+    )
+
+
+@pytest.mark.unit
+def test_js_center_formula_not_duplicated(rendered_html):
+    """中央寄せ算 'cw / 2 -' が _mmPanTo / _centerOnDevice 内に重複せず共通ヘルパーに集約されている。"""
+    js = _extract_js_body(rendered_html)
+    import re
+    # _mmPanTo 関数本体
+    mm_func = _extract_js_function(js, '_mmPanTo')
+    # _centerOnDevice 関数本体
+    cd_func = _extract_js_function(js, '_centerOnDevice')
+    # どちらにも 'cw / 2 -' または 'cw/2 -' がなければ集約済み
+    pattern = re.compile(r'cw\s*/\s*2\s*-')
+    mm_has = bool(pattern.search(mm_func)) if mm_func else False
+    cd_has = bool(pattern.search(cd_func)) if cd_func else False
+    assert not (mm_has and cd_has), (
+        "cw/2 - 算法が _mmPanTo と _centerOnDevice の両方に残っている（DRY 違反）"
+    )
+
+
+# ---- MEDIUM: minimap-viewport fill CSS 変数 ----
+
+@pytest.mark.unit
+def test_css_minimap_viewport_fill_uses_variable(rendered_html):
+    """.minimap-viewport の fill が var(--minimap-vp-fill) を使用している（ハードコードを排除）。"""
+    import re
+    css_block = re.search(r'\.minimap-viewport\s*\{([^}]+)\}', rendered_html)
+    assert css_block, ".minimap-viewport CSS ブロックが見つからない"
+    block = css_block.group(1)
+    assert 'var(--minimap-vp-fill)' in block, (
+        ".minimap-viewport の fill が var(--minimap-vp-fill) を使っていない"
+        "（ダークテーマで視認性が損なわれる）"
+    )
+
+
+@pytest.mark.unit
+def test_css_minimap_vp_fill_variable_in_root(rendered_html):
+    """:root に --minimap-vp-fill が定義されている（ライトテーマ値）。"""
+    import re
+    # :root { ... } ブロックを取り出す
+    root_block = re.search(r':root\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert root_block, ":root CSS ブロックが見つからない"
+    assert '--minimap-vp-fill' in root_block.group(1), (
+        ":root に --minimap-vp-fill 変数がない"
+    )
+
+
+@pytest.mark.unit
+def test_css_minimap_vp_fill_variable_in_dark(rendered_html):
+    """[data-theme="dark"] に --minimap-vp-fill が定義されている（ダークテーマ値）。"""
+    import re
+    dark_block = re.search(r'\[data-theme=["\']dark["\']\]\s*\{([^}]+)\}', rendered_html, re.DOTALL)
+    assert dark_block, "[data-theme='dark'] CSS ブロックが見つからない"
+    assert '--minimap-vp-fill' in dark_block.group(1), (
+        "[data-theme='dark'] に --minimap-vp-fill 変数がない（ダーク非対応）"
+    )
+
+
+# ---- window._updateMinimap 公開の強化検証 ----
+
+@pytest.mark.unit
+def test_js_update_minimap_assignment_present(rendered_html):
+    """'window._updateMinimap = _updateMinimap' の代入そのものが JS に存在する（公開確認）。"""
+    js = _extract_js_body(rendered_html)
+    import re
+    # 代入文（= _updateMinimap;）が存在することを検証（位置非依存）
+    m = re.search(r'window\._updateMinimap\s*=\s*_updateMinimap\b', js)
+    assert m, (
+        "window._updateMinimap = _updateMinimap の代入が JS に存在しない"
+        "（ミニマップ IIFE の公開が壊れている）"
+    )

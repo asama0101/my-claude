@@ -76,6 +76,8 @@ _CSS = """\
       --color-external-fill: #f9fafb;        /* BGP 外部ピアノード塗りつぶし（ライト）*/
       --color-external-fill-hover: #f3f4f6;  /* BGP 外部ピアノードホバー（ライト）*/
       --color-external-stroke: #9ca3af;      /* BGP 外部ピアノード枠線（ライト）*/
+      /* --- ミニマップ --- */
+      --minimap-vp-fill: rgba(59, 130, 246, 0.15); /* ビューポート矩形塗りつぶし（ライト: 青半透明）*/
     }
 
     /* ダークテーマ上書き
@@ -140,6 +142,8 @@ _CSS = """\
       --color-external-fill: #1e293b;        /* ダーク: BGP外部ピア塗りつぶし（暗系）*/
       --color-external-fill-hover: #334155;  /* ダーク: BGP外部ピアホバー */
       --color-external-stroke: #64748b;      /* ダーク: BGP外部ピア枠線 */
+      /* --- ミニマップ (ダーク) --- */
+      --minimap-vp-fill: rgba(96, 165, 250, 0.25); /* ダーク: ビューポート矩形（明青半透明、暗背景で視認可能）*/
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -887,6 +891,29 @@ _CSS = """\
     /* B-pass1b: ifinv ヒット行強調（グローバル検索マッチ） */
     tr.search-match td {
       background: var(--color-row-search-bg);
+    }
+
+    /* ミニマップ（Round D: 大規模対策） */
+    .minimap {
+      position: absolute;
+      bottom: 40px;
+      right: 8px;
+      width: 180px;
+      height: 130px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background: var(--overlay-bg);
+      z-index: 9;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    .minimap-viewport {
+      fill: var(--minimap-vp-fill);  /* テーマ追従: :root(ライト)/[data-theme="dark"](ダーク)で定義 */
+      stroke: var(--color-highlight);
+      stroke-width: 1.5;
+      vector-effect: non-scaling-stroke;
+      pointer-events: none;
     }\
 """
 
@@ -1128,6 +1155,9 @@ _JS = """\
       if (typeof _updateEdgeHighlightForSelection === 'function') {
         _updateEdgeHighlightForSelection();
       }
+
+      // Round D: ビュー切替時にミニマップを更新
+      if (window._updateMinimap) { window._updateMinimap(); }
     }
 
     // 初期ビューを設定（zoomFit は IIFE 定義後に window._zoomFit 経由で呼ぶ）
@@ -1442,6 +1472,27 @@ _JS = """\
     }
 
     // ノード中央寄せヘルパー（ズーム closure の _zoomState 共有オブジェクト経由で更新）
+    // ------------------------------------------------------------
+    // _panToContentPoint(cx, cy)
+    // コンテンツ座標 (cx, cy) が画面中央に来るようにパンする共通ヘルパー。
+    // 中央寄せ算: translateX = cw/2 - cx*scale
+    //   → スクリーン座標 cw/2（中央）= cx*scale + translateX を解くと上式が得られる。
+    // _mmPanTo（ミニマップクリック）と _centerOnDevice（検索ジャンプ）の両方から呼ばれる。
+    // _zoomState / _applyTransform は zoom IIFE が window に露出する（Round D より前に評価される）。
+    // ------------------------------------------------------------
+    function _panToContentPoint(cx, cy) {
+      if (!window._zoomState || !window._applyTransform) return;
+      var c = document.getElementById('svg-container');
+      if (!c) return;
+      var cw = c.clientWidth || 800;
+      var ch = c.clientHeight || 600;
+      var s = window._zoomState.scale;
+      // cw/2 - cx*s: スクリーン原点をコンテンツ座標 cx が中央(cw/2)に来るよう平行移動する
+      window._zoomState.translateX = cw / 2 - cx * s;
+      window._zoomState.translateY = ch / 2 - cy * s;
+      window._applyTransform();
+    }
+
     function _centerOnDevice(deviceId) {
       var currentViewEl = document.querySelector('.view-' + _currentView);
       if (!currentViewEl) return;
@@ -1460,18 +1511,8 @@ _JS = """\
       // ノード中心座標（rect の中心）
       var nx = rx + rw / 2;
       var ny = ry + rh / 2;
-      var container = document.getElementById('svg-container');
-      if (!container) return;
-      var cw = container.clientWidth || 800;
-      var ch = container.clientHeight || 600;
-      // _zoomState 共有オブジェクトで closure の scale を読み、translateX/Y を更新する。
-      // _applyTransform() を呼ぶことで closure 側の状態と viewport transform が同期する。
-      if (window._zoomState && window._applyTransform) {
-        var currentScale = window._zoomState.scale;
-        window._zoomState.translateX = cw / 2 - nx * currentScale;
-        window._zoomState.translateY = ch / 2 - ny * currentScale;
-        window._applyTransform();
-      }
+      // _panToContentPoint で中央寄せ（算法は共通ヘルパーに集約）
+      _panToContentPoint(nx, ny);
     }
 
     // search-next ボタン・Enter キーのイベント登録
@@ -1517,6 +1558,7 @@ _JS = """\
       function applyTransform() {
         vp.setAttribute('transform',
           'translate(' + translateX + ',' + translateY + ') scale(' + scale + ')');
+        if (window._updateMinimap) { window._updateMinimap(); }
       }
 
       // ズーム（マウスホイール）
@@ -1532,6 +1574,8 @@ _JS = """\
         // ノード/リンク/ズームボタン上のクリックは pan を発火させない
         if (e.target.closest('.device-node') || e.target.closest('.link-edge')) return;
         if (e.target.closest('#zoom-controls')) return;
+        // ミニマップ内のクリックは主SVGのpanと競合させない（ミニマップ側のpointerdownで処理）
+        if (e.target.closest('#minimap')) return;
         isDragging = true;
         dragStart = { x: e.clientX, y: e.clientY };
         translateStart = { x: translateX, y: translateY };
@@ -2710,6 +2754,143 @@ _JS = """\
           toggleIfChipHighlight(loopbackIfaceId);
         });
       });
+    })();
+
+    // ============================================================
+    // Round D: ミニマップ
+    // ============================================================
+    (function() {
+      var minimap = document.getElementById('minimap');
+      var minimapUse = document.getElementById('minimap-use');
+      var minimapVp = document.getElementById('minimap-viewport');
+      var minimapToggle = document.getElementById('minimap-toggle');
+
+      // トグル非表示状態フラグ。true のとき #minimap-toggle で隠した状態を維持する。
+      // _updateMinimap 内で参照し、applyTransform/selectView からの再呼び出しでも尊重する。
+      var _mmHidden = false;
+
+      // _updateMinimap: ミニマップの viewBox / <use> href / ビューポート矩形を最新状態に更新する。
+      // 呼出タイミング: applyTransform()（ズーム/パン時）, selectView()（ビュー切替時）,
+      //                 ページロード直後（window._updateMinimap = ... の直後）。
+      // ifinv ガード: ifinv ビューは SVG エッジが存在しないためミニマップを強制非表示にする（_mmHidden 無関係）。
+      // ミニマップ IIFE は zoom IIFE より後に評価されるため、applyTransform/selectView から
+      // window._updateMinimap を存在チェックして呼ぶ（if (window._updateMinimap)）。
+      function _updateMinimap() {
+        try {
+          if (!minimap || !minimapUse || !minimapVp) return;
+
+          // ifinv ビュー（SVG ビューなし）はミニマップ強制非表示（_mmHidden に関わらず）
+          if (_currentView === 'ifinv') {
+            minimap.style.display = 'none';
+            return;
+          }
+
+          var viewEl = document.querySelector('.view-' + _currentView);
+          if (!viewEl) {
+            minimap.style.display = 'none';
+            return;
+          }
+
+          // _mmHidden フラグを尊重: トグルで非表示にしていれば再表示しない
+          minimap.style.display = _mmHidden ? 'none' : '';
+
+          // ミニマップの viewBox を active ビューの data-bbox にセット
+          var bbox = viewEl.getAttribute('data-bbox');
+          if (bbox) {
+            minimap.setAttribute('viewBox', bbox);
+          }
+
+          // <use> で active ビューグループを参照
+          minimapUse.setAttribute('href', '#view-' + _currentView);
+          minimapUse.setAttribute('xlink:href', '#view-' + _currentView);
+
+          // ビューポート矩形: コンテンツ座標での可視領域を計算
+          // 逆変換の根拠: スクリーン原点(0,0)はコンテンツ座標 -translateX/scale に対応する。
+          // コンテンツ座標 x = (スクリーン座標 - translateX) / scale → x_origin = -translateX/scale
+          // 可視幅 visW = コンテナ幅 cw / scale（スクリーン幅をコンテンツ座標スケールで割る）
+          if (window._zoomState) {
+            var z = window._zoomState;
+            var c = document.getElementById('svg-container');
+            if (!c) return;
+            var cw = c.clientWidth || 800;
+            var ch = c.clientHeight || 600;
+            var visX = -z.translateX / z.scale;
+            var visY = -z.translateY / z.scale;
+            var visW = cw / z.scale;
+            var visH = ch / z.scale;
+            minimapVp.setAttribute('x', visX);
+            minimapVp.setAttribute('y', visY);
+            minimapVp.setAttribute('width', visW);
+            minimapVp.setAttribute('height', visH);
+          }
+        } catch (err) {
+          // ミニマップ更新エラーは無視（本体の動作を妨げない）
+        }
+      }
+
+      // ミニマップ クリック/ドラッグで主ビューをパン
+      if (minimap) {
+        var _mmDragging = false;
+
+        function _mmPanTo(e) {
+          try {
+            // getScreenCTM().inverse() でスクリーン座標→SVG内部コンテンツ座標へ変換する。
+            // getScreenCTM(): SVG 要素のスクリーン CTM（カレント変換行列）を返す。
+            // inverse() の逆行列を作り、createSVGPoint().matrixTransform() でスクリーン座標を
+            // コンテンツ座標（ミニマップの viewBox 空間）に変換する。
+            if (!minimap.getScreenCTM) return;
+            var ctm = minimap.getScreenCTM();
+            if (!ctm) return;
+            var pt = minimap.createSVGPoint();
+            pt.x = e.clientX;
+            pt.y = e.clientY;
+            var cpt = pt.matrixTransform(ctm.inverse());
+            // クリック点(cpt)が画面中央に来るよう _panToContentPoint に委譲（中央寄せ算は共通ヘルパーに集約）
+            _panToContentPoint(cpt.x, cpt.y);
+          } catch (err) {
+            // ガード: getScreenCTM 等が無い環境でもクラッシュしない
+          }
+        }
+
+        minimap.addEventListener('pointerdown', function(e) {
+          _mmDragging = true;
+          _mmPanTo(e);
+          e.preventDefault();
+        });
+
+        minimap.addEventListener('pointermove', function(e) {
+          if (_mmDragging) { _mmPanTo(e); }
+        });
+
+        document.addEventListener('pointerup', function() {
+          _mmDragging = false;
+        });
+      }
+
+      // ミニマップ 表示/非表示トグル
+      // _mmHidden フラグを更新して _updateMinimap を呼ぶことで状態を一元管理する
+      if (minimapToggle) {
+        minimapToggle.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (!minimap) return;
+          _mmHidden = !_mmHidden;
+          _updateMinimap();
+        });
+      }
+
+      // window に公開（applyTransform / selectView IIFE から呼べるように）
+      // ミニマップ IIFE は zoom IIFE より後に評価されるため、zoom IIFE 内の呼び出し元は
+      // if (window._updateMinimap) で存在チェックしている（IIFE 評価順の依存を回避）。
+      window._updateMinimap = _updateMinimap;
+
+      // 即時初期化: DOM 構築済みなら DOMContentLoaded を待たずに初回更新を実行する。
+      // 内部 try/catch により DOM 未準備でも安全（エラーは無視される）。
+      _updateMinimap();
+
+      // DOMContentLoaded 後にも再更新（二重呼び出しは冪等なため問題なし）
+      document.addEventListener('DOMContentLoaded', function() {
+        if (window._updateMinimap) { window._updateMinimap(); }
+      });
     })();\
 """
 
@@ -2863,7 +3044,13 @@ def build_html(
         <button id="zoom-in" class="zoom-btn" title="拡大">+</button>
         <button id="zoom-out" class="zoom-btn" title="縮小">−</button>
         <button id="zoom-reset" class="zoom-btn" title="等倍リセット">1:1</button>
+        <button id="minimap-toggle" class="zoom-btn" title="ミニマップ表示/非表示">⊞</button>
       </div>
+      <!-- Round D: ミニマップ（右下オーバーレイ） -->
+      <svg id="minimap" class="minimap" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <use id="minimap-use" href=""/>
+        <rect id="minimap-viewport" class="minimap-viewport"/>
+      </svg>
       <!-- #7: IF チップ凡例（左下固定オーバーレイ）。スタイルは CSS #chip-legend で管理 -->
       <div id="chip-legend">
         <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip"><circle cx="6" cy="6" r="5"/></g></svg><span>接続IF</span>
