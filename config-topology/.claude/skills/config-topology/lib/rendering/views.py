@@ -28,7 +28,9 @@ from lib.rendering.svg import (
     _merge_links_by_link_id,
     _normalize_subnet,
     _svg_bgp_as_groups,
+    _svg_bgp_as_groups_split,
     _svg_bgp_edges,
+    _svg_bgp_edges_split,
     _svg_bgp_external_edges,
     _svg_bgp_external_nodes,
     _svg_links,
@@ -39,6 +41,10 @@ from lib.rendering.svg import (
     _svg_segments,
     _as_color,
 )
+
+
+# AS枠分離の最小ギャップ定数（px）: overlap+1.0 だけでは枠が近接しすぎるため最低限この距離を保証する
+_MIN_AS_GAP = 24
 
 
 def _build_legend_as_html(asns: list[int]) -> str:
@@ -333,13 +339,13 @@ def _separate_as_clusters(
                     cx_a = (ax + ax2) / 2
                     cx_b = (bx + bx2) / 2
                     direction = 1.0 if cx_b >= cx_a else -1.0
-                    _shift_cluster(asn_b, direction * (overlap_x + 1.0), 0.0)
+                    _shift_cluster(asn_b, direction * (overlap_x + _MIN_AS_GAP), 0.0)
                 else:
                     # y 軸方向にシフト
                     cy_a = (ay + ay2) / 2
                     cy_b = (by + by2) / 2
                     direction = 1.0 if cy_b >= cy_a else -1.0
-                    _shift_cluster(asn_b, 0.0, direction * (overlap_y + 1.0))
+                    _shift_cluster(asn_b, 0.0, direction * (overlap_y + _MIN_AS_GAP))
         if not any_overlap:
             break
 
@@ -884,8 +890,13 @@ def _build_view_bgp(
     # B4: 外部ピアノードの座標を決定的に計算
     ext_positions = _compute_ext_bgp_positions(bgp_entries, interfaces, positions_bgp)
 
-    as_groups_str = _svg_bgp_as_groups(bgp_devices, positions_bgp, node_sizes=bgp_node_sizes)
-    bgp_str = _svg_bgp_edges(
+    # z-order 修正 (#3/#4): AS枠 rect/ラベル と BGPエッジ 線/バッジ を分離して描画順を制御する
+    # 目標（背面→前面）: AS枠rect群 → BGPエッジ線 → 外部エッジ線 → device-nodes
+    #                  → 外部nodes → AS番号ラベル群 → BGPバッジ群
+    as_group_rects_str, as_group_labels_str = _svg_bgp_as_groups_split(
+        bgp_devices, positions_bgp, node_sizes=bgp_node_sizes
+    )
+    bgp_lines_str, bgp_badges_str = _svg_bgp_edges_split(
         bgp_entries, interfaces, positions_bgp,
         chip_positions=all_chip_positions,
     )
@@ -908,7 +919,18 @@ def _build_view_bgp(
     all_positions_for_bbox.update(ext_positions)
     bbox = _make_bbox_str(all_positions_for_bbox)
 
-    inner = "\n".join(filter(None, [as_groups_str, bgp_str, ext_edges_str, nodes_str, ext_nodes_str]))
+    # 描画順（背面→前面）:
+    #   AS枠rect群 → BGPエッジ線 → 外部エッジ線 → device-nodes → 外部nodes
+    #   → AS番号ラベル群 → BGPバッジ群
+    inner = "\n".join(filter(None, [
+        as_group_rects_str,
+        bgp_lines_str,
+        ext_edges_str,
+        nodes_str,
+        ext_nodes_str,
+        as_group_labels_str,
+        bgp_badges_str,
+    ]))
     return (
         f'<g class="view view-bgp" id="view-bgp" data-bbox="{bbox}" style="display:none">\n'
         f'{inner}\n'
@@ -1022,6 +1044,7 @@ def _build_view_ospf(
     merged_ospf_links = _merge_links_by_link_id(ospf_links)
 
     parts = []
+    label_parts: list[str] = []  # z-order 修正 (#3-OSPF): ラベル群を別途収集
     for lk in sorted(merged_ospf_links, key=lambda l: (l.get("a_device", ""), l.get("b_device", ""))):
         # チップアンカー
         a_pos = positions_ospf.get(lk["a_device"], (0.0, 0.0))
@@ -1102,16 +1125,24 @@ def _build_view_ospf(
                 f'class="link-label layer-ospf">{primary_subnet}</text>'
             )
 
+        # z-order 修正 (#3-OSPF): 線とラベルを分離して収集する
         parts.append(
             f'<g class="link-edge" data-subnet="{primary_subnet}" '
             f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
             f'{ospf_id_attr}>'
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
             f'class="link-line layer-ospf"/>'
+            f'</g>'
+        )
+        label_parts.append(
+            f'<g class="link-label-group" data-subnet="{primary_subnet}" '
+            f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
+            f'{ospf_id_attr}>'
             f'{label_elem}'
             f'</g>'
         )
-    edges_str = "\n".join(parts)
+    edge_lines_str = "\n".join(parts)
+    edge_labels_str = "\n".join(label_parts)
 
     # OSPF 参加セグメント描画（チップアンカー対応）
     ospf_seg_edges_str = _svg_ospf_segment_edges(
@@ -1125,8 +1156,10 @@ def _build_view_ospf(
         chip_iface_ids=ospf_chip_ids,
     )
     bbox = _make_bbox_str(positions_ospf)
+    # 描画順（背面→前面）:
+    #   ospf-seg-edges → p2pリンク線 → segments → device-nodes → リンクラベル群
     inner = "\n".join(filter(None, [
-        ospf_seg_edges_str, edges_str, ospf_segs_str, nodes_str
+        ospf_seg_edges_str, edge_lines_str, ospf_segs_str, nodes_str, edge_labels_str
     ]))
     return (
         f'<g class="view view-ospf" id="view-ospf" data-bbox="{bbox}" style="display:none">\n'

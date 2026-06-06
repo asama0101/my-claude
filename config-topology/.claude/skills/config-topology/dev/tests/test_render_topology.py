@@ -3602,13 +3602,20 @@ def test_c5_as_group_label_class_present():
 
 @pytest.mark.unit
 def test_m5_as_group_container_g_element_exists():
-    """M5: as-group-container クラスの <g> 要素が BGP ビューに存在する"""
+    """M5 (z-order 修正後更新): AS グルーピング要素が BGP ビューに存在する。
+
+    z-order 修正 (#4-B2) により as-group-container ラッパーは廃止され、
+    as-group <rect> と as-group-label <text> が別描画レイヤーに分離された。
+    as-group <rect> と data-as 属性が存在することで M5 要件を満たす。
+    """
     from lib.rendering import render
     html = render(_make_ibgp_topology())
     bgp_view = _extract_bgp_view_full(html)
     assert bgp_view, "BGP ビューが見つからない"
-    assert 'class="as-group-container"' in bgp_view, \
-        "as-group-container クラスの <g> 要素が見つからない（M5 未実装）"
+    assert 'class="as-group"' in bgp_view, \
+        "as-group クラスの <rect> 要素が見つからない（AS グルーピング未実装）"
+    assert 'data-as="' in bgp_view, \
+        "data-as 属性が見つからない（AS グルーピング識別子が欠落）"
 
 @pytest.mark.unit
 def test_m5_as_group_container_has_data_as():
@@ -3622,22 +3629,22 @@ def test_m5_as_group_container_has_data_as():
 
 @pytest.mark.unit
 def test_m5_as_group_and_label_inside_container():
-    """M5: as-group クラスの <rect> と as-group-label クラスの <text> が container <g> 内に存在する"""
+    """M5 (z-order 修正後更新): as-group <rect> と as-group-label <text> が BGP ビューに存在する。
+
+    z-order 修正 (#4-B2) により as-group rect と as-group-label は別々の描画レイヤーに
+    分離された（同一 as-group-container に入らなくなった）。
+    両要素が BGP ビュー内に存在することと、data-as 属性が保持されることを確認する。
+    """
     from lib.rendering import render
     html = render(_make_ibgp_topology())
     bgp_view = _extract_bgp_view_full(html)
     assert bgp_view, "BGP ビューが見つからない"
-    # container <g> ブロックを取り出す
-    m = re.search(
-        r'<g[^>]*class="as-group-container"[^>]*>(.*?)</g>',
-        bgp_view, re.DOTALL
-    )
-    assert m is not None, "as-group-container <g> が見つからない"
-    container_content = m.group(1)
-    assert 'class="as-group"' in container_content, \
-        "as-group <rect> が container 内に存在しない"
-    assert 'class="as-group-label"' in container_content, \
-        "as-group-label <text> が container 内に存在しない"
+    assert 'class="as-group"' in bgp_view, \
+        "as-group <rect> が BGP ビューに存在しない"
+    assert 'class="as-group-label"' in bgp_view, \
+        "as-group-label <text> が BGP ビューに存在しない"
+    # data-as 属性が保持されること（as-group-container は不要だが data-as は必須）
+    assert 'data-as="' in bgp_view, "data-as 属性が BGP ビューに存在しない"
 
 @pytest.mark.unit
 def test_m5_as_group_container_deterministic():
@@ -10995,7 +11002,11 @@ def test_1c3_existing_bgp_no_overlap(sample_topology):
 
 @pytest.mark.unit
 def test_1c5_multi_as_three_different_colors():
-    """#5: multi-as-area (AS65000/65100/65200) で as-group の stroke/fill 色が3種別"""
+    """#5: multi-as-area (AS65000/65100/65200) で as-group の stroke/fill 色が3種別
+
+    z-order 修正 (#4-B2) により as-group-container ラッパーは廃止。
+    data-as 属性を持つ <g> + 内部 <rect class="as-group"> から色情報を取得する。
+    """
     from lib.rendering import render
 
     topo = _make_multi_as_area_topology()
@@ -11007,40 +11018,28 @@ def test_1c5_multi_as_three_different_colors():
     next_view = html.find('class="view view-', bgp_start + 20)
     bgp_view = html[bgp_start:next_view] if next_view != -1 else html[bgp_start:]
 
-    # as-group-container の data-as 属性で各 AS を取得
-    containers = re.findall(r'<g[^>]*class="as-group-container"[^>]*data-as="([^"]+)"', bgp_view)
-    assert len(containers) == 3, (
-        f"BGP ビューに as-group-container が {len(containers)} 個（期待: AS65000/65100/65200 の 3個）"
+    # data-as 属性で各 AS の as-group <rect> を取得
+    # as-group の rect には直接 data-as が付いていないが、data-as を持つ <g> を探す
+    asn_list = re.findall(r'data-as="([^"]+)"', bgp_view)
+    asn_set = sorted(set(asn_list))
+    assert len(asn_set) >= 3, (
+        f"BGP ビューに data-as が {len(asn_set)} 種（期待: AS65000/65100/65200 の 3個以上）: {asn_set}"
     )
 
-    # 各 as-group-container 内の stroke 色を収集（インライン style から）
-    # stroke="..." または style="...stroke:...;" のパターンを取得
+    # as-group <rect> のインライン style から stroke/fill 色を収集
     stroke_colors = set()
     fill_colors = set()
-    for asn_str in containers:
-        # 当該 AS の as-group-container を取り出す
-        pat = (
-            r'<g[^>]*class="as-group-container"[^>]*data-as="' + re.escape(asn_str) + r'"[^>]*>'
-            r'.*?</g>'
-        )
-        m = re.search(pat, bgp_view, re.DOTALL)
-        assert m is not None, f"AS {asn_str} の as-group-container が見つからない"
-        container_html = m.group(0)
-
-        # as-group <rect> のインライン style から stroke と fill を取得
-        rect_m = re.search(r'class="as-group"[^>]*style="([^"]*)"', container_html)
-        if rect_m is None:
-            rect_m = re.search(r'style="([^"]*)"[^>]*class="as-group"', container_html)
-        assert rect_m is not None, (
-            f"AS {asn_str}: as-group <rect> にインライン style が見つからない（#5 未実装）"
-        )
-        style = rect_m.group(1)
+    rect_styles = re.findall(
+        r'<rect[^>]*class="as-group"[^>]*style="([^"]*)"',
+        bgp_view
+    )
+    for style in rect_styles:
         stroke_m = re.search(r'stroke:\s*([^;]+)', style)
         fill_m = re.search(r'fill:\s*([^;]+)', style)
-        assert stroke_m, f"AS {asn_str}: as-group style に stroke が見つからない"
-        assert fill_m, f"AS {asn_str}: as-group style に fill が見つからない"
-        stroke_colors.add(stroke_m.group(1).strip())
-        fill_colors.add(fill_m.group(1).strip())
+        if stroke_m:
+            stroke_colors.add(stroke_m.group(1).strip())
+        if fill_m:
+            fill_colors.add(fill_m.group(1).strip())
 
     assert len(stroke_colors) == 3, (
         f"3 AS で stroke 色が {len(stroke_colors)} 種のみ（3種別でない）: {stroke_colors}"
@@ -11051,7 +11050,11 @@ def test_1c5_multi_as_three_different_colors():
 
 @pytest.mark.unit
 def test_1c5_same_as_same_color():
-    """#5: 同一 AS 番号のノードは常に同一色（1 AS = 1色）"""
+    """#5: 同一 AS 番号のノードは常に同一色（1 AS = 1色・1枠）
+
+    z-order 修正 (#4-B2) により as-group-container ラッパーは廃止。
+    data-as="65000" を持つ as-group <rect> が 1 個のみであることで確認。
+    """
     from lib.rendering import render
 
     topo = _make_multi_as_area_topology()
@@ -11062,13 +11065,15 @@ def test_1c5_same_as_same_color():
     next_view = html.find('class="view view-', bgp_start + 20)
     bgp_view = html[bgp_start:next_view] if next_view != -1 else html[bgp_start:]
 
-    # AS65000 の as-group-container は 1個のみであること（同一 AS は1枠に統合）
-    as65000_containers = re.findall(
-        r'<g[^>]*class="as-group-container"[^>]*data-as="65000"',
-        bgp_view
+    # AS65000 の as-group <rect> は 1個のみであること（同一 AS は1枠に統合）
+    # data-as="65000" を持つ <g> 内の as-group rect を数える
+    # 分割後: <g data-as="65000"><rect class="as-group" .../></g> が1つだけ
+    as65000_rects = re.findall(
+        r'<g[^>]*data-as="65000"[^>]*>.*?class="as-group"',
+        bgp_view, re.DOTALL
     )
-    assert len(as65000_containers) == 1, (
-        f"AS65000 の as-group-container が {len(as65000_containers)} 個（1個であるべき）"
+    assert len(as65000_rects) == 1, (
+        f"AS65000 の as-group <rect> が {len(as65000_rects)} 個（1個であるべき）"
     )
 
 @pytest.mark.unit
@@ -11174,8 +11179,11 @@ def test_1c5_existing_single_as_still_has_group():
 
 @pytest.mark.unit
 def test_1c5_label_bg_three_distinct_fill_colors():
-    """#5 T6: as-group-label-bg の fill が 3 AS で 3 種すべて異なることを色値で検証。
-    「style= があれば PASS」という vacuous な検証を廃止し、実際の色値を比較する。"""
+    """#5 T6 (z-order 修正後更新): as-group-label-bg の fill が 3 AS で 3 種すべて異なる。
+
+    z-order 修正 (#4-B2) により as-group-container は廃止された。
+    BGP ビュー全体から as-group-label-bg の fill 色を収集して 3種別を検証する。
+    """
     from lib.rendering import render
 
     topo = _make_multi_as_area_topology()
@@ -11186,29 +11194,19 @@ def test_1c5_label_bg_three_distinct_fill_colors():
     next_view = html.find('class="view view-', bgp_start + 20)
     bgp_view = html[bgp_start:next_view] if next_view != -1 else html[bgp_start:]
 
-    # 各 AS の as-group-container から as-group-label-bg の fill 色を取得
-    containers_asn = re.findall(r'<g[^>]*class="as-group-container"[^>]*data-as="([^"]+)"', bgp_view)
-    assert len(containers_asn) == 3, f"as-group-container が {len(containers_asn)} 個（期待: 3）"
+    # BGP ビュー全体から as-group-label-bg の fill 色を直接収集
+    label_bg_styles = re.findall(
+        r'<rect[^>]*class="as-group-label-bg"[^>]*style="([^"]*)"',
+        bgp_view
+    )
+    assert len(label_bg_styles) >= 3, (
+        f"as-group-label-bg が {len(label_bg_styles)} 個（期待: 3以上）"
+    )
 
     fill_colors = []
-    for asn_str in containers_asn:
-        pat = (
-            r'<g[^>]*class="as-group-container"[^>]*data-as="' + re.escape(asn_str) + r'"[^>]*>'
-            r'.*?</g>'
-        )
-        m = re.search(pat, bgp_view, re.DOTALL)
-        assert m is not None, f"AS {asn_str} の as-group-container が見つからない"
-        container_html = m.group(0)
-
-        # as-group-label-bg の <rect> の fill 色を取得（インライン style）
-        label_bg_m = re.search(r'class="as-group-label-bg"[^>]*style="([^"]*)"', container_html)
-        if label_bg_m is None:
-            label_bg_m = re.search(r'style="([^"]*)"[^>]*class="as-group-label-bg"', container_html)
-        assert label_bg_m is not None, (
-            f"AS {asn_str}: as-group-label-bg にインライン style が見つからない"
-        )
-        fill_m = re.search(r'fill:\s*([^;]+)', label_bg_m.group(1))
-        assert fill_m is not None, f"AS {asn_str}: as-group-label-bg の style に fill が見つからない"
+    for style in label_bg_styles:
+        fill_m = re.search(r'fill:\s*([^;]+)', style)
+        assert fill_m is not None, f"as-group-label-bg の style に fill が見つからない: {style!r}"
         fill_colors.append(fill_m.group(1).strip())
 
     assert len(set(fill_colors)) == 3, (
@@ -17129,3 +17127,379 @@ def test_natural_zoom_deterministic(sample_topology):
     html2 = render(copy.deepcopy(sample_topology))
     assert html1 == html2, "naturalZoom 実装後に render() が非決定的になった"
     assert "naturalZoom" in html1, "render() 出力に naturalZoom が含まれない"
+
+
+# ===========================================================================
+# Bug #3 / #4: SVG z-order 修正テスト
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# #3-BGP: bgp-badge がノード（device-node）より後ろに出力される（最前面）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_bug3_bgp_badge_after_device_node_ibgp():
+    """#3: iBGP ビューで bgp-badge テキストが device-node より後に出力される（最前面）。
+
+    SVG は後の要素が前面に表示されるため、bgp-badge がノードより
+    後に出力されなければ badge がノード矩形の後ろに隠れる。
+    """
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビュー (view-bgp) が見つからない"
+
+    # 最後の device-node の出現位置と、最初の bgp-badge の出現位置を比較する
+    # すべての device-node が bgp-badge より前に出力されていること
+    last_device_node_pos = bgp_view.rfind('class="device-node"')
+    first_bgp_badge_pos = bgp_view.find('class="bgp-badge')
+    assert last_device_node_pos != -1, "device-node が見つからない"
+    assert first_bgp_badge_pos != -1, "bgp-badge が見つからない"
+    assert last_device_node_pos < first_bgp_badge_pos, (
+        f"bgp-badge ({first_bgp_badge_pos}) が device-node 群 "
+        f"({last_device_node_pos}) より前に出力されている（ノードに隠れる）"
+    )
+
+
+@pytest.mark.unit
+def test_bug3_bgp_badge_after_device_node_ebgp():
+    """#3: eBGP ビューで bgp-badge テキストが device-node より後に出力される（最前面）。"""
+    from lib.rendering import render
+    html = render(_make_ebgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビュー (view-bgp) が見つからない"
+
+    last_device_node_pos = bgp_view.rfind('class="device-node"')
+    first_bgp_badge_pos = bgp_view.find('class="bgp-badge')
+    assert last_device_node_pos != -1, "device-node が見つからない"
+    assert first_bgp_badge_pos != -1, "bgp-badge が見つからない"
+    assert last_device_node_pos < first_bgp_badge_pos, (
+        f"bgp-badge ({first_bgp_badge_pos}) が device-node 群 "
+        f"({last_device_node_pos}) より前に出力されている（ノードに隠れる）"
+    )
+
+
+@pytest.mark.unit
+def test_bug3_bgp_badge_after_device_node_large_topo():
+    """#3: large-topo BGP ビューで bgp-badge が device-node より後に出力される。"""
+    import os
+    from scripts.parse_configs import parse_paths, collect_inputs
+    from scripts.build_topology import build
+    from lib.rendering import render
+
+    large_dir = os.path.join(
+        os.path.dirname(__file__), "..", "evals", "inputs", "large-topo"
+    )
+    paths = collect_inputs(large_dir)
+    devices_raw = parse_paths(paths)
+    topo = build(devices_raw, generated_from=paths)
+    html = render(topo)
+    bgp_view = _extract_bgp_view_full(html)
+    if not bgp_view or 'class="bgp-badge' not in bgp_view:
+        pytest.skip("large-topo に bgp-badge が存在しない（テスト不要）")
+
+    last_device_node_pos = bgp_view.rfind('class="device-node"')
+    first_bgp_badge_pos = bgp_view.find('class="bgp-badge')
+    assert last_device_node_pos != -1, "device-node が見つからない"
+    assert last_device_node_pos < first_bgp_badge_pos, (
+        f"bgp-badge ({first_bgp_badge_pos}) が device-node 群 "
+        f"({last_device_node_pos}) より前に出力されている（ノードに隠れる）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# #3-OSPF: link-label がノード（device-node）より後ろに出力される（最前面）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_bug3_ospf_link_label_after_device_node():
+    """#3: OSPF ビューで link-label テキストが device-node より後に出力される（最前面）。
+
+    SVG は後の要素が前面に表示されるため、link-label がノードより
+    後に出力されなければラベルがノード矩形の後ろに隠れる。
+    """
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビュー (view-ospf) が見つからない"
+
+    last_device_node_pos = ospf_view.rfind('class="device-node"')
+    first_link_label_pos = ospf_view.find('class="link-label')
+    assert last_device_node_pos != -1, "device-node が見つからない"
+    assert first_link_label_pos != -1, "link-label が見つからない"
+    assert last_device_node_pos < first_link_label_pos, (
+        f"link-label ({first_link_label_pos}) が device-node 群 "
+        f"({last_device_node_pos}) より前に出力されている（ノードに隠れる）"
+    )
+
+
+@pytest.mark.unit
+def test_bug3_ospf_link_label_after_device_node_area_mismatch():
+    """#3: OSPF area mismatch topology でも link-label が device-node より後に出力される。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_area_mismatch()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビュー (view-ospf) が見つからない"
+
+    last_device_node_pos = ospf_view.rfind('class="device-node"')
+    first_link_label_pos = ospf_view.find('class="link-label')
+    assert last_device_node_pos != -1, "device-node が見つからない"
+    assert first_link_label_pos != -1, "link-label が見つからない"
+    assert last_device_node_pos < first_link_label_pos, (
+        f"link-label ({first_link_label_pos}) が device-node 群 "
+        f"({last_device_node_pos}) より前に出力されている（ノードに隠れる）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# #4-B2: AS番号ラベル（as-group-label）が AS枠 rect（as-group）より後に出力される
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_bug4_b2_as_group_label_after_all_as_group_rects_ibgp():
+    """#4-B2: iBGP BGP ビューで as-group-label が AS枠全 rect より後に出力される（最前面）。
+
+    近接する複数 AS 枠が存在するとき、後の AS 枠 rect が前の AS 番号ラベルを
+    覆ってしまう問題を修正する。AS番号ラベルはすべての AS枠 rect より後に出る必要がある。
+    """
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビュー (view-bgp) が見つからない"
+    assert 'class="as-group-label"' in bgp_view, "as-group-label が見つからない"
+
+    # 最後の as-group rect の出現位置 と 最初の as-group-label の出現位置を比較
+    last_as_group_rect_pos = bgp_view.rfind('class="as-group"')
+    first_as_label_pos = bgp_view.find('class="as-group-label"')
+    assert last_as_group_rect_pos != -1, "as-group rect が見つからない"
+    assert last_as_group_rect_pos < first_as_label_pos, (
+        f"as-group-label ({first_as_label_pos}) が as-group rect 群 "
+        f"({last_as_group_rect_pos}) より前に出力されている（AS番号が枠の後ろに隠れる）"
+    )
+
+
+@pytest.mark.unit
+def test_bug4_b2_as_group_label_after_all_as_group_rects_ebgp():
+    """#4-B2: eBGP BGP ビューで as-group-label が AS枠全 rect より後に出力される（最前面）。
+
+    eBGP では2つの AS 枠があり、AS番号ラベルが最前面に来ないと
+    隣 AS の枠 rect にラベルが隠れる可能性がある。
+    """
+    from lib.rendering import render
+    html = render(_make_ebgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビュー (view-bgp) が見つからない"
+    assert 'class="as-group-label"' in bgp_view, "as-group-label が見つからない"
+
+    last_as_group_rect_pos = bgp_view.rfind('class="as-group"')
+    first_as_label_pos = bgp_view.find('class="as-group-label"')
+    assert last_as_group_rect_pos != -1, "as-group rect が見つからない"
+    assert last_as_group_rect_pos < first_as_label_pos, (
+        f"as-group-label ({first_as_label_pos}) が as-group rect 群 "
+        f"({last_as_group_rect_pos}) より前に出力されている（AS番号が枠の後ろに隠れる）"
+    )
+
+
+@pytest.mark.unit
+def test_bug4_b2_as_group_label_after_device_node_ebgp():
+    """#4-B2: eBGP BGP ビューで as-group-label が device-node より後に出力される。
+
+    自ノードが AS番号ラベルを覆わないこと（ノードが AS枠 label より前に出力される）。
+    """
+    from lib.rendering import render
+    html = render(_make_ebgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビュー (view-bgp) が見つからない"
+    assert 'class="as-group-label"' in bgp_view, "as-group-label が見つからない"
+
+    last_device_node_pos = bgp_view.rfind('class="device-node"')
+    first_as_label_pos = bgp_view.find('class="as-group-label"')
+    assert last_device_node_pos != -1, "device-node が見つからない"
+    assert last_device_node_pos < first_as_label_pos, (
+        f"as-group-label ({first_as_label_pos}) が device-node 群 "
+        f"({last_device_node_pos}) より前に出力されている（ノードが AS番号を覆う）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# #4-B1: AS枠同士が _MIN_AS_GAP 以上離れること
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_bug4_b1_as_cluster_min_gap_ebgp():
+    """#4-B1: eBGP 2 AS の分離後、AS枠 bbox 間距離が _MIN_AS_GAP 以上離れている。
+
+    近接した AS 枠が視覚的に重なりをなくすため、separation_clusters の
+    シフト量を overlap+1.0 から max(_MIN_AS_GAP, overlap+1.0) に拡大する。
+    """
+    from lib.rendering.views import _separate_as_clusters, _as_cluster_bbox
+
+    # 2 台を近い座標に配置（ほぼ重なる状態）
+    positions = {"r1": (0.0, 0.0), "r2": (10.0, 0.0)}
+    bgp_devices = [
+        {"id": "r1", "as": 65001},
+        {"id": "r2", "as": 65002},
+    ]
+    node_sizes = {"r1": 0, "r2": 0}
+    padding = 20.0
+
+    result = _separate_as_clusters(positions, bgp_devices, node_sizes, padding)
+
+    bb1 = _as_cluster_bbox(["r1"], {"r1": result["r1"]}, node_sizes, padding)
+    bb2 = _as_cluster_bbox(["r2"], {"r2": result["r2"]}, node_sizes, padding)
+
+    # x/y 方向いずれかで gap が存在すること
+    ax, ay, ax2, ay2 = bb1
+    bx, by, bx2, by2 = bb2
+
+    # 重なっていないことを確認
+    overlap = not (ax2 <= bx or bx2 <= ax or ay2 <= by or by2 <= ay)
+    assert not overlap, (
+        f"#4-B1: 2 AS枠が分離後も重なっている "
+        f"bb1={bb1}, bb2={bb2}"
+    )
+
+    # gap が _MIN_AS_GAP 以上（どの方向でも gap が 0 より十分大きいこと）
+    # x 方向 gap: max(bx - ax2, ax - bx2, 0)
+    # y 方向 gap: max(by - ay2, ay - by2, 0)
+    gap_x = max(bx - ax2, ax - bx2, 0.0)
+    gap_y = max(by - ay2, ay - by2, 0.0)
+    gap = max(gap_x, gap_y)
+
+    # _MIN_AS_GAP が導入されること（views.py から import して確認）
+    try:
+        from lib.rendering.views import _MIN_AS_GAP
+        min_gap = _MIN_AS_GAP
+    except ImportError:
+        min_gap = 1.0  # 定数未定義の場合は最低限 1px 以上あること
+
+    assert gap >= min_gap, (
+        f"#4-B1: AS枠間 gap {gap:.1f}px が _MIN_AS_GAP {min_gap}px 未満 "
+        f"(bb1={bb1}, bb2={bb2})"
+    )
+
+
+@pytest.mark.unit
+def test_bug4_b1_min_as_gap_constant_exists():
+    """#4-B1: views.py に _MIN_AS_GAP 定数が定義されている。"""
+    from lib.rendering import views as views_mod
+    assert hasattr(views_mod, "_MIN_AS_GAP"), (
+        "_MIN_AS_GAP 定数が views.py に存在しない（#4-B1 未実装）"
+    )
+    gap_val = getattr(views_mod, "_MIN_AS_GAP")
+    assert gap_val >= 24, (
+        f"_MIN_AS_GAP={gap_val} が小さすぎる（24px 以上推奨）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 描画順マーキング非回帰: data-* 属性が保持されること
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_bug3_4_bgp_session_data_attrs_preserved_ibgp():
+    """#3/#4 修正後も bgp-session の data-type/data-a/data-b/data-bgp-id 属性が保持される。"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    # bgp-session の data 属性
+    assert 'class="bgp-session"' in bgp_view, "bgp-session が見つからない"
+    assert 'data-type=' in bgp_view, "bgp-session に data-type がない"
+    assert 'data-a=' in bgp_view, "bgp-session に data-a がない"
+    assert 'data-b=' in bgp_view, "bgp-session に data-b がない"
+    assert 'data-bgp-id=' in bgp_view, "bgp-session に data-bgp-id がない"
+
+
+@pytest.mark.unit
+def test_bug3_4_as_group_container_data_as_preserved():
+    """#3/#4 修正後も data-as 属性が BGP ビューに保持される。
+
+    z-order 修正 (#4-B2) により as-group-container ラッパーは廃止されたが、
+    各 AS グルーピング要素に data-as 属性が保持されることを確認する。
+    """
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    assert 'data-as=' in bgp_view, "data-as 属性が BGP ビューに存在しない"
+    assert 'class="as-group"' in bgp_view, "as-group <rect> が BGP ビューに存在しない"
+
+
+@pytest.mark.unit
+def test_bug3_4_ospf_link_edge_data_attrs_preserved():
+    """#3/#4 修正後も link-edge の data-subnet/data-a/data-b/data-ospf-id が保持される。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert 'class="link-edge"' in ospf_view, "link-edge が見つからない"
+    assert 'data-subnet=' in ospf_view, "link-edge に data-subnet がない"
+    assert 'data-a=' in ospf_view, "link-edge に data-a がない"
+    assert 'data-b=' in ospf_view, "link-edge に data-b がない"
+    assert 'data-ospf-id=' in ospf_view, "link-edge に data-ospf-id がない"
+
+
+# ---------------------------------------------------------------------------
+# 決定性: 修正後も render() が決定的であること
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_bug3_4_bgp_render_deterministic_after_zorder_fix():
+    """#3/#4 z-order 修正後も BGP render() が決定的（2回一致）。"""
+    import copy
+    from lib.rendering import render
+    topo = _make_ebgp_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "#3/#4 修正後 BGP render() が非決定的になった"
+
+
+@pytest.mark.unit
+def test_bug3_4_ospf_render_deterministic_after_zorder_fix():
+    """#3/#4 z-order 修正後も OSPF render() が決定的（2回一致）。"""
+    import copy
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "#3/#4 修正後 OSPF render() が非決定的になった"
+
+
+# ---------------------------------------------------------------------------
+# 既存 z-order テストの非回帰: as-group rect が bgp-session より前（背面）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_bug3_4_as_group_rect_still_before_bgp_session():
+    """#3/#4 修正後も as-group rect は bgp-session より前に出力される（背面維持）。"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    as_group_pos = bgp_view.find('class="as-group"')
+    bgp_session_pos = bgp_view.find('class="bgp-session"')
+    assert as_group_pos != -1, "as-group が見つからない"
+    assert bgp_session_pos != -1, "bgp-session が見つからない"
+    assert as_group_pos < bgp_session_pos, (
+        f"as-group ({as_group_pos}) が bgp-session ({bgp_session_pos}) より後に出力されている"
+    )
+
+
+@pytest.mark.unit
+def test_bug3_4_as_group_rect_still_before_device_node():
+    """#3/#4 修正後も as-group rect は device-node より前に出力される（背面維持）。"""
+    from lib.rendering import render
+    html = render(_make_ibgp_topology())
+    bgp_view = _extract_bgp_view_full(html)
+    assert bgp_view, "BGP ビューが見つからない"
+    as_group_pos = bgp_view.find('class="as-group"')
+    device_node_pos = bgp_view.find('class="device-node"')
+    assert as_group_pos != -1, "as-group が見つからない"
+    assert device_node_pos != -1, "device-node が見つからない"
+    assert as_group_pos < device_node_pos, (
+        f"as-group ({as_group_pos}) が device-node ({device_node_pos}) より後に出力されている"
+    )

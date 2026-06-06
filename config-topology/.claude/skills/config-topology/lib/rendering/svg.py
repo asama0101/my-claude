@@ -1474,6 +1474,313 @@ def _svg_bgp_as_groups(
     return "\n".join(parts)
 
 
+def _svg_bgp_as_groups_split(
+    bgp_devices: list[dict],
+    positions: dict[str, tuple[float, float]],
+    padding: float = _AS_GROUP_PADDING,
+    node_sizes: dict[str, int] | None = None,
+) -> tuple[str, str]:
+    """BGP ビュー用 AS グルーピングを「枠 rect 群」と「ラベル群」に分けて生成する。
+
+    SVG z-order 修正（#4-B2）: AS枠 rect をノードの背面、AS番号ラベルをノードの前面に
+    配置するため、rect と label を別々の文字列として返す。
+
+    Returns:
+        (rects_str, labels_str) のタプル
+        - rects_str: ``<g data-as="{asn}"><rect class="as-group" .../></g>`` 群
+        - labels_str: ``<g data-as="{asn}"><rect class="as-group-label-bg" .../>
+                       <text class="as-group-label" .../></g>`` 群
+    """
+    asn_to_devs: dict[int, list[str]] = defaultdict(list)
+    for dev in sorted(bgp_devices, key=lambda d: d["id"]):
+        asn = dev.get("as")
+        if asn is None:
+            continue
+        if dev["id"] in positions:
+            asn_to_devs[asn].append(dev["id"])
+
+    _nsizes = node_sizes or {}
+
+    placed_chips: list[tuple[float, float, float, float]] = []
+
+    def _chips_overlap(ax: float, ay: float, aw: float, ah: float,
+                       bx: float, by: float, bw: float, bh: float) -> bool:
+        return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
+
+    def _resolve_chip_pos(cx: float, cy: float, cw: float, ch: float) -> tuple[float, float]:
+        x, y = cx, cy
+        offset_step = ch + 4
+        max_tries = max(20, len(placed_chips) + 5)
+        for _ in range(max_tries):
+            overlap = any(
+                _chips_overlap(x, y, cw, ch, px, py, pw, ph)
+                for px, py, pw, ph in placed_chips
+            )
+            if not overlap:
+                break
+            y += offset_step
+        return x, y
+
+    rect_parts = []
+    label_parts = []
+    for asn in sorted(asn_to_devs.keys()):
+        dev_ids = asn_to_devs[asn]
+        if not dev_ids:
+            continue
+
+        stroke_color, fill_color, label_bg_color = _as_color(asn)
+
+        xs = [positions[d][0] for d in dev_ids]
+        tops = []
+        bottoms = []
+        for d in dev_ids:
+            cy = positions[d][1]
+            n_if = _nsizes.get(d, 0)
+            _w, node_h = _node_size_for(n_if)
+            tops.append(cy - node_h / 2)
+            bottoms.append(cy + node_h / 2)
+
+        min_x = min(xs) - _NODE_WIDTH / 2 - padding
+        min_y = min(tops) - padding
+        max_x = max(xs) + _NODE_WIDTH / 2 + padding
+        max_y = max(bottoms) + padding
+
+        rect_w = max_x - min_x
+        rect_h = max_y - min_y
+
+        chip_text = f"AS {_esc(asn)}"
+        chip_w = len(f"AS {asn}") * 9 + 12
+        chip_h = 20
+        chip_x_base = min_x + 8
+        chip_y_base = min_y - 9
+        chip_x, chip_y = _resolve_chip_pos(chip_x_base, chip_y_base, chip_w, chip_h)
+        placed_chips.append((chip_x, chip_y, chip_w, chip_h))
+        text_y = chip_y + chip_h * 0.7
+
+        rect_parts.append(
+            f'<g data-as="{_esc(asn)}">'
+            f'<rect x="{min_x:.1f}" y="{min_y:.1f}" '
+            f'width="{rect_w:.1f}" height="{rect_h:.1f}" '
+            f'rx="{_AS_GROUP_RX}" ry="{_AS_GROUP_RY}" class="as-group" '
+            f'style="stroke:{stroke_color};fill:{fill_color};"/>'
+            f'</g>'
+        )
+        label_parts.append(
+            f'<g data-as="{_esc(asn)}">'
+            f'<rect x="{chip_x:.1f}" y="{chip_y:.1f}" '
+            f'width="{chip_w:.1f}" height="{chip_h:.1f}" '
+            f'rx="4" ry="4" class="as-group-label-bg" '
+            f'style="fill:{label_bg_color};"/>'
+            f'<text x="{chip_x + 5:.1f}" y="{text_y:.1f}" '
+            f'text-anchor="start" class="as-group-label" '
+            f'style="fill:#ffffff;">'
+            f'{chip_text}</text>'
+            f'</g>'
+        )
+
+    return "\n".join(rect_parts), "\n".join(label_parts)
+
+
+def _svg_bgp_edges_split(
+    bgp_entries: list[dict],
+    interfaces: list[dict],
+    positions: dict,
+    chip_positions: dict[str, tuple[float, float]] | None = None,
+) -> tuple[str, str]:
+    """BGP エッジを「接続線（path）群」と「バッジ（text）群」に分けて生成する。
+
+    SVG z-order 修正（#3-BGP）: bgp-badge テキストをノードの前面に配置するため、
+    path（線）部分と badge（テキスト）部分を別々に返す。
+
+    各 bgp-session の data-type/data-a/data-b/data-bgp-id は「線」側の <g> に保持し、
+    「バッジ」側の <g> には data-bgp-id のみを付与して連携できるようにする。
+
+    _svg_bgp_edges と同一のセッション収集・チップアンカー・バッジ構築ロジックを使用。
+    違いは `parts.append` の代わりに `line_parts` と `badge_parts` に分けて収集する点のみ。
+
+    Returns:
+        (lines_str, badges_str) のタプル
+        - lines_str:  ``<g class="bgp-session" data-*...><path .../><title .../></g>`` 群
+        - badges_str: ``<g class="bgp-badge-group" data-bgp-id="...">{badge_svg}</g>`` 群
+    """
+    ip_to_device = _build_ip_to_device(interfaces)
+    ip_to_iface_id: dict[str, str] = _build_ip_to_iface_id(interfaces) if chip_positions is not None else {}
+
+    pair_sessions: dict[frozenset, list[tuple[str, str, dict]]] = {}
+    pair_order: list[frozenset] = []
+
+    for entry in sorted(bgp_entries, key=lambda e: (e["device"], e.get("neighbor_ip", ""))):
+        dev_id = entry["device"]
+        neighbor_ip = entry.get("neighbor_ip", "")
+        neighbor_dev = ip_to_device.get(neighbor_ip)
+        if not neighbor_dev or neighbor_dev == dev_id:
+            continue
+        if dev_id not in positions or neighbor_dev not in positions:
+            continue
+        pair = frozenset([dev_id, neighbor_dev])
+        if pair not in pair_sessions:
+            pair_sessions[pair] = []
+            pair_order.append(pair)
+        already_registered = any(
+            e.get("device") == entry.get("device") and
+            e.get("neighbor_ip") == entry.get("neighbor_ip")
+            for _, _, e in pair_sessions[pair]
+        )
+        if not already_registered:
+            pair_sessions[pair].append((dev_id, neighbor_dev, entry))
+
+    line_parts: list[str] = []
+    badge_parts: list[str] = []
+    seen_pairs: set[frozenset] = set()
+
+    for pair in pair_order:
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+
+        sessions = pair_sessions[pair]
+        if not sessions:
+            continue
+
+        dev_id, neighbor_dev, repr_entry = sessions[0]
+        bgp_type = repr_entry.get("type", "unknown")
+        peer_as = _esc(repr_entry.get("peer_as", ""))
+        local_as = _esc(repr_entry.get("local_as", ""))
+
+        x1, y1 = positions[dev_id]
+        x2, y2 = positions[neighbor_dev]
+
+        if chip_positions is not None:
+            sorted_sessions = sorted(
+                sessions,
+                key=lambda t: (t[2].get("af", "v4"), t[2].get("neighbor_ip", "")),
+            )
+            a_side = [(s_dev, s_nbr, sess) for s_dev, s_nbr, sess in sorted_sessions if s_dev == dev_id]
+            b_side = [(s_dev, s_nbr, sess) for s_dev, s_nbr, sess in sorted_sessions if s_dev == neighbor_dev]
+            if not a_side:
+                a_side = sorted_sessions
+            if not b_side:
+                b_side = sorted_sessions
+
+            a_anchored = False
+            for _, _, sess_a in a_side:
+                local_ip_raw = sess_a.get("local_ip") or ""
+                if local_ip_raw:
+                    a_iface_id = ip_to_iface_id.get(local_ip_raw)
+                    if a_iface_id and a_iface_id in chip_positions:
+                        x1, y1 = chip_positions[a_iface_id]
+                        a_anchored = True
+                        break
+            if not a_anchored:
+                has_any_local_ip = any(
+                    (sess.get("local_ip") or "") for _, _, sess in a_side
+                )
+                if not has_any_local_ip:
+                    lb_candidates = sorted(
+                        iface_id for iface_id in chip_positions
+                        if iface_id.startswith(f"{dev_id}::")
+                        and _is_loopback(iface_id[len(dev_id) + 2:])
+                    )
+                    if lb_candidates:
+                        x1, y1 = chip_positions[lb_candidates[0]]
+            for _, _, sess_b in b_side:
+                neighbor_ip_raw = sess_b.get("local_ip") or ""
+                if neighbor_ip_raw:
+                    b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
+                    if b_iface_id and b_iface_id in chip_positions:
+                        x2, y2 = chip_positions[b_iface_id]
+                        break
+            if (x2, y2) == tuple(positions[neighbor_dev]):
+                for _, _, sess_a in a_side:
+                    neighbor_ip_raw = sess_a.get("neighbor_ip") or ""
+                    if neighbor_ip_raw:
+                        b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
+                        if b_iface_id and b_iface_id in chip_positions:
+                            x2, y2 = chip_positions[b_iface_id]
+                            break
+
+        css_class = f"bgp-edge bgp-{_esc(bgp_type)} layer-bgp"
+        mx = (x1 + x2) / 2
+        my = (y1 + y2) / 2 - 15
+
+        # IP ペア収集（_svg_bgp_edges と同一ロジック）
+        canonical_dev, _ = sorted([dev_id, neighbor_dev])
+        ip_pairs: list[str] = []
+        seen_ip_pairs: set[tuple[str, str]] = set()
+        for _, _, sess_entry in sorted(
+            sessions,
+            key=lambda t: (t[2].get("af", "v4"), t[2].get("neighbor_ip", "")),
+        ):
+            sess_dev = sess_entry.get("device", "")
+            if sess_dev != canonical_dev:
+                continue
+            local_ip = sess_entry.get("local_ip") or ""
+            neighbor_ip_val = sess_entry.get("neighbor_ip") or ""
+            pair_key = (local_ip, neighbor_ip_val)
+            if pair_key in seen_ip_pairs:
+                continue
+            seen_ip_pairs.add(pair_key)
+            if local_ip and neighbor_ip_val:
+                ip_pairs.append(f"{_esc(local_ip)}↔{_esc(neighbor_ip_val)}")
+            elif neighbor_ip_val:
+                ip_pairs.append(_esc(neighbor_ip_val))
+
+        v4_pairs = [p for p in ip_pairs if ":" not in p]
+        v6_pairs = [p for p in ip_pairs if ":" in p]
+        is_dual_stack = bool(v4_pairs and v6_pairs)
+        ip_label = " / ".join(ip_pairs)
+
+        title_parts = [f"{_esc(bgp_type)} AS{local_as}↔AS{peer_as}"]
+        if ip_label:
+            title_parts.append(ip_label)
+        title_text = " | ".join(title_parts)
+
+        if ip_label:
+            if is_dual_stack:
+                v4_label = " / ".join(v4_pairs)
+                v6_label = " / ".join(v6_pairs)
+                badge_svg = (
+                    f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
+                    f'class="bgp-badge layer-bgp">'
+                    f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
+                    f'<tspan x="{mx:.1f}" dy="12">{v4_label}</tspan>'
+                    f'<tspan x="{mx:.1f}" dy="12">{v6_label}</tspan>'
+                    f'</text>'
+                )
+            else:
+                badge_svg = (
+                    f'<text x="{mx:.1f}" y="{my - 8:.1f}" text-anchor="middle" '
+                    f'class="bgp-badge layer-bgp">'
+                    f'<tspan x="{mx:.1f}" dy="0">{_esc(bgp_type)} {local_as}↔{peer_as}</tspan>'
+                    f'<tspan x="{mx:.1f}" dy="12">{ip_label}</tspan>'
+                    f'</text>'
+                )
+        else:
+            badge_svg = (
+                f'<text x="{mx:.1f}" y="{my - 5:.1f}" text-anchor="middle" '
+                f'class="bgp-badge layer-bgp">{_esc(bgp_type)} {local_as}↔{peer_as}</text>'
+            )
+
+        bgp_id = "|".join(sorted([dev_id, neighbor_dev]))
+
+        line_parts.append(
+            f'<g class="bgp-session" data-type="{_esc(bgp_type)}" '
+            f'data-a="{_esc(dev_id)}" data-b="{_esc(neighbor_dev)}" '
+            f'data-bgp-id="{_esc(bgp_id)}">'
+            f'<path d="M{x1:.1f},{y1:.1f} Q{mx:.1f},{my:.1f} {x2:.1f},{y2:.1f}" '
+            f'class="{css_class}" fill="none"/>'
+            f'<title>{title_text}</title>'
+            f'</g>'
+        )
+        badge_parts.append(
+            f'<g class="bgp-badge-group" data-bgp-id="{_esc(bgp_id)}">'
+            f'{badge_svg}'
+            f'</g>'
+        )
+
+    return "\n".join(line_parts), "\n".join(badge_parts)
+
+
 def _make_iface_by_device(interfaces: list[dict]) -> dict[str, list[dict]]:
     """interface リストを device_id → [iface, ...] に変換する"""
     result: dict[str, list[dict]] = {}
