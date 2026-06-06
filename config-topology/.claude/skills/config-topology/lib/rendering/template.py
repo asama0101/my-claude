@@ -692,7 +692,6 @@ _CSS = """\
 
     /* 統合凡例パネル（右上 zoom-controls の下、絶対配置） */
     #legend-panel {
-      display: none;
       position: absolute;
       top: 44px;
       right: 8px;
@@ -2614,6 +2613,7 @@ _JS = """\
       var cb = document.getElementById('card-filter-toggle');
       if (cb) {
         cb.addEventListener('change', _updateCardFilter);
+        _updateCardFilter();
       }
     })();
 
@@ -2957,8 +2957,8 @@ def build_html(
         <svg width="12" height="12" style="flex-shrink:0"><g class="if-chip if-chip-loopback"><circle cx="6" cy="6" r="5"/></g></svg><span>Loopback</span>
         <svg width="22" height="12" style="flex-shrink:0"><rect x="1" y="1" width="20" height="10" rx="2" ry="2" class="node-rect external-rect"/></svg><span>外部ピア（topology外）</span>
       </div>
-      <!-- 統合凡例パネル（右上 zoom-controls の下、初期非表示） -->
-      <div id="legend-panel" style="display:none">
+      <!-- 統合凡例パネル（右上 zoom-controls の下、初期表示） -->
+      <div id="legend-panel">
 {legend_panel_inner}
       </div>
     </div>
@@ -2975,7 +2975,7 @@ def build_html(
       </div>
       <h2>Device Details
         <label style="font-size:0.8rem;font-weight:400;margin-left:16px;cursor:pointer;">
-          <input type="checkbox" id="card-filter-toggle" style="vertical-align:middle;">
+          <input type="checkbox" id="card-filter-toggle" style="vertical-align:middle;" checked>
           選択中の機器のみ表示
         </label>
       </h2>

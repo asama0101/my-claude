@@ -14845,16 +14845,15 @@ def test_rc_toggle_legend_function_exists(rendered_html):
 
 @pytest.mark.unit
 def test_rc_legend_panel_initially_hidden(rendered_html):
-    """② legend-panel は初期状態で非表示 (display:none)"""
+    """② legend-panel は初期表示（⑥改修: display:none を除去して初期表示に変更）"""
     assert 'id="legend-panel"' in rendered_html
-    # id="legend-panel" の直後の style 属性に display:none が含まれること
-    import re
+    # ⑥改修後: インライン display:none が存在しないこと（初期表示が正しい状態）
     m = re.search(r'id="legend-panel"([^>]*>)', rendered_html)
     assert m is not None, "legend-panel 要素が見つからない"
-    tag_content = m.group(0) + rendered_html[m.end():m.end() + 50]
-    # style="display:none" が要素属性か直後のインラインスタイルに含まれること
-    assert "display:none" in tag_content or "display: none" in tag_content, \
-        "legend-panel が初期状態で非表示になっていない"
+    tag_attrs = m.group(1)
+    # 初期表示のため display:none が存在しないこと
+    assert "display:none" not in tag_attrs and "display: none" not in tag_attrs, \
+        "legend-panel の開始タグに display:none が残っている（⑥改修後は初期表示）"
 
 @pytest.mark.unit
 def test_rc_legend_static_sections(rendered_html):
@@ -20645,3 +20644,222 @@ def test_if1_g_render_with_iface_attrs_is_deterministic(sample_topology):
     assert html1 == html2, (
         "render() が非決定的（data-a-iface/data-b-iface 付与後に順序が変わる可能性）"
     )
+
+
+# ===========================================================================
+# 項目⑥: 凡例パネルをデフォルト表示
+# ===========================================================================
+
+@pytest.mark.unit
+def test_i6_legend_panel_no_inline_display_none(rendered_html):
+    """⑥: #legend-panel 要素のインライン style に display:none が無い（初期表示）"""
+    m = re.search(r'id="legend-panel"([^>]*>)', rendered_html)
+    assert m is not None, "legend-panel 要素が見つからない"
+    tag_attrs = m.group(1)
+    assert "display:none" not in tag_attrs and "display: none" not in tag_attrs, \
+        "legend-panel の開始タグに display:none が残っている（初期表示にする必要がある）"
+
+
+@pytest.mark.unit
+def test_i6_legend_panel_css_not_display_none(rendered_html):
+    """⑥: CSS #legend-panel ルールに display:none が無い（初期表示）"""
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined = "\n".join(style_blocks)
+    m = re.search(r'#legend-panel\s*\{([^}]+)\}', combined, re.DOTALL)
+    assert m is not None, "CSS に #legend-panel ルールが存在しない"
+    rule_body = m.group(1)
+    assert "display: none" not in rule_body and "display:none" not in rule_body, \
+        "CSS #legend-panel ルールに display:none が残っている（初期表示にする必要がある）"
+
+
+@pytest.mark.unit
+def test_i6_toggle_legend_function_still_exists(rendered_html):
+    """⑥: toggleLegend() 関数が引き続き存在する（非回帰）"""
+    assert "toggleLegend" in rendered_html, \
+        "toggleLegend 関数が存在しない（非回帰）"
+
+
+@pytest.mark.unit
+def test_i6_toggle_legend_uses_computed_style(rendered_html):
+    """⑥: toggleLegend は getComputedStyle を使う（初期表示状態でも正しくトグル）"""
+    func_body = _extract_js_function(rendered_html, "toggleLegend")
+    assert func_body, "toggleLegend 関数が見つからない"
+    assert "getComputedStyle" in func_body, \
+        "toggleLegend が getComputedStyle を使っていない"
+
+
+@pytest.mark.unit
+def test_i6_render_deterministic(sample_topology):
+    """⑥: 凡例パネル初期表示変更後も決定性を維持する"""
+    from lib.rendering import render
+    html1 = render(sample_topology)
+    html2 = render(sample_topology)
+    assert html1 == html2, "render() が非決定的"
+
+
+# ===========================================================================
+# 項目⑨: 「選択中の機器のみ表示」を初期 ON
+# ===========================================================================
+
+@pytest.mark.unit
+def test_i9_card_filter_toggle_checked(rendered_html):
+    """⑨: #card-filter-toggle に checked 属性が付いている（初期 ON）"""
+    m = re.search(r'id="card-filter-toggle"([^>]*>)', rendered_html)
+    assert m is not None, "card-filter-toggle 要素が見つからない"
+    tag_attrs = m.group(1)
+    assert "checked" in tag_attrs, \
+        "card-filter-toggle に checked 属性がない（初期 ON にする必要がある）"
+
+
+@pytest.mark.unit
+def test_i9_update_card_filter_called_on_init(rendered_html):
+    """⑨: 初期化 IIFE 内で card-filter-toggle リスナー登録後に _updateCardFilter() が呼ばれる"""
+    # addEventListener('change', _updateCardFilter); の直後に _updateCardFilter() が呼ばれること
+    pattern = re.compile(
+        r"addEventListener\s*\(\s*['\"]change['\"],\s*_updateCardFilter\s*\)\s*;"
+        r"[^}]{0,100}_updateCardFilter\s*\(\s*\)",
+        re.DOTALL
+    )
+    assert pattern.search(rendered_html), \
+        "初期化 IIFE 内でリスナー登録後に _updateCardFilter() が呼ばれていない"
+
+
+@pytest.mark.unit
+def test_i9_update_card_filter_empty_selection_shows_all(rendered_html):
+    """⑨: _updateCardFilter は _selectedNodes が空なら card-unselected を付けないロジックを持つ"""
+    start = rendered_html.find("function _updateCardFilter(")
+    assert start != -1, "_updateCardFilter 関数が見つからない"
+    end = rendered_html.find("\n    function ", start + 1)
+    func_body = rendered_html[start:end] if end != -1 else rendered_html[start:start + 2000]
+    has_empty_check = (
+        "_selectedNodes.size" in func_body
+        or "size === 0" in func_body
+        or "size == 0" in func_body
+        or ".length === 0" in func_body
+        or "if (!cb" in func_body
+        or "card-unselected" in func_body
+    )
+    assert has_empty_check, \
+        "_updateCardFilter に空選択時の全カード表示ロジックが見つからない"
+
+
+@pytest.mark.unit
+def test_i9_render_deterministic(sample_topology):
+    """⑨: card-filter-toggle 変更後も決定性を維持する"""
+    from lib.rendering import render
+    html1 = render(sample_topology)
+    html2 = render(sample_topology)
+    assert html1 == html2, "render() が非決定的"
+
+
+# ===========================================================================
+# 項目⑩: IFチップ tooltip を改行区切り
+# ===========================================================================
+
+@pytest.mark.unit
+def test_i10_if_chip_title_newline_separator():
+    """⑩: 複数情報を持つ IF チップの <title> が改行（\\n）区切り"""
+    from lib.rendering.svg import _svg_if_chip
+    iface_with_ip = {
+        "id": "r1::eth0",
+        "device": "r1",
+        "name": "Gi0/0",
+        "ip": "10.0.0.1/30",
+        "shutdown": False,
+        "description": None,
+        "addresses": [
+            {"af": "v4", "ip": "10.0.0.1", "prefix": 30, "scope": None, "secondary": False},
+        ],
+    }
+    svg = _svg_if_chip(50.0, 80.0, 0, iface_with_ip)
+    m = re.search(r'<title>([^<]+)</title>', svg)
+    assert m is not None, "if-chip に <title> がない"
+    title = m.group(1)
+    assert "\n" in title, f"if-chip title が改行区切りでない: {title!r}"
+    parts = title.split("\n")
+    assert parts[0] == "Gi0/0", f"title の1要素目が IF 名でない: {parts[0]!r}"
+    assert "10.0.0.1/30" in parts[1], f"title の2要素目に IP がない: {parts[1]!r}"
+
+
+@pytest.mark.unit
+def test_i10_if_chip_title_single_part_no_newline():
+    """⑩: IP も description も無い場合は改行なし（単一要素）"""
+    from lib.rendering.svg import _svg_if_chip
+    iface_name_only = {
+        "id": "r1::eth0",
+        "device": "r1",
+        "name": "eth0",
+        "ip": None,
+        "shutdown": False,
+        "description": None,
+        "addresses": [],
+    }
+    svg = _svg_if_chip(50.0, 80.0, 0, iface_name_only)
+    m = re.search(r'<title>([^<]+)</title>', svg)
+    assert m is not None, "if-chip に <title> がない"
+    title = m.group(1)
+    assert "\n" not in title, f"単一要素の if-chip title に改行が含まれている: {title!r}"
+    assert title == "eth0", f"単一要素の title が期待値と異なる: {title!r}"
+
+
+@pytest.mark.unit
+def test_i10_if_chip_title_with_desc_newline():
+    """⑩: description を持つ場合も改行区切り"""
+    from lib.rendering.svg import _svg_if_chip
+    iface_with_desc = {
+        "id": "r1::eth0",
+        "device": "r1",
+        "name": "Gi0/0",
+        "ip": None,
+        "shutdown": False,
+        "description": "Uplink",
+        "addresses": [],
+    }
+    svg = _svg_if_chip(50.0, 80.0, 0, iface_with_desc)
+    m = re.search(r'<title>([^<]+)</title>', svg)
+    assert m is not None, "if-chip に <title> がない"
+    title = m.group(1)
+    assert "\n" in title, f"description 付き if-chip title が改行区切りでない: {title!r}"
+    assert title.startswith("Gi0/0\n"), f"title が IF 名で始まっていない: {title!r}"
+
+
+@pytest.mark.unit
+def test_i10_if_chip_title_v4_v6_newline():
+    """⑩: v4 + v6 の両方がある場合も各行改行区切り"""
+    from lib.rendering.svg import _svg_if_chip
+    iface_dual_stack = {
+        "id": "r1::eth0",
+        "device": "r1",
+        "name": "Gi0/0",
+        "ip": None,
+        "shutdown": False,
+        "description": None,
+        "addresses": [
+            {"af": "v4", "ip": "10.0.0.1", "prefix": 30, "scope": None, "secondary": False},
+            {"af": "v6", "ip": "2001:db8::1", "prefix": 64, "scope": "global", "secondary": False},
+        ],
+    }
+    svg = _svg_if_chip(50.0, 80.0, 0, iface_dual_stack)
+    m = re.search(r'<title>([^<]+)</title>', svg)
+    assert m is not None, "if-chip に <title> がない"
+    title = m.group(1)
+    parts = title.split("\n")
+    assert len(parts) == 3, f"v4+v6 の場合 3 行（IF名/v4/v6）であるべき: {parts!r}"
+    assert parts[0] == "Gi0/0"
+    assert "10.0.0.1/30" in parts[1]
+    assert "2001:db8::1/64" in parts[2]
+
+
+@pytest.mark.unit
+def test_i10_link_title_not_affected(rendered_html):
+    """⑩: link-edge 要素が依然として存在する（if-chip 限定変更の非回帰）"""
+    assert "link-edge" in rendered_html, "link-edge 要素が存在しない（非回帰）"
+
+
+@pytest.mark.unit
+def test_i10_render_deterministic(sample_topology):
+    """⑩: if-chip title 改行変更後も決定性を維持する"""
+    from lib.rendering import render
+    html1 = render(sample_topology)
+    html2 = render(sample_topology)
+    assert html1 == html2, "render() が非決定的"

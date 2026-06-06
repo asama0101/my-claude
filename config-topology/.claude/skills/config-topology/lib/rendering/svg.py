@@ -454,7 +454,7 @@ def _svg_if_chip(
             title_parts.append(_esc(if_ip))
     if desc:
         title_parts.append(f"（{_esc(desc)}）")
-    title_text = " ".join(title_parts)
+    title_text = "\n".join(title_parts)
 
     # CSS クラスを決定: loopback / shutdown の組み合わせを処理
     extra_classes = []
