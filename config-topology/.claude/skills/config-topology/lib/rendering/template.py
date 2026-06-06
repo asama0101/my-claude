@@ -1049,6 +1049,11 @@ _JS = """\
     // ============================================================
     // ビュー切替
     // ============================================================
+    // NOTE: _selectedNodes / _hiddenNodes は selectView('physical') のトップレベル呼び出し
+    // より前に初期化する必要がある（var 宣言は巻き上げられるが代入は巻き上げられないため、
+    // 後置だと _selectedNodes.size で TypeError になりリスナー登録が全て失われる）。
+    var _selectedNodes = new Set();
+    var _hiddenNodes = new Set();
     var _currentView = 'physical';
 
     function selectView(viewId) {
@@ -1810,9 +1815,8 @@ _JS = """\
 
     // ============================================================
     // カード↔ノード双方向選択・複数累積トグル / IF行↔リンク連動
-    // （宣言を参照より前に配置して TDZ を回避）
     // ============================================================
-    var _selectedNodes = new Set();
+    // （_selectedNodes は先頭で初期化済み）
     var _selectedLinks = new Set();
     var _selectedStaticRows = new Set();    // #2: static 行 data-route-id 集合（行ごと独立累積）
     var _selectedStaticEdges = new Set();   // HC1: static 経路で固定中のエッジ link-id / seg-id 集合
@@ -2046,8 +2050,7 @@ _JS = """\
     // ============================================================
     // ノード表示フィルタ
     // ============================================================
-    // 非表示デバイスの集合（両端判定に使用）
-    var _hiddenNodes = new Set();
+    // （_hiddenNodes は先頭で初期化済み）
 
     function setNodeVisibility(deviceId, visible, skipFilter) {
       // 非表示デバイス集合を更新

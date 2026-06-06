@@ -18848,3 +18848,243 @@ def test_roundd_no_color_card_border_references(rendered_html):
     # :root の定義コメント行を除いて var(--color-card-border) 参照がないこと
     assert 'var(--color-card-border)' not in rendered_html, \
         'var(--color-card-border) の参照が残っている（--border-color に統一すること）'
+
+
+# ============================================================
+# JS 変数初期化順序テスト（node 不要・文字列位置ベース）
+# ============================================================
+
+def _extract_js_body(html: str) -> str:
+    """HTML から JS 本体（type=application/json 以外の最後の <script> 内容）を取得。"""
+    import re
+    scripts = re.findall(
+        r'<script(?![^>]*application/json)[^>]*>(.*?)</script>',
+        html, re.DOTALL
+    )
+    assert scripts, 'JS <script> ブロックが見つからない'
+    return scripts[-1]
+
+
+@pytest.mark.unit
+def test_js_selected_nodes_initialized_before_select_view(rendered_html):
+    """_selectedNodes が selectView('physical') トップレベル呼び出しより前に初期化される。
+    var 宣言は巻き上げられるが代入は巻き上げられないため、後置だと
+    _selectedNodes.size で TypeError → 全リスナー登録が失われるバグを防ぐ。"""
+    js = _extract_js_body(rendered_html)
+    sel_pos = js.find("var _selectedNodes = new Set()")
+    sv_pos = js.find("selectView('physical');")
+    assert sel_pos != -1, "var _selectedNodes = new Set() が JS 内に見つからない"
+    assert sv_pos != -1, "selectView('physical'); が JS 内に見つからない"
+    assert sel_pos < sv_pos, (
+        f"_selectedNodes の初期化（pos={sel_pos}）が"
+        f" selectView('physical')（pos={sv_pos}）より後にある — "
+        "トップレベル実行で TypeError が発生し全リスナーが消える"
+    )
+
+
+@pytest.mark.unit
+def test_js_hidden_nodes_initialized_before_select_view(rendered_html):
+    """_hiddenNodes が selectView('physical') トップレベル呼び出しより前に初期化される。"""
+    js = _extract_js_body(rendered_html)
+    hid_pos = js.find("var _hiddenNodes = new Set()")
+    sv_pos = js.find("selectView('physical');")
+    assert hid_pos != -1, "var _hiddenNodes = new Set() が JS 内に見つからない"
+    assert sv_pos != -1, "selectView('physical'); が JS 内に見つからない"
+    assert hid_pos < sv_pos, (
+        f"_hiddenNodes の初期化（pos={hid_pos}）が"
+        f" selectView('physical')（pos={sv_pos}）より後にある"
+    )
+
+
+@pytest.mark.unit
+def test_js_no_duplicate_selected_nodes_init(rendered_html):
+    """_selectedNodes = new Set() の宣言が重複していない（移動であって複製でないこと）。"""
+    js = _extract_js_body(rendered_html)
+    count = js.count("var _selectedNodes = new Set()")
+    assert count == 1, (
+        f"var _selectedNodes = new Set() が {count} 箇所ある（1箇所のみであること）"
+    )
+
+
+@pytest.mark.unit
+def test_js_no_duplicate_hidden_nodes_init(rendered_html):
+    """_hiddenNodes = new Set() の宣言が重複していない（移動であって複製でないこと）。"""
+    js = _extract_js_body(rendered_html)
+    count = js.count("var _hiddenNodes = new Set()")
+    assert count == 1, (
+        f"var _hiddenNodes = new Set() が {count} 箇所ある（1箇所のみであること）"
+    )
+
+
+# ============================================================
+# JS スモークテスト（node 実行・インタラクション配線確認）
+# ============================================================
+
+import shutil
+import subprocess
+import tempfile
+import os
+import json as _json
+
+
+def _build_js_harness(js_body: str) -> str:
+    """寛容 DOM モック付きの node 実行ハーネス JS を生成する。"""
+    escaped = _json.dumps(js_body)
+    return f"""\
+'use strict';
+// ---- リスナー追跡 ----
+var _listeners = {{}};
+function _trackListener(type) {{
+  _listeners[type] = (_listeners[type] || 0) + 1;
+}}
+
+// ---- DOM 要素スタブ生成 ----
+function makeEl(tag) {{
+  var el = {{
+    _tag: tag,
+    style: {{}},
+    dataset: {{}},
+    value: '',
+    checked: false,
+    textContent: '',
+    innerHTML: '',
+    classList: {{
+      add: function() {{}},
+      remove: function() {{}},
+      contains: function() {{ return false; }},
+      toggle: function() {{}},
+    }},
+    addEventListener: function(type) {{ _trackListener(type); }},
+    removeEventListener: function() {{}},
+    getAttribute: function() {{ return null; }},
+    setAttribute: function() {{}},
+    getBoundingClientRect: function() {{
+      return {{left:0, top:0, right:100, bottom:100, width:100, height:100}};
+    }},
+    querySelectorAll: function() {{ return []; }},
+    querySelector: function() {{ return null; }},
+    closest: function() {{ return null; }},
+    appendChild: function(c) {{ return c; }},
+    insertBefore: function(c) {{ return c; }},
+    focus: function() {{}},
+    click: function() {{}},
+  }};
+  return el;
+}}
+
+global.CSS = {{ escape: function(s) {{ return s; }} }};
+
+global.document = {{
+  body: makeEl('body'),
+  documentElement: makeEl('html'),
+  addEventListener: function(type, fn) {{
+    // DOMContentLoaded は登録のみ（実行しない）
+    if (type !== 'DOMContentLoaded') {{ _trackListener(type); }}
+  }},
+  removeEventListener: function() {{}},
+  getElementById: function() {{ return makeEl('div'); }},
+  querySelector: function() {{ return makeEl('div'); }},
+  querySelectorAll: function() {{ return []; }},
+  createElementNS: function(ns, tag) {{ return makeEl(tag); }},
+  createElement: function(tag) {{ return makeEl(tag); }},
+}};
+
+global.window = {{
+  addEventListener: function(type) {{ _trackListener(type); }},
+  removeEventListener: function() {{}},
+  _zoomFit: null,
+}};
+global.window.window = global.window;
+
+global.localStorage = {{
+  getItem: function() {{ return null; }},
+  setItem: function() {{}},
+  removeItem: function() {{}},
+}};
+
+global.getComputedStyle = function() {{
+  return {{ display: 'block', getPropertyValue: function() {{ return ''; }} }};
+}};
+
+global.matchMedia = function() {{
+  return {{
+    matches: false,
+    addEventListener: function() {{}},
+    removeEventListener: function() {{}},
+  }};
+}};
+
+global.requestAnimationFrame = function() {{ return 0; }};
+global.cancelAnimationFrame = function() {{}};
+global.SVGElement = function() {{}};
+global.HTMLElement = function() {{}};
+
+// ---- JS 本体を評価 ----
+try {{
+  (0, eval)({escaped});
+}} catch (e) {{
+  process.stderr.write('THROW: ' + e.message + '\\n' + (e.stack || '') + '\\n');
+  process.exit(1);
+}}
+
+// ---- 結果出力 ----
+var total = Object.values(_listeners).reduce(function(s, v) {{ return s + v; }}, 0);
+process.stdout.write(JSON.stringify({{
+  listeners: _listeners,
+  total: total,
+  wheel: _listeners['wheel'] || 0,
+  mousedown: _listeners['mousedown'] || 0,
+  click: _listeners['click'] || 0,
+}}) + '\\n');
+"""
+
+
+@pytest.mark.unit
+def test_js_smoke_no_throw_and_listeners_registered(rendered_html):
+    """JS スモークテスト: トップレベル実行が例外を投げず、
+    wheel/mousedown/click リスナーが1件以上登録される（インタラクション配線確認）。
+
+    _selectedNodes/_hiddenNodes の初期化が selectView('physical') より後にある場合、
+    _selectedNodes.size で TypeError → process.exit(1) となりテスト失敗する。
+    node が無い環境では skip する。
+    """
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    js = _extract_js_body(rendered_html)
+    harness = _build_js_harness(js)
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_smoke_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    # --- throw 検出 ---
+    assert result.returncode == 0, (
+        f"JS トップレベル実行で例外が発生した（全リスナー登録が失われる）:\n"
+        f"{result.stderr[:1000]}"
+    )
+
+    # --- リスナー登録確認 ---
+    data = _json.loads(result.stdout.strip())
+    assert data['wheel'] >= 1, (
+        f"wheel リスナーが登録されていない（wheel={data['wheel']}）\n"
+        f"listeners={data['listeners']}"
+    )
+    assert data['mousedown'] >= 1, (
+        f"mousedown リスナーが登録されていない（mousedown={data['mousedown']}）\n"
+        f"listeners={data['listeners']}"
+    )
+    assert data['click'] >= 1, (
+        f"click リスナーが登録されていない（click={data['click']}）\n"
+        f"listeners={data['listeners']}"
+    )
