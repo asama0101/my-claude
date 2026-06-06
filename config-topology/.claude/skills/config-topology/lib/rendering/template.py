@@ -1899,9 +1899,10 @@ _JS = """\
         allNodes.forEach(function(n) { n.classList.remove('highlighted'); });
         // リンクの highlighted 除去:
         // _selectedLinks（IF行クリック固定）と _selectedStaticEdges（static経路固定）は保持
+        // selection-edge-hl: ノードクリック選択由来の highlighted も保持（BGP/seg と対称化）
         allLinks.forEach(function(l) {
           var lid = l.getAttribute('data-link-id');
-          if (!_selectedLinks.has(lid) && !_selectedStaticEdges.has(lid)) {
+          if (!_selectedLinks.has(lid) && !_selectedStaticEdges.has(lid) && !l.classList.contains('selection-edge-hl')) {
             l.classList.remove('highlighted');
           }
         });
@@ -2327,6 +2328,8 @@ _JS = """\
           el.classList.add('highlighted');
         });
       }
+      // エッジラベル（bgp-badge / link-label）の表示を highlighted 状態と同期
+      if (typeof window._syncEdgeLabels === 'function') { window._syncEdgeLabels(); }
     }
 
     // IF行↔リンク双方向ハイライト（トグル: 2回目クリックで解除）
@@ -2361,6 +2364,29 @@ _JS = """\
     // ノード表示フィルタ
     // ============================================================
     // （_hiddenNodes は先頭で初期化済み）
+
+    // ④⑤ asToDevs / segToDevs2: DOM 構造は不変（クラスのみトグル）のため
+    // setNodeVisibility 最初の呼び出し時に一度だけ構築してキャッシュする。
+    // N 機器の selectAllNodes/clearAllNodes で O(N²) querySelectorAll を O(N) に削減。
+    var _asToDevsCache = null;    // { asStr -> Set<deviceId> }
+    var _segToDevs2Cache = null;  // { segId  -> Set<deviceId> }
+
+    function _buildAsSegCaches() {
+      _asToDevsCache = {};
+      document.querySelectorAll('.device-node[data-as]').forEach(function(n) {
+        var as = n.dataset.as; var dev = n.dataset.device;
+        if (!as || !dev) return;
+        if (!_asToDevsCache[as]) _asToDevsCache[as] = new Set();
+        _asToDevsCache[as].add(dev);
+      });
+      _segToDevs2Cache = {};
+      document.querySelectorAll('.seg-edge[data-seg-id][data-device]').forEach(function(e) {
+        var seg = e.dataset.segId; var dev = e.dataset.device;
+        if (!seg || !dev) return;
+        if (!_segToDevs2Cache[seg]) _segToDevs2Cache[seg] = new Set();
+        _segToDevs2Cache[seg].add(dev);
+      });
+    }
 
     function setNodeVisibility(deviceId, visible) {
       // 非表示デバイス集合を更新
@@ -2429,15 +2455,10 @@ _JS = """\
       }
 
       // ④ AS枠: AS の全メンバー device が非表示なら as-group-container と AS番号ラベルを隠す
-      var asToDevs = {};
-      document.querySelectorAll('.device-node[data-as]').forEach(function(n) {
-        var as = n.dataset.as; var dev = n.dataset.device;
-        if (!as || !dev) return;
-        if (!asToDevs[as]) asToDevs[as] = new Set();
-        asToDevs[as].add(dev);
-      });
-      Object.keys(asToDevs).forEach(function(as) {
-        var allHidden = Array.from(asToDevs[as]).every(function(d) { return _hiddenNodes.has(d); });
+      // キャッシュ未構築なら初回のみ構築（DOM 構造は不変）
+      if (_asToDevsCache === null) { _buildAsSegCaches(); }
+      Object.keys(_asToDevsCache).forEach(function(as) {
+        var allHidden = Array.from(_asToDevsCache[as]).every(function(d) { return _hiddenNodes.has(d); });
         var esc = CSS.escape(as);
         document.querySelectorAll('.as-group-container[data-as="' + esc + '"], .as-group-label-group[data-as="' + esc + '"]').forEach(function(g) {
           g.classList.toggle('node-filtered', allHidden);
@@ -2445,15 +2466,8 @@ _JS = """\
       });
 
       // ⑤ Shared Network: セグメントの全メンバー device が非表示なら segment-node を隠す
-      var segToDevs2 = {};
-      document.querySelectorAll('.seg-edge[data-seg-id][data-device]').forEach(function(e) {
-        var seg = e.dataset.segId; var dev = e.dataset.device;
-        if (!seg || !dev) return;
-        if (!segToDevs2[seg]) segToDevs2[seg] = new Set();
-        segToDevs2[seg].add(dev);
-      });
-      Object.keys(segToDevs2).forEach(function(seg) {
-        var allHidden = Array.from(segToDevs2[seg]).every(function(d) { return _hiddenNodes.has(d); });
+      Object.keys(_segToDevs2Cache).forEach(function(seg) {
+        var allHidden = Array.from(_segToDevs2Cache[seg]).every(function(d) { return _hiddenNodes.has(d); });
         var esc = CSS.escape(seg);
         document.querySelectorAll('.segment-node[data-seg-id="' + esc + '"]').forEach(function(sn) {
           sn.classList.toggle('node-filtered', allHidden);

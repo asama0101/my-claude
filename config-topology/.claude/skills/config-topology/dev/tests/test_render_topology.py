@@ -19607,6 +19607,100 @@ def test_set_node_visibility_regression_css_escape(rendered_html):
     assert "CSS.escape" in func_body, "CSS.escape が消えた（セレクタインジェクション脆弱性・回帰）"
 
 
+# ---------------------------------------------------------------------------
+# 修正6: setNodeVisibility キャッシュ機構のコード配線テスト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_set_node_visibility_cache_variables_defined(rendered_html):
+    """修正6: _asToDevsCache / _segToDevs2Cache キャッシュ変数が HTML 内に定義されている。"""
+    assert "_asToDevsCache" in rendered_html, (
+        "_asToDevsCache キャッシュ変数が定義されていない — "
+        "setNodeVisibility が毎回 querySelectorAll で再構築している（O(N²) パフォーマンスバグ）"
+    )
+    assert "_segToDevs2Cache" in rendered_html, (
+        "_segToDevs2Cache キャッシュ変数が定義されていない — "
+        "setNodeVisibility が毎回 querySelectorAll で再構築している（O(N²) パフォーマンスバグ）"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_build_cache_function_defined(rendered_html):
+    """修正6: _buildAsSegCaches() 関数が定義されている（遅延初期化ヘルパー）。"""
+    assert "_buildAsSegCaches" in rendered_html, (
+        "_buildAsSegCaches 関数が定義されていない — キャッシュ構築ヘルパーが必要"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_uses_cache_not_rebuild(rendered_html):
+    """修正6: setNodeVisibility 本体が asToDevs を関数内でローカルに再定義していない。
+    キャッシュ済みの _asToDevsCache を参照する配線を確認する。
+    jsdom 制限のため数値/実DOM動作は未検証（配線と構造のみ担保）。
+    """
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    # キャッシュ変数を参照している
+    assert "_asToDevsCache" in func_body, (
+        "setNodeVisibility が _asToDevsCache を参照していない — キャッシュを使っていない"
+    )
+    assert "_segToDevs2Cache" in func_body, (
+        "setNodeVisibility が _segToDevs2Cache を参照していない — キャッシュを使っていない"
+    )
+    # 毎回 device-node[data-as] を走査して asToDevs をローカル変数で再構築していないこと
+    # （古い var asToDevs = {} が消えていること）
+    assert "var asToDevs = {}" not in func_body, (
+        "setNodeVisibility 内で var asToDevs = {} によるローカル再構築が残っている — "
+        "キャッシュ機構が正しく実装されていない（修正6）"
+    )
+    assert "var segToDevs2 = {}" not in func_body, (
+        "setNodeVisibility 内で var segToDevs2 = {} によるローカル再構築が残っている — "
+        "キャッシュ機構が正しく実装されていない（修正6）"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_cache_lazy_init(rendered_html):
+    """修正6: setNodeVisibility がキャッシュ未構築時のみ _buildAsSegCaches() を呼ぶ（遅延初期化）。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    # null チェックで遅延初期化
+    assert "_asToDevsCache === null" in func_body, (
+        "setNodeVisibility に '_asToDevsCache === null' チェックがない — "
+        "遅延初期化（未構築のみ構築）が実装されていない"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_as_group_logic_uses_every(rendered_html):
+    """修正6非回帰: setNodeVisibility の AS 枠制御で every（全メンバー非表示判定）が維持される。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "every" in func_body, (
+        "setNodeVisibility の AS 枠制御から every が消えた（全メンバー非表示判定が壊れる）"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_as_group_container_selector(rendered_html):
+    """修正6非回帰: setNodeVisibility が as-group-container を制御する（キャッシュ実装後も維持）。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "as-group-container" in func_body, (
+        "setNodeVisibility から as-group-container 制御が消えた（修正6キャッシュ実装で回帰）"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_segment_node_selector(rendered_html):
+    """修正6非回帰: setNodeVisibility が segment-node を制御する（キャッシュ実装後も維持）。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "segment-node" in func_body, (
+        "setNodeVisibility から segment-node 制御が消えた（修正6キャッシュ実装で回帰）"
+    )
+
+
 # ---- 決定性 ----
 
 @pytest.mark.unit
@@ -20263,6 +20357,94 @@ def test_el1_sync_edge_labels_link_id_selector_unquoted_css_escape(rendered_html
     assert re.search(a_pattern, func_body), (
         "_syncEdgeLabels の data-a フォールバックが CSS.escape(a) 引用符なし連結形式でない。\n"
         "期待: 'data-a=' + CSS.escape(a) + ']'"
+    )
+
+
+# ---------------------------------------------------------------------------
+# EL1-18: _syncEdgeLabels の remove パス（highlighted 解除後に label-shown が全除去される）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_sync_edge_labels_removes_label_shown_on_no_highlight(rendered_html):
+    """EL1-18: _syncEdgeLabels が最初に全 label-shown を除去する remove パスを持つ。
+    highlighted を外した後に _syncEdgeLabels() を呼ぶと label-shown が全除去されることを
+    関数本体（remove パス）のコード構造で検証する。
+    """
+    func_body = _extract_js_function(rendered_html, "_syncEdgeLabels")
+    assert func_body, "_syncEdgeLabels 関数が見つからない"
+    # 冒頭で既存 label-shown を全除去するパスの存在確認
+    assert "label-shown" in func_body, "_syncEdgeLabels に label-shown 操作がない"
+    assert "remove" in func_body, (
+        "_syncEdgeLabels に classList.remove('label-shown') がない — "
+        "highlighted を外した後にラベルが残り続けるバグになる"
+    )
+
+
+@pytest.mark.unit
+def test_el1_sync_edge_labels_remove_before_add(rendered_html):
+    """EL1-18b: _syncEdgeLabels が label-shown の remove を add より先に行う（全除去→再付与）。
+    この順序が崩れると、highlighted でない要素にラベルが残るバグが発生する。
+    """
+    func_body = _extract_js_function(rendered_html, "_syncEdgeLabels")
+    assert func_body, "_syncEdgeLabels 関数が見つからない"
+    remove_pos = func_body.find("remove('label-shown')")
+    if remove_pos == -1:
+        remove_pos = func_body.find('remove("label-shown")')
+    add_pos = func_body.find("add('label-shown')")
+    if add_pos == -1:
+        add_pos = func_body.find('add("label-shown")')
+    assert remove_pos != -1, "_syncEdgeLabels に label-shown の remove がない"
+    assert add_pos != -1, "_syncEdgeLabels に label-shown の add がない"
+    assert remove_pos < add_pos, (
+        "_syncEdgeLabels が label-shown を add してから remove している — "
+        "全除去→再付与の順である必要がある"
+    )
+
+
+# ---------------------------------------------------------------------------
+# EL1-19: _toggleSelection が _syncEdgeLabels を呼ぶ（修正2: クリック選択でラベル同期）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_toggle_selection_calls_sync_edge_labels(rendered_html):
+    """EL1-19: _toggleSelection が window._syncEdgeLabels を呼ぶ配線がある。
+    修正2: toggleIfRowHighlight/toggleBgpHighlight/toggleOspfHighlight が共通で使う
+    _toggleSelection から _syncEdgeLabels を呼ぶことで、クリック選択時にもラベルが同期される。
+    """
+    func_body = _extract_js_function(rendered_html, "_toggleSelection")
+    assert func_body, "_toggleSelection 関数が見つからない"
+    assert "_syncEdgeLabels" in func_body, (
+        "_toggleSelection が _syncEdgeLabels を呼んでいない — "
+        "BGP行/IF行/OSPF行クリックでラベルが表示されないバグになる（修正2）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# EL1-20: clearHighlight が link-edge の selection-edge-hl を保護する（修正1）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_clear_highlight_protects_link_edge_selection_hl(rendered_html):
+    """EL1-20: clearHighlight の link-edge 分岐が selection-edge-hl を含む要素を保護する。
+    修正1: BGP/seg 分岐と対称に !classList.contains('selection-edge-hl') チェックを追加。
+    ホバー clearHighlight でノード選択由来の link-edge highlighted が剥がれないことを検証。
+    """
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    assert "selection-edge-hl" in func_body, (
+        "clearHighlight が selection-edge-hl を参照していない — "
+        "ノード選択由来の link-edge highlighted がホバーで消えるバグ（修正1）"
+    )
+    # link-edge の forEachブロック内で selection-edge-hl を確認するため
+    # allLinks.forEach ブロックを抽出
+    links_block_start = func_body.find("allLinks.forEach")
+    assert links_block_start != -1, "allLinks.forEach が clearHighlight 内に見つからない"
+    # 次の forEach or 関数末尾まで
+    links_block_end = func_body.find(".forEach", links_block_start + 20)
+    links_block = func_body[links_block_start:links_block_end if links_block_end != -1 else links_block_start + 300]
+    assert "selection-edge-hl" in links_block, (
+        "clearHighlight の allLinks.forEach ブロック内に selection-edge-hl がない — "
+        "link-edge の selection-edge-hl 保護が追加されていない（修正1）"
     )
 
 
@@ -21835,12 +22017,15 @@ class TestRouterIdIntegration:
         devices = parse_paths(paths)
         topo = build(devices, generated_from=paths)
         html = render(topo)
-        # view-physical ブロックを抽出
-        m = re.search(r'id="view-physical"[^>]*>(.*?)</g>', html, re.DOTALL)
-        if m:
-            phys_block = m.group(1)
-            assert "node-rid" not in phys_block, \
-                f"Physical ビューに node-rid が出た: {phys_block[:500]}"
+        # view-physical ブロックを抽出（次の view-* グループの開始または </g>\s*</svg> まで）
+        m = re.search(
+            r'<g[^>]*class="view view-physical"[^>]*>(.*?)(?=<g[^>]*class="view |</g>\s*</svg>)',
+            html, re.DOTALL
+        )
+        assert m is not None, "view-physical ブロックが取れない（HTML 構造が変わった可能性）"
+        phys_block = m.group(1)
+        assert "node-rid" not in phys_block, \
+            f"Physical ビューに node-rid が出た: {phys_block[:500]}"
 
 
 # ---------------------------------------------------------------------------

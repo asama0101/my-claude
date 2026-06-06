@@ -1265,3 +1265,43 @@ class TestJuniperJunosRouterId:
         device = parse(text)
         assert device.ospf_router_id is None
         assert device.bgp_router_id is None
+
+    def test_ospf_takes_priority_over_ospf3_ospf_first(self):
+        """ospf 専用と ospf3 両方ある場合、ospf 専用が優先（ospf 先記述）。"""
+        from lib.parsers.juniper_junos import parse
+        text = (
+            "set system host-name R2\n"
+            "set protocols ospf router-id 10.1.1.1\n"
+            "set protocols ospf3 router-id 10.2.2.2\n"
+        )
+        device = parse(text)
+        # ospf 専用優先・記述順に依存しない
+        assert device.ospf_router_id == "10.1.1.1", (
+            f"ospf 専用が優先されるべきだが ospf3 値になった: {device.ospf_router_id!r}"
+        )
+
+    def test_ospf_takes_priority_over_ospf3_ospf3_first(self):
+        """ospf 専用と ospf3 両方ある場合、ospf 専用が優先（ospf3 先記述・記述順非依存を確認）。"""
+        from lib.parsers.juniper_junos import parse
+        text = (
+            "set system host-name R2\n"
+            "set protocols ospf3 router-id 10.2.2.2\n"
+            "set protocols ospf router-id 10.1.1.1\n"
+        )
+        device = parse(text)
+        # ospf3 が先に来ても ospf 専用が優先
+        assert device.ospf_router_id == "10.1.1.1", (
+            f"ospf3 先記述でも ospf 専用が優先されるべきだが: {device.ospf_router_id!r}"
+        )
+
+    def test_ospf3_only_sets_ospf_router_id(self):
+        """ospf 専用がなく ospf3 のみの場合は ospf3 の値が使われる。"""
+        from lib.parsers.juniper_junos import parse
+        text = (
+            "set system host-name R2\n"
+            "set protocols ospf3 router-id 10.2.2.2\n"
+        )
+        device = parse(text)
+        assert device.ospf_router_id == "10.2.2.2", (
+            f"ospf3 単独時は ospf3 の値が使われるべきだが: {device.ospf_router_id!r}"
+        )

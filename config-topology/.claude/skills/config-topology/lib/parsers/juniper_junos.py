@@ -222,8 +222,9 @@ def parse(text: str) -> Device:
             continue
 
         # Phase 4: set protocols ospf3 router-id <id>（OSPFv3 専用 router-id）
+        # ospf 専用 router-id が未設定の場合のみセット（ospf 専用 > ospf3 > グローバル 優先）
         m = re.match(r'^protocols\s+ospf3\s+router-id\s+(\S+)', rest)
-        if m:
+        if m and ospf_router_id is None:
             ospf_router_id = m.group(1)
             continue
 
