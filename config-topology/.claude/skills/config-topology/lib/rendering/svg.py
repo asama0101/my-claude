@@ -810,7 +810,7 @@ def _svg_ospf_segments(segments: list[dict], positions: dict) -> str:
         area_attr = f' data-ospf-area="{_esc(str(ospf_area))}"' if ospf_area is not None else ""
         ellipse_style = f' style="--area-stroke:{area_color}"' if area_color else ""
         parts.append(
-            f'<g class="segment-node layer-ospf" data-segment="{seg_id}"{ospf_id_attr}{area_attr}>'
+            f'<g class="segment-node layer-ospf" data-segment="{seg_id}" data-seg-id="{seg_id}"{ospf_id_attr}{area_attr}>'
             f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{_SEG_RX}" ry="{_SEG_RY}" '
             f'class="seg-ellipse layer-ospf"{ellipse_style}/>'
             f'<text x="{x:.1f}" y="{y - 2:.1f}" text-anchor="middle" '

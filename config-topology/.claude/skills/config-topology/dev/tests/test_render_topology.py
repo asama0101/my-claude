@@ -6374,10 +6374,12 @@ def test_th6_toggle_seg_manages_selected_segs(rendered_html):
 def test_th7_seg_node_click_calls_toggle_seg_in_iife(rendered_html):
     """TH7: segment-node クリックリスナーが IIFE 内で toggleSegHighlight を呼ぶ"""
     # JS 部分のみを対象にする（CSS に .segment-node.highlighted が含まれるため）
+    # クリックハンドラの具体的なセレクタ .segment-node[data-seg-id] を検索する
+    # （コメントや clearHighlight 処理の "segment-node" とは区別）
     js_start = rendered_html.find("<script>")
     js_section = rendered_html[js_start:] if js_start != -1 else rendered_html
-    iife_start = js_section.find("segment-node")
-    assert iife_start != -1, "segment-node への参照が JS に存在しない"
+    iife_start = js_section.find(".segment-node[data-seg-id]")
+    assert iife_start != -1, ".segment-node[data-seg-id] セレクタが JS に存在しない"
     nearby = js_section[max(0, iife_start - 200):iife_start + 500]
     assert "toggleSegHighlight" in nearby, \
         "segment-node クリックハンドラが toggleSegHighlight を呼んでいない"
@@ -18340,3 +18342,271 @@ def test_js_smoke_ospf_area_color_topology():
     assert '<script' in html.lower(), "script タグがない"
     assert 'function' in html, "JS 関数定義がない"
     assert '<svg' in html.lower(), "SVG がない"
+
+
+# ===========================================================================
+# 共有セグメント選択ハイライト（Physical/OSPF ノード選択で seg-edge/segment-node 点灯）
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# (1) OSPF segment-node に data-seg-id が付く（Physical と対称）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_ospf_segment_node_has_data_seg_id():
+    """OSPF segment-node <g> に data-seg-id が付く（Physical と対称化）。
+
+    _svg_ospf_segments が生成する <g class="segment-node layer-ospf"> に
+    data-seg-id="{seg_id}" が付いていること。Physical ビューの <g> は元々
+    data-seg-id を持つ（L571）。これと対称にすることで JS 側の
+    [data-seg-id] セレクタが OSPF でも機能する。
+    """
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    # <g class="segment-node layer-ospf" ... data-seg-id="..."> が存在すること
+    seg_nodes = re.findall(
+        r'<g[^>]+class="segment-node layer-ospf"[^>]*>', ospf_view
+    )
+    assert len(seg_nodes) >= 1, \
+        "OSPF ビューに segment-node layer-ospf が見つからない"
+    for g_tag in seg_nodes:
+        assert 'data-seg-id="' in g_tag, \
+            f"OSPF segment-node <g> に data-seg-id がない: {g_tag}"
+
+@pytest.mark.unit
+def test_ospf_segment_node_data_seg_id_value():
+    """OSPF segment-node data-seg-id の値がセグメント ID と一致する。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    seg_ids = re.findall(
+        r'<g[^>]+class="segment-node layer-ospf"[^>]*data-seg-id="([^"]*)"',
+        ospf_view
+    )
+    if not seg_ids:
+        # 属性順序が逆の場合
+        seg_ids = re.findall(
+            r'<g[^>]+data-seg-id="([^"]*)"[^>]*class="segment-node layer-ospf"',
+            ospf_view
+        )
+    assert "seg-192_168_50_0_24" in seg_ids, \
+        f"OSPF segment-node の data-seg-id に期待値がない: {seg_ids}"
+
+# ---------------------------------------------------------------------------
+# (2) _updateEdgeHighlightForSelection に _highlightSharedSegments が定義される
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_update_edge_highlight_contains_highlight_shared_segments(rendered_html):
+    """_updateEdgeHighlightForSelection 内に _highlightSharedSegments 定義が含まれる。"""
+    js = _extract_js_body(rendered_html)
+    # _updateEdgeHighlightForSelection 関数本体を取得（関数全体をカバーする十分な長さ）
+    fn_start = js.find("function _updateEdgeHighlightForSelection()")
+    assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
+    fn_body = js[fn_start:fn_start + 10000]
+    assert "function _highlightSharedSegments" in fn_body, \
+        "_updateEdgeHighlightForSelection 内に _highlightSharedSegments の定義がない"
+
+@pytest.mark.unit
+def test_physical_branch_calls_highlight_shared_segments(rendered_html):
+    """physical 分岐が _highlightSharedSegments('.view-physical') を呼ぶ。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _updateEdgeHighlightForSelection()")
+    assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
+    fn_body = js[fn_start:fn_start + 10000]
+    assert "_highlightSharedSegments('.view-physical')" in fn_body, \
+        "physical 分岐が _highlightSharedSegments('.view-physical') を呼んでいない"
+
+@pytest.mark.unit
+def test_ospf_branch_calls_highlight_shared_segments(rendered_html):
+    """ospf 分岐が _highlightSharedSegments('.view-ospf') を呼ぶ。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _updateEdgeHighlightForSelection()")
+    assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
+    fn_body = js[fn_start:fn_start + 10000]
+    assert "_highlightSharedSegments('.view-ospf')" in fn_body, \
+        "ospf 分岐が _highlightSharedSegments('.view-ospf') を呼んでいない"
+
+@pytest.mark.unit
+def test_bgp_branch_does_not_call_highlight_shared_segments(rendered_html):
+    """bgp 分岐は _highlightSharedSegments を呼ばない（セグメント構造なし）。
+
+    _currentView === 'bgp' ブロックを抽出し、その中に
+    _highlightSharedSegments が含まれないことを確認する。
+    """
+    js = _extract_js_body(rendered_html)
+    # bgp ブロックを抽出: === 'bgp' から次の } else if まで
+    bgp_start = js.find("=== 'bgp'")
+    assert bgp_start != -1, "bgp 分岐が見つからない"
+    # bgp ブロック終端（次の '} else if' または関数終端）を探す
+    next_else = js.find("} else if", bgp_start)
+    bgp_block = js[bgp_start:next_else] if next_else != -1 else js[bgp_start:bgp_start + 2000]
+    assert "_highlightSharedSegments" not in bgp_block, \
+        "bgp 分岐に _highlightSharedSegments が呼ばれている（BGP はセグメント構造なし）"
+
+# ---------------------------------------------------------------------------
+# (3) クリア処理に seg-edge.selection-edge-hl と segment-node.selection-edge-hl の解除が含まれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_clear_includes_seg_edge_selection_edge_hl(rendered_html):
+    """.seg-edge.selection-edge-hl のクリアが _updateEdgeHighlightForSelection に含まれる。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _updateEdgeHighlightForSelection()")
+    assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
+    fn_body = js[fn_start:fn_start + 10000]
+    assert ".seg-edge.selection-edge-hl" in fn_body, \
+        ".seg-edge.selection-edge-hl のクリア処理がない"
+
+@pytest.mark.unit
+def test_clear_includes_segment_node_selection_edge_hl(rendered_html):
+    """.segment-node.selection-edge-hl のクリアが _updateEdgeHighlightForSelection に含まれる。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _updateEdgeHighlightForSelection()")
+    assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
+    fn_body = js[fn_start:fn_start + 10000]
+    assert ".segment-node.selection-edge-hl" in fn_body, \
+        ".segment-node.selection-edge-hl のクリア処理がない"
+
+# ---------------------------------------------------------------------------
+# (4) _highlightSharedSegments の実装内容検証
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_highlight_shared_segments_uses_selcount_lt_2(rendered_html):
+    """_highlightSharedSegments が selCount < 2 で return する（2ノード以上条件）。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _highlightSharedSegments")
+    assert fn_start != -1, "_highlightSharedSegments が見つからない"
+    fn_body = js[fn_start:fn_start + 4000]
+    assert "selCount < 2" in fn_body, \
+        "_highlightSharedSegments に selCount < 2 ガードがない"
+
+@pytest.mark.unit
+def test_highlight_shared_segments_uses_view_physical_scope(rendered_html):
+    """_highlightSharedSegments が scope パラメータで seg-edge を検索する。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _highlightSharedSegments")
+    assert fn_start != -1, "_highlightSharedSegments が見つからない"
+    fn_body = js[fn_start:fn_start + 4000]
+    # scope パラメータ経由で使われること（scope + ' .seg-edge[data-seg-id]'）
+    assert "seg-edge[data-seg-id]" in fn_body, \
+        "_highlightSharedSegments が seg-edge[data-seg-id] を検索していない"
+
+@pytest.mark.unit
+def test_highlight_shared_segments_includes_tr_data_seg_id(rendered_html):
+    """_highlightSharedSegments が tr[data-seg-id] 表行を連動点灯する。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _highlightSharedSegments")
+    assert fn_start != -1, "_highlightSharedSegments が見つからない"
+    fn_body = js[fn_start:fn_start + 4000]
+    assert "tr[data-seg-id=" in fn_body, \
+        "_highlightSharedSegments に tr[data-seg-id= 連動がない"
+
+@pytest.mark.unit
+def test_highlight_shared_segments_includes_tr_data_ospf_id(rendered_html):
+    """_highlightSharedSegments が tr[data-ospf-id~=] OSPF Networks 表行を連動点灯する。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _highlightSharedSegments")
+    assert fn_start != -1, "_highlightSharedSegments が見つからない"
+    fn_body = js[fn_start:fn_start + 4000]
+    assert "tr[data-ospf-id~=" in fn_body, \
+        "_highlightSharedSegments に tr[data-ospf-id~= 連動がない"
+
+# ---------------------------------------------------------------------------
+# (5) 既存 p2p / bgp マーキング配線の非回帰
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_physical_link_edge_highlight_still_wired(rendered_html):
+    """physical 分岐の p2p link-edge ハイライト配線が維持されている（非回帰）。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _updateEdgeHighlightForSelection()")
+    assert fn_start != -1
+    fn_body = js[fn_start:fn_start + 10000]
+    assert ".view-physical .link-edge[data-a][data-b]" in fn_body, \
+        "physical 分岐の link-edge[data-a][data-b] 走査が消えている"
+    assert "data-link-id" in fn_body, \
+        "physical 分岐の data-link-id 連動が消えている"
+
+@pytest.mark.unit
+def test_bgp_session_highlight_still_wired(rendered_html):
+    """bgp 分岐の bgp-session ハイライト配線が維持されている（非回帰）。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _updateEdgeHighlightForSelection()")
+    assert fn_start != -1
+    fn_body = js[fn_start:fn_start + 10000]
+    assert ".view-bgp .bgp-session[data-a][data-b]" in fn_body, \
+        "bgp 分岐の bgp-session[data-a][data-b] 走査が消えている"
+    assert "data-bgp-id" in fn_body, \
+        "bgp 分岐の data-bgp-id 連動が消えている"
+
+@pytest.mark.unit
+def test_ospf_link_edge_highlight_still_wired(rendered_html):
+    """ospf 分岐の p2p link-edge ハイライト配線が維持されている（非回帰）。"""
+    js = _extract_js_body(rendered_html)
+    fn_start = js.find("function _updateEdgeHighlightForSelection()")
+    assert fn_start != -1
+    fn_body = js[fn_start:fn_start + 10000]
+    assert ".view-ospf .link-edge[data-a][data-b]" in fn_body, \
+        "ospf 分岐の link-edge[data-a][data-b] 走査が消えている"
+
+# ---------------------------------------------------------------------------
+# (6) 決定性: 共有セグメント topology で2回 render が一致する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_shared_segment_render_deterministic():
+    """共有セグメント（OSPF）topology で2回 render した結果が完全一致（決定的）。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "共有セグメント topology で render() が非決定的"
+
+# ---------------------------------------------------------------------------
+# (7) node smoke: _highlightSharedSegments が JS 実行時に throw しない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_js_smoke_shared_segment_topology_no_throw():
+    """共有セグメント topology の HTML で JS トップレベル実行が例外を投げない（smoke）。
+
+    node が無い環境は skip する。
+    """
+    import shutil, subprocess, tempfile, os, json as _json_local
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    js = _extract_js_body(html)
+    harness = _build_js_harness(js)
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_shared_seg_smoke_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"共有セグメント topology JS でトップレベル例外が発生:\n{result.stderr[:1000]}"
+    )
+    data = _json_local.loads(result.stdout.strip())
+    assert data['wheel'] >= 1, \
+        f"wheel リスナーが登録されていない: {data['listeners']}"
+    assert data['mousedown'] >= 1, \
+        f"mousedown リスナーが登録されていない: {data['listeners']}"
+    assert data['click'] >= 1, \
+        f"click リスナーが登録されていない: {data['listeners']}"

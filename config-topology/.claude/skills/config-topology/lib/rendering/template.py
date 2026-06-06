@@ -1860,8 +1860,53 @@ _JS = """\
         row.classList.remove('highlighted');
         row.classList.remove('selection-edge-hl');
       });
+      // (2a) seg-edge / segment-node の選択由来ハイライトもクリア
+      document.querySelectorAll('.seg-edge.selection-edge-hl, .segment-node.selection-edge-hl').forEach(function(el) {
+        el.classList.remove('highlighted');
+        el.classList.remove('selection-edge-hl');
+      });
 
       if (_selectedNodes.size <= 1) return;
+
+      // (2b) 共有ネットワーク（multi-access セグメント）: 選択ノードが2つ以上属する
+      // セグメントの seg-edge / segment-node / 関連表行を点灯する。
+      // filterConnected の seg グルーピングと同型（data-seg-id でグルーピング）。
+      function _highlightSharedSegments(scope) {
+        var segToDevs = {};
+        document.querySelectorAll(scope + ' .seg-edge[data-seg-id][data-device]').forEach(function(edge) {
+          var segId = edge.getAttribute('data-seg-id');
+          var dev = edge.getAttribute('data-device');
+          if (!segToDevs[segId]) segToDevs[segId] = [];
+          segToDevs[segId].push(dev);
+        });
+        Object.keys(segToDevs).forEach(function(segId) {
+          var selCount = segToDevs[segId].filter(function(d) { return _selectedNodes.has(d); }).length;
+          if (selCount < 2) return;
+          var esc = CSS.escape(segId);
+          // セグメント配下の seg-edge / segment-node を点灯
+          document.querySelectorAll(scope + ' .seg-edge[data-seg-id="' + esc + '"], ' + scope + ' .segment-node[data-seg-id="' + esc + '"]').forEach(function(el) {
+            el.classList.add('highlighted');
+            el.classList.add('selection-edge-hl');
+          });
+          // OSPF Networks 表行: segment-node の data-ospf-id トークン（Physical は data-ospf-id 無し→空振り）
+          document.querySelectorAll(scope + ' .segment-node[data-seg-id="' + esc + '"]').forEach(function(sn) {
+            var ospfId = sn.getAttribute('data-ospf-id');
+            if (!ospfId) return;
+            ospfId.split(' ').forEach(function(token) {
+              if (!token) return;
+              document.querySelectorAll('tr[data-ospf-id~="' + CSS.escape(token) + '"]').forEach(function(row) {
+                row.classList.add('highlighted');
+                row.classList.add('selection-edge-hl');
+              });
+            });
+          });
+          // Interfaces 表行: tr[data-seg-id=segId]（セグメントメンバーIF行）
+          document.querySelectorAll('tr[data-seg-id="' + esc + '"]').forEach(function(row) {
+            row.classList.add('highlighted');
+            row.classList.add('selection-edge-hl');
+          });
+        });
+      }
 
       if (_currentView === 'physical') {
         // physical ビュー: .view-physical スコープの .link-edge のみハイライト
@@ -1882,6 +1927,8 @@ _JS = """\
             }
           }
         });
+        // (2c) 共有セグメント点灯（physical）
+        _highlightSharedSegments('.view-physical');
 
       } else if (_currentView === 'bgp') {
         // bgp ビュー: .view-bgp スコープの .bgp-session をハイライト + BGP 表行連動
@@ -1933,6 +1980,8 @@ _JS = """\
             }
           }
         });
+        // (2d) 共有セグメント点灯（ospf）
+        _highlightSharedSegments('.view-ospf');
       }
     }
 
