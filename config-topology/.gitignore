@@ -3,7 +3,9 @@
 /topology/
 /history/
 # eval 成果物（評価ワークスペース・レビューHTML）
+# ルート直下だけでなく、スキル配下 (.claude/skills/*/eval-workspace/) も除外する。
 /eval-workspace/
+eval-workspace/
 /eval-review.html
 # 入力（機密を含みうる）
 /workspace/*
