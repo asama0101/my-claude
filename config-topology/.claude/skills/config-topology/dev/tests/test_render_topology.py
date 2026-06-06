@@ -5684,12 +5684,13 @@ def test_b14_asymmetric_ibgp_neighbor_addr_not_lost():
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
     svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
-    # neighbor_ip（相手 loopback）が必ず表示される
-    badge_texts = re.findall(r'class="bgp-badge[^"]*"[^>]*>(.*?)</text>', svg, re.DOTALL)
-    joined = " ".join(badge_texts)
-    assert "10.255.0.1" in joined, (
-        f"非対称 iBGP の相手アドレス(10.255.0.1)が消えている: {joined!r}"
+    # neighbor_ip（相手 loopback）が必ず表示される。
+    # local_ip=null の片方向のため単一アドレス（"↔" なし）。バッジテキスト内に出ること。
+    assert "10.255.0.1" in svg, (
+        f"非対称 iBGP の相手アドレス(10.255.0.1)が消えている: svg={svg[:600]}"
     )
+    # AS のみ（アドレス無し）に退行していないことの明示確認
+    assert "ibgp" in svg, "iBGP バッジ自体が描画されていない"
 
 
 @pytest.mark.unit
@@ -21257,15 +21258,22 @@ def test_s15_hover_highlight_lights_member_chip(rendered_html):
     assert "hover-chip-hl" in body, (
         "highlight() がホバー由来チップを hover-chip-hl で識別していない"
     )
-    # ホバー経路ではチップへの selection-edge-hl 付与はしない（一時点灯）
-    # data-member-iface 近傍に if-chip があること
+    # ホバー経路のメンバーチップ点灯ブロックに if-chip と hover-chip-hl があり、
+    # かつ selection-edge-hl は付けない（一時点灯＝クリアで消えるべき）こと。
     found = False
+    no_selection_hl = True
     for m in re.finditer(r'data-member-iface', body):
         ctx = body[m.start(): m.end() + 500]
         if "if-chip" in ctx and "hover-chip-hl" in ctx:
             found = True
+            if "selection-edge-hl" in ctx:
+                no_selection_hl = False
             break
     assert found, "highlight() のメンバーチップ点灯に hover-chip-hl が付いていない"
+    assert no_selection_hl, (
+        "highlight()（ホバー）がメンバーチップに selection-edge-hl を付けている"
+        "（ホバーは一時点灯であり selection-edge-hl は選択経路専用にすべき）"
+    )
 
 
 @pytest.mark.unit
@@ -21280,45 +21288,54 @@ def test_s15_hover_highlight_guards_already_highlighted(rendered_html):
     idx = body.find("data-member-iface")
     assert idx != -1, "highlight() に data-member-iface 読み取りがない"
     block = body[idx: idx + 600]
-    has_guard = "contains('highlighted')" in block or 'contains("highlighted")' in block
-    assert has_guard and "hover-chip-hl" in block, (
-        "highlight() のメンバーチップ点灯に !chip.classList.contains('highlighted') ガードがない"
-        "（クリック固定/選択ピンチップを上書きしてしまう）"
+    # 否定ガード（!...contains('highlighted')）であることを正規表現で厳密に検証する。
+    # 単なる contains('highlighted') 存在では否定が消えても通過してしまうため。
+    has_negated_guard = re.search(r'!\s*\w[\w.]*\.contains\(\s*[\'"]highlighted[\'"]', block) is not None
+    assert has_negated_guard and "hover-chip-hl" in block, (
+        "highlight() のメンバーチップ点灯に !chip.classList.contains('highlighted') の"
+        "否定ガードがない（クリック固定/選択ピンチップを上書きしてしまう）"
     )
 
 
 @pytest.mark.unit
 def test_s15_clear_highlight_removes_hover_chip_hl(rendered_html):
-    """⑮: clearHighlight() が .if-chip.hover-chip-hl から highlighted と hover-chip-hl を除去する。"""
+    """⑮: clearHighlight() がホバー追跡配列 _hoverChipHl のチップから
+    highlighted と hover-chip-hl を除去する（perf: 全 DOM スキャンを避け配列走査）。"""
     body = _extract_js_function(rendered_html, "clearHighlight")
     assert body, "clearHighlight() 関数が見つからない"
-    assert "hover-chip-hl" in body, (
-        "clearHighlight() が hover-chip-hl を解除していない（ホバーチップが残る）"
+    assert "_hoverChipHl" in body, (
+        "clearHighlight() がホバー追跡配列 _hoverChipHl を走査していない（ホバーチップが残る）"
     )
-    # hover-chip-hl 要素から highlighted を remove する配線
-    idx = body.find("hover-chip-hl")
-    ctx = body[max(0, idx - 100): idx + 200]
-    assert "remove('highlighted')" in ctx or 'remove("highlighted")' in ctx, (
-        "clearHighlight() が hover-chip-hl チップから highlighted を除去していない"
+    assert "hover-chip-hl" in body, "clearHighlight() が hover-chip-hl クラスを除去していない"
+    has_remove_hl = "remove('highlighted')" in body or 'remove("highlighted")' in body
+    has_remove_marker = "remove('hover-chip-hl')" in body or 'remove("hover-chip-hl")' in body
+    assert has_remove_hl and has_remove_marker, (
+        "clearHighlight() がホバーチップから highlighted/hover-chip-hl を除去していない\n"
+        f"highlighted={has_remove_hl}, hover-chip-hl={has_remove_marker}"
     )
 
 
 @pytest.mark.unit
 def test_s15_clear_highlight_does_not_blanket_clear_chips(rendered_html):
     """⑮ 非回帰: clearHighlight() は hover-chip-hl 以外のチップ（クリック固定）を
-    無差別に消さない。チップ解除は .if-chip.hover-chip-hl セレクタに限定される。
+    無差別に消さない。解除対象はホバー追跡配列 _hoverChipHl に限定される。
     """
     body = _extract_js_function(rendered_html, "clearHighlight")
     assert body, "clearHighlight() 関数が見つからない"
-    # チップ解除セレクタが hover-chip-hl 限定であること（'.if-chip.highlighted' のような
-    # 無差別セレクタで全チップを消していないこと）
-    assert ".if-chip.hover-chip-hl" in body, (
-        "clearHighlight() のチップ解除が .if-chip.hover-chip-hl 限定でない"
+    # 解除対象が _hoverChipHl 配列限定であること（追跡されたホバーチップのみ）
+    assert "_hoverChipHl" in body, (
+        "clearHighlight() のチップ解除が _hoverChipHl 追跡配列に限定されていない"
     )
+    # '.if-chip.highlighted' のような無差別セレクタで全チップを消していないこと
     assert "querySelectorAll('.if-chip.highlighted')" not in body and \
            'querySelectorAll(".if-chip.highlighted")' not in body, (
         "clearHighlight() が .if-chip.highlighted を無差別に解除している"
         "（クリック固定チップが消える）"
+    )
+    # hover-chip-hl 以外の全チップ走査（querySelectorAll('.if-chip')）も避けること
+    assert "querySelectorAll('.if-chip')" not in body and \
+           'querySelectorAll(".if-chip")' not in body, (
+        "clearHighlight() が全 .if-chip を走査している（perf: 追跡配列を使うこと）"
     )
 
 

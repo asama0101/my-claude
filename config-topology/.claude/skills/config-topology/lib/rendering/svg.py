@@ -754,6 +754,11 @@ def _svg_links(
     端点の iface_id に対応するチップ座標を線の端点に使用する。
     チップが無い端点はノード中心にフォールバックする。
 
+    項目②: 端点の iface_id が判明した場合、link-edge <g> に ``data-a-iface`` /
+    ``data-b-iface`` を付与する。選択時の端点 IF チップ点灯（template.py
+    ``_updateEdgeHighlightForSelection`` physical 分岐）が ``.if-chip[data-iface-id]``
+    と照合するために使用する。OSPF ビューは ``_build_view_ospf`` が同型で付与する（⑬）。
+
     Args:
         links:             リンクリスト
         positions:         デバイスID → (cx, cy) 座標辞書
@@ -826,6 +831,10 @@ def _svg_segment_edges(
     """セグメントメンバーへの接続エッジを生成する。
 
     #7: <line class="seg-edge"> に ``data-seg-id`` を付与する。
+    ⑮: <line class="seg-edge"> に ``data-member-iface``（メンバー iface_id）を付与する。
+    seg-edge 点灯時（選択 ``_highlightSharedSegments`` / ホバー ``highlight``）に
+    そのメンバー IF チップ（``.if-chip[data-iface-id]``）も点灯させるために使用する。
+    _svg_ospf_segment_edges（OSPF 版）と対称。
 
     iteration-4 クロスレビュー バグ3修正: chip_positions が渡された場合、
     機器側端点をメンバー iface_id のチップ座標にアンカーする。
@@ -928,6 +937,7 @@ def _svg_ospf_segment_edges(
     生成する <line> に付与する属性:
     - ``data-seg-id``: セグメント ID（_highlightSharedSegments の querySelectorAll 連動用）
     - ``data-device``: メンバー機器 ID（_highlightSharedSegments の segToDevs 集計用）
+    - ``data-member-iface``: メンバー iface_id（⑮ seg-edge 点灯時の IF チップ連動用）
     - ``data-ospf-id``: subnet を正規化した CIDR（OSPF Networks 表行との照合用）
     - ``data-ospf-area``: OSPF エリア文字列
     - ``style="--area-stroke:..."`` : Area ごとの色分け用 CSS カスタムプロパティ
@@ -1437,19 +1447,22 @@ def _svg_bgp_as_groups_split(
     return "\n".join(rect_parts), "\n".join(label_parts)
 
 
-def _bgp_addr_sort_key(addr: str):
+def _bgp_addr_sort_key(addr: str) -> tuple[int, int, str]:
     """BGP endpoint アドレスの決定的ソートキー（⑭）。
 
     IP としてパースできれば数値順（例: 10.2.0.1 < 10.10.0.1。文字列順だと逆転する）、
     パース失敗時は文字列順にフォールバックする。いずれも決定的。
 
-    タプル先頭の 0/1 で「パース可否」を分けるため、(0, int) と (1, str) が
-    比較で型混在することはない（先頭要素が異なれば第2要素は比較されない）。
+    戻り値は常に同型 ``(rank, num, text)`` の3要素タプル:
+      - パース成功: ``(0, 数値, "")``  — num で数値比較
+      - パース失敗: ``(1, 0, addr)`` — text で文字列比較
+    rank(第1要素)が異なれば以降は比較されず、同一 rank 内でも num/text の
+    一方のみが実質比較対象になるため、int と str が直接比較されることはない。
     """
     try:
-        return (0, int(ipaddress.ip_address(addr)))
+        return (0, int(ipaddress.ip_address(addr)), "")
     except ValueError:
-        return (1, addr)
+        return (1, 0, addr)
 
 
 def _svg_bgp_edges_split(
@@ -1607,7 +1620,7 @@ def _svg_bgp_edges_split(
         v4_join = "↔".join(_esc(a) for a in v4_addrs)
         v6_join = "↔".join(_esc(a) for a in v6_addrs)
         # ip_pairs は下流の dual-stack 分岐（v4_pairs/v6_pairs/ip_label）構造に流し込む。
-        # v4_join は ":" を含まず v6_join は含むため、既存の ":" 判定で正しく振り分く。
+        # v4_join は ":" を含まず v6_join は含むため、既存の ":" 判定で正しく振り分ける。
         ip_pairs = [p for p in (v4_join, v6_join) if p]
 
         v4_pairs = [p for p in ip_pairs if ":" not in p]

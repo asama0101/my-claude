@@ -1071,6 +1071,11 @@ def _build_view_ospf(
     メンバー機器へ seg-edge を引き「area {area} · {subnet}」ラベルを表示する。
 
     iteration-4 #6: OSPF 参加 IF のみチップ表示、エッジ端点をチップにアンカー。
+
+    ⑬: p2p link-edge <g> に端点 iface_id を ``data-a-iface`` / ``data-b-iface`` として
+    付与する（Physical _svg_links と同型）。選択時の端点 IF チップ点灯
+    （template.py ``_updateEdgeHighlightForSelection`` ospf 分岐）が
+    ``.if-chip[data-iface-id]`` と照合するために使用する。
     """
     if segments is None:
         segments = []

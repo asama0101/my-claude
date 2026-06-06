@@ -1846,6 +1846,11 @@ _JS = """\
       const allBgpSessions = document.querySelectorAll('.bgp-session');
       const allSegEdges = document.querySelectorAll('.seg-edge');
       const allSegmentNodes = document.querySelectorAll('.segment-node');
+      // ⑮(perf): ホバーで一時点灯した IF チップを追跡する配列。
+      // clearHighlight でこの配列だけを走査して解除する（毎 mouseleave の
+      // document.querySelectorAll('.if-chip.hover-chip-hl') 全 DOM スキャンを回避。
+      // 大規模 topology でチップが数千あってもホバー解除コストが O(点灯数) に収まる）。
+      var _hoverChipHl = [];
 
       function highlight(deviceId) {
         allNodes.forEach(function(n) {
@@ -1880,6 +1885,7 @@ _JS = """\
                 if (!chip.classList.contains('highlighted')) {
                   chip.classList.add('highlighted');
                   chip.classList.add('hover-chip-hl');
+                  _hoverChipHl.push(chip);  // perf: clearHighlight でこの配列のみ走査
                 }
               });
             }
@@ -1924,10 +1930,14 @@ _JS = """\
         // ⑮: ホバーで一時点灯した IF チップ（hover-chip-hl）のみ解除。
         // hover-chip-hl はホバー時に「未点灯だったチップ」にだけ付くため、
         // クリック固定チップ・選択ピン（selection-edge-hl）チップは保護される。
-        document.querySelectorAll('.if-chip.hover-chip-hl').forEach(function(chip) {
-          chip.classList.remove('highlighted');
-          chip.classList.remove('hover-chip-hl');
-        });
+        // perf: 追跡配列 _hoverChipHl のみ走査（全 .if-chip の DOM スキャンを回避）。
+        if (_hoverChipHl.length) {
+          _hoverChipHl.forEach(function(chip) {
+            chip.classList.remove('highlighted');
+            chip.classList.remove('hover-chip-hl');
+          });
+          _hoverChipHl = [];
+        }
         _syncEdgeLabels();
       }
 
