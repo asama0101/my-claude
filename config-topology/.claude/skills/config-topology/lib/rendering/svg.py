@@ -819,7 +819,12 @@ def _svg_ospf_segments(segments: list[dict], positions: dict) -> str:
     表示し、layer-ospf クラスを付与する。
     ospf_area が付いているセグメントのみを対象とする。
 
-    #1B: ``data-ospf-id`` を付与する（subnet を正規化した CIDR）。
+    付与する属性:
+    - ``data-seg-id``: セグメント ID（_highlightSharedSegments の querySelectorAll 連動用）
+    - ``data-ospf-id``: subnet を正規化した CIDR（OSPF Networks 表行との照合用）
+    - ``data-ospf-area``: OSPF エリア文字列（凡例フィルタ・デバッグ用）
+    - ``style="--area-stroke:..."`` (ellipse): Area ごとの色分け用 CSS カスタムプロパティ
+      （_ospf_area_color() が None のときは省略し従来色にフォールバック）
     """
     parts = []
     for seg in sorted(segments, key=lambda s: s["id"]):
@@ -869,6 +874,13 @@ def _svg_ospf_segment_edges(
     iteration-4 #6: chip_positions が渡された場合、機器側端点を
     メンバー iface_id のチップ座標にアンカーする。
     チップが無い場合はノード中心にフォールバック。
+
+    生成する <line> に付与する属性:
+    - ``data-seg-id``: セグメント ID（_highlightSharedSegments の querySelectorAll 連動用）
+    - ``data-device``: メンバー機器 ID（_highlightSharedSegments の segToDevs 集計用）
+    - ``data-ospf-id``: subnet を正規化した CIDR（OSPF Networks 表行との照合用）
+    - ``data-ospf-area``: OSPF エリア文字列
+    - ``style="--area-stroke:..."`` : Area ごとの色分け用 CSS カスタムプロパティ
 
     Args:
         segments:       セグメントリスト
@@ -1163,19 +1175,25 @@ _AS_COLOR_PALETTE = [
 
 
 def _ospf_area_color(area: str | None) -> str | None:
-    """OSPF area 文字列から決定的な stroke 色を返す（area=None は None）。
+    """OSPF area 文字列から決定的な stroke 色を返す（area が None または "" は None）。
 
     複合 area（"0/1"）は先頭 area の色（決定的）。数値 area は int%len で循環。
     非数値 area（ドット記法等）は文字コード和で決定的にフォールバック。
     呼び出し側は None のとき --area-stroke を出力せず従来色にフォールバックする。
 
+    実装メモ: 色パレットは ``_AS_COLOR_PALETTE`` を意図的に流用。AS番号と OSPF area は
+    独立した循環体系のため AS0 と area0 が同色になりうるが、これは意図的な設計。
+    ``_as_color`` は (stroke, fill_rgba, label_bg) の3要素タプルを返すが、本関数は
+    stroke のみを返す（OSPF 楕円に fill は不要なため）。
+
     Args:
-        area: OSPF エリア文字列（例: "0", "1", "0/1", "0.0.0.1", "backbone"）。None のとき None を返す。
+        area: OSPF エリア文字列（例: "0", "1", "0/1", "0.0.0.1", "backbone"）。
+              None または空文字のとき None を返す。
 
     Returns:
-        stroke 色文字列（例: "#2563eb"）。area が None のとき None。
+        stroke 色文字列（例: "#2563eb"）。area が None または "" のとき None。
     """
-    if area is None:
+    if not area:
         return None
     first = str(area).split("/")[0].strip()
     try:
@@ -1380,7 +1398,8 @@ def _svg_bgp_edges_split(
     path（線）部分と badge（テキスト）部分を別々に返す。
 
     各 bgp-session の data-type/data-a/data-b/data-bgp-id は「線」側の <g> に保持し、
-    「バッジ」側の <g> には data-bgp-id のみを付与して連携できるようにする。
+    「バッジ」側の <g> には data-bgp-id/data-a/data-b を付与して連携できるようにする
+    （data-a/data-b は setNodeVisibility のノードフィルタ連動用）。
 
     単一の実装（source of truth）。_svg_bgp_edges はこの関数を呼ぶ薄いラッパ。
 
@@ -1398,7 +1417,8 @@ def _svg_bgp_edges_split(
     Returns:
         (lines_str, badges_str) のタプル
         - lines_str:  ``<g class="bgp-session" data-*...><path .../><title .../></g>`` 群
-        - badges_str: ``<g class="bgp-badge-group" data-bgp-id="...">{badge_svg}</g>`` 群
+        - badges_str: ``<g class="bgp-badge-group" data-bgp-id="..." data-a="..." data-b="...">{badge_svg}</g>`` 群
+          （data-a/data-b は setNodeVisibility の '.bgp-badge-group[data-a][data-b]' フィルタ連動用）
     """
     ip_to_device = _build_ip_to_device(interfaces)
     ip_to_iface_id: dict[str, str] = _build_ip_to_iface_id(interfaces) if chip_positions is not None else {}

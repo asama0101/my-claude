@@ -17869,6 +17869,7 @@ def test_bgp_badge_group_data_a_b_match_bgp_session():
     badges_v2 = {m[2]: (m[0], m[1]) for m in re.findall(badge_pattern2, html)}
     badges = {**badges_v1, **badges_v2}
 
+    assert sessions, "bgp-session マッピングが空（テストが空振りPASSしている）"
     assert badges, "bgp-badge-group に data-a/data-b が存在しない（実装(A)が不足）"
 
     for bgp_id, badge_ab in badges.items():
@@ -19116,3 +19117,275 @@ def test_legend_toggle_move_deterministic(rendered_html):
     h1 = render(topo1)
     h2 = render(topo2)
     assert h1 == h2, "legend-toggle 移動後の render 結果が2回で異なる（決定性違反）"
+
+
+# ===========================================================================
+# 修正1: _highlightSharedSegments 重複デバイス除去 TDD テスト
+# ===========================================================================
+
+
+def _extract_highlight_shared_segments_body(js: str) -> str:
+    """JS 文字列から _highlightSharedSegments 関数本体を抽出する。
+
+    ネストした function を含むため単純な改行+空白+`}` パターンでは終端を正確に取れない。
+    `function _highlightSharedSegments` から始まる 改行+6スペース+`}` の行まで取得する。
+    """
+    idx = js.find('function _highlightSharedSegments(')
+    assert idx != -1, "_highlightSharedSegments 関数が JS 内に見つからない"
+    # 関数終端: インデント2段（6スペース）の単独 `}` 行
+    end_marker = '\n      }'
+    end_idx = js.find(end_marker, idx)
+    assert end_idx != -1, "_highlightSharedSegments 関数の終端 `}` が見つからない"
+    return js[idx:end_idx + len(end_marker)]
+
+
+@pytest.mark.unit
+def test_highlight_shared_segments_uses_unique_devs_dedup():
+    """_highlightSharedSegments の JS 本体に Set による重複除去ロジックが含まれること。
+
+    segToDevs[segId].push(dev) が重複を許すため、1台のデバイスが複数の seg-edge を
+    持つ場合に selCount が誤カウントされるバグを修正。
+    JS 本体に `new Set(segToDevs[segId])` または `Array.from(new Set(` が含まれること。
+    """
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    js = _extract_js_body(html)
+
+    func_body = _extract_highlight_shared_segments_body(js)
+
+    # Set による重複除去が存在すること
+    assert 'new Set(' in func_body, (
+        "_highlightSharedSegments に `new Set(` による重複除去がない。"
+        "1台のデバイスが複数 seg-edge を持つと selCount が誤カウントされるバグが修正されていない"
+    )
+
+
+@pytest.mark.unit
+def test_highlight_shared_segments_no_second_queryselector_for_segment_node():
+    """_highlightSharedSegments で segment-node を再クエリせず matched を再利用すること（性能修正）。
+
+    最初の querySelectorAll で seg-edge + segment-node をまとめて取得し、
+    その後 classList.contains('segment-node') でフィルタして再利用する。
+    """
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    js = _extract_js_body(html)
+
+    func_body = _extract_highlight_shared_segments_body(js)
+
+    # 再利用パターン: matched.forEach で classList.contains('segment-node') を使う
+    assert "classList.contains('segment-node')" in func_body, (
+        "_highlightSharedSegments 内で matched を segment-node でフィルタする "
+        "classList.contains('segment-node') が見つからない。"
+        "querySelectorAll の結果を再利用していない可能性がある"
+    )
+
+
+@pytest.mark.unit
+def test_js_smoke_shared_segment_single_device_no_false_highlight():
+    """同一デバイスが複数 seg-edge を持つ topology で JS 実行時に例外なし（smoke）。
+
+    node が無い環境は skip する。
+    """
+    import shutil, subprocess, tempfile, os, json as _json_local
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    from lib.rendering import render
+    # 1台のデバイスが同一セグメントに複数 IF を持つ topology
+    topo = {
+        "title": "Multi-IF same segment test",
+        "generated_from": [],
+        "devices": [
+            {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "sections": []},
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "sections": []},
+        ],
+        "interfaces": [
+            {"id": "sw1::e0", "device": "sw1", "name": "Eth0",
+             "ip": "10.0.0.1/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "sw1::e1", "device": "sw1", "name": "Eth1",
+             "ip": "10.0.0.2/24", "vlan": None, "description": None, "shutdown": False},
+            {"id": "r1::e0", "device": "r1", "name": "Eth0",
+             "ip": "10.0.0.3/24", "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [
+            {"id": "seg-net1", "subnet": "10.0.0.0/24",
+             "members": ["sw1::e0", "sw1::e1", "r1::e0"],
+             "ospf_area": "0"},
+        ],
+        "routing": {
+            "bgp": [], "ospf": [
+                {"device": "sw1", "process_id": 1, "router_id": "10.0.0.1",
+                 "area": "0", "networks": ["10.0.0.0/24"]},
+                {"device": "r1", "process_id": 1, "router_id": "10.0.0.3",
+                 "area": "0", "networks": ["10.0.0.0/24"]},
+            ], "static": [],
+        },
+    }
+    html = render(topo)
+    js = _extract_js_body(html)
+    harness = _build_js_harness(js)
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_multi_if_smoke_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"複数 IF 同一セグメント topology JS で例外:\n{result.stderr[:1000]}"
+    )
+    data = _json_local.loads(result.stdout.strip())
+    assert data['wheel'] >= 1, f"wheel リスナーが登録されていない: {data['listeners']}"
+    assert data['mousedown'] >= 1, f"mousedown リスナーが登録されていない: {data['listeners']}"
+    assert data['click'] >= 1, f"click リスナーが登録されていない: {data['listeners']}"
+
+
+# ===========================================================================
+# 修正2: _ospf_area_color 空文字ガード TDD テスト
+# ===========================================================================
+
+
+@pytest.mark.unit
+def test_ospf_area_color_empty_string_returns_none():
+    """_ospf_area_color('') が None を返す（空文字ガード）。
+
+    空文字 area は None と同様に扱い、area0 と同色にしない。
+    """
+    from lib.rendering.svg import _ospf_area_color
+    result = _ospf_area_color("")
+    assert result is None, (
+        f"_ospf_area_color('') は None を返すべきだが {result!r} が返った。"
+        "空 area が area0 と同色になる不整合が修正されていない"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_area_color_none_returns_none_regression():
+    """_ospf_area_color(None) が None を返す（既存テスト非回帰）。"""
+    from lib.rendering.svg import _ospf_area_color
+    assert _ospf_area_color(None) is None
+
+
+@pytest.mark.unit
+def test_ospf_area_color_zero_returns_color_regression():
+    """_ospf_area_color('0') が None でない（数値 area は色を返す）。"""
+    from lib.rendering.svg import _ospf_area_color
+    result = _ospf_area_color("0")
+    assert result is not None, "_ospf_area_color('0') が None を返した（回帰）"
+    assert result.startswith("#"), f"_ospf_area_color('0') の戻り値が色文字列でない: {result!r}"
+
+
+@pytest.mark.unit
+def test_ospf_area_color_numeric_returns_color_regression():
+    """_ospf_area_color('1') / '2' が None でない（数値 area 非回帰）。"""
+    from lib.rendering.svg import _ospf_area_color
+    for area in ("1", "2", "10"):
+        result = _ospf_area_color(area)
+        assert result is not None, f"_ospf_area_color('{area}') が None を返した（回帰）"
+
+
+@pytest.mark.unit
+def test_ospf_area_color_composite_returns_color_regression():
+    """_ospf_area_color('0/1') が None でない（複合 area 非回帰）。"""
+    from lib.rendering.svg import _ospf_area_color
+    result = _ospf_area_color("0/1")
+    assert result is not None, "_ospf_area_color('0/1') が None を返した（回帰）"
+
+
+# ===========================================================================
+# 修正3: OSPF Area smoke を node 実行に置換 TDD テスト
+# ===========================================================================
+
+
+@pytest.mark.unit
+def test_js_smoke_ospf_area_color_topology_node_execution():
+    """OSPF Area 色分け topology の JS を node で実行して例外なし・リスナー登録確認（本物 node smoke）。
+
+    node が無い環境は skip する。
+    従来の文字列確認3行 test_js_smoke_ospf_area_color_topology を補完する本物の smoke。
+    """
+    import shutil, subprocess, tempfile, os, json as _json_local
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    js = _extract_js_body(html)
+    harness = _build_js_harness(js)
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_ospf_area_smoke_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"OSPF Area 色分け topology JS で例外:\n{result.stderr[:1000]}"
+    )
+    data = _json_local.loads(result.stdout.strip())
+    assert data['wheel'] >= 1, f"wheel リスナーが登録されていない: {data['listeners']}"
+    assert data['mousedown'] >= 1, f"mousedown リスナーが登録されていない: {data['listeners']}"
+    assert data['click'] >= 1, f"click リスナーが登録されていない: {data['listeners']}"
+
+
+# ===========================================================================
+# 修正4: sessions 空振り PASS 防止 TDD テスト
+# ===========================================================================
+
+
+@pytest.mark.unit
+def test_bgp_badge_group_data_a_b_match_bgp_session_nonempty_guard():
+    """bgp-session/bgp-badge-group の整合チェックが必ず1回以上実行されること（空振り防止）。
+
+    sessions と badges が両方空でないことを assert してから整合チェックを実行する。
+    """
+    from lib.rendering import render
+
+    # BGP セッションが存在する topology（_make_multi_as_area_topology を流用）
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    # bgp-session から data-a/b/bgp-id を抽出
+    session_pattern1 = r'<g[^>]+data-a="([^"]+)"[^>]*data-b="([^"]+)"[^>]*data-bgp-id="([^"]+)"'
+    sessions_v1 = {m[2]: (m[0], m[1]) for m in re.findall(session_pattern1, html)}
+    session_pattern2 = r'<g[^>]+class="bgp-session"[^>]*data-a="([^"]+)"[^>]*data-b="([^"]+)"[^>]*data-bgp-id="([^"]+)"'
+    sessions_v2 = {m[2]: (m[0], m[1]) for m in re.findall(session_pattern2, html)}
+    sessions = {**sessions_v1, **sessions_v2}
+
+    # bgp-badge-group から data-a/b/bgp-id を抽出
+    badge_pattern = r'<g[^>]+class="bgp-badge-group"[^>]*data-bgp-id="([^"]+)"[^>]*data-a="([^"]+)"[^>]*data-b="([^"]+)"'
+    badges_v1 = {m[0]: (m[1], m[2]) for m in re.findall(badge_pattern, html)}
+    badge_pattern2 = r'<g[^>]+class="bgp-badge-group"[^>]*data-a="([^"]+)"[^>]*data-b="([^"]+)"[^>]*data-bgp-id="([^"]+)"'
+    badges_v2 = {m[2]: (m[0], m[1]) for m in re.findall(badge_pattern2, html)}
+    badges = {**badges_v1, **badges_v2}
+
+    # ★ 空振り防止: 両方が非空であることを担保
+    assert sessions, "bgp-session マッピングが空（テストが空振りPASSしている）"
+    assert badges, "bgp-badge-group に data-a/data-b が存在しない（実装が不足）"
+
+    for bgp_id, badge_ab in badges.items():
+        if bgp_id in sessions:
+            session_ab = sessions[bgp_id]
+            assert set(badge_ab) == set(session_ab), (
+                f"bgp-badge-group の data-a/data-b が bgp-session と不一致: "
+                f"bgp_id={bgp_id!r}, badge={badge_ab}, session={session_ab}"
+            )

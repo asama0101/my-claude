@@ -1886,16 +1886,19 @@ _JS = """\
           segToDevs[segId].push(dev);
         });
         Object.keys(segToDevs).forEach(function(segId) {
-          var selCount = segToDevs[segId].filter(function(d) { return _selectedNodes.has(d); }).length;
+          var uniqueDevs = Array.from(new Set(segToDevs[segId]));
+          var selCount = uniqueDevs.filter(function(d) { return _selectedNodes.has(d); }).length;
           if (selCount < 2) return;
           var esc = CSS.escape(segId);
-          // セグメント配下の seg-edge / segment-node を点灯
-          document.querySelectorAll(scope + ' .seg-edge[data-seg-id="' + esc + '"], ' + scope + ' .segment-node[data-seg-id="' + esc + '"]').forEach(function(el) {
+          // セグメント配下の seg-edge / segment-node をまとめて取得し点灯
+          var matched = document.querySelectorAll(scope + ' .seg-edge[data-seg-id="' + esc + '"], ' + scope + ' .segment-node[data-seg-id="' + esc + '"]');
+          matched.forEach(function(el) {
             el.classList.add('highlighted');
             el.classList.add('selection-edge-hl');
           });
-          // OSPF Networks 表行: segment-node の data-ospf-id トークン（Physical は data-ospf-id 無し→空振り）
-          document.querySelectorAll(scope + ' .segment-node[data-seg-id="' + esc + '"]').forEach(function(sn) {
+          // OSPF Networks 表行: matched から segment-node をフィルタして再利用（再クエリ不要）
+          matched.forEach(function(sn) {
+            if (!sn.classList.contains('segment-node')) return;
             var ospfId = sn.getAttribute('data-ospf-id');
             if (!ospfId) return;
             ospfId.split(' ').forEach(function(token) {
