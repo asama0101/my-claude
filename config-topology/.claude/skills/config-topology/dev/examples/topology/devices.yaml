@@ -1,12 +1,16 @@
 devices:
 - as: 65001
+  bgp_router_id: null
   hostname: R1
   id: r1
+  ospf_router_id: null
   sections: []
   vendor: cisco_ios
 - as: 65002
+  bgp_router_id: null
   hostname: R2
   id: r2
+  ospf_router_id: null
   sections: []
   vendor: juniper_junos
 interfaces:

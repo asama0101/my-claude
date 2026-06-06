@@ -73,6 +73,10 @@ def parse(text: str) -> Device:
     bgp_neighbors: list[BgpNeighbor] = []
     ospf_networks: list[OspfNetwork] = []
     static_routes: list[StaticRoute] = []
+    # Phase 4 (router-id): device 単位の router-id
+    ospf_router_id: str | None = None
+    bgp_router_id: str | None = None
+    _global_router_id: str | None = None  # set routing-options router-id（フォールバック用）
 
     # IF ごとのデータを収集するための辞書
     # key: if_name, value: dict with keys ip, description, shutdown, mtu, speed,
@@ -204,6 +208,25 @@ def parse(text: str) -> Device:
             asn = int(m.group(1))
             continue
 
+        # Phase 4: set routing-options router-id <id>（グローバル router-id）
+        m = re.match(r'^routing-options\s+router-id\s+(\S+)', rest)
+        if m:
+            _global_router_id = m.group(1)
+            bgp_router_id = m.group(1)
+            continue
+
+        # Phase 4: set protocols ospf router-id <id>（OSPF 専用 router-id）
+        m = re.match(r'^protocols\s+ospf\s+router-id\s+(\S+)', rest)
+        if m:
+            ospf_router_id = m.group(1)
+            continue
+
+        # Phase 4: set protocols ospf3 router-id <id>（OSPFv3 専用 router-id）
+        m = re.match(r'^protocols\s+ospf3\s+router-id\s+(\S+)', rest)
+        if m:
+            ospf_router_id = m.group(1)
+            continue
+
         # set protocols bgp group <g> neighbor <ip> peer-as <peer>
         m = re.match(r'^protocols\s+bgp\s+group\s+\S+\s+neighbor\s+(\S+)\s+peer-as\s+(\d+)', rest)
         if m:
@@ -314,6 +337,11 @@ def parse(text: str) -> Device:
             addresses=sorted_addrs,
         ))
 
+    # Phase 4 (router-id): ospf 専用 router-id がない場合はグローバル値をフォールバック
+    # Juniper はグローバル router-id を OSPF/BGP 共通に使う。優先: ospf 専用 > グローバル
+    if ospf_router_id is None and _global_router_id is not None:
+        ospf_router_id = _global_router_id
+
     return Device(
         hostname=hostname,
         vendor="juniper_junos",
@@ -322,4 +350,6 @@ def parse(text: str) -> Device:
         bgp=bgp_neighbors,
         ospf=ospf_networks,
         static=static_routes,
+        ospf_router_id=ospf_router_id,
+        bgp_router_id=bgp_router_id,
     )

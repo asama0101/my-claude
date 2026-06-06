@@ -108,6 +108,9 @@ def parse(text: str) -> Device:
     bgp_neighbors: list[BgpNeighbor] = []
     ospf_networks: list[OspfNetwork] = []
     static_routes: list[StaticRoute] = []
+    # Phase 4 (router-id): device 単位の router-id
+    ospf_router_id: str | None = None
+    bgp_router_id: str | None = None
 
     # Phase 3G: OSPFv3 仮収集バッファ
     # key: if_name（config 上の名前）→ [(pid, area), ...]
@@ -304,6 +307,12 @@ def parse(text: str) -> Device:
                     _in_af_ipv6 = False
                     i += 1
                     continue
+                # Phase 4: bgp router-id <id>
+                m_rid = re.match(r'^bgp\s+router-id\s+(\S+)', inner_stripped)
+                if m_rid:
+                    bgp_router_id = m_rid.group(1)
+                    i += 1
+                    continue
                 # neighbor <ip> remote-as <peer>: グローバル（v4/v6）に仮登録
                 m2 = re.match(r'^neighbor\s+(\S+)\s+remote-as\s+(\d+)', inner_stripped)
                 if m2:
@@ -328,6 +337,12 @@ def parse(text: str) -> Device:
                 inner_stripped = inner.strip()
                 if not inner or inner_stripped == "!" or (inner and not inner[0].isspace() and inner_stripped):
                     break
+                # Phase 4: router-id <id>（複数プロセスで複数出現時は最初を採用: 既にセット済みなら上書きしない）
+                m_rid = re.match(r'^router-id\s+(\S+)', inner_stripped)
+                if m_rid and ospf_router_id is None:
+                    ospf_router_id = m_rid.group(1)
+                    i += 1
+                    continue
                 # network <addr> <wildcard> area <a>
                 m2 = re.match(r'^network\s+(\S+)\s+(\S+)\s+area\s+(\S+)', inner_stripped)
                 if m2:
@@ -460,4 +475,6 @@ def parse(text: str) -> Device:
         bgp=bgp_neighbors,
         ospf=ospf_networks,
         static=static_routes,
+        ospf_router_id=ospf_router_id,
+        bgp_router_id=bgp_router_id,
     )

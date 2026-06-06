@@ -480,6 +480,7 @@ def _svg_nodes(
     show_interfaces: bool = False,
     connected_iface_ids: set[str] | None = None,
     chip_iface_ids: set[str] | None = None,
+    router_id_field: str | None = None,
 ) -> str:
     """機器ノードの SVG 要素を生成する。
 
@@ -489,6 +490,11 @@ def _svg_nodes(
 
     show_interfaces=False（デフォルト）かつ chip_iface_ids が指定された場合も
     チップ表示を行う（BGP/OSPF 等ビュー用）。iteration-4 #6。
+
+    Phase 4 (router-id): router_id_field が指定された場合（"ospf_router_id" または
+    "bgp_router_id"）、各 device の該当フィールドから値を取り、"RID {value}" を
+    hostname/AS サブラベルの下の行に小さく描画する。値がない device では描かない。
+    OSPF/BGP ビューのみ渡す（Physical/その他は渡さない）。
 
     Args:
         devices:             デバイスリスト
@@ -501,6 +507,8 @@ def _svg_nodes(
         chip_iface_ids:      全ビューで描画するチップの iface-id 集合（iteration-4 #6）。
                              指定時は connected_iface_ids/show_interfaces を上書きしてこちらを優先。
                              None のとき show_interfaces/connected_iface_ids の従来動作を踏襲。
+        router_id_field:     表示する router-id フィールド名（"ospf_router_id"/"bgp_router_id"）。
+                             None のとき router-id 非表示（Physical/その他ビュー用）。
     """
     if iface_by_device is None:
         iface_by_device = {}
@@ -549,6 +557,13 @@ def _svg_nodes(
         # data-as 属性: AS を持つ device のみ付与（JS の全メンバー非表示判定用）
         data_as_attr = f' data-as="{as_num}"' if dev.get("as") is not None else ""
 
+        # Phase 4 (router-id): router_id_field が指定された場合、RID 値を取得
+        rid_value: str | None = None
+        if router_id_field:
+            rid_raw = dev.get(router_id_field)
+            if rid_raw:
+                rid_value = str(rid_raw)
+
         if use_chips:
             # ----- チップ型ノード（iteration-3 #2 / iteration-4 #6）-----
             label_y = ny + 14
@@ -559,6 +574,15 @@ def _svg_nodes(
                 _svg_if_chip(nx, chip_start_y, k, iface)
                 for k, iface in enumerate(chip_ifaces)
             )
+
+            # Phase 4: RID サブラベル（chip 型: sublabel の下 +12px）
+            rid_str = ""
+            if rid_value:
+                rid_y = sublabel_y + 12
+                rid_str = (
+                    f'<text x="{x:.1f}" y="{rid_y:.1f}" text-anchor="middle" class="node-rid">'
+                    f'RID {_esc(rid_value)}</text>'
+                )
 
             parts.append(
                 f'<g class="device-node" data-device="{dev_id}" '
@@ -572,11 +596,21 @@ def _svg_nodes(
                 f'{hostname}</text>'
                 f'<text x="{x:.1f}" y="{sublabel_y:.1f}" text-anchor="middle" class="node-sublabel">'
                 f'{label2}</text>'
+                + (f'\n{rid_str}' if rid_str else '')
                 + (f'\n{chips_str}' if chips_str else '')
                 + f'\n</g>'
             )
         else:
             # ----- コンパクト表示 -----
+            # Phase 4: RID サブラベル（compact 型: y+10 サブラベルの下 +12px）
+            rid_str = ""
+            if rid_value:
+                rid_y = y + 10 + 12
+                rid_str = (
+                    f'<text x="{x:.1f}" y="{rid_y:.1f}" text-anchor="middle" class="node-rid">'
+                    f'RID {_esc(rid_value)}</text>'
+                )
+
             parts.append(
                 f'<g class="device-node" data-device="{dev_id}" '
                 f'data-search="{search_val}" '
@@ -589,7 +623,8 @@ def _svg_nodes(
                 f'{hostname}</text>'
                 f'<text x="{x:.1f}" y="{y + 10:.1f}" text-anchor="middle" class="node-sublabel">'
                 f'{label2}</text>'
-                f'</g>'
+                + (f'\n{rid_str}' if rid_str else '')
+                + f'\n</g>'
             )
     return "\n".join(parts)
 

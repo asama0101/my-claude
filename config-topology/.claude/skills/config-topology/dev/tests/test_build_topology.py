@@ -1489,3 +1489,89 @@ class TestAnnotateSegmentsWithOspfArea:
             f"JunOS メンバーの area がセグメントに解決されない: {seg}"
         assert "0" in str(seg.get("ospf_area", "")), \
             f"JunOS メンバーの area '0' がセグメントに付かない: {seg}"
+
+
+# ================================================================
+# [段階2] ビルド router-id テスト（RED -> GREEN）
+# ================================================================
+
+class TestBuildTopologyRouterId:
+    """build() が devices[].ospf_router_id / bgp_router_id を中間表現に出力する。"""
+
+    @pytest.mark.unit
+    def test_device_with_ospf_router_id_in_build_output(self):
+        """ospf_router_id を持つ Device が build 出力の devices[].ospf_router_id に入る。"""
+        from scripts.build_topology import build
+        d = Device(
+            hostname="R1", vendor="cisco_ios", asn=None,
+            interfaces=[], bgp=[], ospf=[], static=[],
+            ospf_router_id="10.1.1.1",
+        )
+        result = build([d], generated_from=[])
+        dev_out = result["devices"][0]
+        assert dev_out.get("ospf_router_id") == "10.1.1.1"
+
+    @pytest.mark.unit
+    def test_device_with_bgp_router_id_in_build_output(self):
+        """bgp_router_id を持つ Device が build 出力の devices[].bgp_router_id に入る。"""
+        from scripts.build_topology import build
+        d = Device(
+            hostname="R1", vendor="cisco_ios", asn=65001,
+            interfaces=[], bgp=[], ospf=[], static=[],
+            bgp_router_id="10.2.2.2",
+        )
+        result = build([d], generated_from=[])
+        dev_out = result["devices"][0]
+        assert dev_out.get("bgp_router_id") == "10.2.2.2"
+
+    @pytest.mark.unit
+    def test_device_without_router_id_is_none_in_build_output(self):
+        """router-id なしの Device は build 出力の devices[] に ospf_router_id=None が入る。"""
+        from scripts.build_topology import build
+        d = Device(
+            hostname="R1", vendor="cisco_ios", asn=None,
+            interfaces=[], bgp=[], ospf=[], static=[],
+        )
+        result = build([d], generated_from=[])
+        dev_out = result["devices"][0]
+        assert dev_out.get("ospf_router_id") is None
+        assert dev_out.get("bgp_router_id") is None
+
+    @pytest.mark.unit
+    def test_both_router_ids_in_build_output(self):
+        """OSPF/BGP 両方の router-id を持つ Device が正しく出力される。"""
+        from scripts.build_topology import build
+        d = Device(
+            hostname="R1", vendor="cisco_ios", asn=65001,
+            interfaces=[], bgp=[], ospf=[], static=[],
+            ospf_router_id="10.1.1.1",
+            bgp_router_id="10.2.2.2",
+        )
+        result = build([d], generated_from=[])
+        dev_out = result["devices"][0]
+        assert dev_out.get("ospf_router_id") == "10.1.1.1"
+        assert dev_out.get("bgp_router_id") == "10.2.2.2"
+
+    @pytest.mark.integration
+    def test_router_id_roundtrip_via_parse_and_build(self, tmp_path):
+        """IOS config をパース→ build し、devices に router-id が入ることを確認。"""
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        cfg = tmp_path / "r1.cfg"
+        cfg.write_text(
+            "hostname R1\n"
+            "!\n"
+            "router ospf 1\n"
+            " router-id 10.1.1.1\n"
+            " network 10.0.0.0 0.0.0.3 area 0\n"
+            "!\n"
+            "router bgp 65001\n"
+            " bgp router-id 10.2.2.2\n"
+            " neighbor 10.0.0.2 remote-as 65002\n"
+            "!\n"
+        )
+        devices = parse_paths([str(cfg)])
+        result = build(devices, generated_from=[str(cfg)])
+        dev_out = result["devices"][0]
+        assert dev_out.get("ospf_router_id") == "10.1.1.1"
+        assert dev_out.get("bgp_router_id") == "10.2.2.2"

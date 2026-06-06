@@ -68,6 +68,10 @@ _CSS = """\
       --badge-vendor-fg: #3730a3;
       --badge-as-bg: #d1fae5;
       --badge-as-fg: #065f46;
+      --badge-rid-ospf-bg: #d1fae5;
+      --badge-rid-ospf-fg: #065f46;
+      --badge-rid-bgp-bg: #dbeafe;
+      --badge-rid-bgp-fg: #1e3a8a;
       /* --- external ピアノード（BGPビュー）--- */
       --color-external-fill: #f9fafb;        /* BGP 外部ピアノード塗りつぶし（ライト）*/
       --color-external-fill-hover: #f3f4f6;  /* BGP 外部ピアノードホバー（ライト）*/
@@ -130,6 +134,10 @@ _CSS = """\
       --badge-vendor-fg: #bfdbfe;
       --badge-as-bg: #064e3b;
       --badge-as-fg: #a7f3d0;
+      --badge-rid-ospf-bg: #064e3b;
+      --badge-rid-ospf-fg: #a7f3d0;
+      --badge-rid-bgp-bg: #1e3a8a;
+      --badge-rid-bgp-fg: #bfdbfe;
       /* --- external ピアノード (ダーク) --- */
       --color-external-fill: #1e293b;        /* ダーク: BGP外部ピア塗りつぶし（暗系）*/
       --color-external-fill-hover: #334155;  /* ダーク: BGP外部ピアホバー */
@@ -342,6 +350,13 @@ _CSS = """\
       pointer-events: none;
     }
 
+    .node-rid {
+      font-size: 9px;
+      fill: var(--text-muted);
+      font-family: var(--font-mono);
+      pointer-events: none;
+    }
+
     /* BGP 外部ピアノード（B4: topology 外のピア。BGP ビューのみ表示） */
     .external-rect {
       fill: var(--color-external-fill);
@@ -509,6 +524,23 @@ _CSS = """\
       padding: 2px 6px;
       border-radius: 10px;
       font-weight: 500;
+    }
+
+    .badge-rid {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .badge-rid-ospf {
+      background: var(--badge-rid-ospf-bg);
+      color: var(--badge-rid-ospf-fg);
+    }
+
+    .badge-rid-bgp {
+      background: var(--badge-rid-bgp-bg);
+      color: var(--badge-rid-bgp-fg);
     }
 
     table {

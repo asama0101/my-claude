@@ -249,9 +249,18 @@ def _device_cards(
             )
         section_html = "".join(section_parts)
 
+        # Phase 4 (router-id): OSPF/BGP 両方の router-id をヘッダーに表示（無い場合は非表示）
+        ospf_rid = dev.get("ospf_router_id")
+        bgp_rid = dev.get("bgp_router_id")
+        rid_badges = ""
+        if ospf_rid:
+            rid_badges += f' <span class="badge-rid badge-rid-ospf">OSPF RID: {_esc(ospf_rid)}</span>'
+        if bgp_rid:
+            rid_badges += f' <span class="badge-rid badge-rid-bgp">BGP RID: {_esc(bgp_rid)}</span>'
+
         card = f"""
 <div class="device-card" data-device="{_esc(dev_id)}">
-  <h3>{hostname} <span class="badge-vendor">{vendor}</span> <span class="badge-as">{as_str}</span></h3>
+  <h3>{hostname} <span class="badge-vendor">{vendor}</span> <span class="badge-as">{as_str}</span>{rid_badges}</h3>
   <h4 class="layer-physical">Interfaces</h4>
   <table class="layer-physical">
     <thead><tr><th>Name</th><th>IP</th><th>Description</th><th>Status</th><th>MTU</th><th>Speed</th></tr></thead>

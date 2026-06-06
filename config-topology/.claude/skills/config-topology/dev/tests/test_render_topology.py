@@ -21525,3 +21525,479 @@ def test_resize_observer_no_throw_without_resize_observer_global(rendered_html):
     assert result.returncode == 0, (
         f"ResizeObserver 未定義環境（ガードなし）で JS が throw した:\n{result.stderr[:1000]}"
     )
+
+
+# ================================================================
+# [段階3] router-id ノード描画テスト（RED -> GREEN）
+# ================================================================
+
+class TestSvgNodesRouterId:
+    """_svg_nodes が router_id_field 引数に応じて RID テキストを描画する。"""
+
+    def _make_dev(self, dev_id: str, ospf_rid=None, bgp_rid=None):
+        return {
+            "id": dev_id,
+            "hostname": dev_id.upper(),
+            "vendor": "cisco_ios",
+            "as": None,
+            "ospf_router_id": ospf_rid,
+            "bgp_router_id": bgp_rid,
+        }
+
+    @pytest.mark.unit
+    def test_ospf_router_id_shown_in_ospf_view(self):
+        """router_id_field='ospf_router_id' のとき、RID が SVG に出る。"""
+        from lib.rendering.svg import _svg_nodes
+        dev = self._make_dev("r1", ospf_rid="10.1.1.1")
+        svg = _svg_nodes([dev], {"r1": (100, 100)}, router_id_field="ospf_router_id")
+        assert "RID 10.1.1.1" in svg, f"ospf_router_id が RID として描画されない: {svg[:300]}"
+
+    @pytest.mark.unit
+    def test_bgp_router_id_shown_in_bgp_view(self):
+        """router_id_field='bgp_router_id' のとき、RID が SVG に出る。"""
+        from lib.rendering.svg import _svg_nodes
+        dev = self._make_dev("r1", bgp_rid="10.2.2.2")
+        svg = _svg_nodes([dev], {"r1": (100, 100)}, router_id_field="bgp_router_id")
+        assert "RID 10.2.2.2" in svg, f"bgp_router_id が RID として描画されない: {svg[:300]}"
+
+    @pytest.mark.unit
+    def test_router_id_not_shown_without_field(self):
+        """router_id_field=None のとき（Physical ビュー等）、RID は出ない。"""
+        from lib.rendering.svg import _svg_nodes
+        dev = self._make_dev("r1", ospf_rid="10.1.1.1", bgp_rid="10.2.2.2")
+        svg = _svg_nodes([dev], {"r1": (100, 100)})  # router_id_field=None
+        assert "RID" not in svg, f"router_id_field=None でも RID が描画された: {svg[:300]}"
+
+    @pytest.mark.unit
+    def test_router_id_not_shown_when_value_is_none(self):
+        """router-id なしの device は RID テキストが出ない。"""
+        from lib.rendering.svg import _svg_nodes
+        dev = self._make_dev("r1", ospf_rid=None)
+        svg = _svg_nodes([dev], {"r1": (100, 100)}, router_id_field="ospf_router_id")
+        assert "RID" not in svg, f"ospf_router_id=None でも RID が描画された: {svg[:300]}"
+
+    @pytest.mark.unit
+    def test_rid_class_in_svg(self):
+        """RID テキストに node-rid CSS クラスが付与される。"""
+        from lib.rendering.svg import _svg_nodes
+        dev = self._make_dev("r1", ospf_rid="10.1.1.1")
+        svg = _svg_nodes([dev], {"r1": (100, 100)}, router_id_field="ospf_router_id")
+        assert 'class="node-rid"' in svg, f"node-rid クラスが付与されない: {svg[:300]}"
+
+    @pytest.mark.unit
+    def test_deterministic_with_router_id(self):
+        """同一入力で同一 SVG が生成される（決定性）。"""
+        from lib.rendering.svg import _svg_nodes
+        dev = self._make_dev("r1", ospf_rid="10.1.1.1")
+        svg1 = _svg_nodes([dev], {"r1": (100, 100)}, router_id_field="ospf_router_id")
+        svg2 = _svg_nodes([dev], {"r1": (100, 100)}, router_id_field="ospf_router_id")
+        assert svg1 == svg2, "同一入力で異なる SVG が生成された（決定性違反）"
+
+    @pytest.mark.unit
+    def test_bgp_view_does_not_show_ospf_rid(self):
+        """BGP ビューでは ospf_router_id は表示されない（bgp_router_id のみ）。"""
+        from lib.rendering.svg import _svg_nodes
+        dev = self._make_dev("r1", ospf_rid="10.1.1.1", bgp_rid=None)
+        svg = _svg_nodes([dev], {"r1": (100, 100)}, router_id_field="bgp_router_id")
+        assert "RID" not in svg, f"BGP ビューで ospf_router_id が表示された: {svg[:300]}"
+
+    @pytest.mark.unit
+    def test_chip_node_also_shows_rid(self):
+        """チップ型ノード（chip_iface_ids 指定時）でも RID が表示される。"""
+        from lib.rendering.svg import _svg_nodes
+        iface = {"id": "r1::lo0", "name": "Loopback0", "device": "r1",
+                 "ip": "1.1.1.1/32", "addresses": [], "shutdown": False,
+                 "admin_status": "up", "description": None}
+        dev = self._make_dev("r1", ospf_rid="10.1.1.1")
+        iface_by_device = {"r1": [iface]}
+        svg = _svg_nodes(
+            [dev], {"r1": (100, 100)}, iface_by_device,
+            chip_iface_ids={"r1::lo0"},
+            router_id_field="ospf_router_id",
+        )
+        assert "RID 10.1.1.1" in svg, f"チップ型ノードで RID が表示されない: {svg[:400]}"
+
+
+# ================================================================
+# [段階4] router-id カード（表）テスト（RED -> GREEN）
+# ================================================================
+
+class TestDeviceCardRouterId:
+    """_device_cards が ospf_router_id / bgp_router_id をカードに表示する。"""
+
+    def _minimal_routing(self):
+        return {"bgp": [], "ospf": [], "static": []}
+
+    @pytest.mark.unit
+    def test_ospf_rid_shown_in_card(self):
+        """ospf_router_id を持つ device のカードに OSPF RID が出る。"""
+        from lib.rendering.cards import _device_cards
+        dev = {
+            "id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None,
+            "ospf_router_id": "10.1.1.1", "bgp_router_id": None, "sections": [],
+        }
+        html = _device_cards([dev], [], self._minimal_routing())
+        assert "OSPF RID: 10.1.1.1" in html, f"OSPF RID がカードに出ない: {html[:500]}"
+
+    @pytest.mark.unit
+    def test_bgp_rid_shown_in_card(self):
+        """bgp_router_id を持つ device のカードに BGP RID が出る。"""
+        from lib.rendering.cards import _device_cards
+        dev = {
+            "id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001,
+            "ospf_router_id": None, "bgp_router_id": "10.2.2.2", "sections": [],
+        }
+        html = _device_cards([dev], [], self._minimal_routing())
+        assert "BGP RID: 10.2.2.2" in html, f"BGP RID がカードに出ない: {html[:500]}"
+
+    @pytest.mark.unit
+    def test_both_rids_shown_in_card(self):
+        """OSPF/BGP 両方の router-id を持つ device は両方出る。"""
+        from lib.rendering.cards import _device_cards
+        dev = {
+            "id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65001,
+            "ospf_router_id": "10.1.1.1", "bgp_router_id": "10.2.2.2", "sections": [],
+        }
+        html = _device_cards([dev], [], self._minimal_routing())
+        assert "OSPF RID: 10.1.1.1" in html
+        assert "BGP RID: 10.2.2.2" in html
+
+    @pytest.mark.unit
+    def test_no_rid_not_shown_in_card(self):
+        """router-id なしの device はカードに RID が出ない。"""
+        from lib.rendering.cards import _device_cards
+        dev = {
+            "id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None,
+            "ospf_router_id": None, "bgp_router_id": None, "sections": [],
+        }
+        html = _device_cards([dev], [], self._minimal_routing())
+        assert "badge-rid" not in html, f"router-id なしなのに RID バッジが出た: {html[:500]}"
+
+    @pytest.mark.unit
+    def test_no_rid_key_not_shown_in_card(self):
+        """ospf_router_id キーがない（旧形式）device もカードで壊れない。"""
+        from lib.rendering.cards import _device_cards
+        dev = {
+            "id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None,
+            "sections": [],
+            # ospf_router_id / bgp_router_id キーなし（旧形式）
+        }
+        html = _device_cards([dev], [], self._minimal_routing())
+        assert "badge-rid" not in html
+        assert "R1" in html  # カード自体は生成される
+
+
+# ================================================================
+# [段階5] フィクスチャ統合テスト（router-id）
+# ================================================================
+
+class TestRouterIdIntegration:
+    """フィクスチャ入力を使った router-id の end-to-end テスト。"""
+
+    @pytest.mark.integration
+    def test_cross_vendor_ospf_ios_router_id_parsed(self):
+        """cross-vendor-ospf/iosC.cfg をパース → ospf_router_id が入る。"""
+        from scripts.parse_configs import parse_paths
+        import os
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "cross-vendor-ospf"
+        )
+        devices = parse_paths([os.path.join(eval_dir, "iosC.cfg")])
+        assert len(devices) == 1
+        assert devices[0].ospf_router_id == "10.250.0.1"
+
+    @pytest.mark.integration
+    def test_cross_vendor_ospf_junos_router_id_parsed(self):
+        """cross-vendor-ospf/junosD.conf をパース → ospf_router_id が入る。"""
+        from scripts.parse_configs import parse_paths
+        import os
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "cross-vendor-ospf"
+        )
+        devices = parse_paths([os.path.join(eval_dir, "junosD.conf")])
+        assert len(devices) == 1
+        assert devices[0].ospf_router_id == "10.250.0.2"
+
+    @pytest.mark.integration
+    def test_ebgp_p2p_rA_bgp_router_id_parsed(self):
+        """ebgp-p2p/rA.cfg をパース → bgp_router_id が入る。"""
+        from scripts.parse_configs import parse_paths
+        import os
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "ebgp-p2p"
+        )
+        devices = parse_paths([os.path.join(eval_dir, "rA.cfg")])
+        assert len(devices) == 1
+        assert devices[0].bgp_router_id == "10.255.0.1"
+
+    @pytest.mark.integration
+    def test_multi_as_area_edge1_both_router_ids(self):
+        """multi-as-area/edge1.cfg をパース → OSPF/BGP 両方の router-id が入る。"""
+        from scripts.parse_configs import parse_paths
+        import os
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "multi-as-area"
+        )
+        devices = parse_paths([os.path.join(eval_dir, "edge1.cfg")])
+        assert len(devices) == 1
+        dev = devices[0]
+        assert dev.ospf_router_id == "10.255.0.3"
+        assert dev.bgp_router_id == "10.255.0.3"
+
+    @pytest.mark.integration
+    def test_cross_vendor_ospf_build_has_router_id(self):
+        """cross-vendor-ospf を build() すると devices に ospf_router_id が入る。"""
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        import os
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "cross-vendor-ospf"
+        )
+        paths = sorted([
+            os.path.join(eval_dir, f) for f in ["iosC.cfg", "junosD.conf"]
+        ])
+        devices = parse_paths(paths)
+        result = build(devices, generated_from=paths)
+        devs_by_hostname = {d["hostname"]: d for d in result["devices"]}
+        assert devs_by_hostname["CORE-IOS"]["ospf_router_id"] == "10.250.0.1"
+        assert devs_by_hostname["EDGE-JUNOS"]["ospf_router_id"] == "10.250.0.2"
+
+    @pytest.mark.integration
+    def test_cross_vendor_ospf_render_has_rid_in_ospf_view(self):
+        """cross-vendor-ospf を render() すると OSPF ビューに RID が出る。"""
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        from lib.rendering import render
+        import os
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "cross-vendor-ospf"
+        )
+        paths = sorted([
+            os.path.join(eval_dir, f) for f in ["iosC.cfg", "junosD.conf"]
+        ])
+        devices = parse_paths(paths)
+        topo = build(devices, generated_from=paths)
+        html = render(topo)
+        # OSPF ビューに RID テキストが含まれる
+        assert "RID 10.250.0.1" in html or "RID 10.250.0.2" in html, \
+            "OSPF ビューに RID が出ない"
+
+    @pytest.mark.integration
+    def test_ebgp_p2p_render_has_rid_in_bgp_view(self):
+        """ebgp-p2p を render() すると BGP ビューに RID が出る。"""
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        from lib.rendering import render
+        import os
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "ebgp-p2p"
+        )
+        paths = sorted([
+            os.path.join(eval_dir, f) for f in os.listdir(eval_dir) if f.endswith(".cfg")
+        ])
+        devices = parse_paths(paths)
+        topo = build(devices, generated_from=paths)
+        html = render(topo)
+        assert "RID 10.255.0.1" in html, f"BGP ビューに RTR-A の RID が出ない"
+
+    @pytest.mark.integration
+    def test_render_deterministic_with_router_id(self):
+        """router-id 入り config を render() したとき同一 HTML が2回生成される（決定性）。"""
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        from lib.rendering import render
+        import os
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "cross-vendor-ospf"
+        )
+        paths = sorted([
+            os.path.join(eval_dir, f) for f in ["iosC.cfg", "junosD.conf"]
+        ])
+        devices = parse_paths(paths)
+        topo = build(devices, generated_from=paths)
+        html1 = render(topo)
+        html2 = render(topo)
+        assert html1 == html2, "同一入力で異なる HTML が生成された（決定性違反）"
+
+    @pytest.mark.integration
+    def test_physical_view_no_rid(self):
+        """router-id 入りでも Physical ビューには RID が出ない。"""
+        from scripts.parse_configs import parse_paths
+        from scripts.build_topology import build
+        from lib.rendering import render
+        import os, re
+        eval_dir = os.path.join(
+            os.path.dirname(__file__), "..", "evals", "inputs", "cross-vendor-ospf"
+        )
+        paths = sorted([
+            os.path.join(eval_dir, f) for f in ["iosC.cfg", "junosD.conf"]
+        ])
+        devices = parse_paths(paths)
+        topo = build(devices, generated_from=paths)
+        html = render(topo)
+        # view-physical ブロックを抽出
+        m = re.search(r'id="view-physical"[^>]*>(.*?)</g>', html, re.DOTALL)
+        if m:
+            phys_block = m.group(1)
+            assert "node-rid" not in phys_block, \
+                f"Physical ビューに node-rid が出た: {phys_block[:500]}"
+
+
+# ---------------------------------------------------------------------------
+# CSS スタイル: .node-rid / .badge-rid（項目⑫ フォローアップ）
+# ---------------------------------------------------------------------------
+
+class TestRouterIdCssStyles:
+    """
+    router-id 表示要素（.node-rid SVG テキスト / .badge-rid カードバッジ）の
+    CSS スタイル定義テスト。
+    ダークテーマでの可視性と既存テーマ変数との整合性を検証する。
+    """
+
+    @pytest.fixture(scope="class")
+    def css_block(self, rendered_html):
+        """HTML から <style> 内の CSS を抽出する。"""
+        m = re.search(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL)
+        assert m is not None, "<style> ブロックが HTML に存在しない"
+        return m.group(1)
+
+    # --- .node-rid (SVG text) ---
+
+    @pytest.mark.unit
+    def test_node_rid_css_rule_exists(self, css_block):
+        """.node-rid CSS ルールが定義されている。"""
+        assert ".node-rid" in css_block, \
+            "CSS に .node-rid ルールが存在しない"
+
+    @pytest.mark.unit
+    def test_node_rid_fill_uses_theme_variable(self, css_block):
+        """.node-rid の fill が var(--text-muted) を使用してテーマ追従している。"""
+        m = re.search(r'\.node-rid\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .node-rid ルールが存在しない"
+        rule = m.group(1)
+        assert "var(--text-muted)" in rule, \
+            f".node-rid の fill がテーマ変数 var(--text-muted) でない: {rule.strip()!r}"
+
+    @pytest.mark.unit
+    def test_node_rid_has_font_size(self, css_block):
+        """.node-rid に font-size が定義されている（可読サイズ）。"""
+        m = re.search(r'\.node-rid\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .node-rid ルールが存在しない"
+        rule = m.group(1)
+        assert "font-size" in rule, \
+            f".node-rid に font-size が定義されていない: {rule.strip()!r}"
+
+    @pytest.mark.unit
+    def test_node_rid_has_font_family_mono(self, css_block):
+        """.node-rid に font-family（等幅）が定義されている。"""
+        m = re.search(r'\.node-rid\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .node-rid ルールが存在しない"
+        rule = m.group(1)
+        assert "font-family" in rule, \
+            f".node-rid に font-family が定義されていない: {rule.strip()!r}"
+
+    @pytest.mark.unit
+    def test_node_rid_has_pointer_events_none(self, css_block):
+        """.node-rid に pointer-events:none が定義されている（クリック透過）。"""
+        m = re.search(r'\.node-rid\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .node-rid ルールが存在しない"
+        rule = m.group(1)
+        assert "pointer-events" in rule, \
+            f".node-rid に pointer-events が定義されていない: {rule.strip()!r}"
+
+    # --- .badge-rid (カードバッジ) ---
+
+    @pytest.mark.unit
+    def test_badge_rid_css_rule_exists(self, css_block):
+        """.badge-rid CSS ルールが定義されている。"""
+        assert ".badge-rid" in css_block, \
+            "CSS に .badge-rid ルールが存在しない"
+
+    @pytest.mark.unit
+    def test_badge_rid_has_font_size(self, css_block):
+        """.badge-rid に font-size が定義されている（badge-vendor 等と統一）。"""
+        m = re.search(r'\.badge-rid\b\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .badge-rid ルールが存在しない"
+        rule = m.group(1)
+        assert "font-size" in rule, \
+            f".badge-rid に font-size が定義されていない: {rule.strip()!r}"
+
+    @pytest.mark.unit
+    def test_badge_rid_has_border_radius(self, css_block):
+        """.badge-rid に border-radius が定義されている（ピル形状）。"""
+        m = re.search(r'\.badge-rid\b\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .badge-rid ルールが存在しない"
+        rule = m.group(1)
+        assert "border-radius" in rule, \
+            f".badge-rid に border-radius が定義されていない: {rule.strip()!r}"
+
+    @pytest.mark.unit
+    def test_badge_rid_has_padding(self, css_block):
+        """.badge-rid に padding が定義されている。"""
+        m = re.search(r'\.badge-rid\b\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .badge-rid ルールが存在しない"
+        rule = m.group(1)
+        assert "padding" in rule, \
+            f".badge-rid に padding が定義されていない: {rule.strip()!r}"
+
+    # --- .badge-rid-ospf / .badge-rid-bgp のテーマ変数 ---
+
+    @pytest.mark.unit
+    def test_badge_rid_ospf_uses_theme_variables(self, css_block):
+        """.badge-rid-ospf が background/color にテーマ変数を使用している。"""
+        m = re.search(r'\.badge-rid-ospf\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .badge-rid-ospf ルールが存在しない"
+        rule = m.group(1)
+        assert "var(" in rule, \
+            f".badge-rid-ospf がテーマ変数を使用していない: {rule.strip()!r}"
+
+    @pytest.mark.unit
+    def test_badge_rid_bgp_uses_theme_variables(self, css_block):
+        """.badge-rid-bgp が background/color にテーマ変数を使用している。"""
+        m = re.search(r'\.badge-rid-bgp\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .badge-rid-bgp ルールが存在しない"
+        rule = m.group(1)
+        assert "var(" in rule, \
+            f".badge-rid-bgp がテーマ変数を使用していない: {rule.strip()!r}"
+
+    # --- ダーク可視性: :root と [data-theme="dark"] に変数定義があること ---
+
+    @pytest.mark.unit
+    def test_light_theme_has_badge_rid_variables(self, css_block):
+        """:root（ライトテーマ）に badge-rid 系のテーマ変数が定義されている。"""
+        root_m = re.search(r':root\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert root_m is not None, "CSS に :root ブロックが存在しない"
+        root_block = root_m.group(1)
+        assert "--badge-rid-" in root_block or "--badge-rid-ospf-bg" in root_block or \
+               "--badge-rid-bgp-bg" in root_block, \
+            f":root に badge-rid 系テーマ変数が定義されていない: {root_block[:500]!r}"
+
+    @pytest.mark.unit
+    def test_dark_theme_has_badge_rid_variables(self, css_block):
+        """[data-theme="dark"]（ダークテーマ）に badge-rid 系のテーマ変数が定義されている。"""
+        dark_m = re.search(r'\[data-theme=["\']dark["\']\]\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert dark_m is not None, 'CSS に [data-theme="dark"] ブロックが存在しない'
+        dark_block = dark_m.group(1)
+        assert "--badge-rid-" in dark_block or "--badge-rid-ospf-bg" in dark_block or \
+               "--badge-rid-bgp-bg" in dark_block, \
+            f'[data-theme="dark"] に badge-rid 系テーマ変数が定義されていない: {dark_block[:500]!r}'
+
+    # --- 非回帰: 既存 CSS が壊れていないこと ---
+
+    @pytest.mark.unit
+    def test_node_sublabel_css_still_intact(self, css_block):
+        """既存 .node-sublabel CSS が変更されていない（非回帰）。"""
+        m = re.search(r'\.node-sublabel\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .node-sublabel ルールが存在しない"
+        rule = m.group(1)
+        assert "var(--text-muted)" in rule, \
+            f".node-sublabel の fill が変わっている: {rule.strip()!r}"
+
+    @pytest.mark.unit
+    def test_badge_vendor_css_still_intact(self, css_block):
+        """既存 .badge-vendor CSS が変更されていない（非回帰）。"""
+        m = re.search(r'\.badge-vendor\s*\{([^}]+)\}', css_block, re.DOTALL)
+        assert m is not None, "CSS に .badge-vendor ルールが存在しない"
+        rule = m.group(1)
+        assert "var(--badge-vendor-bg)" in rule, \
+            f".badge-vendor の background が変わっている: {rule.strip()!r}"

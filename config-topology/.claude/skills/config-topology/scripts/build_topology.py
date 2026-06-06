@@ -154,6 +154,9 @@ def build(
             "hostname": dev.hostname,
             "vendor": dev.vendor,
             "as": dev.asn,
+            # Phase 4 (router-id): addition-only（既存キー不変）
+            "ospf_router_id": getattr(dev, "ospf_router_id", None),
+            "bgp_router_id": getattr(dev, "bgp_router_id", None),
             "sections": [],
         })
 

@@ -179,3 +179,6 @@ class Device:
     bgp: list[BgpNeighbor] = field(default_factory=list)
     ospf: list[OspfNetwork] = field(default_factory=list)
     static: list[StaticRoute] = field(default_factory=list)
+    # Phase 4 (router-id): device 単位の router-id（None = 未設定）
+    ospf_router_id: str | None = None
+    bgp_router_id: str | None = None

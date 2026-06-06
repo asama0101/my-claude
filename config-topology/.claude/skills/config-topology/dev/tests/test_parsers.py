@@ -1049,3 +1049,219 @@ class TestJuniperJunosOspf:
         # IF 名がそのまま network に入っていること
         assert device.ospf[0].network == "lo0.0"
         assert device.ospf[0].area == "0.0.0.0"
+
+
+# ================================================================
+# [段階1] router-id パーステスト（RED -> GREEN）
+# ================================================================
+
+class TestRouterIdBase:
+    """Device dataclass に ospf_router_id / bgp_router_id フィールドがあること。"""
+
+    def test_device_has_ospf_router_id_field(self):
+        """Device に ospf_router_id フィールドがデフォルト None で存在する。"""
+        from lib.parsers.base import Device
+        d = Device(hostname="R1", vendor="cisco_ios", asn=None)
+        assert hasattr(d, "ospf_router_id")
+        assert d.ospf_router_id is None
+
+    def test_device_has_bgp_router_id_field(self):
+        """Device に bgp_router_id フィールドがデフォルト None で存在する。"""
+        from lib.parsers.base import Device
+        d = Device(hostname="R1", vendor="cisco_ios", asn=None)
+        assert hasattr(d, "bgp_router_id")
+        assert d.bgp_router_id is None
+
+    def test_device_ospf_router_id_set(self):
+        """Device を生成時に ospf_router_id を指定できる。"""
+        from lib.parsers.base import Device
+        d = Device(hostname="R1", vendor="cisco_ios", asn=None,
+                   ospf_router_id="1.1.1.1")
+        assert d.ospf_router_id == "1.1.1.1"
+
+    def test_device_bgp_router_id_set(self):
+        """Device を生成時に bgp_router_id を指定できる。"""
+        from lib.parsers.base import Device
+        d = Device(hostname="R1", vendor="cisco_ios", asn=None,
+                   bgp_router_id="2.2.2.2")
+        assert d.bgp_router_id == "2.2.2.2"
+
+    def test_device_asdict_includes_router_ids(self):
+        """dataclasses.asdict で ospf_router_id / bgp_router_id が出力される。"""
+        import dataclasses
+        from lib.parsers.base import Device
+        d = Device(hostname="R1", vendor="cisco_ios", asn=None,
+                   ospf_router_id="1.1.1.1", bgp_router_id="2.2.2.2")
+        d_dict = dataclasses.asdict(d)
+        assert d_dict["ospf_router_id"] == "1.1.1.1"
+        assert d_dict["bgp_router_id"] == "2.2.2.2"
+
+    def test_existing_device_construction_still_works(self):
+        """既存テストと後方互換（router-id なしで Device 構築できる）。"""
+        from lib.parsers.base import Device
+        d = Device(hostname="R1", vendor="cisco_ios", asn=65001,
+                   interfaces=[], bgp=[], ospf=[], static=[])
+        assert d.ospf_router_id is None
+        assert d.bgp_router_id is None
+
+
+class TestCiscoIosRouterId:
+    """IOS パーサが router ospf / router bgp ブロック内の router-id をパースする。"""
+
+    def test_ospf_router_id_parsed(self):
+        """router ospf ブロック内の router-id を ospf_router_id に格納する。"""
+        from lib.parsers.cisco_ios import parse
+        text = (
+            "hostname R1\n"
+            "!\n"
+            "router ospf 1\n"
+            " router-id 10.1.1.1\n"
+            " network 10.0.0.0 0.0.0.3 area 0\n"
+            "!\n"
+        )
+        device = parse(text)
+        assert device.ospf_router_id == "10.1.1.1"
+
+    def test_ospf_router_id_not_present_is_none(self):
+        """router-id がなければ ospf_router_id は None。"""
+        from lib.parsers.cisco_ios import parse
+        text = (
+            "hostname R1\n"
+            "!\n"
+            "router ospf 1\n"
+            " network 10.0.0.0 0.0.0.3 area 0\n"
+            "!\n"
+        )
+        device = parse(text)
+        assert device.ospf_router_id is None
+
+    def test_ospf_router_id_multiple_process_first_wins(self):
+        """複数 OSPF プロセスがある場合、最初に出現した router-id を採用する。"""
+        from lib.parsers.cisco_ios import parse
+        text = (
+            "hostname R1\n"
+            "!\n"
+            "router ospf 1\n"
+            " router-id 10.1.1.1\n"
+            "!\n"
+            "router ospf 2\n"
+            " router-id 10.1.1.2\n"
+            "!\n"
+        )
+        device = parse(text)
+        assert device.ospf_router_id == "10.1.1.1"
+
+    def test_bgp_router_id_parsed(self):
+        """router bgp ブロック内の bgp router-id を bgp_router_id に格納する。"""
+        from lib.parsers.cisco_ios import parse
+        text = (
+            "hostname R1\n"
+            "!\n"
+            "router bgp 65001\n"
+            " bgp router-id 10.2.2.2\n"
+            " neighbor 10.0.0.2 remote-as 65002\n"
+            "!\n"
+        )
+        device = parse(text)
+        assert device.bgp_router_id == "10.2.2.2"
+
+    def test_bgp_router_id_not_present_is_none(self):
+        """bgp router-id がなければ bgp_router_id は None。"""
+        from lib.parsers.cisco_ios import parse
+        text = (
+            "hostname R1\n"
+            "!\n"
+            "router bgp 65001\n"
+            " neighbor 10.0.0.2 remote-as 65002\n"
+            "!\n"
+        )
+        device = parse(text)
+        assert device.bgp_router_id is None
+
+    def test_ospf_and_bgp_router_id_independent(self):
+        """OSPF と BGP の router-id は独立して保持される。"""
+        from lib.parsers.cisco_ios import parse
+        text = (
+            "hostname R1\n"
+            "!\n"
+            "router bgp 65001\n"
+            " bgp router-id 10.2.2.2\n"
+            " neighbor 10.0.0.2 remote-as 65002\n"
+            "!\n"
+            "router ospf 1\n"
+            " router-id 10.1.1.1\n"
+            " network 10.0.0.0 0.0.0.3 area 0\n"
+            "!\n"
+        )
+        device = parse(text)
+        assert device.ospf_router_id == "10.1.1.1"
+        assert device.bgp_router_id == "10.2.2.2"
+
+
+class TestJuniperJunosRouterId:
+    """JunOS パーサが ospf/ospf3 router-id とグローバル router-id をパースする。"""
+
+    def test_ospf_router_id_set_protocols_ospf(self):
+        """set protocols ospf router-id <id> を ospf_router_id に格納する。"""
+        from lib.parsers.juniper_junos import parse
+        text = (
+            "set system host-name R2\n"
+            "set protocols ospf router-id 10.1.1.2\n"
+        )
+        device = parse(text)
+        assert device.ospf_router_id == "10.1.1.2"
+
+    def test_ospf3_router_id_set_protocols_ospf3(self):
+        """set protocols ospf3 router-id <id> を ospf_router_id に格納する。"""
+        from lib.parsers.juniper_junos import parse
+        text = (
+            "set system host-name R2\n"
+            "set protocols ospf3 router-id 10.1.1.2\n"
+        )
+        device = parse(text)
+        assert device.ospf_router_id == "10.1.1.2"
+
+    def test_global_router_id_sets_bgp_router_id(self):
+        """set routing-options router-id <id> を bgp_router_id に格納する。"""
+        from lib.parsers.juniper_junos import parse
+        text = (
+            "set system host-name R2\n"
+            "set routing-options router-id 10.3.3.3\n"
+        )
+        device = parse(text)
+        assert device.bgp_router_id == "10.3.3.3"
+
+    def test_global_router_id_fallback_to_ospf(self):
+        """ospf 専用 router-id がない場合、グローバル router-id を ospf_router_id にもセットする。"""
+        from lib.parsers.juniper_junos import parse
+        text = (
+            "set system host-name R2\n"
+            "set routing-options router-id 10.3.3.3\n"
+        )
+        device = parse(text)
+        assert device.ospf_router_id == "10.3.3.3"
+
+    def test_ospf_specific_takes_priority_over_global(self):
+        """ospf 専用 router-id がある場合、グローバル router-id はフォールバックされない。"""
+        from lib.parsers.juniper_junos import parse
+        text = (
+            "set system host-name R2\n"
+            "set protocols ospf router-id 10.1.1.2\n"
+            "set routing-options router-id 10.3.3.3\n"
+        )
+        device = parse(text)
+        # ospf 専用が優先
+        assert device.ospf_router_id == "10.1.1.2"
+        # グローバルは bgp_router_id に入る
+        assert device.bgp_router_id == "10.3.3.3"
+
+    def test_no_router_id_is_none(self):
+        """router-id がなければ両フィールド共に None。"""
+        from lib.parsers.juniper_junos import parse
+        text = (
+            "set system host-name R2\n"
+            "set routing-options autonomous-system 65002\n"
+        )
+        device = parse(text)
+        assert device.ospf_router_id is None
+        assert device.bgp_router_id is None

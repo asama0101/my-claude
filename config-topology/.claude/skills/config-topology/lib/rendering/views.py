@@ -978,6 +978,7 @@ def _build_view_bgp(
     nodes_str = _svg_nodes(
         bgp_devices, positions_bgp, iface_by_device,
         chip_iface_ids=bgp_chip_ids,
+        router_id_field="bgp_router_id",  # Phase 4: BGP ビューは bgp_router_id を表示
     )
     # B4: 外部ピアノード（最前面: ノードの上に重ならないよう最後に描画）
     ext_nodes_str = _svg_bgp_external_nodes(
@@ -1244,6 +1245,7 @@ def _build_view_ospf(
     nodes_str = _svg_nodes(
         ospf_devices, positions_ospf, iface_by_device,
         chip_iface_ids=ospf_chip_ids,
+        router_id_field="ospf_router_id",  # Phase 4: OSPF ビューは ospf_router_id を表示
     )
     bbox = _make_bbox_str(positions_ospf)
     # 描画順（背面→前面）:
