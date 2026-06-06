@@ -2067,6 +2067,19 @@ _JS = """\
         }
       });
 
+      // 分離ラベル群（z-order修正で別レイヤー化）: link-label-group / bgp-badge-group
+      // 両端いずれかが非表示なら隠す（link-edge / bgp-session と同じロジック）
+      document.querySelectorAll('.link-label-group[data-a][data-b], .bgp-badge-group[data-a][data-b]')
+        .forEach(function(g) {
+          var a = g.dataset.a;
+          var b = g.dataset.b;
+          if (a === deviceId || b === deviceId) {
+            var aHidden = _hiddenNodes.has(a);
+            var bHidden = _hiddenNodes.has(b);
+            g.classList.toggle('node-filtered', aHidden || bHidden);
+          }
+        });
+
       // カードの制御
       var card = document.querySelector('.device-card[data-device="' + CSS.escape(deviceId) + '"]');
       if (card) {

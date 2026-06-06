@@ -1501,7 +1501,8 @@ def _svg_bgp_edges_split(
             f'</g>'
         )
         badge_parts.append(
-            f'<g class="bgp-badge-group" data-bgp-id="{_esc(bgp_id)}">'
+            f'<g class="bgp-badge-group" data-bgp-id="{_esc(bgp_id)}"'
+            f' data-a="{_esc(dev_id)}" data-b="{_esc(neighbor_dev)}">'
             f'{badge_svg}'
             f'</g>'
         )

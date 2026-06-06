@@ -17801,3 +17801,177 @@ def test_ospf_data_ospf_id_count_link_edge_only():
     assert label_count == 0, (
         f"link-label-group に data-ospf-id が {label_count} 個残っている（0 であるべき）"
     )
+
+
+# ============================================================
+# 回帰バグ修正: ノードフィルタで分離ラベル群が残る問題 (z-order 修正後)
+# ============================================================
+# バグ: z-order 修正でエッジラベルを別レイヤーに分離した結果、
+#       ノードフィルタでノードを非表示にしても、そのノードに繋がるエッジの
+#       「文字（ラベル/バッジ）」が図に残ってしまう。
+# 原因: 分離ラベル群が JS の setNodeVisibility の非表示対象セレクタに含まれていない。
+# 修正:
+#   (A) svg.py: bgp-badge-group に data-a / data-b を付与
+#   (B) template.py: setNodeVisibility に link-label-group / bgp-badge-group を追加
+
+
+@pytest.mark.unit
+def test_bgp_badge_group_has_data_a_and_data_b():
+    """(A) bgp-badge-group が data-a と data-b を持つこと。
+
+    _svg_bgp_edges_split で生成される bgp-badge-group に data-a/data-b が付与されており、
+    setNodeVisibility でノードフィルタの対象として識別できる。
+    multi-as-area フィクスチャ（iBGP: core1-core2, core1-edge1）を使用。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    # bgp-badge-group の <g> タグを全て抽出
+    badge_group_tags = re.findall(r'<g[^>]+class="bgp-badge-group"[^>]*>', html)
+    assert badge_group_tags, "bgp-badge-group が HTML 内に見つからない"
+
+    for tag in badge_group_tags:
+        assert 'data-a=' in tag, (
+            f"bgp-badge-group に data-a 属性がない: {tag}"
+        )
+        assert 'data-b=' in tag, (
+            f"bgp-badge-group に data-b 属性がない: {tag}"
+        )
+
+
+@pytest.mark.unit
+def test_bgp_badge_group_data_a_b_match_bgp_session():
+    """(A) bgp-badge-group の data-a/data-b が対応する bgp-session と一致すること。
+
+    同一 data-bgp-id を持つ bgp-session と bgp-badge-group が
+    同じ data-a / data-b ペアを持つ。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    # bgp-session から data-bgp-id → (data-a, data-b) のマッピングを構築
+    session_pattern = r'<g[^>]+class="bgp-session"[^>]*data-bgp-id="([^"]+)"[^>]*data-a="([^"]+)"[^>]*data-b="([^"]+)"'
+    sessions_v1 = {m[0]: (m[1], m[2]) for m in re.findall(session_pattern, html)}
+    # 属性順が逆の場合も対応
+    session_pattern2 = r'<g[^>]+class="bgp-session"[^>]*data-a="([^"]+)"[^>]*data-b="([^"]+)"[^>]*data-bgp-id="([^"]+)"'
+    sessions_v2 = {m[2]: (m[0], m[1]) for m in re.findall(session_pattern2, html)}
+    sessions = {**sessions_v1, **sessions_v2}
+
+    # bgp-badge-group から data-bgp-id → (data-a, data-b) を抽出
+    badge_pattern = r'<g[^>]+class="bgp-badge-group"[^>]*data-bgp-id="([^"]+)"[^>]*data-a="([^"]+)"[^>]*data-b="([^"]+)"'
+    badges_v1 = {m[0]: (m[1], m[2]) for m in re.findall(badge_pattern, html)}
+    badge_pattern2 = r'<g[^>]+class="bgp-badge-group"[^>]*data-a="([^"]+)"[^>]*data-b="([^"]+)"[^>]*data-bgp-id="([^"]+)"'
+    badges_v2 = {m[2]: (m[0], m[1]) for m in re.findall(badge_pattern2, html)}
+    badges = {**badges_v1, **badges_v2}
+
+    assert badges, "bgp-badge-group に data-a/data-b が存在しない（実装(A)が不足）"
+
+    for bgp_id, badge_ab in badges.items():
+        if bgp_id in sessions:
+            session_ab = sessions[bgp_id]
+            # data-a/data-b のペアが一致（順序は問わない）
+            assert set(badge_ab) == set(session_ab), (
+                f"bgp-badge-group の data-a/data-b が bgp-session と不一致: "
+                f"bgp_id={bgp_id!r}, badge={badge_ab}, session={session_ab}"
+            )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_includes_link_label_group_selector():
+    """(B) setNodeVisibility 関数本体に link-label-group セレクタが含まれること。
+
+    JS の setNodeVisibility 関数スコープ内に
+    '.link-label-group[data-a][data-b]' の querySelectorAll が存在する。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    # setNodeVisibility 関数スコープを抽出
+    func_match = re.search(
+        r'function setNodeVisibility\(deviceId.*?(?=\n\s*function |\Z)',
+        html,
+        re.DOTALL
+    )
+    assert func_match, "setNodeVisibility 関数が HTML 内に見つからない"
+    func_body = func_match.group(0)
+
+    assert '.link-label-group' in func_body, (
+        "setNodeVisibility 内に '.link-label-group' セレクタがない"
+    )
+    assert 'data-a' in func_body or '[data-a]' in func_body, (
+        "setNodeVisibility 内で link-label-group の data-a 属性を参照していない"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_includes_bgp_badge_group_selector():
+    """(B) setNodeVisibility 関数本体に bgp-badge-group セレクタが含まれること。
+
+    JS の setNodeVisibility 関数スコープ内に
+    '.bgp-badge-group[data-a][data-b]' の querySelectorAll が存在する。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    func_match = re.search(
+        r'function setNodeVisibility\(deviceId.*?(?=\n\s*function |\Z)',
+        html,
+        re.DOTALL
+    )
+    assert func_match, "setNodeVisibility 関数が HTML 内に見つからない"
+    func_body = func_match.group(0)
+
+    assert '.bgp-badge-group' in func_body, (
+        "setNodeVisibility 内に '.bgp-badge-group' セレクタがない"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_toggles_node_filtered_for_label_groups():
+    """(B) setNodeVisibility が link-label-group / bgp-badge-group に node-filtered を toggle すること。
+
+    関数本体に classList.toggle('node-filtered', ...) が含まれ、
+    分離ラベル群に対しても適用される。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+
+    func_match = re.search(
+        r'function setNodeVisibility\(deviceId.*?(?=\n\s*function |\Z)',
+        html,
+        re.DOTALL
+    )
+    assert func_match, "setNodeVisibility 関数が HTML 内に見つからない"
+    func_body = func_match.group(0)
+
+    # node-filtered toggle が link-label-group / bgp-badge-group のセレクタ付近にある
+    assert "node-filtered" in func_body, (
+        "setNodeVisibility 内に 'node-filtered' の toggle 処理がない"
+    )
+    # 分離ラベル群（link-label-group か bgp-badge-group）とnode-filtered toggleが共存
+    has_label_group = '.link-label-group' in func_body or '.bgp-badge-group' in func_body
+    assert has_label_group, (
+        "setNodeVisibility 内に分離ラベル群（link-label-group / bgp-badge-group）の "
+        "セレクタがない。ノードフィルタ時にラベルが残る回帰バグが修正されていない"
+    )
+
+
+@pytest.mark.unit
+def test_node_filter_label_determinism():
+    """(C) 決定性: 同一トポロジーで2回 render した結果が完全一致すること（分離ラベル付き）。
+
+    multi-as-area フィクスチャ（BGP あり）で render() を2回実行し IDENTICAL を確認。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html1 = render(topo)
+    html2 = render(topo)
+    assert html1 == html2, (
+        "multi-as-area トポロジー（BGP 含む）で render() が非決定的。"
+        "random/time/dict-hash に依存している可能性がある"
+    )
