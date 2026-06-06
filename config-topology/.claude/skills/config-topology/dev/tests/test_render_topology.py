@@ -20863,3 +20863,195 @@ def test_i10_render_deterministic(sample_topology):
     html1 = render(sample_topology)
     html2 = render(sample_topology)
     assert html1 == html2, "render() が非決定的"
+
+
+# ============================================================
+# sticky ヘッダ: #cards-header（Device Details 上部固定）
+# ============================================================
+
+@pytest.mark.unit
+def test_cards_header_exists(rendered_html):
+    """sticky ヘッダ: id="cards-header" 要素が HTML に存在する"""
+    assert 'id="cards-header"' in rendered_html, \
+        'id="cards-header" 要素が存在しない'
+
+
+@pytest.mark.unit
+def test_cards_header_contains_layers_controls(rendered_html):
+    """sticky ヘッダ: #cards-header の内側に id="layers-controls" が含まれる"""
+    header_start = rendered_html.find('id="cards-header"')
+    assert header_start >= 0, 'id="cards-header" が見つからない'
+    # cards-header の開始タグ以降のテキストで layers-controls の位置を探す
+    after_header = rendered_html[header_start:]
+    # cards-header の閉じタグを探す（入れ子対応: 簡易スキャン）
+    # </div> の積み上げを数えて #cards-header を閉じる位置を特定する
+    depth = 0
+    pos = after_header.find('>')  # 開始タグの終わり
+    i = pos + 1
+    while i < len(after_header):
+        if after_header[i:i+5] == '<div ':
+            depth += 1
+            i += 5
+        elif after_header[i:i+4] == '<div':
+            depth += 1
+            i += 4
+        elif after_header[i:i+6] == '</div>':
+            if depth == 0:
+                break
+            depth -= 1
+            i += 6
+        else:
+            i += 1
+    header_inner = after_header[:i]
+    assert 'id="layers-controls"' in header_inner, \
+        '#cards-header の内側に id="layers-controls" が存在しない'
+
+
+@pytest.mark.unit
+def test_cards_header_contains_card_filter_toggle(rendered_html):
+    """sticky ヘッダ: #cards-header の内側に id="card-filter-toggle" が含まれる"""
+    header_start = rendered_html.find('id="cards-header"')
+    assert header_start >= 0, 'id="cards-header" が見つからない'
+    after_header = rendered_html[header_start:]
+    depth = 0
+    pos = after_header.find('>')
+    i = pos + 1
+    while i < len(after_header):
+        if after_header[i:i+5] == '<div ':
+            depth += 1
+            i += 5
+        elif after_header[i:i+4] == '<div':
+            depth += 1
+            i += 4
+        elif after_header[i:i+6] == '</div>':
+            if depth == 0:
+                break
+            depth -= 1
+            i += 6
+        else:
+            i += 1
+    header_inner = after_header[:i]
+    assert 'id="card-filter-toggle"' in header_inner, \
+        '#cards-header の内側に id="card-filter-toggle" が存在しない'
+
+
+@pytest.mark.unit
+def test_cards_header_css_sticky(rendered_html):
+    """sticky ヘッダ CSS: #cards-header に position:sticky / top:0 / background が設定される"""
+    # CSS ブロックを抽出（<style>〜</style>）
+    style_m = re.search(r'<style>(.*?)</style>', rendered_html, re.DOTALL)
+    assert style_m, '<style> ブロックが見つからない'
+    css = style_m.group(1)
+    # #cards-header { ... position: sticky ... } が存在すること
+    assert re.search(
+        r'#cards-header\s*\{[^}]*position\s*:\s*sticky',
+        css,
+    ), '#cards-header { position: sticky; ... } が CSS に存在しない'
+    # top: 0 が含まれること
+    assert re.search(
+        r'#cards-header\s*\{[^}]*top\s*:\s*0',
+        css,
+    ), '#cards-header { ... top: 0; ... } が CSS に存在しない'
+    # background が含まれること（var(--bg-surface) 等）
+    assert re.search(
+        r'#cards-header\s*\{[^}]*background\s*:',
+        css,
+    ), '#cards-header { ... background: ...; } が CSS に存在しない'
+
+
+@pytest.mark.unit
+def test_cards_header_css_background_uses_surface_var(rendered_html):
+    """sticky ヘッダ CSS: background に var(--bg-surface) を使用してテーマ追従する"""
+    style_m = re.search(r'<style>(.*?)</style>', rendered_html, re.DOTALL)
+    assert style_m, '<style> ブロックが見つからない'
+    css = style_m.group(1)
+    # #cards-header の {} ブロックを抽出して var(--bg-surface) を確認
+    block_m = re.search(r'#cards-header\s*\{([^}]*)\}', css)
+    assert block_m, '#cards-header ブロックが見つからない'
+    block = block_m.group(1)
+    assert 'var(--bg-surface)' in block, \
+        '#cards-header の background に var(--bg-surface) が使われていない'
+
+
+@pytest.mark.unit
+def test_cards_grid_outside_cards_header(rendered_html):
+    """.cards-grid は #cards-header の外（下）に配置される"""
+    header_end_pattern = re.compile(r'id="cards-header"')
+    header_m = header_end_pattern.search(rendered_html)
+    assert header_m, 'id="cards-header" が見つからない'
+
+    # cards-header の開始位置と cards-grid の開始位置を比較
+    cards_grid_pos = rendered_html.find('class="cards-grid"')
+    assert cards_grid_pos >= 0, 'class="cards-grid" が見つからない'
+
+    # #cards-header 内部の範囲を特定
+    after_header = rendered_html[header_m.start():]
+    depth = 0
+    pos = after_header.find('>')
+    i = pos + 1
+    while i < len(after_header):
+        if after_header[i:i+5] == '<div ':
+            depth += 1
+            i += 5
+        elif after_header[i:i+4] == '<div':
+            depth += 1
+            i += 4
+        elif after_header[i:i+6] == '</div>':
+            if depth == 0:
+                break
+            depth -= 1
+            i += 6
+        else:
+            i += 1
+    # i は cards-header の閉じタグの直前（after_header[i] == '<')
+    header_end_abs = header_m.start() + i  # absolute position of </div>
+
+    # cards-grid は cards-header の終了より後に現れること
+    assert cards_grid_pos > header_end_abs, \
+        '.cards-grid が #cards-header の内側（または前）にある（外に出ていない）'
+
+
+@pytest.mark.unit
+def test_cards_header_structure_in_cards_section(rendered_html):
+    """#cards-section の直下に #cards-header があり、その後に .cards-grid がある構造"""
+    # cards-section の開始タグ以降に cards-header が現れること
+    section_pos = rendered_html.find('id="cards-section"')
+    assert section_pos >= 0, 'id="cards-section" が見つからない'
+    header_pos = rendered_html.find('id="cards-header"')
+    assert header_pos >= 0, 'id="cards-header" が見つからない'
+    grid_pos = rendered_html.find('class="cards-grid"')
+    assert grid_pos >= 0, 'class="cards-grid" が見つからない'
+    assert section_pos < header_pos < grid_pos, \
+        'DOM 順序が cards-section → cards-header → cards-grid になっていない'
+
+
+@pytest.mark.unit
+def test_cards_header_layers_toggle_functional(rendered_html):
+    """非回帰: layers-controls 内に layer-toggle 要素が存在する（機能配線維持）"""
+    layers_pos = rendered_html.find('id="layers-controls"')
+    assert layers_pos >= 0, 'id="layers-controls" が存在しない'
+    # layers-controls の近傍 1000 文字以内に layer-toggle が存在すること
+    window_text = rendered_html[layers_pos:layers_pos + 1000]
+    assert 'layer-toggle' in window_text, \
+        'layers-controls 近傍に layer-toggle 要素が存在しない（機能配線が壊れた可能性）'
+
+
+@pytest.mark.unit
+def test_cards_header_card_filter_toggle_functional(rendered_html):
+    """非回帰: card-filter-toggle チェックボックスが存在し checked 属性を持つ"""
+    assert 'id="card-filter-toggle"' in rendered_html, \
+        'id="card-filter-toggle" が存在しない'
+    # checked 属性が近傍に存在すること
+    pos = rendered_html.find('id="card-filter-toggle"')
+    window_text = rendered_html[max(0, pos - 100):pos + 200]
+    assert 'checked' in window_text, \
+        'card-filter-toggle に checked 属性がない'
+
+
+@pytest.mark.unit
+def test_cards_header_render_deterministic(sample_topology):
+    """sticky ヘッダ追加後も render() の決定性を維持する"""
+    from lib.rendering import render
+    html1 = render(sample_topology)
+    html2 = render(sample_topology)
+    assert html1 == html2, 'render() が非決定的（sticky ヘッダ追加後）'

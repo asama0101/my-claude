@@ -436,9 +436,22 @@ _CSS = """\
 
     /* カード */
     #cards-section {
-      padding: 20px;
+      padding: 0 20px 20px;
       overflow: auto;
       min-height: 80px;
+    }
+
+    /* sticky ヘッダ: LAYERS トグル + Device Details 見出し を上端に固定
+       background: var(--bg-surface) でスクロール時にカードがヘッダ下に潜らないよう不透明に覆う。
+       margin: 0 -20px / padding: 0 20px で #cards-section の左右パディング分を打ち消し、
+       横幅いっぱいの背景でカードがヘッダ脇から覗かないようにする。 */
+    #cards-header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--bg-surface);
+      margin: 0 -20px;
+      padding: 12px 20px 0;
     }
 
     #cards-section h2 {
@@ -2968,17 +2981,20 @@ def build_html(
 
     <!-- 下ペイン: Device Details -->
     <div id="cards-section">
-      <!-- LAYERS トグル（Device Details 見出し付近） -->
-      <div class="controls" id="layers-controls" style="padding:6px 0 10px;border:none;">
-        <span class="controls-label">Layers:</span>
-        {toggles_html}
+      <!-- sticky ヘッダ: LAYERS トグル + Device Details 見出し（スクロール時に上端固定） -->
+      <div id="cards-header">
+        <!-- LAYERS トグル（Device Details 見出し付近） -->
+        <div class="controls" id="layers-controls" style="padding:6px 0 10px;border:none;">
+          <span class="controls-label">Layers:</span>
+          {toggles_html}
+        </div>
+        <h2>Device Details
+          <label style="font-size:0.8rem;font-weight:400;margin-left:16px;cursor:pointer;">
+            <input type="checkbox" id="card-filter-toggle" style="vertical-align:middle;" checked>
+            選択中の機器のみ表示
+          </label>
+        </h2>
       </div>
-      <h2>Device Details
-        <label style="font-size:0.8rem;font-weight:400;margin-left:16px;cursor:pointer;">
-          <input type="checkbox" id="card-filter-toggle" style="vertical-align:middle;" checked>
-          選択中の機器のみ表示
-        </label>
-      </h2>
       <div class="cards-grid">
         {cards_html}
       </div>
