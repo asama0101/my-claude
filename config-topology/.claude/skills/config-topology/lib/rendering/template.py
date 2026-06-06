@@ -1871,6 +1871,18 @@ _JS = """\
           if (s.dataset.device === deviceId) {
             s.classList.add('highlighted');
             if (s.dataset.segId) { litSegIds.push(s.dataset.segId); }
+            // ⑮: ホバー時、seg-edge のメンバー IF チップも一時点灯する。
+            // すでに点灯済み（クリック固定 or 選択ピン）のチップには hover-chip-hl を付けず
+            // 触らない＝clearHighlight でホバー由来のみを安全に消す（固定/ピンを保護）。
+            var memberIface = s.getAttribute('data-member-iface');
+            if (memberIface) {
+              document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(memberIface) + '"]').forEach(function(chip) {
+                if (!chip.classList.contains('highlighted')) {
+                  chip.classList.add('highlighted');
+                  chip.classList.add('hover-chip-hl');
+                }
+              });
+            }
           }
         });
         allSegmentNodes.forEach(function(sn) {
@@ -1908,6 +1920,13 @@ _JS = """\
           if (!sn.classList.contains('selection-edge-hl')) {
             sn.classList.remove('highlighted');
           }
+        });
+        // ⑮: ホバーで一時点灯した IF チップ（hover-chip-hl）のみ解除。
+        // hover-chip-hl はホバー時に「未点灯だったチップ」にだけ付くため、
+        // クリック固定チップ・選択ピン（selection-edge-hl）チップは保護される。
+        document.querySelectorAll('.if-chip.hover-chip-hl').forEach(function(chip) {
+          chip.classList.remove('highlighted');
+          chip.classList.remove('hover-chip-hl');
         });
         _syncEdgeLabels();
       }
@@ -2149,6 +2168,15 @@ _JS = """\
           matched.forEach(function(el) {
             el.classList.add('highlighted');
             el.classList.add('selection-edge-hl');
+            // ⑮: seg-edge のメンバー IF チップも点灯（segment-node は data-member-iface を持たない）。
+            // 選択経路なので selection-edge-hl を付け、冒頭の .if-chip.selection-edge-hl 解除で消す。
+            var memberIface = el.getAttribute('data-member-iface');
+            if (memberIface) {
+              document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(memberIface) + '"]').forEach(function(chip) {
+                chip.classList.add('highlighted');
+                chip.classList.add('selection-edge-hl');
+              });
+            }
           });
           // OSPF Networks 表行: matched から segment-node をフィルタして再利用（再クエリ不要）
           matched.forEach(function(sn) {

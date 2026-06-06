@@ -856,7 +856,8 @@ def _svg_segment_edges(
                 parts.append(
                     f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
                     f'class="seg-edge layer-physical" data-seg="{seg_id}" '
-                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}"/>'
+                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}" '
+                    f'data-member-iface="{_esc(member_iface_id)}"/>'
                 )
     return "\n".join(parts)
 
@@ -963,7 +964,8 @@ def _svg_ospf_segment_edges(
                 parts.append(
                     f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
                     f'class="seg-edge layer-ospf" data-seg="{seg_id}" '
-                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}"{ospf_id_attr}'
+                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}" '
+                    f'data-member-iface="{_esc(member_iface_id)}"{ospf_id_attr}'
                     f'{seg_area_attr}{seg_edge_style}/>'
                 )
     return "\n".join(parts)

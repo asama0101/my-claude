@@ -20995,6 +20995,166 @@ def test_o13_ospf_iface_attrs_deterministic():
 
 
 # ===========================================================================
+# ⑮: 共有NW(seg-edge)ハイライト時にメンバー IF チップも点灯
+# ===========================================================================
+# seg-edge にメンバー iface_id（data-member-iface）を持たせ、seg-edge が点灯する
+# 全経路（選択 _highlightSharedSegments・ホバー highlight）でメンバー IF チップも点灯。
+# クリック固定チップ・選択ピンチップを壊さないよう、ホバー由来は hover-chip-hl で管理。
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_s15_segment_edge_has_data_member_iface():
+    """⑮: _svg_segment_edges の seg-edge <line> に data-member-iface が付く（physical）。"""
+    from lib.rendering.svg import _svg_segment_edges
+    segments = [{"id": "seg-a", "subnet": "10.0.0.0/24",
+                 "members": ["r1::eth0", "r2::eth0"]}]
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/24"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/24"},
+    ]
+    positions = {"seg-a": (300.0, 200.0), "r1": (100.0, 100.0), "r2": (500.0, 100.0)}
+    svg = _svg_segment_edges(segments, interfaces, positions)
+    assert 'data-member-iface="r1::eth0"' in svg, "physical seg-edge に data-member-iface(r1) がない"
+    assert 'data-member-iface="r2::eth0"' in svg, "physical seg-edge に data-member-iface(r2) がない"
+
+
+@pytest.mark.unit
+def test_s15_ospf_segment_edge_has_data_member_iface():
+    """⑮: _svg_ospf_segment_edges の seg-edge <line> に data-member-iface が付く（OSPF）。"""
+    from lib.rendering.svg import _svg_ospf_segment_edges
+    segments = [{"id": "seg-b", "subnet": "10.10.0.0/24",
+                 "members": ["r2::eth1", "r3::eth0"], "ospf_area": 0}]
+    interfaces = [
+        {"id": "r2::eth1", "device": "r2", "name": "eth1", "ip": "10.10.0.2/24"},
+        {"id": "r3::eth0", "device": "r3", "name": "eth0", "ip": "10.10.0.3/24"},
+    ]
+    positions = {"seg-b": (300.0, 200.0), "r2": (100.0, 100.0), "r3": (500.0, 100.0)}
+    svg = _svg_ospf_segment_edges(segments, interfaces, positions)
+    assert 'data-member-iface="r2::eth1"' in svg, "OSPF seg-edge に data-member-iface(r2) がない"
+    assert 'data-member-iface="r3::eth0"' in svg, "OSPF seg-edge に data-member-iface(r3) がない"
+
+
+@pytest.mark.unit
+def test_s15_rendered_seg_edge_has_data_member_iface():
+    """⑮: 共有セグメント topology を render すると seg-edge に data-member-iface が出る。"""
+    from lib.rendering import render
+    html = render(_make_ospf_segment_topology())
+    assert 'data-member-iface="acc1::GigabitEthernet0/0"' in html, (
+        "render 出力の seg-edge に data-member-iface（acc1 メンバー）がない"
+    )
+
+
+@pytest.mark.unit
+def test_s15_highlight_shared_segments_lights_member_chip(rendered_html):
+    """⑮: _highlightSharedSegments（選択経路）が seg-edge の data-member-iface を読み、
+    .if-chip[data-iface-id] に highlighted+selection-edge-hl を付ける。
+    """
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    assert "data-member-iface" in func_body, (
+        "_highlightSharedSegments が data-member-iface を読んでいない（メンバーチップ連動が必要）"
+    )
+    # data-member-iface 読み取り近傍に if-chip 点灯 + selection-edge-hl がある
+    found = False
+    for m in re.finditer(r'data-member-iface', func_body):
+        ctx = func_body[m.start(): m.end() + 300]
+        if "if-chip" in ctx and "selection-edge-hl" in ctx:
+            found = True
+            break
+    assert found, (
+        "_highlightSharedSegments の data-member-iface 読み取り箇所に "
+        ".if-chip 点灯（selection-edge-hl 付与）がない。"
+    )
+
+
+@pytest.mark.unit
+def test_s15_hover_highlight_lights_member_chip(rendered_html):
+    """⑮: highlight()（ホバー経路）が seg-edge の data-member-iface を読み、
+    メンバー IF チップを hover-chip-hl 付きで一時点灯する（selection-edge-hl は付けない）。
+    """
+    body = _extract_js_function(rendered_html, "highlight")
+    assert body, "highlight() 関数が見つからない"
+    assert "data-member-iface" in body, (
+        "highlight()（ホバー）が seg-edge の data-member-iface を読んでいない"
+    )
+    assert "hover-chip-hl" in body, (
+        "highlight() がホバー由来チップを hover-chip-hl で識別していない"
+    )
+    # ホバー経路ではチップへの selection-edge-hl 付与はしない（一時点灯）
+    # data-member-iface 近傍に if-chip があること
+    found = False
+    for m in re.finditer(r'data-member-iface', body):
+        ctx = body[m.start(): m.end() + 500]
+        if "if-chip" in ctx and "hover-chip-hl" in ctx:
+            found = True
+            break
+    assert found, "highlight() のメンバーチップ点灯に hover-chip-hl が付いていない"
+
+
+@pytest.mark.unit
+def test_s15_hover_highlight_guards_already_highlighted(rendered_html):
+    """⑮: highlight() はすでに点灯済みのチップに hover-chip-hl を付けない
+    （クリック固定/選択ピンを保護するため !contains('highlighted') ガードがある）。
+    """
+    body = _extract_js_function(rendered_html, "highlight")
+    assert body, "highlight() 関数が見つからない"
+    # メンバーチップ点灯ブロック（data-member-iface 読み取り以降）に
+    # !contains('highlighted') ガードと hover-chip-hl 付与の両方があること。
+    idx = body.find("data-member-iface")
+    assert idx != -1, "highlight() に data-member-iface 読み取りがない"
+    block = body[idx: idx + 600]
+    has_guard = "contains('highlighted')" in block or 'contains("highlighted")' in block
+    assert has_guard and "hover-chip-hl" in block, (
+        "highlight() のメンバーチップ点灯に !chip.classList.contains('highlighted') ガードがない"
+        "（クリック固定/選択ピンチップを上書きしてしまう）"
+    )
+
+
+@pytest.mark.unit
+def test_s15_clear_highlight_removes_hover_chip_hl(rendered_html):
+    """⑮: clearHighlight() が .if-chip.hover-chip-hl から highlighted と hover-chip-hl を除去する。"""
+    body = _extract_js_function(rendered_html, "clearHighlight")
+    assert body, "clearHighlight() 関数が見つからない"
+    assert "hover-chip-hl" in body, (
+        "clearHighlight() が hover-chip-hl を解除していない（ホバーチップが残る）"
+    )
+    # hover-chip-hl 要素から highlighted を remove する配線
+    idx = body.find("hover-chip-hl")
+    ctx = body[max(0, idx - 100): idx + 200]
+    assert "remove('highlighted')" in ctx or 'remove("highlighted")' in ctx, (
+        "clearHighlight() が hover-chip-hl チップから highlighted を除去していない"
+    )
+
+
+@pytest.mark.unit
+def test_s15_clear_highlight_does_not_blanket_clear_chips(rendered_html):
+    """⑮ 非回帰: clearHighlight() は hover-chip-hl 以外のチップ（クリック固定）を
+    無差別に消さない。チップ解除は .if-chip.hover-chip-hl セレクタに限定される。
+    """
+    body = _extract_js_function(rendered_html, "clearHighlight")
+    assert body, "clearHighlight() 関数が見つからない"
+    # チップ解除セレクタが hover-chip-hl 限定であること（'.if-chip.highlighted' のような
+    # 無差別セレクタで全チップを消していないこと）
+    assert ".if-chip.hover-chip-hl" in body, (
+        "clearHighlight() のチップ解除が .if-chip.hover-chip-hl 限定でない"
+    )
+    assert "querySelectorAll('.if-chip.highlighted')" not in body and \
+           'querySelectorAll(".if-chip.highlighted")' not in body, (
+        "clearHighlight() が .if-chip.highlighted を無差別に解除している"
+        "（クリック固定チップが消える）"
+    )
+
+
+@pytest.mark.unit
+def test_s15_seg_member_chip_deterministic():
+    """⑮: data-member-iface 付与後も render が決定的（2回同一）。"""
+    from lib.rendering import render
+    html1 = render(_make_ospf_segment_topology())
+    html2 = render(_make_ospf_segment_topology())
+    assert html1 == html2, "data-member-iface 付与後に render が非決定的"
+
+
+# ===========================================================================
 # 項目⑥: 凡例パネルをデフォルト表示
 # ===========================================================================
 
