@@ -17975,3 +17975,368 @@ def test_node_filter_label_determinism():
         "multi-as-area トポロジー（BGP 含む）で render() が非決定的。"
         "random/time/dict-hash に依存している可能性がある"
     )
+
+
+# ===========================================================================
+# OSPF Area 色分け (iteration-6)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# ユニットテスト: _ospf_area_color()
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_ospf_area_color_area0_returns_str():
+    """_ospf_area_color("0") が文字列（16進カラーコード）を返す。"""
+    from lib.rendering.svg import _ospf_area_color
+    result = _ospf_area_color("0")
+    assert isinstance(result, str)
+    assert result.startswith("#"), f"期待: #始まりの色文字列, 実際: {result!r}"
+
+
+@pytest.mark.unit
+def test_ospf_area_color_none_returns_none():
+    """_ospf_area_color(None) は None を返す（area 未設定は fallback）。"""
+    from lib.rendering.svg import _ospf_area_color
+    assert _ospf_area_color(None) is None
+
+
+@pytest.mark.unit
+def test_ospf_area_color_area0_area1_differ():
+    """area "0" と area "1" で異なる色が返る。"""
+    from lib.rendering.svg import _ospf_area_color
+    c0 = _ospf_area_color("0")
+    c1 = _ospf_area_color("1")
+    assert c0 != c1, f"area 0 と area 1 が同色: {c0}"
+
+
+@pytest.mark.unit
+def test_ospf_area_color_same_area_same_color():
+    """同一 area は常に同色（決定的）。"""
+    from lib.rendering.svg import _ospf_area_color
+    assert _ospf_area_color("0") == _ospf_area_color("0")
+    assert _ospf_area_color("2") == _ospf_area_color("2")
+    assert _ospf_area_color("backbone") == _ospf_area_color("backbone")
+
+
+@pytest.mark.unit
+def test_ospf_area_color_composite_uses_first_component():
+    """複合 area "0/1" は先頭 "0" と同色（決定的）。"""
+    from lib.rendering.svg import _ospf_area_color
+    assert _ospf_area_color("0/1") == _ospf_area_color("0")
+
+
+@pytest.mark.unit
+def test_ospf_area_color_non_numeric_deterministic():
+    """非数値 area (例: "backbone") も決定的な色を返す（None でない）。"""
+    from lib.rendering.svg import _ospf_area_color
+    c1 = _ospf_area_color("backbone")
+    c2 = _ospf_area_color("backbone")
+    assert c1 is not None
+    assert c1 == c2
+
+
+@pytest.mark.unit
+def test_ospf_area_color_dotted_notation_deterministic():
+    """ドット記法 area "0.0.0.1" も決定的な色を返す（None でない）。"""
+    from lib.rendering.svg import _ospf_area_color
+    c = _ospf_area_color("0.0.0.1")
+    assert c is not None
+    assert c.startswith("#")
+
+
+# ---------------------------------------------------------------------------
+# HTML 属性テスト: data-ospf-area / --area-stroke
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_ospf_p2p_link_edge_has_data_ospf_area():
+    """OSPF p2p リンクの link-edge に data-ospf-area 属性が付く（area 付き時）。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()  # area="0"
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert 'data-ospf-area="0"' in ospf_view, (
+        f"OSPF p2p link-edge に data-ospf-area=\"0\" がない\n{ospf_view[:500]}"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_p2p_link_line_has_area_stroke_style():
+    """OSPF p2p の link-line に --area-stroke CSS カスタムプロパティが style に付く。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()  # area="0"
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert '--area-stroke:' in ospf_view, (
+        f"OSPF p2p link-line に --area-stroke が付いていない\n{ospf_view[:500]}"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_segment_node_has_data_ospf_area():
+    """OSPF セグメントノード <g class="segment-node"> に data-ospf-area が付く。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()  # seg area="1"
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert 'data-ospf-area="1"' in ospf_view, (
+        f"segment-node に data-ospf-area=\"1\" がない\n{ospf_view[:500]}"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_seg_ellipse_has_area_stroke_style():
+    """OSPF seg-ellipse に --area-stroke CSS カスタムプロパティが付く。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()  # seg area="1"
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert '--area-stroke:' in ospf_view, (
+        f"OSPF seg-ellipse に --area-stroke が付いていない\n{ospf_view[:500]}"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_seg_edge_has_data_ospf_area():
+    """OSPF seg-edge に data-ospf-area 属性が付く。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()  # seg area="1"
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert 'data-ospf-area="1"' in ospf_view, (
+        f"OSPF seg-edge に data-ospf-area=\"1\" がない\n{ospf_view[:500]}"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_seg_edge_has_area_stroke_style():
+    """OSPF seg-edge に --area-stroke CSS カスタムプロパティが付く。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()  # seg area="1"
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    assert ospf_view, "OSPF ビューが見つからない"
+    assert '--area-stroke:' in ospf_view, (
+        f"OSPF seg-edge に --area-stroke が付いていない\n{ospf_view[:500]}"
+    )
+
+
+@pytest.mark.unit
+def test_ospf_p2p_no_area_no_data_ospf_area():
+    """ospf_area=None の p2p リンクには data-ospf-area が付かない（後方互換）。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    # ospf_area を削除
+    for lk in topo["links"]:
+        lk.pop("ospf_area", None)
+    html = render(topo)
+    ospf_view = _extract_ospf_view(html)
+    # ospf_area なし → data-ospf-area 属性なし
+    assert 'data-ospf-area=' not in ospf_view, (
+        f"ospf_area=None なのに data-ospf-area が付いた\n{ospf_view[:300]}"
+    )
+
+
+@pytest.mark.unit
+def test_physical_link_line_no_area_stroke():
+    """Physical ビューの link-line には --area-stroke が付かない（後方互換）。"""
+    from lib.rendering import render
+    topo = {
+        "title": "Physical Only",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [{"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
+                   "subnet": "10.0.0.0/30", "kind": "inferred-subnet"}],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    # Physical ビューを抽出
+    m = re.search(
+        r'<g[^>]+class="view view-physical"[^>]*>(.*?)(?=<g[^>]+class="view view-|</svg>)',
+        html, re.DOTALL
+    )
+    phys_view = m.group(1) if m else ""
+    assert '--area-stroke:' not in phys_view, (
+        "Physical ビューの link-line に --area-stroke が付いている（後方互換違反）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CSS テスト: base ルールが var(--area-stroke,…) を使う
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_css_link_line_uses_area_stroke_var():
+    """.link-line CSS base ルールが var(--area-stroke, ...) を使う。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    # .link-line { stroke: var(--area-stroke, var(--color-link)); } のパターン
+    assert 'var(--area-stroke,' in html or 'var(--area-stroke, ' in html, (
+        ".link-line の CSS base ルールに var(--area-stroke, ...) がない"
+    )
+
+
+@pytest.mark.unit
+def test_css_seg_edge_uses_area_stroke_var():
+    """.seg-edge CSS base ルールが var(--area-stroke, ...) を使う。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    assert 'var(--area-stroke,' in html or 'var(--area-stroke, ' in html, (
+        ".seg-edge の CSS base ルールに var(--area-stroke, ...) がない"
+    )
+
+
+@pytest.mark.unit
+def test_css_seg_ellipse_uses_area_stroke_var():
+    """.seg-ellipse CSS base ルールが var(--area-stroke, ...) を使う。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    assert 'var(--area-stroke,' in html or 'var(--area-stroke, ' in html, (
+        ".seg-ellipse の CSS base ルールに var(--area-stroke, ...) がない"
+    )
+
+
+@pytest.mark.unit
+def test_css_highlight_rule_overrides_area_stroke():
+    """highlight ルールが --color-highlight を直指定（base より高 specificity で優先）。
+
+    .link-edge.highlighted .link-line / .seg-edge.highlighted /
+    .segment-node.highlighted .seg-ellipse は stroke: var(--color-highlight) を直指定する。
+    これにより CSS specificity が base ルール（1クラス）より高くなり、
+    インラインの --area-stroke より highlight が勝つことを CSS 構造で保証する。
+    """
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()
+    html = render(topo)
+    # highlight ルールが --color-highlight を stroke に使う
+    assert 'var(--color-highlight)' in html, (
+        "highlight ルールに var(--color-highlight) がない"
+    )
+    # highlighted クラスと --color-highlight の併存を確認
+    assert '.highlighted' in html and 'var(--color-highlight)' in html, (
+        "highlight ルール (.highlighted + --color-highlight) の組合せがない"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 凡例テスト: OSPF Area スウォッチ
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_legend_ospf_area_swatches_appear():
+    """OSPF ビューがある場合、凡例に 'area 0' スウォッチが出力される。"""
+    from lib.rendering import render
+    topo = _make_ospf_topology_with_area()  # area="0"
+    html = render(topo)
+    assert 'area 0' in html, (
+        "凡例に OSPF area 0 スウォッチがない"
+    )
+
+
+@pytest.mark.unit
+def test_legend_ospf_area_multiple_areas_have_different_colors():
+    """複数 area の凡例スウォッチが異なる色を持つ。"""
+    from lib.rendering.views import _build_legend_ospf_area_html, _collect_ospf_areas
+    from lib.rendering.svg import _ospf_area_color
+
+    areas = ["0", "1"]
+    c0 = _ospf_area_color("0")
+    c1 = _ospf_area_color("1")
+    assert c0 != c1
+
+    legend_html = _build_legend_ospf_area_html(areas)
+    assert c0 in legend_html, f"area 0 の色 {c0} が凡例 HTML にない"
+    assert c1 in legend_html, f"area 1 の色 {c1} が凡例 HTML にない"
+
+
+@pytest.mark.unit
+def test_legend_ospf_area_empty_returns_empty():
+    """area リストが空なら _build_legend_ospf_area_html は空文字を返す。"""
+    from lib.rendering.views import _build_legend_ospf_area_html
+    assert _build_legend_ospf_area_html([]) == ""
+
+
+@pytest.mark.unit
+def test_collect_ospf_areas_deduplication_and_sort():
+    """_collect_ospf_areas が重複除去・数値優先ソートで area リストを返す。"""
+    from lib.rendering.views import _collect_ospf_areas
+    links = [
+        {"ospf_area": "1"},
+        {"ospf_area": "0"},
+        {"ospf_area": "1"},  # 重複
+        {"ospf_area": None},  # None は除外
+    ]
+    segments = [
+        {"ospf_area": "0"},  # 重複
+        {"ospf_area": "2"},
+    ]
+    result = _collect_ospf_areas(links, segments)
+    assert result == ["0", "1", "2"], f"期待: ['0','1','2'], 実際: {result}"
+
+
+@pytest.mark.unit
+def test_collect_ospf_areas_composite_split():
+    """_collect_ospf_areas が複合 area '0/1' を分割して両方収集する。"""
+    from lib.rendering.views import _collect_ospf_areas
+    links = [{"ospf_area": "0/1"}]
+    segments = []
+    result = _collect_ospf_areas(links, segments)
+    assert "0" in result and "1" in result, f"複合 area '0/1' が分割されていない: {result}"
+
+
+@pytest.mark.unit
+def test_legend_ospf_area_in_rendered_html_with_segment_topology():
+    """_make_ospf_segment_topology（area 0/1）で render した HTML に area 0/1 スウォッチがある。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()  # links area=0, seg area=1
+    html = render(topo)
+    assert 'area 0' in html, "凡例に area 0 スウォッチがない"
+    assert 'area 1' in html, "凡例に area 1 スウォッチがない"
+
+
+# ---------------------------------------------------------------------------
+# 決定性テスト: OSPF Area 色分け付き
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_ospf_area_color_render_deterministic():
+    """OSPF Area 色分けを含む topology で2回 render した結果が完全一致（決定的）。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "OSPF Area 色分け topology で render() が非決定的"
+
+
+# ---------------------------------------------------------------------------
+# node smoke: JS smoke テストの緑維持確認（後退テスト）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_js_smoke_ospf_area_color_topology():
+    """OSPF Area 色分け topology の HTML に JS 必須要素が揃っている（smoke）。"""
+    from lib.rendering import render
+    topo = _make_ospf_segment_topology()
+    html = render(topo)
+    assert '<script' in html.lower(), "script タグがない"
+    assert 'function' in html, "JS 関数定義がない"
+    assert '<svg' in html.lower(), "SVG がない"

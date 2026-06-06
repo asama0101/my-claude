@@ -364,7 +364,7 @@ _CSS = """\
     /* セグメントノード */
     .seg-ellipse {
       fill: var(--color-seg-fill);
-      stroke: var(--color-seg-stroke);
+      stroke: var(--area-stroke, var(--color-seg-stroke));
       stroke-width: 2;
     }
 
@@ -375,7 +375,7 @@ _CSS = """\
     }
 
     .seg-edge {
-      stroke: var(--color-seg-stroke);
+      stroke: var(--area-stroke, var(--color-seg-stroke));
       stroke-width: 1.5;
       stroke-dasharray: 6 3;
     }
@@ -393,7 +393,7 @@ _CSS = """\
 
     /* リンク */
     .link-line {
-      stroke: var(--color-link);
+      stroke: var(--area-stroke, var(--color-link));
       stroke-width: 2;
       transition: stroke 0.15s, stroke-width 0.15s;
     }

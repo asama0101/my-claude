@@ -806,10 +806,13 @@ def _svg_ospf_segments(segments: list[dict], positions: dict) -> str:
         area_text = f"area {_esc(ospf_area)}"
         subnet_text = subnet  # 既に _esc 済み
         # data-ospf-id は <g> のみに付与し <ellipse> には付与しない（クリックは <g> で拾う設計）
+        area_color = _ospf_area_color(ospf_area)
+        area_attr = f' data-ospf-area="{_esc(str(ospf_area))}"' if ospf_area is not None else ""
+        ellipse_style = f' style="--area-stroke:{area_color}"' if area_color else ""
         parts.append(
-            f'<g class="segment-node layer-ospf" data-segment="{seg_id}"{ospf_id_attr}>'
+            f'<g class="segment-node layer-ospf" data-segment="{seg_id}"{ospf_id_attr}{area_attr}>'
             f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{_SEG_RX}" ry="{_SEG_RY}" '
-            f'class="seg-ellipse layer-ospf"/>'
+            f'class="seg-ellipse layer-ospf"{ellipse_style}/>'
             f'<text x="{x:.1f}" y="{y - 2:.1f}" text-anchor="middle" '
             f'class="seg-label layer-ospf">'
             f'<tspan x="{x:.1f}" dy="0">{area_text}</tspan>'
@@ -852,6 +855,10 @@ def _svg_ospf_segment_edges(
         # #1B: セグメントの ospf_id を算出（ospf_network または subnet から正規化）
         ospf_id = _normalize_subnet(seg.get("ospf_network") or seg.get("subnet") or "")
         ospf_id_attr = f' data-ospf-id="{_esc(ospf_id)}"' if ospf_id else ""
+        seg_ospf_area = seg.get("ospf_area")
+        seg_area_color = _ospf_area_color(seg_ospf_area)
+        seg_area_attr = f' data-ospf-area="{_esc(str(seg_ospf_area))}"' if seg_ospf_area is not None else ""
+        seg_edge_style = f' style="--area-stroke:{seg_area_color}"' if seg_area_color else ""
         for member_iface_id in sorted(seg.get("members", [])):
             dev_id = iface_map.get(member_iface_id)
             if dev_id and dev_id in positions:
@@ -863,7 +870,8 @@ def _svg_ospf_segment_edges(
                 parts.append(
                     f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{dx:.1f}" y2="{dy:.1f}" '
                     f'class="seg-edge layer-ospf" data-seg="{seg_id}" '
-                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}"{ospf_id_attr}/>'
+                    f'data-seg-id="{seg_id}" data-device="{_esc(dev_id)}"{ospf_id_attr}'
+                    f'{seg_area_attr}{seg_edge_style}/>'
                 )
     return "\n".join(parts)
 
@@ -1114,6 +1122,29 @@ _AS_COLOR_PALETTE = [
     ("#0891b2", "rgba(207,250,254,0.35)"),   # 水色系 (index 4)
     ("#dc2626", "rgba(254,226,226,0.35)"),   # 赤系  (index 5)
 ]
+
+
+def _ospf_area_color(area: str | None) -> str | None:
+    """OSPF area 文字列から決定的な stroke 色を返す（area=None は None）。
+
+    複合 area（"0/1"）は先頭 area の色（決定的）。数値 area は int%len で循環。
+    非数値 area（ドット記法等）は文字コード和で決定的にフォールバック。
+    呼び出し側は None のとき --area-stroke を出力せず従来色にフォールバックする。
+
+    Args:
+        area: OSPF エリア文字列（例: "0", "1", "0/1", "0.0.0.1", "backbone"）。None のとき None を返す。
+
+    Returns:
+        stroke 色文字列（例: "#2563eb"）。area が None のとき None。
+    """
+    if area is None:
+        return None
+    first = str(area).split("/")[0].strip()
+    try:
+        idx = int(first) % len(_AS_COLOR_PALETTE)
+    except (ValueError, TypeError):
+        idx = sum(ord(c) for c in first) % len(_AS_COLOR_PALETTE)
+    return _AS_COLOR_PALETTE[idx][0]  # stroke のみ
 
 
 def _as_color(asn: int) -> tuple[str, str, str]:

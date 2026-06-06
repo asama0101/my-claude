@@ -40,6 +40,7 @@ from lib.rendering.svg import (
     _svg_segment_edges,
     _svg_segments,
     _as_color,
+    _ospf_area_color,
 )
 
 
@@ -76,6 +77,66 @@ def _build_legend_as_html(asns: list[int]) -> str:
     return "\n".join(rows)
 
 
+def _collect_ospf_areas(links: list[dict], segments: list[dict]) -> list[str]:
+    """OSPF リンク・セグメントから area 文字列を収集し、重複除去・数値優先ソートで返す。
+
+    複合 area（"0/1"）は "/" で分割して両方を収集する。None は除外する。
+
+    Args:
+        links:    topology["links"] リスト（各要素に ospf_area キーがあればよい）
+        segments: topology["segments"] リスト（各要素に ospf_area キーがあればよい）
+
+    Returns:
+        重複なし・数値優先ソート済みの area 文字列リスト
+    """
+    areas: set[str] = set()
+    for lk in links:
+        raw = lk.get("ospf_area")
+        if raw is None:
+            continue
+        for part in str(raw).split("/"):
+            part = part.strip()
+            if part:
+                areas.add(part)
+    for seg in segments:
+        raw = seg.get("ospf_area")
+        if raw is None:
+            continue
+        for part in str(raw).split("/"):
+            part = part.strip()
+            if part:
+                areas.add(part)
+    return sorted(areas, key=lambda a: (0, int(a)) if a.isdigit() else (1, a))
+
+
+def _build_legend_ospf_area_html(areas: list[str]) -> str:
+    """OSPF area リストから凡例パネル用 Area スウォッチ HTML を生成する。
+
+    副作用なし・色は `_ospf_area_color(area)` 委譲で同一 area は常に同色（決定的）。
+    `areas` は重複なし・数値優先ソート前提（`_collect_ospf_areas` の戻り値を渡すこと）。
+
+    Args:
+        areas: 重複なし・ソート済みの OSPF area 文字列リスト
+
+    Returns:
+        area が1つ以上あれば各 area 行の HTML 文字列。空リストなら空文字。
+    """
+    if not areas:
+        return ""
+    rows = []
+    for area in areas:
+        color = _ospf_area_color(area)
+        stroke = color if color else "var(--color-ospf)"
+        rows.append(
+            f'<div class="legend-row">'
+            f'<svg width="16" height="12" style="flex-shrink:0;vertical-align:middle">'
+            f'<line x1="1" y1="6" x2="15" y2="6" stroke="{stroke}" stroke-width="2"/></svg>'
+            f'<span>area {_esc(area)}</span>'
+            f'</div>'
+        )
+    return "\n".join(rows)
+
+
 def _collect_bgp_asns(devices: list[dict], bgp_entries: list[dict]) -> list[int]:
     """BGP 参加デバイスから AS 番号を収集し、重複なし昇順で返す。
 
@@ -107,7 +168,11 @@ def _collect_bgp_asns(devices: list[dict], bgp_entries: list[dict]) -> list[int]
     return sorted(asns)
 
 
-def _build_legend_panel_inner(view_ids: list[str], legend_as_html: str) -> str:
+def _build_legend_panel_inner(
+    view_ids: list[str],
+    legend_as_html: str,
+    legend_ospf_area_html: str = "",
+) -> str:
     """凡例パネルの内側 HTML をビュー存在に応じて条件生成する。
 
     常に表示するセクション:
@@ -117,13 +182,14 @@ def _build_legend_panel_inner(view_ids: list[str], legend_as_html: str) -> str:
 
     ビュー存在依存のセクション:
     - BGP 節（eBGP/iBGP/unknown）: ``'bgp' in view_ids`` の時のみ
-    - OSPF 節: ``'ospf' in view_ids`` の時のみ
+    - OSPF 節: ``'ospf' in view_ids`` の時のみ（Area スウォッチも含む）
 
     動的 AS 節（``legend_as_html``）: 空文字でなければ末尾に追記。
 
     Args:
         view_ids: 生成済みビュー ID リスト（例: ["physical", "bgp", "ospf"]）
         legend_as_html: _build_legend_as_html() の戻り値。空文字なら出力しない。
+        legend_ospf_area_html: _build_legend_ospf_area_html() の戻り値。空文字なら出力しない。
 
     Returns:
         legend-panel div の内側 HTML 文字列（決定的・副作用なし）。
@@ -185,13 +251,16 @@ def _build_legend_panel_inner(view_ids: list[str], legend_as_html: str) -> str:
 
     # ---- OSPF 節（ospf ビューが存在する場合のみ）----
     if "ospf" in view_ids:
-        parts.append("""\
+        ospf_section = """\
         <div class="legend-section-title">OSPF</div>
         <div class="legend-row">
           <svg width="22" height="14" style="flex-shrink:0;vertical-align:middle">
             <line x1="1" y1="7" x2="21" y2="7" stroke="var(--color-ospf)" stroke-width="2"/></svg>
           <span>OSPF リンク・ラベル</span>
-        </div>""")
+        </div>"""
+        if legend_ospf_area_html:
+            ospf_section += f"\n        {legend_ospf_area_html}"
+        parts.append(ospf_section)
 
     # ---- IF チップ節（常時）----
     parts.append("""\
@@ -1133,12 +1202,16 @@ def _build_view_ospf(
         if a_if_raw and b_if_raw:
             lid = _esc(_make_link_id(lk["a_device"], a_if_raw, lk["b_device"], b_if_raw))
             link_id_attr = f' data-link-id="{lid}"'
+        # OSPF Area 色分け: data-ospf-area 属性と --area-stroke CSS カスタムプロパティ
+        ospf_area_attr = f' data-ospf-area="{_esc(str(ospf_area))}"' if ospf_area is not None else ""
+        area_color = _ospf_area_color(ospf_area)
+        link_line_style = f' style="--area-stroke:{area_color}"' if area_color else ""
         parts.append(
             f'<g class="link-edge" data-subnet="{primary_subnet}" '
             f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
-            f'{ospf_id_attr}{link_id_attr}>'
+            f'{ospf_id_attr}{link_id_attr}{ospf_area_attr}>'
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-            f'class="link-line layer-ospf"/>'
+            f'class="link-line layer-ospf"{link_line_style}/>'
             f'</g>'
         )
         # data-ospf-id はラベル側には不要: JS の表連動は .link-edge[data-ospf-id] のみ参照。

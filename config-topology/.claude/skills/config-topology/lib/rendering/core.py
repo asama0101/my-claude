@@ -15,6 +15,7 @@ from lib.rendering.views import (
     _bgp_has_external_peers,
     _bgp_has_resolved_edges,
     _build_legend_as_html,
+    _build_legend_ospf_area_html,
     _build_legend_panel_inner,
     _build_physical_layout,
     _build_view_bgp,
@@ -23,6 +24,7 @@ from lib.rendering.views import (
     _build_view_physical,
     _build_view_tabs,
     _collect_bgp_asns,
+    _collect_ospf_areas,
     _generic_has_edges,
     _ospf_has_edges,
 )
@@ -701,9 +703,18 @@ def render(topology: dict) -> str:
     legend_as_html = _build_legend_as_html(legend_asns)
 
     # ---------------------------------------------------------------------------
+    # OSPF Area 色分け凡例（iteration-6）
+    # ---------------------------------------------------------------------------
+    legend_ospf_area_html = ""
+    if "ospf" in all_view_ids:
+        legend_ospf_area_html = _build_legend_ospf_area_html(
+            _collect_ospf_areas(links, segments)
+        )
+
+    # ---------------------------------------------------------------------------
     # Round C クロスレビュー修正: 凡例パネル内側 HTML をビュー存在に応じて条件生成
     # ---------------------------------------------------------------------------
-    legend_panel_inner = _build_legend_panel_inner(all_view_ids, legend_as_html)
+    legend_panel_inner = _build_legend_panel_inner(all_view_ids, legend_as_html, legend_ospf_area_html)
 
     return build_html(
         title=title,
