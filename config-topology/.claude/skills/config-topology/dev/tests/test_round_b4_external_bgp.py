@@ -51,7 +51,6 @@ EXTERNAL_ONLY_DIR = os.path.join(
     os.path.dirname(__file__), "..", "evals", "inputs", "external-only"
 )
 
-
 # ================================================================
 # ヘルパー
 # ================================================================
@@ -64,12 +63,10 @@ def _build_topology_from_dir(cfg_dir: str) -> dict:
     devices = parse_paths(paths)
     return build(devices, generated_from=paths)
 
-
 def _render_topology(topo: dict) -> str:
     """topology dict を render して HTML 文字列を返す。"""
     from lib.rendering import render
     return render(topo)
-
 
 # ================================================================
 # フィクスチャ（モジュールスコープで共有: build は重いので1回）
@@ -81,12 +78,10 @@ def external_bgp_html():
     topo = _build_topology_from_dir(EXTERNAL_BGP_DIR)
     return _render_topology(topo)
 
-
 @pytest.fixture(scope="module")
 def external_bgp_topo():
     """external-bgp フィクスチャの topology dict。"""
     return _build_topology_from_dir(EXTERNAL_BGP_DIR)
-
 
 @pytest.fixture(scope="module")
 def ebgp_p2p_html():
@@ -94,13 +89,11 @@ def ebgp_p2p_html():
     topo = _build_topology_from_dir(EBGP_P2P_DIR)
     return _render_topology(topo)
 
-
 @pytest.fixture(scope="module")
 def v6routing_html():
     """v6routing フィクスチャの render 済み HTML。"""
     topo = _build_topology_from_dir(V6ROUTING_DIR)
     return _render_topology(topo)
-
 
 @pytest.fixture(scope="module")
 def external_only_html():
@@ -108,13 +101,11 @@ def external_only_html():
     topo = _build_topology_from_dir(EXTERNAL_ONLY_DIR)
     return _render_topology(topo)
 
-
 @pytest.fixture(scope="module")
 def multi_as_area_html():
     """multi-as-area フィクスチャの render 済み HTML（H4: 全ピア内部解決の非回帰）。"""
     topo = _build_topology_from_dir(MULTI_AS_AREA_DIR)
     return _render_topology(topo)
-
 
 # ================================================================
 # Section 1: external-bgp — BGP ビューに外部ノードが描画される
@@ -162,7 +153,6 @@ class TestExternalBgpNodes:
         assert "64500" in external_bgp_html, "AS64500 の表示が外部ノードにない"
         assert "64501" in external_bgp_html, "AS64501 の表示が外部ノードにない"
 
-
 # ================================================================
 # Section 2: 内部 iBGP セッション (r1↔r2) は通常ノード間で描画される
 # ================================================================
@@ -189,7 +179,6 @@ class TestInternalIbgpSession:
         for bgp_id in ibgp_matches:
             assert not bgp_id.startswith("ext:"), \
                 f"iBGP の data-bgp-id が ext: で始まっている: {bgp_id}"
-
 
 # ================================================================
 # Section 3: 外部 eBGP 線の data-bgp-id が cards の外部行と一致する
@@ -263,7 +252,6 @@ class TestExternalBgpIdConsistency:
         assert svg_ids == card_ids, \
             f"SVG ID と card ID の不一致: svg={svg_ids}, card={card_ids}"
 
-
 # ================================================================
 # Section 4: 外部ノードが Physical/OSPF/ifinv に出ない
 # ================================================================
@@ -285,21 +273,6 @@ class TestExternalNodeScopeIsolation:
         assert 'data-device="ext:' not in phys_content, \
             "外部ノードが Physical ビューに含まれている"
 
-    @pytest.mark.unit
-    def test_external_node_not_in_ifinv(self, external_bgp_html):
-        """外部ノードが IF 一覧 (ifinv) に存在しない。"""
-        # ifinv テーブルには ext: で始まるデバイス名の行がないこと
-        ifinv_block = re.search(
-            r'<div[^>]*id="view-ifinv-table"[^>]*>(.*?)</div>',
-            external_bgp_html, re.DOTALL
-        )
-        # M3: if block: ではなく assert block で常時検証
-        assert ifinv_block, "ifinv テーブルブロックが見つからない"
-        ifinv_content = ifinv_block.group(1)
-        assert "ext:" not in ifinv_content, \
-            "外部ノードが ifinv ビューに含まれている"
-
-    @pytest.mark.unit
     def test_external_node_not_in_ospf_view(self, external_bgp_html):
         """外部ノードが OSPF ビュー内に存在しない（M2）。"""
         # external-bgp フィクスチャに OSPF 設定はないため OSPF ビューが生成されない想定だが、
@@ -327,7 +300,6 @@ class TestExternalNodeScopeIsolation:
             assert not dev["id"].startswith("ext:"), \
                 f"device.id に ext: が含まれている: {dev['id']}"
 
-
 # ================================================================
 # Section 5: v6routing — topology 外の iBGP ピアが外部ノードとして描画される
 # ================================================================
@@ -342,7 +314,6 @@ class TestV6RoutingExternalPeer:
         # ipaddress.ip_address("2001:db8:2::0") = "2001:db8:2::" → ext:2001:db8:2:: が正規化後の値
         assert 'data-device="ext:2001:db8:2::"' in v6routing_html, \
             "v6routing フィクスチャで IOS-R2 向け iBGP ピア (2001:db8:2::0) が正規化後の外部ノード (ext:2001:db8:2::) として描画されていない"
-
 
 # ================================================================
 # Section 6: 非回帰 — ebgp-p2p / multi-as-area は外部ノード0
@@ -368,7 +339,6 @@ class TestRegressionNoExternalNodes:
         """multi-as-area: 内部 BGP ピアが存在するため BGP ビューが生成される（H4 非回帰）。"""
         assert 'class="view view-bgp"' in multi_as_area_html, \
             "multi-as-area で BGP ビューが生成されていない（非回帰違反）"
-
 
 # ================================================================
 # Section 7-A: external-only — 外部ピアのみでも BGP ビュー生成 (A1)
@@ -404,7 +374,6 @@ class TestExternalOnlyDevice:
         assert not ibgp_session_pattern.search(external_only_html), \
             "external-only フィクスチャに意図しない iBGP セッション <g> が存在する"
 
-
 # ================================================================
 # Section 7-B: dedup — 同一外部 IP に複数内部機器がピアしても外部ノード1つ (H3)
 # ================================================================
@@ -431,7 +400,6 @@ class TestExternalNodeDedup:
         for cid in card_ids:
             assert "ext:" in cid, f"cards の BGP 行に ext: 形式でない bgp-id がある: {cid}"
 
-
 # ================================================================
 # Section 8: 凡例 — BGP ビューに外部ピア説明チップが存在する (D)
 # ================================================================
@@ -457,7 +425,6 @@ class TestBgpLegendExternalPeerChip:
         )
         assert has_ext_in_legend, \
             f"chip-legend 内に外部ピア（点線枠）の説明が含まれていない (D 修正が必要): {legend_content[:200]}"
-
 
 # ================================================================
 # Section 9: 決定性・自己完結

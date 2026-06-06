@@ -7,8 +7,6 @@ TDD テスト: Round A / Pass2 — dual-stack ラベル改行 & 単一IF両AF併
   A6a: Device Details カードIP列に v4+v6 両AF（cards.py _get_display_ip + _device_cards）
   A6b: IF チップ <title> に dual-stack IF の両AF確定保証（svg.py _svg_if_chip）
   A6c: BGP チップアンカー解決が af 対応（svg.py _svg_bgp_edges）
-  A6d: IF一覧(ifinv) IP列に両AF（views.py _build_ifinv_table）
-
 不変条件:
   - single-stack(v4のみ) は完全に従来通り（非回帰）
   - 決定性・HTML自己完結
@@ -43,13 +41,11 @@ _BASE_IFACE = {
     "addresses": [],
 }
 
-
 def _iface(**kwargs) -> dict:
     """_BASE_IFACE をベースにキーワード引数でオーバーライドする。"""
     d = dict(_BASE_IFACE)
     d.update(kwargs)
     return d
-
 
 def _dualstack_topology():
     """DS-R1/DS-R2 dual-stack topology（1IFにv4+v6）。"""
@@ -132,7 +128,6 @@ def _dualstack_topology():
         },
     }
 
-
 def _v6routing_topology():
     """v6routing フィクスチャ（IOS-R1/JUNOS-R1）から topology を構築する。"""
     from scripts.parse_configs import parse_paths
@@ -146,7 +141,6 @@ def _v6routing_topology():
     ]
     devices = parse_paths(files)
     return build(devices, generated_from=files)
-
 
 def _single_stack_bgp_topology():
     """v4-only の single-stack BGP topology（非回帰確認用）。"""
@@ -195,7 +189,6 @@ def _single_stack_bgp_topology():
             "static": [],
         },
     }
-
 
 def _single_stack_ospf_topology():
     """v4-only の single-stack OSPF topology（非回帰確認用）。"""
@@ -253,7 +246,6 @@ def _single_stack_ospf_topology():
             "static": [],
         },
     }
-
 
 # ================================================================
 # A4: BGP dual-stack バッジ — v4/v6 別 tspan 行
@@ -358,7 +350,6 @@ class TestA4BgpDualStackLabel:
         v6_pairs = [p for p in ip_pairs_all if ":" in p]
         assert len(v6_pairs) == 0  # v6 なし → 分割不要
 
-
 # ================================================================
 # A5: OSPF dual-stack ラベル — v4/v6 別 tspan 行
 # ================================================================
@@ -456,7 +447,6 @@ class TestA5OspfDualStackLabel:
                 assert not has_v6, (
                     f"single-stack OSPF ラベルに不要な v6 tspan がある（regression）: {label}"
                 )
-
 
 # ================================================================
 # A6a: Device Details カードのIP列に両AF
@@ -644,7 +634,6 @@ class TestA6aCardIpBothAF:
         assert "10.0.0.1" in result
         assert "2001:db8:1::1" in result
 
-
 # ================================================================
 # A6b: IF チップ <title> に dual-stack IF の両AF
 # ================================================================
@@ -714,7 +703,6 @@ class TestA6bChipTitleBothAF:
         assert found, (
             "dual-stack topology HTML の title 要素に v4+v6 共存がない"
         )
-
 
 # ================================================================
 # A6c: BGP アンカー座標 — af 対応 iface_id 解決
@@ -931,7 +919,6 @@ class TestA6cBgpAnchorAFAware:
             f"B側アンカーが v6 IF チップ座標(250,200)にならなかった。\nSVG={svg[:300]}"
         )
 
-
 # ================================================================
 # A6d: IF一覧(ifinv) IP列に両AF
 # ================================================================
@@ -946,162 +933,11 @@ class TestA6dIfinvIpBothAF:
 
     # ---------- _build_ifinv_table 単体テスト ----------
 
-    @pytest.mark.unit
-    def test_ifinv_ip_cell_dual_stack_has_v4(self):
-        """dual-stack IF の ifinv IP セルに v4 アドレスが含まれる。"""
-        from lib.rendering.views import _build_ifinv_table
-        devices = [{"id": "ds-r1", "hostname": "DS-R1"}]
-        interfaces = [
-            _iface(
-                id="ds-r1::Gi0/0", device="ds-r1", name="Gi0/0",
-                ip="10.0.0.1/30",
-                addresses=[
-                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30},
-                    {"af": "v6", "ip": "2001:db8:1::1", "prefix": 127},
-                ],
-            )
-        ]
-        html = _build_ifinv_table(devices, interfaces)
-        # IP列（3列目相当）に v4 アドレスが含まれること
-        td_contents = re.findall(r"<td>(.*?)</td>", html, re.DOTALL)
-        assert any("10.0.0.1" in td for td in td_contents), (
-            f"ifinv IP セルに v4 アドレスがない: {td_contents}"
-        )
-
-    @pytest.mark.unit
-    def test_ifinv_ip_cell_dual_stack_has_v6(self):
-        """dual-stack IF の ifinv IP セルに v6 アドレスが含まれる。"""
-        from lib.rendering.views import _build_ifinv_table
-        devices = [{"id": "ds-r1", "hostname": "DS-R1"}]
-        interfaces = [
-            _iface(
-                id="ds-r1::Gi0/0", device="ds-r1", name="Gi0/0",
-                ip="10.0.0.1/30",
-                addresses=[
-                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30},
-                    {"af": "v6", "ip": "2001:db8:1::1", "prefix": 127},
-                ],
-            )
-        ]
-        html = _build_ifinv_table(devices, interfaces)
-        td_contents = re.findall(r"<td>(.*?)</td>", html, re.DOTALL)
-        assert any("2001:db8:1::1" in td for td in td_contents), (
-            f"ifinv IP セルに v6 アドレスがない: {td_contents}"
-        )
-
-    @pytest.mark.unit
-    def test_ifinv_ip_cell_dual_stack_both_in_same_td(self):
-        """dual-stack IF の ifinv IP セルで v4 と v6 が同一 <td> に収まる。"""
-        from lib.rendering.views import _build_ifinv_table
-        devices = [{"id": "ds-r1", "hostname": "DS-R1"}]
-        interfaces = [
-            _iface(
-                id="ds-r1::Gi0/0", device="ds-r1", name="Gi0/0",
-                ip="10.0.0.1/30",
-                addresses=[
-                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30},
-                    {"af": "v6", "ip": "2001:db8:1::1", "prefix": 127},
-                ],
-            )
-        ]
-        html = _build_ifinv_table(devices, interfaces)
-        td_contents = re.findall(r"<td>(.*?)</td>", html, re.DOTALL)
-        found = any("10.0.0." in td and "2001:db8:1::" in td for td in td_contents)
-        assert found, (
-            f"ifinv の IP セルで v4+v6 が同一 <td> にない: {td_contents}"
-        )
-
-    @pytest.mark.unit
-    def test_ifinv_ip_cell_v4_only_unchanged(self):
-        """v4-only IF の ifinv IP セルは従来通り（非回帰）。"""
-        from lib.rendering.views import _build_ifinv_table
-        devices = [{"id": "r1", "hostname": "R1"}]
-        interfaces = [
-            _iface(
-                id="r1::Gi0/0", device="r1", name="Gi0/0",
-                ip="10.1.0.1/30",
-                addresses=[{"af": "v4", "ip": "10.1.0.1", "prefix": 30}],
-            )
-        ]
-        html = _build_ifinv_table(devices, interfaces)
-        td_contents = re.findall(r"<td>(.*?)</td>", html, re.DOTALL)
-        ip_tds = [td for td in td_contents if "10.1.0.1" in td]
-        assert ip_tds, "v4-only IF の IP が ifinv に含まれない"
-        # v6 アドレスが混入していないこと
-        assert not any("::" in td for td in ip_tds), (
-            f"v4-only IF の ifinv IP セルに v6 が混入: {ip_tds}"
-        )
-
-    @pytest.mark.unit
-    def test_ifinv_ip_cell_v6_only_unchanged(self):
-        """v6-only IF（ip=None）の ifinv IP セルは従来通り v6 のみ（非回帰）。"""
-        from lib.rendering.views import _build_ifinv_table
-        devices = [{"id": "r1", "hostname": "R1"}]
-        interfaces = [
-            _iface(
-                id="r1::Gi0/2", device="r1", name="Gi0/2",
-                ip=None,
-                addresses=[
-                    {"af": "v6", "ip": "2001:db8:3::1", "prefix": 127},
-                ],
-            )
-        ]
-        html = _build_ifinv_table(devices, interfaces)
-        td_contents = re.findall(r"<td>(.*?)</td>", html, re.DOTALL)
-        assert any("2001:db8:3::1" in td for td in td_contents), (
-            "v6-only IF が ifinv に含まれない"
-        )
-
-    @pytest.mark.integration
     def test_ifinv_dualstack_html_contains_both_af(self, dualstack_html):
         """dual-stack topology の ifinv HTML に v4+v6 が含まれる。"""
         assert "10.0.0.1" in dualstack_html or "10.0.0.2" in dualstack_html
         assert "2001:db8:1::1" in dualstack_html or "2001:db8:1::0" in dualstack_html
 
-    @pytest.mark.unit
-    def test_ifinv_ip_cell_dual_stack_has_br(self):
-        """A6d: dual-stack IF の ifinv IP セルに <br> 区切りがある。"""
-        from lib.rendering.views import _build_ifinv_table
-        devices = [{"id": "ds-r1", "hostname": "DS-R1"}]
-        interfaces = [
-            _iface(
-                id="ds-r1::Gi0/0", device="ds-r1", name="Gi0/0",
-                ip="10.0.0.1/30",
-                addresses=[
-                    {"af": "v4", "ip": "10.0.0.1", "prefix": 30},
-                    {"af": "v6", "ip": "2001:db8:1::1", "prefix": 127},
-                ],
-            )
-        ]
-        html = _build_ifinv_table(devices, interfaces)
-        # <br> を含む <td> があること
-        td_contents = re.findall(r"<td>(.*?)</td>", html, re.DOTALL)
-        found = any("<br>" in td and "10.0.0." in td and "2001:db8:1::" in td for td in td_contents)
-        assert found, (
-            f"ifinv IP セルで <br> 区切りの v4/v6 両AF が見つからない: {td_contents}"
-        )
-
-    @pytest.mark.unit
-    def test_ifinv_ip_cell_v4_only_no_br(self):
-        """A6d 非回帰: v4-only の ifinv IP セルに <br> がない。"""
-        from lib.rendering.views import _build_ifinv_table
-        devices = [{"id": "r1", "hostname": "R1"}]
-        interfaces = [
-            _iface(
-                id="r1::Gi0/0", device="r1", name="Gi0/0",
-                ip="10.1.0.1/30",
-                addresses=[{"af": "v4", "ip": "10.1.0.1", "prefix": 30}],
-            )
-        ]
-        html = _build_ifinv_table(devices, interfaces)
-        td_contents = re.findall(r"<td>(.*?)</td>", html, re.DOTALL)
-        ip_tds = [td for td in td_contents if "10.1.0.1" in td]
-        assert ip_tds, "v4-only IF が ifinv に含まれない"
-        assert not any("<br>" in td for td in ip_tds), (
-            f"v4-only ifinv IP セルに不要な <br> がある: {ip_tds}"
-        )
-
-    @pytest.mark.integration
     def test_ifinv_dualstack_html_has_br_in_ip_cell(self, dualstack_html):
         """A6d: dual-stack topology の ifinv HTML の IP セルに <br> が含まれる。"""
         td_contents = re.findall(r"<td>(.*?)</td>", dualstack_html, re.DOTALL)
@@ -1112,7 +948,6 @@ class TestA6dIfinvIpBothAF:
         assert found, (
             "dual-stack topology の ifinv IP セルに <br> 区切りがない"
         )
-
 
 # ================================================================
 # 全体統合: single-stack 非回帰

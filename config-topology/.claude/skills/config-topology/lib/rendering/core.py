@@ -14,7 +14,6 @@ from lib.rendering.template import _layer_toggles, _node_filter_ui, build_html
 from lib.rendering.views import (
     _bgp_has_external_peers,
     _bgp_has_resolved_edges,
-    _build_ifinv_table,
     _build_legend_as_html,
     _build_legend_panel_inner,
     _build_physical_layout,
@@ -580,8 +579,8 @@ def render(topology: dict) -> str:
         proto_views.append(view_svg)
         proto_view_ids.append(proto_key)
 
-    # ビュー ID リスト（タブ生成用）— L3 は削除。ifinv は常に末尾に追加
-    all_view_ids = ["physical"] + proto_view_ids + ["ifinv"]
+    # ビュー ID リスト（タブ生成用）— L3 は削除
+    all_view_ids = ["physical"] + proto_view_ids
 
     # SVG 内の全ビューを結合
     all_views_svg = "\n".join(
@@ -695,11 +694,6 @@ def render(topology: dict) -> str:
     node_filter_html = _node_filter_ui(devices)
 
     # ---------------------------------------------------------------------------
-    # Phase2E: IF 一覧テーブル HTML（全機器横断・決定的）
-    # ---------------------------------------------------------------------------
-    ifinv_table_html = _build_ifinv_table(devices, interfaces)
-
-    # ---------------------------------------------------------------------------
     # Round C ②: 統合凡例パネル — 動的 AS セクション（昇順・決定的）
     # ---------------------------------------------------------------------------
     bgp_entries = routing.get("bgp", [])
@@ -724,6 +718,5 @@ def render(topology: dict) -> str:
         all_views_svg=all_views_svg,
         cards_html=cards_html,
         topology_json_safe=topology_json_safe,
-        ifinv_table_html=ifinv_table_html,
         legend_panel_inner=legend_panel_inner,
     )

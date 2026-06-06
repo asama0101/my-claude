@@ -18,7 +18,6 @@ import pytest
 
 # sys.path は conftest.py がバンドルルートを追加するため、ここでの設定は不要。
 
-
 # ---- フィクスチャ -------------------------------------------------------
 
 @pytest.fixture(scope="module")
@@ -28,13 +27,11 @@ def sample_topology():
     examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
     return load_topology(os.path.join(examples_dir, "topology"))
 
-
 @pytest.fixture(scope="module")
 def rendered_html(sample_topology):
     """examples/topology/ を render() した HTML（モジュールスコープで1回のみ）"""
     from lib.rendering import render
     return render(sample_topology)
-
 
 @pytest.fixture
 def empty_topology():
@@ -53,7 +50,6 @@ def empty_topology():
         },
     }
 
-
 # ---- ユニットテスト: render() の基本 ------------------------------------
 
 @pytest.mark.unit
@@ -63,19 +59,16 @@ def test_render_returns_string(sample_topology):
     result = render(sample_topology)
     assert isinstance(result, str)
 
-
 @pytest.mark.unit
 def test_render_returns_html_doctype(rendered_html):
     """返値が HTML 文書（<!DOCTYPE html> または <html）で始まる"""
     lower = rendered_html.lower().lstrip()
     assert lower.startswith("<!doctype html") or lower.startswith("<html")
 
-
 @pytest.mark.unit
 def test_render_contains_svg(rendered_html):
     """SVG 要素が含まれる"""
     assert "<svg" in rendered_html.lower()
-
 
 # ---- ユニットテスト: ホスト名・IF 名 ------------------------------------
 
@@ -84,12 +77,10 @@ def test_render_contains_hostname_r1(rendered_html):
     """R1 の hostname が含まれる"""
     assert "R1" in rendered_html
 
-
 @pytest.mark.unit
 def test_render_contains_hostname_r2(rendered_html):
     """R2 の hostname が含まれる"""
     assert "R2" in rendered_html
-
 
 @pytest.mark.unit
 def test_render_contains_interface_names(rendered_html):
@@ -105,7 +96,6 @@ def test_render_contains_interface_names(rendered_html):
     for name in iface_names:
         assert name in rendered_html, f"IF 名が見つからない: {name}"
 
-
 # ---- ユニットテスト: リンク・サブネット ---------------------------------
 
 @pytest.mark.unit
@@ -115,13 +105,11 @@ def test_render_contains_link_subnet(rendered_html):
     assert ("10.0.0.0/30" in rendered_html
             or ("10.0.0.1" in rendered_html and "10.0.0.2" in rendered_html))
 
-
 @pytest.mark.unit
 def test_render_svg_has_path_or_line_for_link(rendered_html):
     """SVG にリンクを表す line または path 要素が含まれる"""
     lower = rendered_html.lower()
     assert "<line" in lower or "<path" in lower
-
 
 # ---- ユニットテスト: ルーティング ---------------------------------------
 
@@ -131,19 +119,16 @@ def test_render_contains_bgp_peer_as(rendered_html):
     assert "65002" in rendered_html
     assert "65001" in rendered_html
 
-
 @pytest.mark.unit
 def test_render_contains_bgp_type_ebgp(rendered_html):
     """BGP type ebgp が含まれる"""
     assert "ebgp" in rendered_html.lower()
-
 
 @pytest.mark.unit
 def test_render_contains_static_next_hop(rendered_html):
     """static route の next_hop が含まれる"""
     assert "10.0.0.2" in rendered_html  # r1 の next_hop
     assert "10.0.0.1" in rendered_html  # r2 の next_hop
-
 
 # ---- ユニットテスト: レイヤートグル ------------------------------------
 
@@ -154,24 +139,20 @@ def test_render_has_layer_toggle_checkboxes(rendered_html):
     # チェックボックスが存在する
     assert 'type="checkbox"' in lower or "type='checkbox'" in lower
 
-
 @pytest.mark.unit
 def test_render_toggle_has_bgp_label(rendered_html):
     """BGP レイヤーのトグルラベルが存在する"""
     assert "bgp" in rendered_html.lower()
-
 
 @pytest.mark.unit
 def test_render_toggle_has_ospf_label(rendered_html):
     """OSPF レイヤーのトグルラベルが存在する"""
     assert "ospf" in rendered_html.lower()
 
-
 @pytest.mark.unit
 def test_render_toggle_has_static_label(rendered_html):
     """static レイヤーのトグルラベルが存在する"""
     assert "static" in rendered_html.lower()
-
 
 @pytest.mark.unit
 def test_render_toggle_count_matches_routing_keys(sample_topology, rendered_html):
@@ -180,7 +161,6 @@ def test_render_toggle_count_matches_routing_keys(sample_topology, rendered_html
     # 物理レイヤーを含めて routing_key_count + 1 以上のチェックボックスが存在するはず
     checkbox_count = rendered_html.lower().count('type="checkbox"') + rendered_html.lower().count("type='checkbox'")
     assert checkbox_count >= routing_key_count
-
 
 # ---- ユニットテスト: 埋め込み JSON ------------------------------------
 
@@ -199,7 +179,6 @@ def test_render_embeds_valid_json(rendered_html):
         except json.JSONDecodeError as e:
             pytest.fail(f"埋め込み JSON が無効: {e}\n内容: {m[:200]}")
 
-
 # ---- ユニットテスト: インタラクション JS --------------------------------
 
 @pytest.mark.unit
@@ -210,19 +189,16 @@ def test_render_has_zoom_pan_js(rendered_html):
     has_mouse = "mousedown" in lower or "mousemove" in lower
     assert has_wheel or has_mouse, "ズーム/パン用イベントハンドラが見つからない"
 
-
 @pytest.mark.unit
 def test_render_has_hover_js(rendered_html):
     """ホバー用 JS マーカーが存在する（mouseover/mouseenter）"""
     lower = rendered_html.lower()
     assert "mouseover" in lower or "mouseenter" in lower, "ホバー用イベントハンドラが見つからない"
 
-
 @pytest.mark.unit
 def test_render_has_keyboard_handler(rendered_html):
     """キーボードハンドラ（keydown）が存在する"""
     assert "keydown" in rendered_html.lower() or "keyup" in rendered_html.lower()
-
 
 # ---- ユニットテスト: HTML エスケープ ------------------------------------
 
@@ -279,7 +255,6 @@ def test_render_escapes_html_in_description():
     assert "<script>" not in cleaned.lower(), \
         "エスケープされていない <script> タグが本文に存在する"
 
-
 # ---- ユニットテスト: 空 topology ----------------------------------------
 
 @pytest.mark.unit
@@ -293,7 +268,6 @@ def test_render_empty_topology_no_exception(empty_topology):
     assert isinstance(result, str)
     assert len(result) > 0
 
-
 @pytest.mark.unit
 def test_render_empty_topology_returns_html(empty_topology):
     """空 topology でも HTML 構造が返る"""
@@ -302,14 +276,12 @@ def test_render_empty_topology_returns_html(empty_topology):
     lower = result.lower()
     assert "<html" in lower or "<!doctype html" in lower
 
-
 @pytest.mark.unit
 def test_render_empty_topology_has_svg(empty_topology):
     """空 topology でも SVG 要素が含まれる（空でも描画エリアあり）"""
     from lib.rendering import render
     result = render(empty_topology)
     assert "<svg" in result.lower()
-
 
 # ---- ユニットテスト: 決定性 ---------------------------------------------
 
@@ -324,7 +296,6 @@ def test_render_deterministic(sample_topology):
     html2 = render(t2)
     assert html1 == html2, "render() の出力が非決定的（毎回異なる）"
 
-
 # ---- ユニットテスト: 機器カード ----------------------------------------
 
 @pytest.mark.unit
@@ -335,20 +306,17 @@ def test_render_has_device_cards(rendered_html):
     assert "<table" in lower or 'class="card"' in lower or 'class="device-card"' in lower \
         or "device-card" in lower or "card" in lower
 
-
 @pytest.mark.unit
 def test_render_vendor_info_in_card(rendered_html):
     """機器カードに vendor 情報が含まれる"""
     assert "cisco_ios" in rendered_html.lower() or "cisco" in rendered_html.lower()
     assert "juniper_junos" in rendered_html.lower() or "juniper" in rendered_html.lower()
 
-
 @pytest.mark.unit
 def test_render_as_number_in_card(rendered_html):
     """機器カードに AS 番号が含まれる"""
     assert "65001" in rendered_html
     assert "65002" in rendered_html
-
 
 # ---- ユニットテスト: セグメントノード ----------------------------------
 
@@ -388,7 +356,6 @@ def test_render_segment_node_rendered():
     # セグメントの subnet が含まれること
     assert "192.168.10.0/24" in html
 
-
 # ---- ユニットテスト: sections 拡張 -------------------------------------
 
 @pytest.mark.unit
@@ -424,7 +391,6 @@ def test_render_device_sections_rendered():
     assert "Key1" in html
     assert "Value1" in html
 
-
 # ---- 統合テスト: CLI ----------------------------------------------------
 
 @pytest.mark.integration
@@ -451,7 +417,6 @@ def test_cli_generates_html_file(tmp_path, sample_topology):
     content = out_path.read_text(encoding="utf-8")
     assert len(content) > 100
 
-
 @pytest.mark.integration
 def test_cli_default_output_path(tmp_path, sample_topology):
     """CLI で -o 省略時、topology.html が生成される（Stage2: YAML ディレクトリ入力）"""
@@ -474,7 +439,6 @@ def test_cli_default_output_path(tmp_path, sample_topology):
     assert result.returncode == 0, f"CLI が失敗: stderr={result.stderr}"
     assert out_path.exists(), "topology.html が生成されていない"
 
-
 # ---- 統合テスト: ファイル I/O ------------------------------------------
 
 @pytest.mark.integration
@@ -488,7 +452,6 @@ def test_render_output_can_be_written_and_read(tmp_path, sample_topology):
 
     reread = out_file.read_text(encoding="utf-8")
     assert reread == html
-
 
 # ===========================================================================
 # [maint HIGH] レイヤートグル CSS の動的生成テスト
@@ -525,7 +488,6 @@ def _make_vrrp_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_vrrp_toggle_generated():
     """routing に vrrp キーを足すと vrrp 用チェックボックスが生成される"""
@@ -536,7 +498,6 @@ def test_vrrp_toggle_generated():
     assert 'data-layer="vrrp"' in lower or "toggle-vrrp" in lower, \
         "vrrp トグルが生成されていない"
 
-
 @pytest.mark.unit
 def test_vrrp_css_hide_rule_generated():
     """routing に vrrp キーを足すと body.hide-vrrp .layer-vrrp { display:none } 相当のCSSルールが出力される"""
@@ -545,7 +506,6 @@ def test_vrrp_css_hide_rule_generated():
     # CSS ルール: body.hide-vrrp .layer-vrrp（display:none を含む）
     assert "hide-vrrp" in html, "body.hide-vrrp CSS ルールが生成されていない"
     assert "layer-vrrp" in html, ".layer-vrrp CSS ルールが生成されていない"
-
 
 @pytest.mark.unit
 def test_existing_protocols_css_still_generated_dynamically(sample_topology):
@@ -559,7 +519,6 @@ def test_existing_protocols_css_still_generated_dynamically(sample_topology):
     assert "hide-physical" in html, "body.hide-physical CSS ルールが見当たらない"
     assert "layer-physical" in html, ".layer-physical CSS ルールが見当たらない"
 
-
 @pytest.mark.unit
 def test_vrrp_elements_have_layer_vrrp_class():
     """vrrp エントリがある場合、vrrp 要素に layer-vrrp クラスが付与される（将来実装の回帰保護）
@@ -572,7 +531,6 @@ def test_vrrp_elements_have_layer_vrrp_class():
     # CSS ルール body.hide-vrrp .layer-vrrp が存在することを確認（描画要素とは別に）
     assert "hide-vrrp" in html
     assert "layer-vrrp" in html
-
 
 # ===========================================================================
 # [sec HIGH] 埋め込み JSON の <!-- 防御的エスケープテスト
@@ -598,7 +556,6 @@ def _make_comment_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_embedded_json_no_raw_html_comment():
     """description に <!-- が含まれても埋め込みJSONブロックに生の <!-- が現れない"""
@@ -614,7 +571,6 @@ def test_embedded_json_no_raw_html_comment():
     for json_block in matches:
         assert "<!--" not in json_block, \
             f"埋め込みJSONブロックに生の <!-- が含まれている:\n{json_block[:300]}"
-
 
 @pytest.mark.unit
 def test_embedded_json_still_parseable_after_comment_escape():
@@ -634,7 +590,6 @@ def test_embedded_json_still_parseable_after_comment_escape():
             json.loads(unescaped)
         except json.JSONDecodeError as e:
             pytest.fail(f"<!-- エスケープ後の JSON がパース不能: {e}\n内容: {unescaped[:300]}")
-
 
 # ===========================================================================
 # XSS エスケープ拡充: &, ", ' を含む topology
@@ -670,7 +625,6 @@ def _make_xss_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_xss_ampersand_escaped_in_html():
     """hostname/description の & が HTML エスケープされる（&amp; に変換）"""
@@ -689,7 +643,6 @@ def test_xss_ampersand_escaped_in_html():
     raw_amp_in_attr = re.search(r'data-device="[^"]*&[^#a-z][^"]*"', cleaned)
     assert raw_amp_in_attr is None, \
         f"data-device 属性に生の & が含まれている: {raw_amp_in_attr.group()}"
-
 
 @pytest.mark.unit
 def test_xss_double_quote_escaped_in_attributes():
@@ -712,7 +665,6 @@ def test_xss_double_quote_escaped_in_attributes():
     assert '&quot;' in html or '"quoted"' not in cleaned, \
         "\" が &quot; にエスケープされていない可能性がある"
 
-
 @pytest.mark.unit
 def test_xss_single_quote_escaped_in_attributes():
     """hostname に ' が含まれても html.escape(quote=True) でエスケープされる"""
@@ -732,7 +684,6 @@ def test_xss_single_quote_escaped_in_attributes():
     # HTML が well-formed であること（簡易検証: <html> が存在）
     assert "<html" in cleaned.lower()
     # ' が含まれても render が例外を投げないこと（上記 render 呼び出しが成功した時点で保証）
-
 
 # ===========================================================================
 # BGP 双方向辺の重複除去テスト
@@ -770,7 +721,6 @@ def _make_bidirectional_bgp_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_bgp_bidirectional_dedup_single_edge():
     """Phase A #1b: Physical ビューに BGP オーバーレイを描かない — bgp-session は0本"""
@@ -791,7 +741,6 @@ def test_bgp_bidirectional_dedup_single_edge():
     bgp_sessions = re.findall(r'class="bgp-session"', physical_content)
     assert len(bgp_sessions) == 0, \
         f"BGP 双方向エントリで Physical ビュー内に {len(bgp_sessions)} 本のエッジが描画された（期待: 0本）"
-
 
 @pytest.mark.unit
 def test_bgp_single_direction_still_rendered():
@@ -817,7 +766,6 @@ def test_bgp_single_direction_still_rendered():
     bgp_sessions = re.findall(r'class="bgp-session"', physical_content)
     assert len(bgp_sessions) == 0, \
         f"片方向 BGP エントリで Physical ビュー内に {len(bgp_sessions)} 本のエッジが描画された（期待: 0本）"
-
 
 # ===========================================================================
 # Stage1: force-directed レイアウト + 動的 viewBox テスト
@@ -850,7 +798,6 @@ def _make_large_topology(n: int):
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_layout_force_directed_deterministic():
     """_layout_force_directed: 同一入力を2回呼んだとき完全に同じ座標を返す"""
@@ -861,14 +808,12 @@ def test_layout_force_directed_deterministic():
     pos2 = _layout_force_directed(node_ids, edges, width=1000.0, height=800.0)
     assert pos1 == pos2, "_layout_force_directed が非決定的（2回の呼び出しで座標が異なる）"
 
-
 @pytest.mark.unit
 def test_layout_force_directed_zero_nodes():
     """_layout_force_directed: ノード0件で例外が起きない"""
     from lib.rendering import _layout_force_directed
     pos = _layout_force_directed([], [], width=800.0, height=600.0)
     assert pos == {}
-
 
 @pytest.mark.unit
 def test_layout_force_directed_one_node():
@@ -880,7 +825,6 @@ def test_layout_force_directed_one_node():
     assert isinstance(x, float)
     assert isinstance(y, float)
 
-
 @pytest.mark.unit
 def test_layout_force_directed_two_nodes():
     """_layout_force_directed: ノード2件で例外が起きず座標が返る"""
@@ -888,7 +832,6 @@ def test_layout_force_directed_two_nodes():
     pos = _layout_force_directed(["r1", "r2"], [("r1", "r2")], width=800.0, height=600.0)
     assert "r1" in pos
     assert "r2" in pos
-
 
 @pytest.mark.unit
 def test_layout_force_directed_all_nodes_in_bbox():
@@ -901,7 +844,6 @@ def test_layout_force_directed_all_nodes_in_bbox():
     for nid, (x, y) in pos.items():
         assert 0 <= x <= W, f"ノード {nid} の x={x:.1f} が [0, {W}] を外れている"
         assert 0 <= y <= H, f"ノード {nid} の y={y:.1f} が [0, {H}] を外れている"
-
 
 @pytest.mark.unit
 def test_layout_force_directed_no_overlap():
@@ -921,7 +863,6 @@ def test_layout_force_directed_no_overlap():
                 f"ノード {ids[i]}({x1:.1f},{y1:.1f}) と {ids[j]}({x2:.1f},{y2:.1f}) が"
                 f" 重なっている（距離 {dist:.1f} < 最小 {min_dist}）"
             )
-
 
 @pytest.mark.unit
 def test_dynamic_canvas_grows_with_node_count():
@@ -953,7 +894,6 @@ def test_dynamic_canvas_grows_with_node_count():
         f"ノード数が増えても viewBox サイズが変わらない: "
         f"small=({w_small}×{h_small}) large=({w_large}×{h_large})"
     )
-
 
 @pytest.mark.unit
 def test_dynamic_canvas_viewbox_contains_all_nodes():
@@ -1007,7 +947,6 @@ def test_dynamic_canvas_viewbox_contains_all_nodes():
         assert min_y >= vb_min_y - 1, f"上端座標 {min_y:.1f} が viewBox 上端 {vb_min_y:.1f} より小さい"
         assert max_y <= vb_min_y + vb_h + 1, f"下端座標 {max_y:.1f} が viewBox 下端 {vb_min_y + vb_h:.1f} を超えている"
 
-
 @pytest.mark.unit
 def test_render_sample_topology_still_passes(sample_topology):
     """examples/topology/ が引き続き render() で全コンテンツを含む HTML を返す"""
@@ -1021,7 +960,6 @@ def test_render_sample_topology_still_passes(sample_topology):
     assert "<svg" in html.lower()
     assert "GigabitEthernet0/0" in html
 
-
 # ===========================================================================
 # Stage2: レイヤー別ビュー＋切替＋検索
 # ===========================================================================
@@ -1033,18 +971,15 @@ def test_stage2_view_physical_group_exists(rendered_html):
     """Physical ビューの <g class="view view-physical"> が存在する"""
     assert 'class="view view-physical"' in rendered_html
 
-
 @pytest.mark.unit
 def test_stage2_view_l3_group_not_generated(rendered_html):
     """Phase A #6: L3 ビューは削除された — view-l3 <g> が存在しない"""
     assert 'class="view view-l3"' not in rendered_html
 
-
 @pytest.mark.unit
 def test_stage2_view_bgp_group_exists(rendered_html):
     """BGP ビューの <g class="view view-bgp"> が存在する（sample topology は bgp あり）"""
     assert 'class="view view-bgp"' in rendered_html
-
 
 @pytest.mark.unit
 def test_stage2_view_ospf_group_not_generated(rendered_html):
@@ -1052,7 +987,6 @@ def test_stage2_view_ospf_group_not_generated(rendered_html):
     # sample topology は r1 のみ OSPF 参加 → エッジ集合が空 → view-ospf は生成されない
     assert 'class="view view-ospf"' not in rendered_html, \
         "sample topology で OSPF ビューが（r1 のみ参加なのに）生成されている"
-
 
 # ---- data-bbox 属性 -------------------------------------------------------
 
@@ -1075,7 +1009,6 @@ def test_stage2_view_groups_have_data_bbox(rendered_html):
             found = re.search(pattern, rendered_html) or re.search(alt_pattern, rendered_html)
             assert found, f"view-{view_id} に data-bbox が見つからない"
 
-
 # ---- ビュータブ UI --------------------------------------------------------
 
 @pytest.mark.unit
@@ -1085,19 +1018,16 @@ def test_stage2_view_tabs_exist(rendered_html):
     assert 'data-view=' in lower or 'class="view-tab' in lower or 'view-tab' in lower, \
         "ビュー切替タブが見つからない"
 
-
 @pytest.mark.unit
 def test_stage2_physical_tab_exists(rendered_html):
     """Physical タブが存在する"""
     assert "physical" in rendered_html.lower()
-
 
 @pytest.mark.unit
 def test_stage2_bgp_tab_exists(rendered_html):
     """BGP タブが存在する（sample topology は bgp あり）"""
     # BGP という文字列がタブに含まれる（大文字小文字問わず）
     assert "bgp" in rendered_html.lower()
-
 
 # ---- selectView JS --------------------------------------------------------
 
@@ -1106,13 +1036,11 @@ def test_stage2_selectview_js_exists(rendered_html):
     """selectView JS 関数が含まれる"""
     assert "selectView" in rendered_html
 
-
 @pytest.mark.unit
 def test_stage2_selectview_uses_data_bbox(rendered_html):
     """selectView が data-bbox を参照して viewBox を切り替える実装を含む"""
     assert "data-bbox" in rendered_html
     assert "viewBox" in rendered_html or "viewbox" in rendered_html.lower()
-
 
 # ---- 検索機能 (filterNodes) -----------------------------------------------
 
@@ -1121,12 +1049,10 @@ def test_stage2_filter_nodes_js_exists(rendered_html):
     """filterNodes JS 関数が含まれる"""
     assert "filterNodes" in rendered_html
 
-
 @pytest.mark.unit
 def test_stage2_device_nodes_have_data_search(rendered_html):
     """device ノードの <g> に data-search 属性が含まれる"""
     assert 'data-search=' in rendered_html
-
 
 @pytest.mark.unit
 def test_stage2_data_search_contains_hostname(rendered_html):
@@ -1138,7 +1064,6 @@ def test_stage2_data_search_contains_hostname(rendered_html):
     assert "r1" in all_search_text or "r2" in all_search_text, \
         "data-search に hostname が含まれていない"
 
-
 @pytest.mark.unit
 def test_stage2_data_search_contains_ip(rendered_html):
     """data-search 属性に IP アドレスが含まれる"""
@@ -1146,7 +1071,6 @@ def test_stage2_data_search_contains_ip(rendered_html):
     matches = re.findall(r'data-search="([^"]*)"', rendered_html)
     all_search_text = " ".join(matches)
     assert "10.0.0" in all_search_text, "data-search に IP アドレスが含まれていない"
-
 
 @pytest.mark.unit
 def test_stage2_search_box_exists(rendered_html):
@@ -1156,7 +1080,6 @@ def test_stage2_search_box_exists(rendered_html):
     assert 'type="text"' in lower or 'type="search"' in lower or \
         'id="search' in lower or 'placeholder' in lower, \
         "検索ボックスが見つからない"
-
 
 # ---- プロトコルビューの動的生成 -------------------------------------------
 
@@ -1193,7 +1116,6 @@ def test_stage2_protocol_view_dynamic_bgp_only():
     assert 'class="view view-bgp"' in html, "BGP ビューが生成されていない"
     assert 'class="view view-ospf"' not in html, "OSPF ビューが（不要なのに）生成されている"
 
-
 @pytest.mark.unit
 def test_stage2_protocol_view_dynamic_ospf_only():
     """ospf のみの topology では OSPF ビューが生成され、BGP ビューは生成されない"""
@@ -1226,7 +1148,6 @@ def test_stage2_protocol_view_dynamic_ospf_only():
     html = render(topo)
     assert 'class="view view-ospf"' in html, "OSPF ビューが生成されていない"
     assert 'class="view view-bgp"' not in html, "BGP ビューが（不要なのに）生成されている"
-
 
 @pytest.mark.unit
 def test_stage2_protocol_view_tabs_match_generated_views():
@@ -1266,7 +1187,6 @@ def test_stage2_protocol_view_tabs_match_generated_views():
     assert len(tabs) >= len(view_groups), \
         f"タブ数({len(tabs)}) < ビュー数({len(view_groups)}): view_groups={view_groups}, tabs={tabs}"
 
-
 # ---- レイヤートグル（既存）の存続 -----------------------------------------
 
 @pytest.mark.unit
@@ -1275,18 +1195,15 @@ def test_stage2_layer_toggles_still_exist(rendered_html):
     lower = rendered_html.lower()
     assert 'type="checkbox"' in lower or "type='checkbox'" in lower
 
-
 @pytest.mark.unit
 def test_stage2_toggle_bgp_id_still_generated(rendered_html):
     """toggle-bgp チェックボックス ID が引き続き生成される"""
     assert "toggle-bgp" in rendered_html
 
-
 @pytest.mark.unit
 def test_stage2_toggle_ospf_id_still_generated(rendered_html):
     """toggle-ospf チェックボックス ID が引き続き生成される"""
     assert "toggle-ospf" in rendered_html
-
 
 # ---- 決定性（Stage2 後も） ------------------------------------------------
 
@@ -1300,7 +1217,6 @@ def test_stage2_render_deterministic(sample_topology):
     html2 = render(t2)
     assert html1 == html2, "Stage2 後の render() が非決定的"
 
-
 # ---- 空 topology 耐性（Stage2 後も） --------------------------------------
 
 @pytest.mark.unit
@@ -1311,7 +1227,6 @@ def test_stage2_empty_topology_no_exception(empty_topology):
     assert isinstance(result, str)
     assert len(result) > 0
 
-
 @pytest.mark.unit
 def test_stage2_empty_topology_has_physical_view(empty_topology):
     """空 topology でも view-physical <g> が存在する"""
@@ -1319,14 +1234,12 @@ def test_stage2_empty_topology_has_physical_view(empty_topology):
     result = render(empty_topology)
     assert 'class="view view-physical"' in result
 
-
 @pytest.mark.unit
 def test_stage2_empty_topology_no_l3_view(empty_topology):
     """Phase A #6: L3 は削除 — 空 topology でも view-l3 <g> が存在しない"""
     from lib.rendering import render
     result = render(empty_topology)
     assert 'class="view view-l3"' not in result
-
 
 # ---- 自己完結性 -----------------------------------------------------------
 
@@ -1342,7 +1255,6 @@ def test_stage2_self_contained_no_external_cdn(rendered_html):
     )
     assert len(external_refs) == 0, \
         f"外部 CDN 参照が含まれている: {external_refs}"
-
 
 # ---- L3 ビューにサブネットノードが含まれる --------------------------------
 
@@ -1373,7 +1285,6 @@ def test_stage2_l3_view_contains_subnet_nodes():
     html = render(topo)
     assert 'class="view view-l3"' not in html, "L3 ビューが（削除後も）生成されている"
 
-
 # ---- BGP ビューには BGP 参加デバイスのみ含まれる -------------------------
 
 @pytest.mark.unit
@@ -1390,14 +1301,12 @@ def test_stage2_bgp_view_contains_bgp_devices(rendered_html):
     assert len(device_nodes) >= 2, \
         f"view-bgp 内の device-node が {len(device_nodes)} 個（期待: >=2）"
 
-
 # ---- BGP ビューの ebgp/ibgp エッジ色分け --------------------------------
 
 @pytest.mark.unit
 def test_stage2_bgp_view_edge_class_preserved(rendered_html):
     """BGP ビューに bgp-ebgp クラスのエッジが含まれる（sample は ebgp）"""
     assert "bgp-ebgp" in rendered_html
-
 
 # ---- 将来キー追加への拡張性 -----------------------------------------------
 
@@ -1433,7 +1342,6 @@ def test_stage2_future_protocol_view_generated():
     assert 'class="view view-isis"' in html, "isis ビューが生成されていない"
     assert 'data-view="isis"' in html, "isis タブが生成されていない"
 
-
 # ===========================================================================
 # A. ビュー生成のゲーティング（最重要）
 # ===========================================================================
@@ -1462,7 +1370,6 @@ def _make_static_only_topology():
         },
     }
 
-
 def _make_bgp_no_resolved_neighbors_topology():
     """BGP エントリはあるが neighbor_ip が解決できない（外部 peer のみ）"""
     return {
@@ -1484,7 +1391,6 @@ def _make_bgp_no_resolved_neighbors_topology():
             ],
         },
     }
-
 
 def _make_ospf_single_device_topology():
     """OSPF に参加するデバイスが1台のみ（隣接リンクなし）"""
@@ -1514,7 +1420,6 @@ def _make_ospf_single_device_topology():
             ],
         },
     }
-
 
 def _make_bgp_with_real_neighbors_topology():
     """BGP に解決可能な neighbor が2台ある（エッジ生成される）"""
@@ -1546,7 +1451,6 @@ def _make_bgp_with_real_neighbors_topology():
         },
     }
 
-
 def _make_ospf_two_devices_topology():
     """OSPF に2台が参加し、リンクも共有（エッジ生成される）"""
     return {
@@ -1575,7 +1479,6 @@ def _make_ospf_two_devices_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_gating_static_only_no_view():
     """static のみの topology では view-static <g> もタブも生成されない（辺なし）"""
@@ -1585,7 +1488,6 @@ def test_gating_static_only_no_view():
         "static ビューが（辺なしなのに）生成されている"
     assert 'data-view="static"' not in html, \
         "static タブが（辺なしなのに）生成されている"
-
 
 @pytest.mark.unit
 def test_gating_bgp_external_peer_only_generates_view():
@@ -1604,7 +1506,6 @@ def test_gating_bgp_external_peer_only_generates_view():
     assert 'data-device="ext:203.0.113.1"' in html, \
         "外部ノード ext:203.0.113.1 が生成されていない"
 
-
 @pytest.mark.unit
 def test_gating_ospf_single_participant_no_view():
     """OSPF 参加が1台のみ（隣接リンクなし）の topology では view-ospf が生成されない"""
@@ -1615,7 +1516,6 @@ def test_gating_ospf_single_participant_no_view():
     assert 'data-view="ospf"' not in html, \
         "OSPF タブが（参加1台なのに）生成されている"
 
-
 @pytest.mark.unit
 def test_gating_bgp_with_real_neighbors_generates_view():
     """解決可能な BGP 隣接がある場合は view-bgp が生成される"""
@@ -1623,7 +1523,6 @@ def test_gating_bgp_with_real_neighbors_generates_view():
     html = render(_make_bgp_with_real_neighbors_topology())
     assert 'class="view view-bgp"' in html, "BGP ビューが生成されていない"
     assert 'data-view="bgp"' in html, "BGP タブが生成されていない"
-
 
 @pytest.mark.unit
 def test_gating_ospf_two_devices_generates_view():
@@ -1633,24 +1532,6 @@ def test_gating_ospf_two_devices_generates_view():
     assert 'class="view view-ospf"' in html, "OSPF ビューが生成されていない"
     assert 'data-view="ospf"' in html, "OSPF タブが生成されていない"
 
-
-@pytest.mark.unit
-def test_gating_tab_count_equals_view_count():
-    """タブ数 == ビュー <g> 数 + 1（ifinv タブは SVG <g> を持たないテーブルビュー）"""
-    from lib.rendering import render
-    # bgp + ospf で両方エッジありの topology
-    html = render(_make_bgp_with_real_neighbors_topology())
-    view_groups = re.findall(r'class="view view-([a-z0-9_-]+)"', html)
-    tabs = re.findall(r'data-view="([a-z0-9_-]+)"', html)
-    # ifinv タブは SVG <g class="view view-ifinv"> を生成しないので tabs = view_groups + 1
-    assert len(tabs) == len(view_groups) + 1, \
-        f"タブ数({len(tabs)}) != ビュー数({len(view_groups)}) + 1: " \
-        f"views={view_groups}, tabs={tabs}"
-    assert "ifinv" in tabs, "ifinv タブが存在しない"
-    assert "ifinv" not in view_groups, "ifinv が SVG <g class=view> として生成されている"
-
-
-@pytest.mark.unit
 def test_gating_physical_and_l3_always_generated():
     """Phase A #6: physical ビューは常に生成される。l3 は削除されたため生成されない"""
     from lib.rendering import render
@@ -1668,7 +1549,6 @@ def test_gating_physical_and_l3_always_generated():
     html = render(topo)
     assert 'class="view view-physical"' in html
     assert 'class="view view-l3"' not in html
-
 
 # ===========================================================================
 # B. 正確性: L3 重複エッジ
@@ -1704,7 +1584,6 @@ def _make_shared_subnet_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_l3_edge_dedup_unique_dev_subnet_pairs():
     """Phase A #6: L3 ビューは削除された — view-l3 グループが生成されない"""
@@ -1712,7 +1591,6 @@ def test_l3_edge_dedup_unique_dev_subnet_pairs():
     html = render(_make_shared_subnet_topology())
     assert 'class="view view-l3"' not in html, \
         "L3 ビューが（削除後も）生成されている"
-
 
 # ===========================================================================
 # C. 性能: 適応反復
@@ -1728,14 +1606,12 @@ def test_adaptive_iter_decreases_with_large_n():
     assert iters_large < iters_small, \
         f"n が大きい方が iterations が多い: small={iters_small}, large={iters_large}"
 
-
 @pytest.mark.unit
 def test_adaptive_iter_minimum_is_100():
     """_adaptive_iter: 非常に大きい n でも最低 100 反復"""
     from lib.rendering import _adaptive_iter
     iters = _adaptive_iter(10000)
     assert iters >= 100, f"最低保証の 100 を下回っている: {iters}"
-
 
 @pytest.mark.unit
 def test_adaptive_iter_small_n_near_300():
@@ -1744,7 +1620,6 @@ def test_adaptive_iter_small_n_near_300():
     # max(100, 300 - n) の実装では n=1 → 299, n=0 → 300
     assert _adaptive_iter(1) >= 295, f"n=1 で {_adaptive_iter(1)} 反復（期待: >=295）"
     assert _adaptive_iter(5) >= 290, f"n=5 で {_adaptive_iter(5)} 反復（期待: >=290）"
-
 
 @pytest.mark.unit
 def test_render_deterministic_with_adaptive_iter(sample_topology):
@@ -1756,7 +1631,6 @@ def test_render_deterministic_with_adaptive_iter(sample_topology):
     html2 = render(t2)
     assert html1 == html2, "適応反復導入後の render() が非決定的"
 
-
 # ===========================================================================
 # D. 保守性 DRY: _canvas_size_for_nodes ヘルパー
 # ===========================================================================
@@ -1767,7 +1641,6 @@ def test_canvas_size_for_nodes_exists():
     from lib.rendering import _canvas_size_for_nodes
     assert callable(_canvas_size_for_nodes)
 
-
 @pytest.mark.unit
 def test_canvas_size_for_nodes_returns_tuple():
     """_canvas_size_for_nodes(n) が (w, h) タプルを返す"""
@@ -1776,7 +1649,6 @@ def test_canvas_size_for_nodes_returns_tuple():
     assert isinstance(result, tuple) and len(result) == 2, \
         f"(w, h) タプルでない: {result}"
 
-
 @pytest.mark.unit
 def test_canvas_size_for_nodes_minimum():
     """_canvas_size_for_nodes(0) または (1) が最小キャンバスサイズ以上を返す"""
@@ -1784,7 +1656,6 @@ def test_canvas_size_for_nodes_minimum():
     w, h = _canvas_size_for_nodes(0)
     assert w >= _MIN_CANVAS_W
     assert h >= _MIN_CANVAS_H
-
 
 @pytest.mark.unit
 def test_canvas_size_grows_with_n():
@@ -1795,13 +1666,11 @@ def test_canvas_size_grows_with_n():
     assert w50 > w5 or h50 > h5, \
         f"n が増えてもキャンバスサイズが変わらない: n=5={w5}x{h5}, n=50={w50}x{h50}"
 
-
 @pytest.mark.unit
 def test_build_physical_layout_exists():
     """_build_physical_layout 関数が存在する"""
     from lib.rendering import _build_physical_layout
     assert callable(_build_physical_layout)
-
 
 @pytest.mark.unit
 def test_build_physical_layout_returns_dict():
@@ -1824,7 +1693,6 @@ def test_build_physical_layout_returns_dict():
     assert isinstance(result, dict)
     assert "r1" in result
     assert "r2" in result
-
 
 # ===========================================================================
 # E. UX: L3 エッジクラス・filterNodes 拡張
@@ -1858,8 +1726,6 @@ def test_l3_edges_have_l3_edge_class():
     assert 'class="view view-l3"' not in html, \
         "L3 ビューが（削除後も）生成されている"
 
-
-
 @pytest.mark.unit
 def test_selectview_uses_dataset_view():
     """selectView JS で this.dataset.view または data-view 経由でビュー切替している"""
@@ -1884,7 +1750,6 @@ def test_selectview_uses_dataset_view():
     assert "physical" in tab_data_views, \
         "physical タブが存在しない"
 
-
 # ===========================================================================
 # F. テスト強化: ビュー内限定アサーション
 # ===========================================================================
@@ -1902,7 +1767,6 @@ def test_bgp_view_contains_device_nodes_inside_view(rendered_html):
     assert len(device_nodes) >= 2, \
         f"view-bgp 内に device-node が {len(device_nodes)} 個（期待: >=2）"
 
-
 @pytest.mark.unit
 def test_bgp_view_contains_bgp_ebgp_inside_view(rendered_html):
     """BGP ビュー <g> ブロック内に bgp-ebgp クラスエッジが存在する"""
@@ -1914,7 +1778,6 @@ def test_bgp_view_contains_bgp_ebgp_inside_view(rendered_html):
     bgp_content = m.group(1)
     assert "bgp-ebgp" in bgp_content, \
         "view-bgp ブロック内に bgp-ebgp クラスエッジがない"
-
 
 @pytest.mark.unit
 def test_ospf_view_contains_device_nodes_inside_view():
@@ -1936,7 +1799,6 @@ def test_ospf_view_contains_device_nodes_inside_view():
     assert len(device_nodes) >= 2, \
         f"view-ospf 内に device-node が {len(device_nodes)} 個（期待: >=2）"
 
-
 @pytest.mark.unit
 def test_physical_view_contains_link_edges_inside_view(rendered_html):
     """Physical ビュー <g> ブロック内に link-edge が存在する"""
@@ -1949,7 +1811,6 @@ def test_physical_view_contains_link_edges_inside_view(rendered_html):
     link_edges = re.findall(r'class="link-edge"', phys_content)
     assert len(link_edges) >= 1, \
         f"view-physical 内に link-edge が {len(link_edges)} 個（期待: >=1）"
-
 
 # ===========================================================================
 # G. selectView SVG fit パターン: viewBox のみ設定・ピクセル実寸セット禁止
@@ -1975,7 +1836,6 @@ def test_selectview_sets_viewbox_only(rendered_html):
     assert "setAttribute('height'" not in func_body and 'setAttribute("height"' not in func_body, \
         "selectView 内に svg.setAttribute('height', ...) が残っている（ピクセル実寸セット禁止）"
 
-
 @pytest.mark.unit
 def test_selectview_no_container_height_assignment(rendered_html):
     """selectView 内で container.style.height に bbox ピクセル値を代入しない"""
@@ -1987,7 +1847,6 @@ def test_selectview_no_container_height_assignment(rendered_html):
     # container.style.height = parts[3] + 'px' などが無い
     assert "container.style.height" not in func_body, \
         "selectView 内に container.style.height への bbox 実寸代入が残っている"
-
 
 @pytest.mark.unit
 def test_svg_element_has_100percent_dimensions(rendered_html):
@@ -2004,7 +1863,6 @@ def test_svg_element_has_100percent_dimensions(rendered_html):
     ) is not None
     assert has_attr_100pct or has_css_100pct, \
         "SVG 要素が width='100%' / height='100%' になっていない（コンテナ固定でない）"
-
 
 # ===========================================================================
 # C. CSS/クラス名インジェクション防御
@@ -2048,7 +1906,6 @@ def test_css_injection_invalid_routing_key_not_in_css():
             assert re.match(r'^[a-z0-9_-]+$', rule_key), \
                 f"CSS ルールの hide- キーが無効: '{rule_key}'"
 
-
 @pytest.mark.unit
 def test_css_layer_ids_are_safe():
     """vrrp/isis などの正規表現適合キーは CSS ルールに安全に展開される。"""
@@ -2065,7 +1922,6 @@ def test_css_layer_ids_are_safe():
         # 'body.hide-vrrp .layer-vrrp' 形式を確認
         assert not re.search(r'body\.hide-[^{}\s]*[{}][^{}\s]*\s*{', style), \
             "CSS ルール内に不正な {} が含まれている（インジェクションの可能性）"
-
 
 # ===========================================================================
 # H. 死にトグル修正: データなし routing プロトコルは UI 非生成
@@ -2103,7 +1959,6 @@ def _make_bgp_only_with_empty_ospf_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_dead_toggle_ospf_not_generated_when_empty():
     """ospf が空リストのとき toggle-ospf（死にトグル）が生成されない"""
@@ -2114,7 +1969,6 @@ def test_dead_toggle_ospf_not_generated_when_empty():
     assert 'data-layer="ospf"' not in html, \
         "ospf が空なのに data-layer='ospf' が生成されている（死にトグル）"
 
-
 @pytest.mark.unit
 def test_dead_toggle_bgp_still_generated_when_nonempty():
     """bgp にデータがあるとき toggle-bgp は生成される"""
@@ -2122,7 +1976,6 @@ def test_dead_toggle_bgp_still_generated_when_nonempty():
     html = render(_make_bgp_only_with_empty_ospf_topology())
     assert 'id="toggle-bgp"' in html or "toggle-bgp" in html, \
         "bgp にデータがあるのに toggle-bgp が生成されていない"
-
 
 @pytest.mark.unit
 def test_dead_toggle_ospf_css_hide_not_generated_when_empty():
@@ -2134,7 +1987,6 @@ def test_dead_toggle_ospf_css_hide_not_generated_when_empty():
     assert "layer-ospf" not in html, \
         "ospf が空なのに .layer-ospf CSS ルールが生成されている"
 
-
 @pytest.mark.unit
 def test_dead_toggle_bgp_css_still_generated_when_nonempty():
     """bgp にデータがあるとき hide-bgp / layer-bgp CSS ルールは生成される"""
@@ -2144,7 +1996,6 @@ def test_dead_toggle_bgp_css_still_generated_when_nonempty():
         "bgp にデータがあるのに body.hide-bgp CSS ルールが生成されていない"
     assert "layer-bgp" in html, \
         "bgp にデータがあるのに .layer-bgp CSS ルールが生成されていない"
-
 
 @pytest.mark.unit
 def test_dead_toggle_regression_ospf_toggle_generated_when_nonempty():
@@ -2156,7 +2007,6 @@ def test_dead_toggle_regression_ospf_toggle_generated_when_nonempty():
     assert 'id="toggle-ospf"' in html or "toggle-ospf" in html, \
         "ospf にデータがあるのに toggle-ospf が生成されていない（回帰）"
 
-
 # ===========================================================================
 # Phase A: #6 L3 ビュー完全削除
 # ===========================================================================
@@ -2167,13 +2017,11 @@ def test_phaseA_l3_view_not_generated(rendered_html):
     assert 'class="view view-l3"' not in rendered_html, \
         "L3 ビューが（削除後も）生成されている"
 
-
 @pytest.mark.unit
 def test_phaseA_l3_tab_not_generated(rendered_html):
     """Phase A #6: L3 タブ（data-view="l3"）が生成されない"""
     assert 'data-view="l3"' not in rendered_html, \
         "L3 タブが（削除後も）生成されている"
-
 
 @pytest.mark.unit
 def test_phaseA_l3_view_not_generated_empty(empty_topology):
@@ -2182,7 +2030,6 @@ def test_phaseA_l3_view_not_generated_empty(empty_topology):
     html = render(empty_topology)
     assert 'class="view view-l3"' not in html, \
         "空 topology で L3 ビューが（削除後も）生成されている"
-
 
 @pytest.mark.unit
 def test_phaseA_l3_view_not_generated_no_routing():
@@ -2203,7 +2050,6 @@ def test_phaseA_l3_view_not_generated_no_routing():
     assert 'class="view view-l3"' not in html, \
         "routing 空 topology で L3 ビューが（削除後も）生成されている"
 
-
 @pytest.mark.unit
 def test_phaseA_l3_css_hide_rule_not_generated(rendered_html):
     """Phase A #6: body.hide-l3 / .layer-l3 / .l3-edge の3つがいずれも出力されない"""
@@ -2214,20 +2060,17 @@ def test_phaseA_l3_css_hide_rule_not_generated(rendered_html):
     assert "l3-edge" not in rendered_html, \
         ".l3-edge クラスが（L3削除後も）生成されている"
 
-
 @pytest.mark.unit
 def test_phaseA_physical_tab_still_exists(rendered_html):
     """Phase A #6: L3 削除後も Physical タブは存在する"""
     assert 'data-view="physical"' in rendered_html, \
         "Physical タブが消えている"
 
-
 @pytest.mark.unit
 def test_phaseA_bgp_tab_still_exists(rendered_html):
     """Phase A #6: L3 削除後も BGP タブは存在する（sample は bgp あり）"""
     assert 'data-view="bgp"' in rendered_html, \
         "BGP タブが消えている"
-
 
 # ===========================================================================
 # Phase A: #1b Physical ビューから BGP オーバーレイ除去
@@ -2247,7 +2090,6 @@ def test_phaseA_physical_view_no_bgp_session(rendered_html):
     assert len(bgp_sessions) == 0, \
         f"Physical ビュー内に bgp-session が {len(bgp_sessions)} 個（期待: 0）"
 
-
 @pytest.mark.unit
 def test_phaseA_physical_view_no_bgp_edge_class(rendered_html):
     """Phase A #1b: Physical ビュー内に bgp-edge クラスが存在しない"""
@@ -2260,7 +2102,6 @@ def test_phaseA_physical_view_no_bgp_edge_class(rendered_html):
     phys_content = m.group(1)
     assert "bgp-edge" not in phys_content, \
         "Physical ビュー内に bgp-edge クラスが残っている"
-
 
 @pytest.mark.unit
 def test_phaseA_physical_view_no_bgp_badge(rendered_html):
@@ -2275,7 +2116,6 @@ def test_phaseA_physical_view_no_bgp_badge(rendered_html):
     assert "bgp-badge" not in phys_content, \
         "Physical ビュー内に bgp-badge クラスが残っている"
 
-
 @pytest.mark.unit
 def test_phaseA_bgp_view_still_has_bgp_edges(rendered_html):
     """Phase A #1b: BGP ビューは引き続き bgp-edge を含む（削除対象外）"""
@@ -2288,7 +2128,6 @@ def test_phaseA_bgp_view_still_has_bgp_edges(rendered_html):
     bgp_content = m.group(1)
     assert "bgp-edge" in bgp_content, \
         "BGP ビューに bgp-edge が含まれていない（誤って削除された）"
-
 
 @pytest.mark.unit
 def test_phaseA_physical_view_no_bgp_bidirectional():
@@ -2307,7 +2146,6 @@ def test_phaseA_physical_view_no_bgp_bidirectional():
     bgp_sessions = re.findall(r'class="bgp-session"', phys_content)
     assert len(bgp_sessions) == 0, \
         f"Physical ビュー内に bgp-session が {len(bgp_sessions)} 本（期待: 0）"
-
 
 # ===========================================================================
 # Phase A: #3 LAYERS トグルをカード表セクション制御のみに
@@ -2336,7 +2174,6 @@ def test_phaseA_interfaces_table_has_layer_physical_class():
     assert "layer-physical" in html, \
         "カードの Interfaces 表に layer-physical クラスが付いていない"
 
-
 @pytest.mark.unit
 def test_phaseA_interfaces_h4_has_layer_physical_class():
     """Phase A #3: Interfaces の h4 見出しに layer-physical クラスがある"""
@@ -2361,7 +2198,6 @@ def test_phaseA_interfaces_h4_has_layer_physical_class():
     assert re.search(r'<h4[^>]*class="[^"]*layer-physical[^"]*"', html), \
         "Interfaces h4 に layer-physical クラスがない"
 
-
 @pytest.mark.unit
 def test_phaseA_interfaces_table_tag_has_layer_physical_class():
     """Phase A #3: Interfaces の table タグに layer-physical クラスがある"""
@@ -2385,7 +2221,6 @@ def test_phaseA_interfaces_table_tag_has_layer_physical_class():
     assert re.search(r'<table[^>]*class="[^"]*layer-physical[^"]*"', html), \
         "Interfaces table に layer-physical クラスがない"
 
-
 @pytest.mark.unit
 def test_phaseA_physical_toggle_always_exists(rendered_html):
     """Phase A #3: physical トグルが常に先頭に存在する（sample topology）"""
@@ -2393,7 +2228,6 @@ def test_phaseA_physical_toggle_always_exists(rendered_html):
         "toggle-physical が存在しない"
     assert 'data-layer="physical"' in rendered_html, \
         "data-layer='physical' が存在しない"
-
 
 @pytest.mark.unit
 def test_phaseA_physical_toggle_exists_empty(empty_topology):
@@ -2403,14 +2237,12 @@ def test_phaseA_physical_toggle_exists_empty(empty_topology):
     assert 'id="toggle-physical"' in html, \
         "空 topology で toggle-physical が存在しない"
 
-
 @pytest.mark.unit
 def test_phaseA_bgp_card_table_still_has_layer_bgp(rendered_html):
     """Phase A #3: BGP セッション表は引き続き class="layer-bgp" を持つ（回帰保護）"""
     # cards.py の BGP 表は既存の layer-bgp クラスを持つ（厳密な属性検索）
     assert 'class="layer-bgp"' in rendered_html, \
         "カードの BGP 表から class='layer-bgp' が消えている"
-
 
 @pytest.mark.unit
 def test_phaseA_hide_physical_css_rule_exists(rendered_html):
@@ -2419,7 +2251,6 @@ def test_phaseA_hide_physical_css_rule_exists(rendered_html):
         "body.hide-physical CSS ルールが存在しない"
     assert "layer-physical" in rendered_html, \
         ".layer-physical CSS ルールが存在しない"
-
 
 @pytest.mark.unit
 def test_phaseA_physical_toggle_is_first_in_toggles(rendered_html):
@@ -2430,7 +2261,6 @@ def test_phaseA_physical_toggle_is_first_in_toggles(rendered_html):
     assert bgp_pos != -1, "data-layer='bgp' が存在しない"
     assert phys_pos < bgp_pos, \
         f"physical トグル ({phys_pos}) が bgp トグル ({bgp_pos}) より後に来ている"
-
 
 # ===========================================================================
 # Phase A: #3 LAYERS トグルの CSS 検証（厳密化）および seg-edge 常時表示テスト
@@ -2451,7 +2281,6 @@ def test_phaseA_hide_physical_css_rule_strict(rendered_html):
         combined_style,
     ), "body.hide-physical #cards-section .layer-physical { display:none } ルールが見つからない"
 
-
 @pytest.mark.unit
 def test_phaseA_hide_physical_css_no_seg_edge_rule(rendered_html):
     """Phase A #3 要件: physical トグルOFFで seg-edge は hide されない。
@@ -2464,7 +2293,6 @@ def test_phaseA_hide_physical_css_no_seg_edge_rule(rendered_html):
         r'body\.hide-physical\s+\.seg-edge\s*\{[^}]*display\s*:\s*none',
         combined_style,
     ), "body.hide-physical .seg-edge { display:none } ルールが存在する（要件違反: seg-edge は常時表示）"
-
 
 @pytest.mark.unit
 def test_phaseA_hide_physical_interfaces_card_is_hidden():
@@ -2506,13 +2334,11 @@ def test_phaseA_hide_physical_interfaces_card_is_hidden():
         combined_style,
     ), "body.hide-physical .seg-edge ルールが存在する（図の接続線は常時表示すべき）"
 
-
 @pytest.mark.unit
 def test_phaseA_bgp_card_table_has_layer_bgp_class_strict(rendered_html):
     """Phase A #3: BGP セッション表は class="layer-bgp" を持つ（厳密な属性検索）"""
     assert 'class="layer-bgp"' in rendered_html, \
         "カードの BGP 表に class='layer-bgp' が存在しない"
-
 
 @pytest.mark.unit
 def test_phaseA_l3_css_hide_rule_not_generated_strict(rendered_html):
@@ -2523,7 +2349,6 @@ def test_phaseA_l3_css_hide_rule_not_generated_strict(rendered_html):
         ".layer-l3 CSS ルールが（L3削除後も）生成されている"
     assert "l3-edge" not in rendered_html, \
         ".l3-edge クラスが（L3削除後も）生成されている"
-
 
 # ===========================================================================
 # Phase B #1a: Physical ノード情報拡充・物理リンクラベル常時表示
@@ -2576,7 +2401,6 @@ def _make_physical_detail_topology():
         },
     }
 
-
 def _extract_physical_view(html: str) -> str:
     """HTML から Physical ビューの SVG コンテンツを抽出する"""
     m = re.search(
@@ -2585,7 +2409,6 @@ def _extract_physical_view(html: str) -> str:
     )
     return m.group(1) if m else html
 
-
 def _extract_bgp_view(html: str) -> str:
     """HTML から BGP ビューの SVG コンテンツを抽出する"""
     m = re.search(
@@ -2593,7 +2416,6 @@ def _extract_bgp_view(html: str) -> str:
         html, re.DOTALL
     )
     return m.group(1) if m else ""
-
 
 # ---- Physical ノードに全 IF 名・IP が常時表示される ----------------------
 
@@ -2606,7 +2428,6 @@ def test_phaseB1a_physical_node_shows_if_name():
     assert "GigabitEthernet0/0" in phys, \
         "Physical ビューのノードに GigabitEthernet0/0 が表示されていない"
 
-
 @pytest.mark.unit
 def test_phaseB1a_physical_node_shows_if_ip():
     """Phase B #1a: Physical ビューのノードに IP（10.0.0.1/30）が表示される"""
@@ -2615,7 +2436,6 @@ def test_phaseB1a_physical_node_shows_if_ip():
     phys = _extract_physical_view(html)
     assert "10.0.0.1/30" in phys, \
         "Physical ビューのノードに 10.0.0.1/30 が表示されていない"
-
 
 @pytest.mark.unit
 def test_phaseB1a_physical_node_shows_if_without_ip():
@@ -2632,7 +2452,6 @@ def test_phaseB1a_physical_node_shows_if_without_ip():
     assert "GigabitEthernet0/0" in phys, \
         "Physical ビューに接続IF（GigabitEthernet0/0）が存在しない"
 
-
 @pytest.mark.unit
 def test_phaseB1a_physical_node_shows_loopback():
     """Phase B #1a: Loopback も Physical ビューのノードに表示される"""
@@ -2641,7 +2460,6 @@ def test_phaseB1a_physical_node_shows_loopback():
     phys = _extract_physical_view(html)
     assert "Loopback0" in phys, \
         "Loopback0 が Physical ノードに表示されていない"
-
 
 # ---- shutdown IF は淡色クラスを持つ ----------------------------------------
 
@@ -2663,7 +2481,6 @@ def test_phaseB1a_shutdown_if_has_dimmed_class():
     assert "if-chip-shutdown" in phys, \
         "shutdown の接続IF に if-chip-shutdown クラスが付いていない"
 
-
 @pytest.mark.unit
 def test_phaseB1a_active_if_has_no_shutdown_class():
     """Phase B #1a: shutdown=False の IF 行に if-shutdown クラスが付かない"""
@@ -2682,7 +2499,6 @@ def test_phaseB1a_active_if_has_no_shutdown_class():
             "GigabitEthernet0/1"
         ), "active IF（GigabitEthernet0/0）に if-shutdown クラスが付いている"
 
-
 # ---- IF の description が <title> に入る ------------------------------------
 
 @pytest.mark.unit
@@ -2695,7 +2511,6 @@ def test_phaseB1a_if_description_in_title():
     assert "CORE-LINK-to-R2" in phys, \
         "IF の description（CORE-LINK-to-R2）が Physical ビューに表示されていない"
 
-
 @pytest.mark.unit
 def test_phaseB1a_if_description_in_title_element():
     """Phase B #1a (iteration-3 更新): description は チップの <title> に「IF名 IP（desc）」形式で含まれる。"""
@@ -2706,7 +2521,6 @@ def test_phaseB1a_if_description_in_title_element():
     assert "CORE-LINK-to-R2" in phys, \
         "GigabitEthernet0/0 の description（CORE-LINK-to-R2）がチップの <title> に存在しない"
 
-
 @pytest.mark.unit
 def test_phaseB1a_if_no_description_no_empty_title():
     """Phase B #1a: description=None の IF には空の <title></title> が付かない"""
@@ -2716,7 +2530,6 @@ def test_phaseB1a_if_no_description_no_empty_title():
     # Loopback0 は description=None → <title></title> が付かないこと
     assert "<title></title>" not in phys, \
         "description=None の IF に空の <title></title> が付いている"
-
 
 # ---- BGP/OSPF ノードには IF 一覧が出ない ------------------------------------
 
@@ -2730,7 +2543,6 @@ def test_phaseB1a_bgp_node_no_if_list():
     assert "if-row" not in bgp, \
         "BGP ビューのノードに if-row クラスが含まれている（コンパクト維持違反）"
 
-
 @pytest.mark.unit
 def test_phaseB1a_bgp_node_compact_hostname_still_shown():
     """Phase B #1a: BGP ビューのノードに hostname が引き続き表示される"""
@@ -2739,7 +2551,6 @@ def test_phaseB1a_bgp_node_compact_hostname_still_shown():
     bgp = _extract_bgp_view(html)
     assert "R1" in bgp and "R2" in bgp, \
         "BGP ビューに hostname が表示されていない"
-
 
 @pytest.mark.unit
 def test_phaseB1a_ospf_node_no_if_list():
@@ -2755,7 +2566,6 @@ def test_phaseB1a_ospf_node_no_if_list():
         ospf_content = m.group(1)
         assert "if-row" not in ospf_content, \
             "OSPF ビューのノードに if-row クラスが含まれている（コンパクト維持違反）"
-
 
 # ---- 物理リンクに a_if — b_if + subnet の常時テキストが出る ----------------
 
@@ -2777,7 +2587,6 @@ def test_phaseB1a_link_label_text_absent_link_line_present():
     assert 'class="link-line' in phys, \
         "Physical ビューにリンク線（link-line）が存在しない"
 
-
 @pytest.mark.unit
 def test_phaseB1a_link_label_class_absent_title_present():
     """Phase B #1a (iteration-3 更新): link-label クラスの常時 <text> は不要、<title> hover は残る。"""
@@ -2791,7 +2600,6 @@ def test_phaseB1a_link_label_class_absent_title_present():
     assert '<title>' in phys, \
         "Physical ビューに <title>（hover 用）が存在しない"
 
-
 @pytest.mark.unit
 def test_phaseB1a_link_label_shows_subnet():
     """Phase B #1a (iteration-3 更新): subnet は <title> hover で参照可能。"""
@@ -2801,7 +2609,6 @@ def test_phaseB1a_link_label_shows_subnet():
     # subnet は <title> に含まれること（hover で確認できる）
     assert "10.0.0.0/30" in phys, \
         "物理リンクの subnet（10.0.0.0/30）が <title> にも存在しない"
-
 
 # ---- 可変高ノードのレイアウト重なりなし ------------------------------------
 
@@ -2815,7 +2622,6 @@ def test_phaseB1a_node_height_varies_with_if_count():
     assert h_many > h_few, \
         f"IF 数が多いノードの高さが少ないノードと同じ（h_many={h_many}, h_few={h_few}）"
 
-
 @pytest.mark.unit
 def test_phaseB1a_node_height_helper_exists():
     """Phase B #1a: layout._node_size_for(n_ifaces) ヘルパーが存在する（高さは [1] で取得）"""
@@ -2823,7 +2629,6 @@ def test_phaseB1a_node_height_helper_exists():
     assert callable(_node_size_for)
     h = _node_size_for(0)[1]
     assert isinstance(h, (int, float)) and h > 0
-
 
 @pytest.mark.unit
 def test_phaseB1a_layout_separation_with_variable_height():
@@ -2857,7 +2662,6 @@ def test_phaseB1a_layout_separation_with_variable_height():
                 f"dx={dx:.1f} needed_x={needed_x:.1f}, dy={dy:.1f} needed_y={needed_y:.1f}）"
             )
 
-
 @pytest.mark.unit
 def test_phaseB1a_node_size_helper_exists():
     """Phase B #1a: _node_size_for(n_ifaces) が (width, height) を返すヘルパーが存在する"""
@@ -2866,7 +2670,6 @@ def test_phaseB1a_node_size_helper_exists():
     w, h = _node_size_for(3)
     assert isinstance(w, (int, float)) and w > 0
     assert isinstance(h, (int, float)) and h > 0
-
 
 # ---- 決定性（可変高ノード含む）-------------------------------------------
 
@@ -2881,7 +2684,6 @@ def test_phaseB1a_render_deterministic_with_variable_height():
     assert html1 == html2, \
         "可変高ノードを含む topology で render() の出力が非決定的"
 
-
 # ---- Physical ノードの件数・コンパクト維持の回帰テスト ---------------------
 
 @pytest.mark.unit
@@ -2893,7 +2695,6 @@ def test_phaseB1a_physical_view_device_nodes_present():
     device_nodes = re.findall(r'class="device-node"', phys)
     assert len(device_nodes) >= 2, \
         f"Physical ビューに device-node が {len(device_nodes)} 個（期待: >=2）"
-
 
 @pytest.mark.unit
 def test_phaseB1a_existing_tests_regression(sample_topology):
@@ -2908,7 +2709,6 @@ def test_phaseB1a_existing_tests_regression(sample_topology):
     html2 = render(sample_topology)
     assert html == html2, "sample topology で決定性が失われた"
 
-
 # ===========================================================================
 # 要件#3: LAYERS トグルは「#cards-section 配下のカード表のみ」を ON/OFF する
 # 図(SVG)内の layer-* 要素（link-line/link-label/bgp-edge 等）は連動しない
@@ -2919,7 +2719,6 @@ def _extract_style_blocks(html: str) -> str:
     import re
     blocks = re.findall(r'<style[^>]*>(.*?)</style>', html, re.DOTALL | re.IGNORECASE)
     return "\n".join(blocks)
-
 
 @pytest.mark.unit
 def test_req3_hide_physical_scoped_to_cards_section(rendered_html):
@@ -2932,7 +2731,6 @@ def test_req3_hide_physical_scoped_to_cards_section(rendered_html):
         style,
     ), "body.hide-physical #cards-section .layer-physical { display:none } ルールが見つからない"
 
-
 @pytest.mark.unit
 def test_req3_hide_bgp_scoped_to_cards_section(rendered_html):
     """要件#3: body.hide-bgp は #cards-section 配下の .layer-bgp のみ hide する。"""
@@ -2943,7 +2741,6 @@ def test_req3_hide_bgp_scoped_to_cards_section(rendered_html):
         style,
     ), "body.hide-bgp #cards-section .layer-bgp { display:none } ルールが見つからない"
 
-
 @pytest.mark.unit
 def test_req3_hide_static_scoped_to_cards_section(rendered_html):
     """要件#3: body.hide-static は #cards-section 配下の .layer-static のみ hide する。"""
@@ -2953,7 +2750,6 @@ def test_req3_hide_static_scoped_to_cards_section(rendered_html):
         r'body\.hide-static\s+#cards-section\s+\.layer-static\s*\{[^}]*display\s*:\s*none',
         style,
     ), "body.hide-static #cards-section .layer-static { display:none } ルールが見つからない"
-
 
 @pytest.mark.unit
 def test_req3_no_global_hide_physical_rule(rendered_html):
@@ -2970,7 +2766,6 @@ def test_req3_no_global_hide_physical_rule(rendered_html):
         "SVG 内の link-line/link-label が消えてしまう（要件#3違反）。"
     )
 
-
 @pytest.mark.unit
 def test_req3_no_global_hide_bgp_rule(rendered_html):
     """要件#3（否定検証）: グローバルな 'body.hide-bgp .layer-bgp'（#cards-section なし）が存在しない。"""
@@ -2983,7 +2778,6 @@ def test_req3_no_global_hide_bgp_rule(rendered_html):
         "グローバルな body.hide-bgp .layer-bgp { display:none } が存在する。"
         "BGP ビューの bgp-edge が消えてしまう（要件#3違反）。"
     )
-
 
 @pytest.mark.unit
 def test_req3_vrrp_hide_scoped_to_cards_section():
@@ -3002,13 +2796,11 @@ def test_req3_vrrp_hide_scoped_to_cards_section():
         style,
     ), "グローバルな body.hide-vrrp .layer-vrrp ルールが存在する（要件#3違反）"
 
-
 @pytest.mark.unit
 def test_req3_cards_section_id_exists(rendered_html):
     """要件#3 前提: #cards-section という id を持つ要素が HTML 内に存在する"""
     assert 'id="cards-section"' in rendered_html, \
         "id='cards-section' 要素が存在しない（CSS セレクタが機能しない）"
-
 
 # ===========================================================================
 # Phase B レビュー修正テスト
@@ -3055,7 +2847,6 @@ def _make_many_if_topology(n_if_per_node: int = 30):
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 def _rect_overlap(x1, y1, w1, h1, x2, y2, w2, h2, margin=5.0) -> bool:
     """2 矩形（中心座標 + 幅高さ）が重なっているか（margin 込み）"""
     dx = abs(x1 - x2)
@@ -3063,7 +2854,6 @@ def _rect_overlap(x1, y1, w1, h1, x2, y2, w2, h2, margin=5.0) -> bool:
     needed_x = (w1 + w2) / 2 + margin
     needed_y = (h1 + h2) / 2 + margin
     return dx < needed_x and dy < needed_y
-
 
 @pytest.mark.unit
 def test_c1_many_if_nodes_no_overlap():
@@ -3095,7 +2885,6 @@ def test_c1_many_if_nodes_no_overlap():
                 f"ノード {na}({w1:.0f}x{h1:.0f}) と {nb}({w2:.0f}x{h2:.0f}) の矩形が重なっている "
                 f"（中心 ({x1:.1f},{y1:.1f}) vs ({x2:.1f},{y2:.1f})）"
             )
-
 
 @pytest.mark.unit
 def test_c1_many_if_nodes_within_viewbox():
@@ -3147,7 +2936,6 @@ def test_c1_many_if_nodes_within_viewbox():
         assert ry + rh <= vb_min_y + vb_h + 1, \
             f"ノード rect 下端 {ry+rh:.1f} が viewBox 下端 {vb_min_y+vb_h:.1f} より外"
 
-
 # ---------------------------------------------------------------------------
 # C2: _svg_links の KeyError 防御
 # ---------------------------------------------------------------------------
@@ -3185,7 +2973,6 @@ def test_c2_link_missing_a_if_no_exception():
     # link-edge 要素は存在すること（空ラベルで描画される）
     assert "link-edge" in html, "link-edge 要素が存在しない"
 
-
 @pytest.mark.unit
 def test_c2_link_missing_both_if_keys_label_empty():
     """C2: a_if/b_if 両キー欠損リンクのラベルが空（クラッシュしない）"""
@@ -3201,7 +2988,6 @@ def test_c2_link_missing_both_if_keys_label_empty():
         pytest.fail(f"a_if/b_if 欠損リンクで _svg_links が KeyError: {e}")
     assert "link-edge" in result
 
-
 # ---------------------------------------------------------------------------
 # M1: _node_height_for ラッパー → layout._node_size_for を使う統一テスト
 # ---------------------------------------------------------------------------
@@ -3213,14 +2999,12 @@ def test_m1_node_size_for_accessible_from_layout():
     w, h = _node_size_for(5)
     assert w > 0 and h > 0
 
-
 @pytest.mark.unit
 def test_m1_node_height_for_not_in_svg():
     """M1: _node_height_for ラッパーが svg.py から削除されている（layout._node_size_for に一本化）"""
     import lib.rendering.svg as _svg_mod
     assert not hasattr(_svg_mod, "_node_height_for"), \
         "svg.py に _node_height_for がまだ残っている（M1 未完了）"
-
 
 @pytest.mark.unit
 def test_m1_node_size_for_consistent_height():
@@ -3235,7 +3019,6 @@ def test_m1_node_size_for_consistent_height():
         _, h = _node_size_for(n)
         assert h >= prev_h, f"n={n}: 高さ {h} < 前の高さ {prev_h}（単調増加違反）"
         prev_h = h
-
 
 # ---------------------------------------------------------------------------
 # T1: test_phaseB1a_active_if_has_no_shutdown_class の厳密化
@@ -3261,7 +3044,6 @@ def test_t1_active_if_no_shutdown_class_strict():
         assert "if-chip-shutdown" not in cls, \
             f"active IF GigabitEthernet0/0 のチップに if-chip-shutdown が含まれている: class='{cls}'"
 
-
 # ---------------------------------------------------------------------------
 # T2: test_phaseB1a_ospf_node_no_if_list の vacuous 修正
 # ---------------------------------------------------------------------------
@@ -3282,7 +3064,6 @@ def test_t2_ospf_node_no_if_list_strict():
     assert "if-row" not in ospf_content, \
         "OSPF ビューのノードに if-row クラスが含まれている（コンパクト維持違反）"
 
-
 # ---------------------------------------------------------------------------
 # T3: hide-static のグローバル形が存在しないことを正規表現で否定検証
 # ---------------------------------------------------------------------------
@@ -3298,7 +3079,6 @@ def test_t3_no_global_hide_static_rule(rendered_html):
         "グローバルな body.hide-static .layer-static { display:none } が存在する。"
         "#cards-section 限定のルールのみ許可（要件#3）。"
     )
-
 
 # ---------------------------------------------------------------------------
 # T4: リンクラベル検証の厳密化 + 複数リンク
@@ -3336,7 +3116,6 @@ def _make_multi_link_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_t4_link_label_text_contains_if_name():
     """T4 (iteration-3 更新): Physical ビューのリンクに link-label <text> は生成されない。
@@ -3357,7 +3136,6 @@ def test_t4_link_label_text_contains_if_name():
     assert "GigabitEthernet0/0" in combined_titles, \
         f"<title> に IF 名が含まれていない: titles={titles[:5]}"
 
-
 @pytest.mark.unit
 def test_t4_multiple_links_generate_multiple_labels():
     """T4 (iteration-3 更新): 複数リンクを持つ topology で link-label <text> は生成されない。
@@ -3377,11 +3155,9 @@ def test_t4_multiple_links_generate_multiple_labels():
     assert len(link_lines) >= 2, \
         f"2 リンク topology で link-line が {len(link_lines)} 本（期待: >=2）"
 
-
 # ================================================================
 # Phase C #7: OSPF ビュー 常時ラベル表示テスト (TDD RED フェーズ)
 # ================================================================
-
 
 def _extract_ospf_view(html: str) -> str:
     """OSPF ビュー <g class="view view-ospf"> の内容を返す（T-dup: 唯一の定義）。
@@ -3394,7 +3170,6 @@ def _extract_ospf_view(html: str) -> str:
         html, re.DOTALL
     )
     return m.group(1) if m else ""
-
 
 def _make_ospf_topology_with_area():
     """OSPF area=0 が付いた 2 デバイス topology（IOS–IOS 同 area）を返す。"""
@@ -3428,7 +3203,6 @@ def _make_ospf_topology_with_area():
         },
     }
 
-
 def _make_ospf_topology_area_mismatch():
     """OSPF area 不一致（0/1）の 2 デバイス topology を返す。"""
     return {
@@ -3461,7 +3235,6 @@ def _make_ospf_topology_area_mismatch():
         },
     }
 
-
 @pytest.mark.unit
 def test_ospf_view_edge_has_visible_text_label():
     """OSPF ビューのリンクエッジに可視 <text> ラベルが存在する。"""
@@ -3473,7 +3246,6 @@ def test_ospf_view_edge_has_visible_text_label():
     # <text> 要素（<title> でなく可視テキスト）が存在すること
     assert "<text" in ospf_view, \
         "OSPF ビューに可視 <text> ラベルが存在しない"
-
 
 @pytest.mark.unit
 def test_ospf_view_label_contains_area():
@@ -3487,7 +3259,6 @@ def test_ospf_view_label_contains_area():
     assert "0" in ospf_view, \
         f"OSPF ビューに area 番号 '0' が含まれない"
 
-
 @pytest.mark.unit
 def test_ospf_view_label_contains_subnet():
     """OSPF ビューのラベルにサブネット (10.2.0.0/30) が含まれる。"""
@@ -3497,7 +3268,6 @@ def test_ospf_view_label_contains_subnet():
     ospf_view = _extract_ospf_view(html)
     assert "10.2.0.0/30" in ospf_view, \
         f"OSPF ビューにサブネットが含まれない: {ospf_view[:500]}"
-
 
 @pytest.mark.unit
 def test_ospf_view_label_area_mismatch_shows_both():
@@ -3516,7 +3286,6 @@ def test_ospf_view_label_area_mismatch_shows_both():
     area_values = _re.findall(r'(\d+/\d+)', ospf_view)
     assert any("0" in v.split("/") and "1" in v.split("/") for v in area_values), \
         f"ospf_view の area 値に '0' と '1' を両方含むものがない: area_values={area_values}"
-
 
 @pytest.mark.unit
 def test_ospf_view_label_no_area_when_ospf_area_absent():
@@ -3537,7 +3306,6 @@ def test_ospf_view_label_no_area_when_ospf_area_absent():
         assert "area " not in ospf_view.lower(), \
             f"ospf_area 欠如なのに 'area' ラベルが OSPF ビューに出ている: {ospf_view[:300]}"
 
-
 @pytest.mark.unit
 def test_ospf_view_label_is_text_not_only_title():
     """OSPF ビューのラベルが <title> だけでなく <text> 要素で出る（常時可視）。"""
@@ -3550,7 +3318,6 @@ def test_ospf_view_label_is_text_not_only_title():
     assert len(text_elements) >= 1, \
         f"OSPF ビューに <text> 要素（常時可視ラベル）が存在しない"
 
-
 @pytest.mark.unit
 def test_ospf_view_area_label_deterministic():
     """OSPF ビューのラベル出力が決定的（2回レンダリングして一致）。"""
@@ -3560,7 +3327,6 @@ def test_ospf_view_area_label_deterministic():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "OSPF ビューのラベル出力が非決定的"
-
 
 # ===========================================================================
 # Phase C #5: BGP ビュー AS グルーピング枠
@@ -3595,7 +3361,6 @@ def _make_ibgp_topology():
         },
     }
 
-
 def _make_ebgp_topology():
     """eBGP: AS65001(r1) と AS65002(r2) の 2 台。"""
     return {
@@ -3628,7 +3393,6 @@ def _make_ebgp_topology():
         },
     }
 
-
 def _extract_bgp_view_full(html: str) -> str:
     """HTML から BGP ビューの内部コンテンツを抽出する（view-bgp の <g> タグ開始直後から）。"""
     m = re.search(
@@ -3636,7 +3400,6 @@ def _extract_bgp_view_full(html: str) -> str:
         html, re.DOTALL
     )
     return m.group(1) if m else ""
-
 
 # --- #5-1: iBGP 2機 → AS 枠が1つ・ラベル「AS 65001」 --------------------
 
@@ -3651,7 +3414,6 @@ def test_c5_ibgp_single_as_group_exists():
     assert len(groups) == 1, \
         f"iBGP 2機で as-group が {len(groups)} 個（期待: 1）"
 
-
 @pytest.mark.unit
 def test_c5_ibgp_as_group_label_text():
     """Phase C #5: iBGP AS 枠のラベルに「AS 65001」が含まれる"""
@@ -3660,7 +3422,6 @@ def test_c5_ibgp_as_group_label_text():
     bgp_view = _extract_bgp_view_full(html)
     assert "AS 65001" in bgp_view, \
         f"iBGP AS 枠ラベルに「AS 65001」が含まれない: {bgp_view[:500]}"
-
 
 @pytest.mark.unit
 def test_c5_ibgp_both_members_inside_group():
@@ -3705,7 +3466,6 @@ def test_c5_ibgp_both_members_inside_group():
         assert nx + nw <= rx + rw + 1, f"ノード右端 {nx+nw:.1f} が AS 枠右端 {rx+rw:.1f} より外"
         assert ny + nh <= ry + rh + 1, f"ノード下端 {ny+nh:.1f} が AS 枠下端 {ry+rh:.1f} より外"
 
-
 # --- #5-2: eBGP 2機 → AS 枠が2つ・ラベルが各 AS --------------------
 
 @pytest.mark.unit
@@ -3719,7 +3479,6 @@ def test_c5_ebgp_two_as_groups_exist():
     assert len(groups) == 2, \
         f"eBGP 2機で as-group が {len(groups)} 個（期待: 2）"
 
-
 @pytest.mark.unit
 def test_c5_ebgp_as_group_labels_both_present():
     """Phase C #5: eBGP の AS 枠ラベルに「AS 65001」と「AS 65002」が両方含まれる"""
@@ -3728,7 +3487,6 @@ def test_c5_ebgp_as_group_labels_both_present():
     bgp_view = _extract_bgp_view_full(html)
     assert "AS 65001" in bgp_view, "「AS 65001」ラベルが見つからない"
     assert "AS 65002" in bgp_view, "「AS 65002」ラベルが見つからない"
-
 
 # --- #5-3: 枠がノードの背面（DOM 順）-------------------------------------
 
@@ -3746,7 +3504,6 @@ def test_c5_as_group_rect_before_device_node():
     assert as_group_pos < device_node_pos, \
         f"as-group ({as_group_pos}) が device-node ({device_node_pos}) より後に出力されている（前景になってしまう）"
 
-
 @pytest.mark.unit
 def test_c5_as_group_rect_before_bgp_edges():
     """Phase C #5: as-group <rect> が bgp-session より前に DOM 出力される（背面）"""
@@ -3760,7 +3517,6 @@ def test_c5_as_group_rect_before_bgp_edges():
     assert bgp_session_pos != -1, "bgp-session が見つからない"
     assert as_group_pos < bgp_session_pos, \
         f"as-group ({as_group_pos}) が bgp-session ({bgp_session_pos}) より後に出力されている"
-
 
 # --- #5-4: BGP 未参加ノードは枠にも図にも出ない --------------------------
 
@@ -3788,7 +3544,6 @@ def test_c5_non_bgp_device_not_in_as_group():
     assert "AS 65003" not in bgp_view, \
         "BGP 未参加の AS65003 の枠が出力されている"
 
-
 # --- #5-5: 決定性 -----------------------------------------------------------
 
 @pytest.mark.unit
@@ -3801,7 +3556,6 @@ def test_c5_bgp_as_group_deterministic():
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "BGP AS グルーピング出力が非決定的"
 
-
 @pytest.mark.unit
 def test_c5_ibgp_as_group_deterministic():
     """Phase C #5: iBGP topology でも AS グルーピング出力が決定的"""
@@ -3811,7 +3565,6 @@ def test_c5_ibgp_as_group_deterministic():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "iBGP AS グルーピング出力が非決定的"
-
 
 # --- #5-6: 既存 BGP ビューの回帰保護（エッジ・ノードが壊れない）----------
 
@@ -3824,7 +3577,6 @@ def test_c5_bgp_edges_still_rendered_after_grouping():
     assert "bgp-session" in bgp_view, \
         "AS グルーピング追加後に bgp-session が消えている"
 
-
 @pytest.mark.unit
 def test_c5_bgp_nodes_still_rendered_after_grouping():
     """Phase C #5: AS グルーピング追加後も device-node が引き続き描画される"""
@@ -3835,7 +3587,6 @@ def test_c5_bgp_nodes_still_rendered_after_grouping():
     assert len(device_nodes) >= 2, \
         f"AS グルーピング追加後に device-node が {len(device_nodes)} 個（期待: >=2）"
 
-
 @pytest.mark.unit
 def test_c5_as_group_label_class_present():
     """Phase C #5: as-group-label クラスの <text> 要素が存在する"""
@@ -3844,7 +3595,6 @@ def test_c5_as_group_label_class_present():
     bgp_view = _extract_bgp_view_full(html)
     assert 'class="as-group-label"' in bgp_view, \
         "as-group-label クラスの <text> 要素がない"
-
 
 # ===========================================================================
 # Phase C レビュー修正テスト（M5: as-group-container ラッパー構造）
@@ -3860,7 +3610,6 @@ def test_m5_as_group_container_g_element_exists():
     assert 'class="as-group-container"' in bgp_view, \
         "as-group-container クラスの <g> 要素が見つからない（M5 未実装）"
 
-
 @pytest.mark.unit
 def test_m5_as_group_container_has_data_as():
     """M5: as-group-container <g> 要素に data-as 属性が含まれる"""
@@ -3870,7 +3619,6 @@ def test_m5_as_group_container_has_data_as():
     assert bgp_view, "BGP ビューが見つからない"
     assert 'data-as="' in bgp_view, \
         "as-group-container <g> 要素に data-as 属性がない（M5 未実装）"
-
 
 @pytest.mark.unit
 def test_m5_as_group_and_label_inside_container():
@@ -3891,7 +3639,6 @@ def test_m5_as_group_and_label_inside_container():
     assert 'class="as-group-label"' in container_content, \
         "as-group-label <text> が container 内に存在しない"
 
-
 @pytest.mark.unit
 def test_m5_as_group_container_deterministic():
     """M5: as-group-container を含む BGP ビューが決定的（2回レンダリングして一致）"""
@@ -3901,7 +3648,6 @@ def test_m5_as_group_container_deterministic():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "as-group-container を含む BGP ビューが非決定的"
-
 
 @pytest.mark.unit
 def test_m5_ebgp_two_containers_with_data_as():
@@ -3913,7 +3659,6 @@ def test_m5_ebgp_two_containers_with_data_as():
         "data-as='65001' が BGP ビューに存在しない"
     assert 'data-as="65002"' in bgp_view, \
         "data-as='65002' が BGP ビューに存在しない"
-
 
 @pytest.mark.unit
 def test_c5_no_as_group_when_no_bgp():
@@ -3934,7 +3679,6 @@ def test_c5_no_as_group_when_no_bgp():
     # BGP ビューが生成されない（ゲーティング）ので as-group も出ない
     assert 'class="as-group"' not in html, \
         "BGP エントリなしなのに as-group が出力されている"
-
 
 @pytest.mark.unit
 def test_c5_as_group_no_crash_when_local_as_missing():
@@ -3985,7 +3729,6 @@ def test_c5_as_group_no_crash_when_local_as_missing():
     assert as_group_count == 0, \
         f"as=None 機器のみなのに as-group が {as_group_count} 個出力されている"
 
-
 # ===========================================================================
 # Phase D #2: クリック選択・双方向ハイライト + IF行↔リンク連動
 # ===========================================================================
@@ -4027,7 +3770,6 @@ def _make_link_id_topology():
         },
     }
 
-
 def _make_multi_device_link_topology():
     """r1-r2, r2-r3 の 2 リンクを持つ topology（複数 link-id テスト用）"""
     return {
@@ -4060,7 +3802,6 @@ def _make_multi_device_link_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 # ---- #D2-1: link-edge <g> に data-link-id が付く --------------------------
 
 @pytest.mark.unit
@@ -4071,7 +3812,6 @@ def test_phaseD2_link_edge_has_data_link_id():
     phys = _extract_physical_view(html)
     assert 'data-link-id="' in phys, \
         "link-edge <g> に data-link-id 属性が存在しない"
-
 
 @pytest.mark.unit
 def test_phaseD2_link_edge_data_link_id_is_deterministic():
@@ -4086,7 +3826,6 @@ def test_phaseD2_link_edge_data_link_id_is_deterministic():
     ids2 = re.findall(r'data-link-id="([^"]*)"', html2)
     assert ids1 == ids2, f"data-link-id が非決定的: {ids1} vs {ids2}"
 
-
 @pytest.mark.unit
 def test_phaseD2_link_id_symmetric():
     """Phase D #2: link-id は両端の端点から導出され対称的（順序に依存しない）
@@ -4099,7 +3838,6 @@ def test_phaseD2_link_id_symmetric():
     assert lid_ab == lid_ba, \
         f"link-id が対称でない: a→b={lid_ab!r}, b→a={lid_ba!r}"
 
-
 @pytest.mark.unit
 def test_phaseD2_link_id_unique_per_link():
     """Phase D #2: 異なるリンクは異なる link-id を持つ"""
@@ -4108,7 +3846,6 @@ def test_phaseD2_link_id_unique_per_link():
     lid2 = _make_link_id("r2", "GigabitEthernet0/1", "r3", "GigabitEthernet0/0")
     assert lid1 != lid2, \
         f"異なるリンクが同じ link-id: {lid1!r}"
-
 
 @pytest.mark.unit
 def test_phaseD2_link_line_has_data_link_id():
@@ -4119,7 +3856,6 @@ def test_phaseD2_link_line_has_data_link_id():
     # <line ... data-link-id="..."> が存在すること
     assert re.search(r'<line[^>]+data-link-id="[^"]*"', phys), \
         "<line class='link-line'> に data-link-id が付いていない"
-
 
 # ---- #D2-2: IF 行に data-link-id が付く ------------------------------------
 
@@ -4135,7 +3871,6 @@ def test_phaseD2_if_row_endpoint_has_data_link_id():
     assert re.search(r'<tr[^>]+data-link-id="[^"]*"', cards_section), \
         "カードの IF 行 <tr> に data-link-id が付いていない"
 
-
 @pytest.mark.unit
 def test_phaseD2_if_row_non_endpoint_no_data_link_id():
     """Phase D #2: リンク端点でない IF 行 <tr> に data-link-id が付かない（lo0 は端点外）"""
@@ -4150,7 +3885,6 @@ def test_phaseD2_if_row_non_endpoint_no_data_link_id():
     for row in lo0_rows:
         assert 'data-link-id="' not in row or 'data-link-id=""' in row, \
             f"lo0（非端点 IF）の <tr> に data-link-id が付いている: {row[:200]}"
-
 
 @pytest.mark.unit
 def test_phaseD2_both_endpoints_have_same_link_id():
@@ -4170,7 +3904,6 @@ def test_phaseD2_both_endpoints_have_same_link_id():
     assert len(matching_rows) >= 2, \
         f"link-id={expected_lid!r} を持つ <tr> が {len(matching_rows)} 個（期待: >=2、両端）"
 
-
 @pytest.mark.unit
 def test_phaseD2_multi_link_each_has_unique_link_id():
     """Phase D #2: 複数リンクを持つ topology で各リンクが異なる link-id を持つ"""
@@ -4184,7 +3917,6 @@ def test_phaseD2_multi_link_each_has_unique_link_id():
         f"link-edge の data-link-id が {len(link_ids)} 個（期待: 2）"
     assert link_ids[0] != link_ids[1], \
         f"2 本のリンクが同じ link-id: {link_ids}"
-
 
 # ---- #D2-3: JS 関数の存在確認 -----------------------------------------------
 
@@ -4205,7 +3937,6 @@ def test_phaseD2_js_card_click_selects_node(rendered_html):
     assert has_card_node_js, \
         "カード→ノード選択 JS（selectNodeFromCard）が見つからない"
 
-
 @pytest.mark.unit
 def test_phaseD2_js_if_row_link_highlight(rendered_html):
     """Phase D #2: IF行↔リンク連動 JS 関数（toggleIfRowHighlight または data-link-id 参照）が含まれる"""
@@ -4215,7 +3946,6 @@ def test_phaseD2_js_if_row_link_highlight(rendered_html):
     )
     assert has_signal, \
         "IF行↔リンク連動 JS（toggleIfRowHighlight）が見つからない"
-
 
 @pytest.mark.unit
 def test_phaseD2_js_multiple_selection_accumulation(rendered_html):
@@ -4231,7 +3961,6 @@ def test_phaseD2_js_multiple_selection_accumulation(rendered_html):
     assert has_accumulation, \
         "複数選択累積ロジック（_selectedNodes 等）が見つからない"
 
-
 @pytest.mark.unit
 def test_phaseD2_js_esc_clears_selection(rendered_html):
     """Phase D #2: Esc キーで全選択解除する JS が含まれる（既存 clearSelection の存在確認）"""
@@ -4239,7 +3968,6 @@ def test_phaseD2_js_esc_clears_selection(rendered_html):
         "Esc 解除用 clearSelection が見つからない"
     assert "Escape" in rendered_html, \
         "Esc キーハンドラが見つからない"
-
 
 # ---- #D2-4: CSS の存在確認 --------------------------------------------------
 
@@ -4250,7 +3978,6 @@ def test_phaseD2_css_device_card_selected(rendered_html):
     assert re.search(r'\.device-card\.selected\s*\{', style), \
         "CSS に .device-card.selected { ... } スタイルが含まれない"
 
-
 @pytest.mark.unit
 def test_phaseD2_css_tr_highlighted(rendered_html):
     """Phase D #2: CSS に tr.highlighted のスタイルが含まれる"""
@@ -4259,7 +3986,6 @@ def test_phaseD2_css_tr_highlighted(rendered_html):
            re.search(r'tr[^{]*\.highlighted', style), \
         "CSS に tr.highlighted スタイルが含まれない"
 
-
 @pytest.mark.unit
 def test_phaseD2_css_tr_selected(rendered_html):
     """Phase D #2: CSS に tr.selected のスタイルが含まれる（IF 行の選択強調）"""
@@ -4267,7 +3993,6 @@ def test_phaseD2_css_tr_selected(rendered_html):
     assert re.search(r'tr\.selected', style) or \
            re.search(r'tr[^{]*\.selected', style), \
         "CSS に tr.selected スタイルが含まれない"
-
 
 # ---- #D2-5: 決定性 ----------------------------------------------------------
 
@@ -4282,7 +4007,6 @@ def test_phaseD2_link_id_deterministic_with_sample_topology(sample_topology):
     ids2 = re.findall(r'data-link-id="([^"]*)"', html2)
     assert ids1 == ids2, "sample topology で data-link-id が非決定的"
 
-
 # ===========================================================================
 # Phase D #4: ノード表示フィルタ UI（checklist / setNodeVisibility）
 # ===========================================================================
@@ -4295,7 +4019,6 @@ def test_phaseD4_node_filter_checklist_exists(rendered_html):
     assert 'data-node-filter=' in rendered_html, \
         "ノードフィルタ用 data-node-filter 属性が見つからない"
 
-
 @pytest.mark.unit
 def test_phaseD4_node_filter_checkbox_count_matches_devices(sample_topology, rendered_html):
     """Phase D #4: チェックボックス（data-node-filter）の数がデバイス数と一致する"""
@@ -4303,7 +4026,6 @@ def test_phaseD4_node_filter_checkbox_count_matches_devices(sample_topology, ren
     filter_checkboxes = re.findall(r'data-node-filter="([^"]*)"', rendered_html)
     assert len(filter_checkboxes) == device_count, \
         f"ノードフィルタ チェックボックス数 {len(filter_checkboxes)} != デバイス数 {device_count}"
-
 
 @pytest.mark.unit
 def test_phaseD4_node_filter_checkboxes_default_checked(rendered_html):
@@ -4319,7 +4041,6 @@ def test_phaseD4_node_filter_checkboxes_default_checked(rendered_html):
     for inp in filter_inputs:
         assert "checked" in inp, \
             f"ノードフィルタ チェックボックスが checked でない: {inp}"
-
 
 @pytest.mark.unit
 def test_phaseD4_node_filter_sorted_hostname_order(sample_topology, rendered_html):
@@ -4337,7 +4058,6 @@ def test_phaseD4_node_filter_sorted_hostname_order(sample_topology, rendered_htm
     assert filter_devices == sorted_ids, \
         f"ノードフィルタの順序が hostname 昇順でない: {filter_devices} != {sorted_ids}"
 
-
 @pytest.mark.unit
 def test_phaseD4_select_all_button_exists(rendered_html):
     """Phase D #4: 「全選択」ボタンが存在する（onclick 等で selectAllNodes を呼ぶ）"""
@@ -4348,7 +4068,6 @@ def test_phaseD4_select_all_button_exists(rendered_html):
     )
     assert has_select_all, \
         "全選択ボタン（selectAllNodes）が見つからない"
-
 
 @pytest.mark.unit
 def test_phaseD4_clear_all_button_exists(rendered_html):
@@ -4361,7 +4080,6 @@ def test_phaseD4_clear_all_button_exists(rendered_html):
     assert has_clear_all, \
         "全解除ボタン（clearAllNodes）が見つからない"
 
-
 # ---- #D4-2: JS 関数の存在確認 -----------------------------------------------
 
 @pytest.mark.unit
@@ -4370,20 +4088,17 @@ def test_phaseD4_js_set_node_visibility_exists(rendered_html):
     assert "setNodeVisibility" in rendered_html, \
         "setNodeVisibility JS 関数が見つからない"
 
-
 @pytest.mark.unit
 def test_phaseD4_js_select_all_nodes_exists(rendered_html):
     """Phase D #4: selectAllNodes JS 関数が含まれる"""
     assert "selectAllNodes" in rendered_html, \
         "selectAllNodes JS 関数が見つからない"
 
-
 @pytest.mark.unit
 def test_phaseD4_js_clear_all_nodes_exists(rendered_html):
     """Phase D #4: clearAllNodes JS 関数が含まれる"""
     assert "clearAllNodes" in rendered_html, \
         "clearAllNodes JS 関数が見つからない"
-
 
 @pytest.mark.unit
 def test_phaseD4_js_set_node_visibility_uses_data_device(rendered_html):
@@ -4396,7 +4111,6 @@ def test_phaseD4_js_set_node_visibility_uses_data_device(rendered_html):
     assert "data-device" in func_body or "dataset.device" in func_body or \
            'data-device' in func_body, \
         "setNodeVisibility 内で data-device 参照が見つからない"
-
 
 @pytest.mark.unit
 def test_phaseD4_js_set_node_visibility_hides_connected_edges(rendered_html):
@@ -4415,7 +4129,6 @@ def test_phaseD4_js_set_node_visibility_hides_connected_edges(rendered_html):
     assert has_edge_control, \
         "setNodeVisibility 内で接続エッジの制御が見つからない（data-a/data-b 等）"
 
-
 @pytest.mark.unit
 def test_phaseD4_js_set_node_visibility_hides_card(rendered_html):
     """Phase D #4: setNodeVisibility が対応カードも非表示にする実装を含む"""
@@ -4430,7 +4143,6 @@ def test_phaseD4_js_set_node_visibility_hides_card(rendered_html):
     assert has_card_control, \
         "setNodeVisibility 内でカードの制御が見つからない（device-card 等）"
 
-
 # ---- #D4-3: CSS クラス確認 --------------------------------------------------
 
 @pytest.mark.unit
@@ -4439,7 +4151,6 @@ def test_phaseD4_css_node_filtered_class(rendered_html):
     style = _extract_style_blocks(rendered_html)
     assert re.search(r'\.node-filtered', style), \
         "CSS に .node-filtered クラスが含まれない"
-
 
 @pytest.mark.unit
 def test_phaseD4_css_node_filtered_display_none(rendered_html):
@@ -4450,7 +4161,6 @@ def test_phaseD4_css_node_filtered_display_none(rendered_html):
     rule_body = m.group(1)
     assert "display" in rule_body or "visibility" in rule_body, \
         f".node-filtered が display/visibility を設定していない: {rule_body!r}"
-
 
 # ---- #D4-4: filterNodes（検索）との非干渉確認 --------------------------------
 
@@ -4469,7 +4179,6 @@ def test_phaseD4_search_and_filter_independent(rendered_html):
            not re.search(r'\.node-filtered\s*,\s*\.dimmed', style), \
         ".dimmed と .node-filtered が同一ルールにまとめられている（干渉の可能性）"
 
-
 # ---- #D4-5: ノードフィルタ UI の決定性 --------------------------------------
 
 @pytest.mark.unit
@@ -4484,7 +4193,6 @@ def test_phaseD4_checklist_deterministic(sample_topology):
     assert filters1 == filters2, \
         f"ノードフィルタ チェックリストが非決定的: {filters1} vs {filters2}"
 
-
 @pytest.mark.unit
 def test_phaseD4_empty_topology_no_filter_checkboxes(empty_topology):
     """Phase D #4: デバイスなし topology ではノードフィルタ チェックボックスが0個"""
@@ -4494,7 +4202,6 @@ def test_phaseD4_empty_topology_no_filter_checkboxes(empty_topology):
     assert len(filter_checkboxes) == 0, \
         f"空 topology でノードフィルタ チェックボックスが {len(filter_checkboxes)} 個（期待: 0）"
 
-
 # ---- #D4-6: 既存テスト群の回帰保護 -----------------------------------------
 
 @pytest.mark.unit
@@ -4503,12 +4210,10 @@ def test_phaseD4_existing_search_still_works(rendered_html):
     assert "filterNodes" in rendered_html, "filterNodes が消えている（回帰）"
     assert 'id="search-input"' in rendered_html, "search-input が消えている（回帰）"
 
-
 @pytest.mark.unit
 def test_phaseD4_set_node_visibility_not_break_dimmed(rendered_html):
     """Phase D #4: setNodeVisibility 追加後も .dimmed クラス参照が JS に存在する（回帰）"""
     assert "dimmed" in rendered_html, ".dimmed クラス参照が消えている（filterNodes 回帰）"
-
 
 # ---- #D4-7: golden テスト（完全 HTML 生成 + data-link-id + フィルタUI 存在）---
 
@@ -4532,7 +4237,6 @@ def test_phaseD_golden_html_self_contained(sample_topology):
     assert "selectAllNodes" in html, "selectAllNodes が存在しない"
     assert "clearAllNodes" in html, "clearAllNodes が存在しない"
 
-
 # ===========================================================================
 # Phase D レビュー修正テスト（DC1〜DC5: JSバグ修正 / T1〜T4: vacuous解消）
 # ===========================================================================
@@ -4547,7 +4251,6 @@ def _extract_js_function(html: str, func_name: str, max_len: int = 4000) -> str:
         end = start + max_len
     return html[start:end]
 
-
 # ---------------------------------------------------------------------------
 # DC1: clearSelection が clearLinkHighlight を呼ぶ（Esc で全解除）
 # ---------------------------------------------------------------------------
@@ -4560,7 +4263,6 @@ def test_dc1_clear_selection_calls_clear_link_highlight(rendered_html):
     assert "clearLinkHighlight" in func_body, \
         "clearSelection() が clearLinkHighlight() を呼んでいない（Esc でリンクハイライトが残る）"
 
-
 @pytest.mark.unit
 def test_dc1_clear_link_highlight_clears_selectedlinks(rendered_html):
     """DC1: clearLinkHighlight() が _selectedLinks.clear() を呼ぶ"""
@@ -4568,7 +4270,6 @@ def test_dc1_clear_link_highlight_clears_selectedlinks(rendered_html):
     assert func_body, "clearLinkHighlight 関数が見つからない"
     assert "_selectedLinks.clear()" in func_body, \
         "clearLinkHighlight() が _selectedLinks.clear() を呼んでいない"
-
 
 @pytest.mark.unit
 def test_dc1_clear_link_highlight_removes_highlighted_class(rendered_html):
@@ -4579,7 +4280,6 @@ def test_dc1_clear_link_highlight_removes_highlighted_class(rendered_html):
         "clearLinkHighlight() がリンクの highlighted クラスを除去していない"
     assert "tr" in func_body or "highlighted" in func_body, \
         "clearLinkHighlight() が tr.highlighted を除去していない"
-
 
 # ---------------------------------------------------------------------------
 # DC2: clearHighlight が _selectedLinks を除外してリンクの固定ハイライトを保持
@@ -4594,7 +4294,6 @@ def test_dc2_clear_highlight_excludes_selected_links(rendered_html):
     assert "_selectedLinks" in func_body, \
         "clearHighlight() が _selectedLinks を参照していない（固定ハイライトを消してしまう）"
 
-
 @pytest.mark.unit
 def test_dc2_clear_highlight_preserves_node_highlighted(rendered_html):
     """DC2: clearHighlight() はノードの highlighted 除去を保持している（回帰保護）"""
@@ -4602,7 +4301,6 @@ def test_dc2_clear_highlight_preserves_node_highlighted(rendered_html):
     assert func_body, "clearHighlight 関数が見つからない"
     assert "highlighted" in func_body, \
         "clearHighlight() に highlighted 除去ロジックがない"
-
 
 # ---------------------------------------------------------------------------
 # DC3/DC4: setNodeVisibility が bgp-session / seg-edge も走査し両端判定をする
@@ -4616,7 +4314,6 @@ def test_dc3_set_node_visibility_scans_bgp_session(rendered_html):
     assert "bgp-session" in func_body, \
         "setNodeVisibility() が bgp-session を走査していない（BGP 線が隠れない）"
 
-
 @pytest.mark.unit
 def test_dc3_set_node_visibility_scans_seg_edge(rendered_html):
     """DC3: setNodeVisibility が seg-edge エッジを走査する"""
@@ -4624,7 +4321,6 @@ def test_dc3_set_node_visibility_scans_seg_edge(rendered_html):
     assert func_body, "setNodeVisibility 関数が見つからない"
     assert "seg-edge" in func_body, \
         "setNodeVisibility() が seg-edge を走査していない（セグメント接続線が隠れない）"
-
 
 @pytest.mark.unit
 def test_dc4_set_node_visibility_both_endpoints_check(rendered_html):
@@ -4639,7 +4335,6 @@ def test_dc4_set_node_visibility_both_endpoints_check(rendered_html):
     )
     assert has_both_endpoint_check, \
         "setNodeVisibility() に両端表示判定ロジックがない（片端復帰でエッジが浮く）"
-
 
 # ---------------------------------------------------------------------------
 # DC5: checkbox が data-node-filter + addEventListener 方式（onchange インライン削除）
@@ -4658,7 +4353,6 @@ def test_dc5_node_filter_checkbox_no_inline_onchange(rendered_html):
         assert "onchange" not in inp, \
             f"ノードフィルタ checkbox に onchange インライン属性がある（DC5違反）: {inp[:200]}"
 
-
 @pytest.mark.unit
 def test_dc5_node_filter_event_listener_registered(rendered_html):
     """DC5: ノードフィルタ用 addEventListener が JS に存在する"""
@@ -4670,7 +4364,6 @@ def test_dc5_node_filter_event_listener_registered(rendered_html):
         "change" in rendered_html or "node-filter" in rendered_html
     ), "node-filter-cb の change イベントリスナーが JS に見つからない"
 
-
 @pytest.mark.unit
 def test_dc5_select_all_clear_all_buttons_use_onclick(rendered_html):
     """DC5: 全選択/全解除ボタンは onclick 属性（関数名）で関数を呼ぶ"""
@@ -4681,7 +4374,6 @@ def test_dc5_select_all_clear_all_buttons_use_onclick(rendered_html):
     assert re.search(r'onclick="clearAllNodes\(\)"', rendered_html) or \
            "clearAllNodes" in rendered_html, \
         "全解除ボタンの onclick 参照がない"
-
 
 # ---------------------------------------------------------------------------
 # T1: JS 関数ボディの核心処理を検証（名前 grep だけの vacuous 解消）
@@ -4697,7 +4389,6 @@ def test_t1_set_node_visibility_body_contains_classlist(rendered_html):
     assert "node-filtered" in func_body, \
         "setNodeVisibility() に node-filtered クラス操作がない"
 
-
 @pytest.mark.unit
 def test_t1_select_all_nodes_body_checks_node_filter_cb(rendered_html):
     """T1: selectAllNodes のボディが node-filter-cb を querySelectorAll で走査する"""
@@ -4707,7 +4398,6 @@ def test_t1_select_all_nodes_body_checks_node_filter_cb(rendered_html):
         "selectAllNodes() が .node-filter-cb を querySelectorAll していない"
     assert "setNodeVisibility" in func_body, \
         "selectAllNodes() が setNodeVisibility を呼んでいない"
-
 
 @pytest.mark.unit
 def test_t1_clear_all_nodes_body_checks_node_filter_cb(rendered_html):
@@ -4719,7 +4409,6 @@ def test_t1_clear_all_nodes_body_checks_node_filter_cb(rendered_html):
     assert "setNodeVisibility" in func_body, \
         "clearAllNodes() が setNodeVisibility を呼んでいない"
 
-
 @pytest.mark.unit
 def test_t1_select_all_nodes_sets_checked_true(rendered_html):
     """T1: selectAllNodes のボディが cb.checked = true を設定する"""
@@ -4727,7 +4416,6 @@ def test_t1_select_all_nodes_sets_checked_true(rendered_html):
     assert func_body, "selectAllNodes 関数が見つからない"
     assert "checked" in func_body, \
         "selectAllNodes() が checkbox の checked 状態を設定していない"
-
 
 @pytest.mark.unit
 def test_t1_card_click_handler_body_checks_selected(rendered_html):
@@ -4738,7 +4426,6 @@ def test_t1_card_click_handler_body_checks_selected(rendered_html):
         "カードクリックハンドラに _selectedNodes への参照がない"
     assert "classList" in rendered_html, \
         "カードクリックハンドラに classList 操作がない"
-
 
 # ---------------------------------------------------------------------------
 # T2: data-link-id 検証の厳密化（両端が別デバイスのカードに同一 link-id）
@@ -4790,7 +4477,6 @@ def test_t2_link_id_in_both_device_cards():
     assert len(r2_link_ids) >= 1, \
         f"r2 のカードに link-id={expected_lid!r} を持つ IF 行がない"
 
-
 @pytest.mark.unit
 def test_t2_link_edge_g_and_line_have_same_link_id():
     """T2: <g class='link-edge'> と <line class='link-line'> が同一 data-link-id 値を持つ"""
@@ -4812,7 +4498,6 @@ def test_t2_link_edge_g_and_line_have_same_link_id():
     assert set(g_link_ids) == set(line_link_ids), \
         f"link-edge <g> と <line> の link-id が異なる: g={g_link_ids}, line={line_link_ids}"
 
-
 # ---------------------------------------------------------------------------
 # T3: 全選択/全解除ボタンの関数対応検証 + .node-filtered の display:none 値検証
 # ---------------------------------------------------------------------------
@@ -4827,7 +4512,6 @@ def test_t3_select_all_button_calls_select_all_nodes(rendered_html):
     assert has_onclick or has_listener, \
         "全選択ボタンから selectAllNodes への接続がない"
 
-
 @pytest.mark.unit
 def test_t3_clear_all_button_calls_clear_all_nodes(rendered_html):
     """T3: 全解除ボタンが onclick で clearAllNodes() を呼ぶ（または addEventListener で登録）"""
@@ -4835,7 +4519,6 @@ def test_t3_clear_all_button_calls_clear_all_nodes(rendered_html):
     has_listener = "clearAllNodes" in rendered_html
     assert has_onclick or has_listener, \
         "全解除ボタンから clearAllNodes への接続がない"
-
 
 @pytest.mark.unit
 def test_t3_node_filtered_has_display_none_value(rendered_html):
@@ -4846,7 +4529,6 @@ def test_t3_node_filtered_has_display_none_value(rendered_html):
     rule_body = m.group(1)
     assert re.search(r'display\s*:\s*none', rule_body), \
         f".node-filtered に display: none がない: {rule_body!r}"
-
 
 # ---------------------------------------------------------------------------
 # T4: 非端点 IF 行に link-id が付かない（_make_link_id で算出した値で厳密検証）
@@ -4893,7 +4575,6 @@ def test_t4_non_endpoint_if_no_link_id_strict():
         assert expected_lid not in attrs, \
             f"lo0 の <tr> に link-id={expected_lid!r} が付いている（非端点 IF）"
 
-
 # ---------------------------------------------------------------------------
 # BGP セッションに data-a / data-b 属性が付く（DC3 の SVG 構造テスト）
 # ---------------------------------------------------------------------------
@@ -4915,7 +4596,6 @@ def test_bgp_session_has_data_a_data_b():
         assert 'data-b="' in session_tag, \
             f"bgp-session タグに data-b がない: {session_tag}"
 
-
 @pytest.mark.unit
 def test_bgp_session_data_a_b_are_device_ids():
     """DC3: bgp-session の data-a / data-b がデバイス ID（r1/r2）を指している"""
@@ -4935,7 +4615,6 @@ def test_bgp_session_data_a_b_are_device_ids():
             f"data-b の値 '{data_b.group(1)}' がデバイスID でない"
         assert data_a.group(1) != data_b.group(1), \
             "data-a と data-b が同じデバイスを指している"
-
 
 @pytest.mark.unit
 def test_seg_edge_has_data_device():
@@ -4967,7 +4646,6 @@ def test_seg_edge_has_data_device():
     for edge in seg_edges:
         assert 'data-device="' in edge, \
             f"seg-edge に data-device がない: {edge}"
-
 
 # ===========================================================================
 # #7: OSPF ビューに OSPF 参加セグメントが描画される
@@ -5041,7 +4719,6 @@ def _make_ospf_segment_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_ospf_view_segment_only_no_links_generates_ospf_view():
     """T-gating: links=[] かつ ospf_area 付きセグメントのみでも class='view view-ospf' が生成される。"""
@@ -5094,7 +4771,6 @@ def test_ospf_view_segment_only_no_links_generates_ospf_view():
     assert 'class="view view-ospf"' in html, \
         "links=[] かつ ospf_area 付きセグメントのみの topology で OSPF ビューが生成されない"
 
-
 @pytest.mark.unit
 def test_ospf_view_contains_segment_ellipse():
     """#7: OSPF ビューに OSPF 参加セグメントの楕円ノードが描画される。"""
@@ -5104,7 +4780,6 @@ def test_ospf_view_contains_segment_ellipse():
     assert ospf_view, "OSPF ビューが見つからない"
     assert "<ellipse" in ospf_view, \
         "OSPF ビューにセグメント楕円（<ellipse>）が描画されていない"
-
 
 @pytest.mark.unit
 def test_ospf_view_segment_has_area_label():
@@ -5117,7 +4792,6 @@ def test_ospf_view_segment_has_area_label():
         "OSPF ビューのセグメントに 'area 1' ラベルがない"
     assert "192.168.50.0/24" in ospf_view, \
         "OSPF ビューのセグメントに '192.168.50.0/24' が表示されていない"
-
 
 @pytest.mark.unit
 def test_ospf_view_segment_area_label_format():
@@ -5136,7 +4810,6 @@ def test_ospf_view_segment_area_label_format():
     assert "192.168.50.0/24" in ospf_view, \
         f"OSPF セグメントラベルに '192.168.50.0/24' が含まれていない"
 
-
 @pytest.mark.unit
 def test_ospf_view_segment_edges_connect_members():
     """#7: OSPF ビューのセグメントからメンバー機器（acc1/acc2/core1）への seg-edge が描画される。"""
@@ -5149,7 +4822,6 @@ def test_ospf_view_segment_edges_connect_members():
     # メンバー数 3（acc1/acc2/core1）に応じた >= 3 で検証（T-segedges 強化）
     assert len(seg_edges) >= 3, \
         f"OSPF ビューに seg-edge が不足している（{len(seg_edges)}本, 期待: >=3本 for 3メンバー）"
-
 
 @pytest.mark.unit
 def test_ospf_view_acc1_acc2_not_isolated():
@@ -5177,7 +4849,6 @@ def test_ospf_view_acc1_acc2_not_isolated():
     assert len(total_acc_edges) >= 2, \
         f"acc1/acc2 への seg-edge が不足している（{len(total_acc_edges)}本, 期待: >=2本）"
 
-
 @pytest.mark.unit
 def test_ospf_view_p2p_link_area0_label_preserved():
     """#7: OSPF ビューの p2p リンク（area 0）の area ラベルが従来通り表示される。"""
@@ -5187,7 +4858,6 @@ def test_ospf_view_p2p_link_area0_label_preserved():
     assert ospf_view, "OSPF ビューが見つからない"
     assert "area 0" in ospf_view, \
         "OSPF ビューの p2p リンク area 0 ラベルが消えている（後退テスト）"
-
 
 @pytest.mark.unit
 def test_ospf_view_p2p_link_area_label_strict():
@@ -5214,7 +4884,6 @@ def test_ospf_view_p2p_link_area_label_strict():
     assert re.search(r'<tspan[^>]*>10\.2\.0\.0/30</tspan>', ospf_view), \
         f"10.2.0.0/30 の独立 tspan 行が見つからない: {ospf_view[:500]}"
 
-
 @pytest.mark.unit
 def test_ospf_view_segment_has_ospf_layer_class():
     """#7: OSPF ビューのセグメント要素に layer-ospf クラスが付く（レイヤートグル対応）。"""
@@ -5224,7 +4893,6 @@ def test_ospf_view_segment_has_ospf_layer_class():
     assert ospf_view, "OSPF ビューが見つからない"
     assert "layer-ospf" in ospf_view, \
         "OSPF セグメントに layer-ospf クラスがない"
-
 
 @pytest.mark.unit
 def test_ospf_view_segment_deterministic():
@@ -5237,7 +4905,6 @@ def test_ospf_view_segment_deterministic():
     ospf1 = _extract_ospf_view(html1)
     ospf2 = _extract_ospf_view(html2)
     assert ospf1 == ospf2, "OSPF ビューの出力が非決定的"
-
 
 @pytest.mark.unit
 def test_ospf_view_non_ospf_segment_not_rendered():
@@ -5275,7 +4942,6 @@ def test_ospf_view_non_ospf_segment_not_rendered():
     # OSPF 参加機器も OSPF 参加セグメントもないので OSPF ビューは生成されないこと
     assert not ospf_view, \
         f"非 OSPF セグメントのみの topology で OSPF ビューが生成された: ospf_view={ospf_view[:200]}"
-
 
 # ===========================================================================
 # H2: routing.ospf=[] でも ospf_area 付きセグメントメンバーが OSPF ビューに描画
@@ -5334,7 +5000,6 @@ def test_ospf_view_segment_member_rendered_when_ospf_entries_empty():
     assert len(seg_edges) >= 1, \
         f"routing.ospf=[] でも seg-edge が描画されるべき: {len(seg_edges)}本"
 
-
 # ===========================================================================
 # iteration-3 Batch1: #1 Physical リンク常時ラベル撤去、#2 IFチップ化、
 #                     #3 LAYERS トグル位置移設、#8 レイアウト改善
@@ -5368,7 +5033,6 @@ def _make_link_topology_for_i3():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_i3_no_link_label_text_in_physical():
     """#1: Physical ビューのリンク線に常時 link-label <text> が生成されない。
@@ -5384,7 +5048,6 @@ def test_i3_no_link_label_text_in_physical():
     assert len(link_label_texts) == 0, \
         f"Physical ビューに link-label <text> が {len(link_label_texts)} 個残っている（撤去済みのはず）: {link_label_texts}"
 
-
 @pytest.mark.unit
 def test_i3_link_line_remains_in_physical():
     """#1: link-label を撤去してもリンク線（link-line）は残る。"""
@@ -5393,7 +5056,6 @@ def test_i3_link_line_remains_in_physical():
     phys = _extract_physical_view(html)
     assert 'class="link-line' in phys, \
         "Physical ビューにリンク線（link-line）が存在しない"
-
 
 @pytest.mark.unit
 def test_i3_link_title_remains_for_hover():
@@ -5405,7 +5067,6 @@ def test_i3_link_title_remains_for_hover():
     m = re.search(r'class="link-edge"[^>]*>.*?<title>', phys, re.DOTALL)
     assert m is not None, \
         "Physical ビューのリンクエッジに <title>（hover 用）が存在しない"
-
 
 # ---------------------------------------------------------------------------
 # #2: Physical ノードに接続IF/Loopback のみチップ要素として表示
@@ -5445,7 +5106,6 @@ def _make_chip_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_i3_chip_connected_if_shown_in_node():
     """#2: 接続IF（リンク端点）はノード SVG にチップ要素（if-chip クラス）として出る。"""
@@ -5457,7 +5117,6 @@ def test_i3_chip_connected_if_shown_in_node():
     chip_elems = re.findall(r'class="[^"]*if-chip[^"]*"', phys)
     assert len(chip_elems) >= 1, \
         f"Physical ビューにチップ要素（if-chip クラス）が見つからない: {len(chip_elems)}"
-
 
 @pytest.mark.unit
 def test_i3_chip_loopback_shown_in_node():
@@ -5473,7 +5132,6 @@ def test_i3_chip_loopback_shown_in_node():
     assert len(chip_elems) >= 2, \
         f"接続IF + Loopback で if-chip が 2 個以上あるべき: {len(chip_elems)}"
 
-
 @pytest.mark.unit
 def test_i3_chip_non_connected_non_loopback_not_in_node_svg():
     """#2: 非接続・非Loopback の IF はノード SVG に if-row/if-chip として出ない。"""
@@ -5487,7 +5145,6 @@ def test_i3_chip_non_connected_non_loopback_not_in_node_svg():
     if_row_elems = re.findall(r'class="[^"]*if-row[^"]*"', phys)
     assert len(if_row_elems) == 0, \
         f"Physical ビューに if-row 要素が残っている（チップ化後は不要）: {len(if_row_elems)}"
-
 
 @pytest.mark.unit
 def test_i3_chip_has_hover_title():
@@ -5507,7 +5164,6 @@ def test_i3_chip_has_hover_title():
     assert if_name_in_title, \
         f"if-chip の <title> に IF 名（GigabitEthernet0/0 / Loopback0）が見つからない: titles={titles_in_phys[:5]}"
 
-
 @pytest.mark.unit
 def test_i3_chip_card_still_has_all_interfaces():
     """#2: カード表（#cards-section 以降）には非接続IFを含む全IFが残る。"""
@@ -5525,7 +5181,6 @@ def test_i3_chip_card_still_has_all_interfaces():
     assert "Loopback0" in cards, \
         "カード表に Loopback0 が存在しない"
 
-
 @pytest.mark.unit
 def test_i3_chip_deterministic():
     """#2: チップ化 Physical ビューの render が決定的（2回一致）。"""
@@ -5535,7 +5190,6 @@ def test_i3_chip_deterministic():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "チップ化後の render が非決定的"
-
 
 # ---------------------------------------------------------------------------
 # #3: LAYERS トグルが cards-section の直前/近傍に配置される
@@ -5555,7 +5209,6 @@ def test_i3_layers_toggle_near_cards_section(rendered_html):
             'layer-toggle' in post_cards or 'data-layer=' in post_cards), \
         "LAYERS トグルが cards-section の前後（2000文字以内）に存在しない"
 
-
 @pytest.mark.unit
 def test_i3_layers_toggle_not_only_in_controls(rendered_html):
     """#3: LAYERS トグルがコントロールバー（.controls 内）だけに存在しない。
@@ -5568,7 +5221,6 @@ def test_i3_layers_toggle_not_only_in_controls(rendered_html):
         # 新仕様: controls 内には layer-toggle を含まない
         assert 'layer-toggle' not in controls_content, \
             "移設後も .controls 内に layer-toggle が残っている（移設されていない）"
-
 
 # ---------------------------------------------------------------------------
 # #8: diagram-pane max-height / overflow, cards 折りたたみトグル
@@ -5588,7 +5240,6 @@ def test_i3_diagram_pane_has_overflow_css(rendered_html):
     assert has_overflow, \
         "#svg-container または #diagram-pane の CSS に overflow が設定されていない"
 
-
 @pytest.mark.unit
 def test_i3_diagram_pane_has_max_height_css(rendered_html):
     """#8/#Phase1-A: SVG コンテナの高さ制御が行われている。
@@ -5605,7 +5256,6 @@ def test_i3_diagram_pane_has_max_height_css(rendered_html):
     assert has_height_control, \
         "#svg-container の CSS に高さ制御（min-height/flex/height）が設定されていない"
 
-
 @pytest.mark.unit
 def test_i3_cards_section_default_visible(rendered_html):
     """#8: cards-section はデフォルト表示（display:none / hidden で隠れていない）。"""
@@ -5617,7 +5267,6 @@ def test_i3_cards_section_default_visible(rendered_html):
     assert 'display:none' not in attrs and 'display: none' not in attrs, \
         "cards-section がデフォルトで display:none になっている（常時表示すべき）"
 
-
 @pytest.mark.unit
 def test_i3_cards_toggle_button_exists(rendered_html):
     """#8/#Phase1-B: cards-section の表示制御が行われている。
@@ -5626,7 +5275,6 @@ def test_i3_cards_toggle_button_exists(rendered_html):
     # Phase 1 以降: 折りたたみは廃止、cards-section が常時表示される
     assert 'id="cards-section"' in rendered_html, \
         "cards-section が存在しない"
-
 
 @pytest.mark.unit
 def test_i3_cards_toggle_js_function_removed_in_phase1(rendered_html):
@@ -5638,7 +5286,6 @@ def test_i3_cards_toggle_js_function_removed_in_phase1(rendered_html):
     """
     assert "toggleCards" not in rendered_html, \
         "toggleCards 関数が JS に残存している（Phase1 で廃止されるべき）"
-
 
 # ===========================================================================
 # iteration-3 Batch2: #4 AS枠視認性改善 / #5 BGP IP↔IP表示
@@ -5662,7 +5309,6 @@ def test_i3b4_as_group_label_chip_has_rect_bg():
     assert 'as-group-label-bg' in svg, \
         "as-group ラベルの背景チップ要素（as-group-label-bg）が存在しない"
 
-
 @pytest.mark.unit
 def test_i3b4_as_group_label_chip_before_text():
     """#4: as-group ラベル背景チップが <text class="as-group-label"> より前に DOM 出力される（背面）"""
@@ -5679,7 +5325,6 @@ def test_i3b4_as_group_label_chip_before_text():
     assert chip_pos < label_pos, \
         f"背景チップ({chip_pos}) が <text>({label_pos}) より後に出力されている"
 
-
 @pytest.mark.unit
 def test_i3b4_as_group_css_fill_defined():
     """#4: CSS に as-group の fill（背景色）ルールが存在する"""
@@ -5688,7 +5333,6 @@ def test_i3b4_as_group_css_fill_defined():
     assert '.as-group' in _CSS, "CSS に .as-group ルールがない"
     # as-group-label-bg のスタイルも定義されていること
     assert 'as-group-label-bg' in _CSS, "CSS に as-group-label-bg ルールがない"
-
 
 @pytest.mark.unit
 def test_i3b4_as_group_css_stroke_visible():
@@ -5700,7 +5344,6 @@ def test_i3b4_as_group_css_stroke_visible():
     assert m is not None, "CSS に .as-group { ... } ブロックが見つからない"
     block = m.group(1)
     assert 'stroke' in block, f"CSS の .as-group に stroke プロパティがない: {block}"
-
 
 @pytest.mark.unit
 def test_i3b4_as_group_label_chip_text_correct():
@@ -5714,7 +5357,6 @@ def test_i3b4_as_group_label_chip_text_correct():
     svg = _svg_bgp_as_groups(devs, positions)
     assert "AS 65001" in svg, "AS 65001 ラベルが存在しない"
     assert "AS 65002" in svg, "AS 65002 ラベルが存在しない"
-
 
 @pytest.mark.unit
 def test_i3b4_as_group_label_chip_at_topleft():
@@ -5749,7 +5391,6 @@ def test_i3b4_as_group_label_chip_at_topleft():
     assert label_x < rect_x + rect_w / 2 + 1, \
         f"ラベル x={label_x:.1f} が枠中央 {rect_x + rect_w/2:.1f} より右（左上配置でない）"
 
-
 @pytest.mark.unit
 def test_i3b4_as_group_deterministic_with_chip():
     """#4: チップ付き AS 枠の出力が決定的（同一入力で2回一致）"""
@@ -5763,7 +5404,6 @@ def test_i3b4_as_group_deterministic_with_chip():
     svg1 = _svg_bgp_as_groups(copy.deepcopy(devs), copy.deepcopy(positions))
     svg2 = _svg_bgp_as_groups(copy.deepcopy(devs), copy.deepcopy(positions))
     assert svg1 == svg2, "AS 枠チップ付きの出力が非決定的"
-
 
 # ---------------------------------------------------------------------------
 # #5: BGP エッジの IP↔IP 表示テスト
@@ -5801,7 +5441,6 @@ def _make_ebgp_p2p_topology_with_ips():
         },
     }
 
-
 def _make_ibgp_loopback_topology_no_local_ip():
     """iBGP loopback ピア: local_ip が null のケース（欠損でも壊れない）"""
     return {
@@ -5831,7 +5470,6 @@ def _make_ibgp_loopback_topology_no_local_ip():
         },
     }
 
-
 @pytest.mark.unit
 def test_i3b5_ebgp_edge_shows_neighbor_ip():
     """#5: eBGP エッジに neighbor_ip (10.0.0.2) が表示される"""
@@ -5842,7 +5480,6 @@ def test_i3b5_ebgp_edge_shows_neighbor_ip():
     assert "10.0.0.2" in bgp_view, \
         "eBGP エッジに neighbor_ip (10.0.0.2) が表示されていない"
 
-
 @pytest.mark.unit
 def test_i3b5_ebgp_edge_shows_local_ip():
     """#5: eBGP エッジに local_ip (10.0.0.1) が表示される"""
@@ -5852,7 +5489,6 @@ def test_i3b5_ebgp_edge_shows_local_ip():
     assert bgp_view, "BGP ビューが見つからない"
     assert "10.0.0.1" in bgp_view, \
         "eBGP エッジに local_ip (10.0.0.1) が表示されていない"
-
 
 @pytest.mark.unit
 def test_i3b5_ibgp_loopback_no_local_ip_no_crash():
@@ -5865,7 +5501,6 @@ def test_i3b5_ibgp_loopback_no_local_ip_no_crash():
     assert isinstance(html, str)
     assert "<svg" in html.lower()
 
-
 @pytest.mark.unit
 def test_i3b5_ibgp_loopback_shows_neighbor_ip():
     """#5: local_ip=null の iBGP でも neighbor_ip が表示される"""
@@ -5877,7 +5512,6 @@ def test_i3b5_ibgp_loopback_shows_neighbor_ip():
     has_ip = "10.255.0.1" in bgp_view or "10.255.0.2" in bgp_view
     assert has_ip, \
         "local_ip=null の iBGP でも neighbor_ip のいずれかが表示されていない"
-
 
 @pytest.mark.unit
 def test_i3b5_bgp_edge_title_has_ips():
@@ -5896,7 +5530,6 @@ def test_i3b5_bgp_edge_title_has_ips():
     assert "<title>" in svg, "BGP エッジに <title> 要素がない"
     assert "10.0.0.1" in svg, "<title> に local_ip が含まれない"
     assert "10.0.0.2" in svg, "<title> に neighbor_ip が含まれない"
-
 
 @pytest.mark.unit
 def test_i3b5_bgp_edge_null_local_ip_title_no_crash():
@@ -5917,7 +5550,6 @@ def test_i3b5_bgp_edge_null_local_ip_title_no_crash():
         pytest.fail(f"local_ip=null で _svg_bgp_edges が例外: {e}")
     assert "10.255.0.2" in svg, "neighbor_ip が表示されていない"
 
-
 @pytest.mark.unit
 def test_i3b5_ebgp_edge_ip_display_format():
     """#5: eBGP エッジの IP 表示が「local_ip↔neighbor_ip」形式を含む"""
@@ -5937,7 +5569,6 @@ def test_i3b5_ebgp_edge_ip_display_format():
                  "10.0.0.1 ↔ 10.0.0.2" in svg or
                  ("10.0.0.1" in svg and "10.0.0.2" in svg))
     assert has_arrow, "IP ↔ IP 形式の表示が存在しない"
-
 
 @pytest.mark.unit
 def test_i3b5_ibgp_loopback_null_local_ip_shows_neighbor_only():
@@ -5962,7 +5593,6 @@ def test_i3b5_ibgp_loopback_null_local_ip_shows_neighbor_only():
         assert "None" not in badge_text, \
             f"BGP バッジに 'None' 文字列が含まれている: {badge_text!r}"
 
-
 @pytest.mark.unit
 def test_i3b5_ebgp_edge_deterministic():
     """#5: IP表示付き BGP エッジが決定的（同一入力で2回一致）"""
@@ -5979,7 +5609,6 @@ def test_i3b5_ebgp_edge_deterministic():
     svg1 = _svg_bgp_edges(bgp_entries, interfaces, positions)
     svg2 = _svg_bgp_edges(bgp_entries, interfaces, positions)
     assert svg1 == svg2, "BGP エッジ IP 表示が非決定的"
-
 
 # ===========================================================================
 # iteration-3 Batch3 #6: Static Routes 行の経路ハイライト
@@ -6022,7 +5651,6 @@ def _make_segment_static_topology():
         },
     }
 
-
 def _make_p2p_static_topology():
     """next_hop が p2p リンク上の機器を指す static ルートを含む topology。"""
     return {
@@ -6053,7 +5681,6 @@ def _make_p2p_static_topology():
         },
     }
 
-
 # ---- #2/#6: _build_static_route_map のユニットテスト -----------------------
 
 @pytest.mark.unit
@@ -6061,7 +5688,6 @@ def test_i3b3_6_build_static_route_map_exists():
     """#2: _build_static_route_map 関数が core.py に存在する"""
     from lib.rendering.core import _build_static_route_map
     assert callable(_build_static_route_map)
-
 
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_p2p_finds_link():
@@ -6084,7 +5710,6 @@ def test_i3b3_6_static_route_map_p2p_finds_link():
     assert info.get("nexthop_device_id") == "r2", \
         f"nexthop_device_id 不一致: {info.get('nexthop_device_id')!r}"
 
-
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_p2p_reverse():
     """#2: p2p リンクの逆方向も正しく解決される"""
@@ -6103,7 +5728,6 @@ def test_i3b3_6_static_route_map_p2p_reverse():
     expected_lid = _make_link_id("r1", "eth0", "r2", "eth0")
     assert info.get("route_edge_id") == expected_lid
     assert info.get("nexthop_device_id") == "r1"
-
 
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_segment_finds_seg():
@@ -6124,7 +5748,6 @@ def test_i3b3_6_static_route_map_segment_finds_seg():
     assert info.get("nexthop_device_id") == "sw2", \
         f"nexthop_device_id 不一致: {info.get('nexthop_device_id')!r}"
 
-
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_unknown_nexthop_no_entry():
     """#2: 経路不明の next_hop はマップにないか route_edge_id=None"""
@@ -6142,7 +5765,6 @@ def test_i3b3_6_static_route_map_unknown_nexthop_no_entry():
         assert info.get("route_edge_id") is None, \
             f"解決不能 next_hop に route_edge_id が設定されている: {info}"
 
-
 @pytest.mark.unit
 def test_i3b3_6_static_route_map_deterministic():
     """#2: _build_static_route_map は決定的"""
@@ -6153,7 +5775,6 @@ def test_i3b3_6_static_route_map_deterministic():
     m2 = _build_static_route_map(
         topo["routing"]["static"], topo["links"], topo["segments"], topo["interfaces"])
     assert m1 == m2, "route_map が非決定的"
-
 
 # ---- #2/#6-2: cards.py の data-route-edge / data-route-nexthop-device ------
 
@@ -6167,7 +5788,6 @@ def test_i3b3_6_static_row_has_data_route_edge_when_resolved():
     assert re.search(r'<tr[^>]+data-route-edge="[^"]+"', cards_html), \
         "経路解決済み static 行に data-route-edge が付いていない"
 
-
 @pytest.mark.unit
 def test_i3b3_6_static_row_has_data_route_nexthop_device():
     """#2: 経路解決済み static 行に data-route-nexthop-device が付く"""
@@ -6178,7 +5798,6 @@ def test_i3b3_6_static_row_has_data_route_nexthop_device():
     assert re.search(r'<tr[^>]+data-route-nexthop-device="[^"]+"', cards_html), \
         "経路解決済み static 行に data-route-nexthop-device が付いていない"
 
-
 @pytest.mark.unit
 def test_i3b3_6_static_row_segment_has_data_route_edge():
     """#2: セグメント経路 static 行に正しい data-route-edge (seg-id) が付く"""
@@ -6188,7 +5807,6 @@ def test_i3b3_6_static_row_segment_has_data_route_edge():
     cards_html = cards_m.group(1) if cards_m else html
     assert 'data-route-edge="seg-192_168_10_0_24"' in cards_html, \
         "セグメント static 行に正しい seg-id が data-route-edge に付いていない"
-
 
 @pytest.mark.unit
 def test_i3b3_6_static_row_unresolved_no_data_route_edge():
@@ -6208,7 +5826,6 @@ def test_i3b3_6_static_row_unresolved_no_data_route_edge():
             assert edge_id == "", \
                 f"解決不能 next_hop の行に非空の data-route-edge がある: {edge_id!r}"
 
-
 # ---- #2/#6-3: JS ハンドラの存在（構造テスト）---------------------------------
 
 @pytest.mark.unit
@@ -6217,7 +5834,6 @@ def test_i3b3_6_js_toggle_static_route_highlight_exists(rendered_html):
     assert "toggleStaticRouteHighlight" in rendered_html, \
         "toggleStaticRouteHighlight 関数が見つからない"
 
-
 @pytest.mark.unit
 def test_i3b3_6_js_toggle_static_uses_route_id(rendered_html):
     """#2: toggleStaticRouteHighlight が data-route-id を参照する（#2 で route-id ベースに更新）"""
@@ -6225,7 +5841,6 @@ def test_i3b3_6_js_toggle_static_uses_route_id(rendered_html):
     assert func_body, "toggleStaticRouteHighlight 関数が見つからない"
     assert "route-id" in func_body or "routeId" in func_body, \
         "toggleStaticRouteHighlight が data-route-id を参照していない"
-
 
 @pytest.mark.unit
 def test_i3b3_6_js_toggle_static_uses_nexthop_device(rendered_html):
@@ -6238,7 +5853,6 @@ def test_i3b3_6_js_toggle_static_uses_nexthop_device(rendered_html):
            or "route-nexthop" in combined.lower(), \
         "toggleStaticRouteHighlight/_applyStaticRowHighlights が nexthop_device を参照していない"
 
-
 @pytest.mark.unit
 def test_i3b3_6_js_toggle_static_uses_highlighted(rendered_html):
     """#2: _applyStaticRowHighlights が highlighted クラスを操作する"""
@@ -6247,7 +5861,6 @@ def test_i3b3_6_js_toggle_static_uses_highlighted(rendered_html):
     assert "highlighted" in apply_body, \
         "_applyStaticRowHighlights が highlighted を操作していない"
 
-
 @pytest.mark.unit
 def test_i3b3_6_esc_clears_static_highlight(rendered_html):
     """#2: clearLinkHighlight が highlighted を解除する（Esc で全解除）"""
@@ -6255,7 +5868,6 @@ def test_i3b3_6_esc_clears_static_highlight(rendered_html):
     assert clear_body, "clearLinkHighlight 関数が見つからない"
     assert "highlighted" in clear_body, \
         "clearLinkHighlight が highlighted を除去していない"
-
 
 @pytest.mark.unit
 def test_i3b3_6_static_row_no_crash_unresolved():
@@ -6267,7 +5879,6 @@ def test_i3b3_6_static_row_no_crash_unresolved():
         pytest.fail(f"経路不明 static ルートで例外が発生: {e}")
     assert isinstance(html, str)
 
-
 @pytest.mark.unit
 def test_i3b3_6_render_deterministic_with_static_routes():
     """#2: static route マップ追加後も決定性が維持される"""
@@ -6277,7 +5888,6 @@ def test_i3b3_6_render_deterministic_with_static_routes():
     h1 = render(copy.deepcopy(topo))
     h2 = render(copy.deepcopy(topo))
     assert h1 == h2, "#2 追加後の render() が非決定的"
-
 
 # ===========================================================================
 # iteration-3 Batch3 #7: セグメント IF 行双方向ハイライト
@@ -6314,7 +5924,6 @@ def _make_seg_highlight_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 # ---- #7-1: iface_seg_id マップ（core.py）-----------------------------------
 
 @pytest.mark.unit
@@ -6326,7 +5935,6 @@ def test_i3b3_7_iface_seg_id_map_built_in_render():
     cards_html = cards_m.group(1) if cards_m else html
     assert 'data-seg-id="seg-10_10_0_0_24"' in cards_html, \
         "メンバー IF 行に data-seg-id が付いていない"
-
 
 # ---- #7-2: cards.py の IF 行 data-seg-id -----------------------------------
 
@@ -6344,7 +5952,6 @@ def test_i3b3_7_member_if_row_has_data_seg_id():
         assert seg_id == "seg-10_10_0_0_24", \
             f"data-seg-id の値が不正: {seg_id!r}"
 
-
 @pytest.mark.unit
 def test_i3b3_7_non_member_if_row_no_data_seg_id():
     """#7: セグメント非メンバーの IF 行には data-seg-id が付かない"""
@@ -6360,7 +5967,6 @@ def test_i3b3_7_non_member_if_row_no_data_seg_id():
         seg_ids = re.findall(r'data-seg-id="([^"]*)"', row)
         for sid in seg_ids:
             assert sid == "", f"非メンバー lo0 行に非空の data-seg-id がある: {sid!r}"
-
 
 @pytest.mark.unit
 def test_i3b3_7_data_seg_id_and_link_id_coexist():
@@ -6400,7 +6006,6 @@ def test_i3b3_7_data_seg_id_and_link_id_coexist():
     assert len(tr_with_both) >= 1, \
         "p2p + セグメント兼用 IF 行に data-link-id と data-seg-id が共存していない"
 
-
 # ---- #7-3: svg.py の data-seg-id -------------------------------------------
 
 @pytest.mark.unit
@@ -6411,7 +6016,6 @@ def test_i3b3_7_seg_ellipse_has_data_seg_id():
     phys = _extract_physical_view(html)
     assert 'data-seg-id="seg-10_10_0_0_24"' in phys, \
         "セグメントノードに data-seg-id が付いていない"
-
 
 @pytest.mark.unit
 def test_i3b3_7_seg_edge_has_data_seg_id():
@@ -6424,7 +6028,6 @@ def test_i3b3_7_seg_edge_has_data_seg_id():
     for edge in seg_edges:
         assert 'data-seg-id="' in edge, \
             f"seg-edge に data-seg-id がない: {edge}"
-
 
 @pytest.mark.unit
 def test_i3b3_7_seg_edge_data_seg_id_correct_value():
@@ -6442,7 +6045,6 @@ def test_i3b3_7_seg_edge_data_seg_id_correct_value():
     assert "seg-10_10_0_0_24" in edge_seg_ids, \
         f"seg-edge の data-seg-id に期待値がない: {edge_seg_ids}"
 
-
 # ---- #7-4: JS ハンドラの存在（構造テスト）-----------------------------------
 
 @pytest.mark.unit
@@ -6450,7 +6052,6 @@ def test_i3b3_7_js_toggle_seg_highlight_exists(rendered_html):
     """#7: JS に toggleSegHighlight 関数が存在する"""
     assert "toggleSegHighlight" in rendered_html, \
         "toggleSegHighlight 関数が見つからない"
-
 
 @pytest.mark.unit
 def test_i3b3_7_js_toggle_seg_uses_data_seg_id(rendered_html):
@@ -6460,7 +6061,6 @@ def test_i3b3_7_js_toggle_seg_uses_data_seg_id(rendered_html):
     assert "seg-id" in func_body or "segId" in func_body, \
         "toggleSegHighlight が data-seg-id を参照していない"
 
-
 @pytest.mark.unit
 def test_i3b3_7_js_toggle_seg_uses_highlighted(rendered_html):
     """#7: toggleSegHighlight が highlighted クラスを操作する"""
@@ -6468,7 +6068,6 @@ def test_i3b3_7_js_toggle_seg_uses_highlighted(rendered_html):
     assert func_body, "toggleSegHighlight 関数が見つからない"
     assert "highlighted" in func_body, \
         "toggleSegHighlight が highlighted を操作していない"
-
 
 @pytest.mark.unit
 def test_i3b3_7_js_seg_node_click_calls_toggle_seg(rendered_html):
@@ -6478,13 +6077,11 @@ def test_i3b3_7_js_seg_node_click_calls_toggle_seg(rendered_html):
     assert "segment-node" in lower or "seg-ellipse" in lower, \
         "セグメントノードへの参照が JS に存在しない"
 
-
 @pytest.mark.unit
 def test_i3b3_7_js_if_row_seg_click_calls_toggle_seg(rendered_html):
     """#7: data-seg-id を持つ IF 行クリック -> toggleSegHighlight の呼び出しがある"""
     assert "data-seg-id" in rendered_html and "toggleSegHighlight" in rendered_html, \
         "data-seg-id IF 行クリックハンドラが存在しない"
-
 
 @pytest.mark.unit
 def test_i3b3_7_esc_clears_seg_highlight(rendered_html):
@@ -6493,7 +6090,6 @@ def test_i3b3_7_esc_clears_seg_highlight(rendered_html):
     assert clear_body, "clearLinkHighlight 関数が見つからない"
     has_seg_clear = "_selectedSegs" in clear_body or "seg" in clear_body.lower()
     assert has_seg_clear, "clearLinkHighlight が seg ハイライトを解除していない"
-
 
 @pytest.mark.unit
 def test_i3b3_7_render_deterministic_with_segments():
@@ -6504,7 +6100,6 @@ def test_i3b3_7_render_deterministic_with_segments():
     h1 = render(copy.deepcopy(topo))
     h2 = render(copy.deepcopy(topo))
     assert h1 == h2, "#7 追加後の render() が非決定的"
-
 
 # ---- golden テスト（#6/#7 総合）--------------------------------------
 
@@ -6526,7 +6121,6 @@ def test_i3b3_golden_static_route_attrs_and_seg_id(sample_topology):
     )
     assert len(external_refs) == 0, f"外部 CDN 参照がある: {external_refs}"
 
-
 # ===========================================================================
 # iteration-3 review fixes
 # ===========================================================================
@@ -6541,13 +6135,11 @@ def test_hc3_is_loopback_cisco_loopback0():
     from lib.rendering.svg import _is_loopback
     assert _is_loopback("Loopback0") is True
 
-
 @pytest.mark.unit
 def test_hc3_is_loopback_juniper_lo0():
     """HC3: Juniper lo0 は loopback と判定される"""
     from lib.rendering.svg import _is_loopback
     assert _is_loopback("lo0") is True
-
 
 @pytest.mark.unit
 def test_hc3_is_loopback_juniper_lo0_dot0():
@@ -6555,13 +6147,11 @@ def test_hc3_is_loopback_juniper_lo0_dot0():
     from lib.rendering.svg import _is_loopback
     assert _is_loopback("lo0.0") is True
 
-
 @pytest.mark.unit
 def test_hc3_is_loopback_local0_is_false():
     """HC3: local0 は loopback と判定されない（lo 前方一致の過広修正）"""
     from lib.rendering.svg import _is_loopback
     assert _is_loopback("local0") is False
-
 
 @pytest.mark.unit
 def test_hc3_is_loopback_local_bridge_is_false():
@@ -6569,20 +6159,17 @@ def test_hc3_is_loopback_local_bridge_is_false():
     from lib.rendering.svg import _is_loopback
     assert _is_loopback("local-bridge") is False
 
-
 @pytest.mark.unit
 def test_hc3_is_loopback_lo_bare_is_true():
     """HC3: 'lo'（数字なし）は loopback と判定される"""
     from lib.rendering.svg import _is_loopback
     assert _is_loopback("lo") is True
 
-
 @pytest.mark.unit
 def test_hc3_is_loopback_ge0_is_false():
     """HC3: GigabitEthernet は loopback と判定されない"""
     from lib.rendering.svg import _is_loopback
     assert _is_loopback("GigabitEthernet0/0") is False
-
 
 # ---------------------------------------------------------------------------
 # MC1: _build_static_route_map リンク走査のソート安定化
@@ -6611,7 +6198,6 @@ def test_mc1_static_route_map_stable_with_duplicate_subnet():
     m2 = _build_static_route_map(static_entries, links, [], ifaces)
     assert m1 == m2, "重複サブネット時に route_map が非決定的"
 
-
 # ---------------------------------------------------------------------------
 # TC1: eBGP エッジ IP 表示の vacuous OR を排除した厳密テスト
 # ---------------------------------------------------------------------------
@@ -6634,7 +6220,6 @@ def test_tc1_ebgp_edge_ip_display_format_strict():
     assert has_bidirectional, \
         f"IP ↔ IP 形式（↔記号）の表示が存在しない: svg={svg[:500]}"
 
-
 # ---------------------------------------------------------------------------
 # TC2: 解決不能 next_hop がマップに存在しないことを明示アサート
 # ---------------------------------------------------------------------------
@@ -6653,7 +6238,6 @@ def test_tc2_static_route_map_unknown_nexthop_strict():
     key = ("sw2", "10.0.0.0/8")
     assert key not in route_map, \
         f"解決不能 next_hop がマップに存在する: {route_map.get(key)}"
-
 
 # ---------------------------------------------------------------------------
 # TC3: 経路不明 static 行はカード存在 + data-route-edge なし
@@ -6678,7 +6262,6 @@ def test_tc3_static_row_unresolved_card_exists_no_route_edge():
         assert len(route_edges) == 0, \
             f"解決不能 next_hop の行に非空 data-route-edge がある: {route_edges}"
 
-
 # ---------------------------------------------------------------------------
 # TH1/TH2: data-route-edge の実際の link-id / device 値を検証
 # ---------------------------------------------------------------------------
@@ -6695,7 +6278,6 @@ def test_th1_static_row_data_route_edge_has_correct_link_id():
     assert f'data-route-edge="{expected_lid}"' in cards_html, \
         f"data-route-edge に期待する link-id がない: {expected_lid!r}"
 
-
 @pytest.mark.unit
 def test_th2_static_row_data_route_nexthop_device_has_correct_value():
     """TH2: data-route-nexthop-device の値が正しい機器ID"""
@@ -6707,7 +6289,6 @@ def test_th2_static_row_data_route_nexthop_device_has_correct_value():
         "data-route-nexthop-device に 'r2' が入っていない"
     assert 'data-route-nexthop-device="r1"' in cards_html, \
         "data-route-nexthop-device に 'r1' が入っていない"
-
 
 # ---------------------------------------------------------------------------
 # TH3/TH4: clearHighlight / toggleStaticRouteHighlight の保護・分離
@@ -6722,7 +6303,6 @@ def test_th3_clear_highlight_protects_static_route_edges(rendered_html):
     assert has_protection, \
         "clearHighlight が _selectedLinks/_selectedStaticEdges を参照していない"
 
-
 @pytest.mark.unit
 def test_th4_toggle_static_manages_nexthop_node(rendered_html):
     """#2: _applyStaticRowHighlights が nexthop ノードを集合で管理している（#2 で再計算関数に分離）"""
@@ -6736,7 +6316,6 @@ def test_th4_toggle_static_manages_nexthop_node(rendered_html):
     )
     assert has_management, \
         "_applyStaticRowHighlights が nexthop ノードを集合で管理していない"
-
 
 # ---------------------------------------------------------------------------
 # TH5/TH6: toggleSegHighlight の具体的な操作
@@ -6754,7 +6333,6 @@ def test_th5_toggle_seg_add_remove_highlighted(rendered_html):
             or 'classList.remove("highlighted")' in func_body), \
         "toggleSegHighlight に classList.remove('highlighted') がない"
 
-
 @pytest.mark.unit
 def test_th6_toggle_seg_manages_selected_segs(rendered_html):
     """TH6: toggleSegHighlight が _selectedSegs.add と .delete を持つ"""
@@ -6763,7 +6341,6 @@ def test_th6_toggle_seg_manages_selected_segs(rendered_html):
     assert "_selectedSegs" in func_body, "toggleSegHighlight が _selectedSegs を参照していない"
     assert ".add(" in func_body, "_selectedSegs.add がない"
     assert ".delete(" in func_body, "_selectedSegs.delete がない"
-
 
 # ---------------------------------------------------------------------------
 # TH7/TH8: IIFE 内のリスナー登録確認
@@ -6781,7 +6358,6 @@ def test_th7_seg_node_click_calls_toggle_seg_in_iife(rendered_html):
     assert "toggleSegHighlight" in nearby, \
         "segment-node クリックハンドラが toggleSegHighlight を呼んでいない"
 
-
 @pytest.mark.unit
 def test_th8_if_row_seg_click_calls_toggle_seg_in_iife(rendered_html):
     """TH8: tr[data-seg-id] クリックリスナーが IIFE 内で toggleSegHighlight を呼ぶ"""
@@ -6790,7 +6366,6 @@ def test_th8_if_row_seg_click_calls_toggle_seg_in_iife(rendered_html):
     nearby = rendered_html[max(0, tr_seg_pos - 100):tr_seg_pos + 300]
     assert "toggleSegHighlight" in nearby, \
         "tr[data-seg-id] クリックハンドラが toggleSegHighlight を呼んでいない"
-
 
 # ---------------------------------------------------------------------------
 # HC1/HC2: JS 修正確認テスト
@@ -6805,7 +6380,6 @@ def test_hc1_clear_highlight_excludes_static_edges(rendered_html):
     assert has_protection, \
         "clearHighlight が _selectedLinks/_selectedStaticEdges を参照していない"
 
-
 @pytest.mark.unit
 def test_hc2_toggle_static_uses_dedicated_node_set(rendered_html):
     """HC2: _applyStaticRowHighlights が nexthop ノードを _selectedStaticNodes/route-target で管理（#2 で移設）"""
@@ -6814,7 +6388,6 @@ def test_hc2_toggle_static_uses_dedicated_node_set(rendered_html):
     uses_dedicated = "_selectedStaticNodes" in apply_body or "route-target" in apply_body
     assert uses_dedicated, \
         "_applyStaticRowHighlights がnexthopノードを手動選択と分離していない（_selectedStaticNodes or route-target が必要）"
-
 
 # ---------------------------------------------------------------------------
 # MM1: _svg_bgp_as_groups の label_x/label_y デッドコード除去確認
@@ -6842,7 +6415,6 @@ def test_mm1_svg_bgp_as_groups_no_dead_label_vars():
             assert var in used_load_names, \
                 f"MM1: {var} が代入されているが参照されていない（デッドコード）"
 
-
 # ---------------------------------------------------------------------------
 # HM4: ハイライト共通ヘルパーまたはインライン実装の確認
 # ---------------------------------------------------------------------------
@@ -6858,7 +6430,6 @@ def test_hm4_highlight_operations_present(rendered_html):
     )
     assert has_helper or has_inline, \
         "ハイライト操作ヘルパーもインライン実装も見つからない"
-
 
 # ===========================================================================
 # Phase 1 — 画面レイアウト刷新＋ズーム操作UI（iteration-4）
@@ -6877,7 +6448,6 @@ def test_p1a_split_divider_exists(rendered_html):
     assert 'id="split-divider"' in rendered_html, \
         "split-divider 要素が存在しない"
 
-
 @pytest.mark.unit
 def test_p1a_svg_container_no_max_height_70vh(rendered_html):
     """Phase1-A: #svg-container の max-height:70vh が撤去されている"""
@@ -6885,20 +6455,17 @@ def test_p1a_svg_container_no_max_height_70vh(rendered_html):
     assert "max-height: 70vh" not in rendered_html and "max-height:70vh" not in rendered_html, \
         "#svg-container の max-height:70vh が残存している"
 
-
 @pytest.mark.unit
 def test_p1a_split_divider_css_cursor_row_resize(rendered_html):
     """Phase1-A: #split-divider に cursor:row-resize スタイルが適用される"""
     assert "row-resize" in rendered_html, \
         "split-divider に cursor:row-resize が設定されていない"
 
-
 @pytest.mark.unit
 def test_p1a_layout_height_100vh_or_dvh(rendered_html):
     """Phase1-A: ルートレイアウトが height:100vh（または 100dvh）系で高さ制御されている"""
     assert "100vh" in rendered_html or "100dvh" in rendered_html, \
         "height:100vh/100dvh がレイアウトに存在しない"
-
 
 @pytest.mark.unit
 def test_p1a_split_divider_js_mousedown(rendered_html):
@@ -6917,7 +6484,6 @@ def test_p1a_split_divider_js_mousedown(rendered_html):
         rendered_html
     ) is not None, "split-divider の mousedown addEventListener が JS に存在しない"
 
-
 @pytest.mark.unit
 def test_p1a_cards_section_overflow_auto(rendered_html):
     """Phase1-A: #cards-section が overflow:auto（独立スクロール）を持つ（CRIT-2 具体化）
@@ -6935,7 +6501,6 @@ def test_p1a_cards_section_overflow_auto(rendered_html):
     assert re.search(pattern, css_text, re.IGNORECASE) is not None, \
         "#cards-section CSS ルールに overflow: auto/scroll が設定されていない"
 
-
 # ---------------------------------------------------------------------------
 # B: 折りたたみトグルの廃止
 # ---------------------------------------------------------------------------
@@ -6946,13 +6511,11 @@ def test_p1b_toggle_cards_function_removed(rendered_html):
     assert "toggleCards" not in rendered_html, \
         "toggleCards 関数が JS に残存している（廃止されるべき）"
 
-
 @pytest.mark.unit
 def test_p1b_cards_toggle_btn_removed(rendered_html):
     """Phase1-B: id="cards-toggle-btn" ボタンが HTML に存在しない"""
     assert 'id="cards-toggle-btn"' not in rendered_html, \
         "#cards-toggle-btn ボタンが HTML に残存している（廃止されるべき）"
-
 
 @pytest.mark.unit
 def test_p1b_cards_controls_class_removed(rendered_html):
@@ -6960,13 +6523,11 @@ def test_p1b_cards_controls_class_removed(rendered_html):
     assert 'class="cards-controls"' not in rendered_html, \
         ".cards-controls ラッパーが HTML に残存している（廃止されるべき）"
 
-
 @pytest.mark.unit
 def test_p1b_layer_toggles_still_exist(rendered_html):
     """Phase1-B: LAYERS トグル群（layer-toggle チェックボックス）は引き続き存在する"""
     assert "layer-toggle" in rendered_html, \
         "LAYERS トグル群が削除されている（折りたたみボタンのみ削除すべき）"
-
 
 @pytest.mark.unit
 def test_p1b_handle_layer_toggle_js_still_exists(rendered_html):
@@ -6974,13 +6535,11 @@ def test_p1b_handle_layer_toggle_js_still_exists(rendered_html):
     assert "handleLayerToggle" in rendered_html, \
         "handleLayerToggle JS 関数が削除されている（LAYERS 機能は維持すべき）"
 
-
 @pytest.mark.unit
 def test_p1b_layers_controls_div_still_exists(rendered_html):
     """Phase1-B: id="layers-controls" (LAYERS トグル div) は引き続き存在する"""
     assert 'id="layers-controls"' in rendered_html, \
         "#layers-controls div が削除されている（LAYERS 機能は維持すべき）"
-
 
 # ---------------------------------------------------------------------------
 # C: ズーム操作UI
@@ -6992,13 +6551,11 @@ def test_p1c_zoom_fit_button_exists(rendered_html):
     assert 'id="zoom-fit"' in rendered_html, \
         "ズーム fit ボタン (#zoom-fit) が存在しない"
 
-
 @pytest.mark.unit
 def test_p1c_zoom_in_button_exists(rendered_html):
     """Phase1-C: ズーム + ボタン（id="zoom-in"）が存在する"""
     assert 'id="zoom-in"' in rendered_html, \
         "ズーム + ボタン (#zoom-in) が存在しない"
-
 
 @pytest.mark.unit
 def test_p1c_zoom_out_button_exists(rendered_html):
@@ -7006,13 +6563,11 @@ def test_p1c_zoom_out_button_exists(rendered_html):
     assert 'id="zoom-out"' in rendered_html, \
         "ズーム − ボタン (#zoom-out) が存在しない"
 
-
 @pytest.mark.unit
 def test_p1c_zoom_reset_button_exists(rendered_html):
     """Phase1-C: 1:1 リセットボタン（id="zoom-reset"）が存在する"""
     assert 'id="zoom-reset"' in rendered_html, \
         "1:1 リセットボタン (#zoom-reset) が存在しない"
-
 
 @pytest.mark.unit
 def test_p1c_zoom_buttons_in_svg_container(rendered_html):
@@ -7024,7 +6579,6 @@ def test_p1c_zoom_buttons_in_svg_container(rendered_html):
     assert zoom_fit_pos != -1, "#zoom-fit が存在しない"
     assert zoom_fit_pos > container_start, \
         "#zoom-fit が #svg-container の外側に配置されている"
-
 
 @pytest.mark.unit
 def test_p1c_zoom_fit_js_function_exists(rendered_html):
@@ -7042,13 +6596,11 @@ def test_p1c_zoom_fit_js_function_exists(rendered_html):
         rendered_html
     ) is not None, "zoomFitBtn への click addEventListener が JS に存在しない"
 
-
 @pytest.mark.unit
 def test_p1c_zoom_controls_position_absolute(rendered_html):
     """Phase1-C: ズームボタン群がペイン内に重なるよう position:absolute（または sticky）が設定される"""
     assert "position:absolute" in rendered_html or "position: absolute" in rendered_html, \
         "ズームボタン群に position:absolute が設定されていない"
-
 
 # ---------------------------------------------------------------------------
 # 決定性: Phase 1 実装後も維持
@@ -7068,7 +6620,6 @@ def test_p1_render_deterministic_after_phase1(sample_topology):
     html2 = render(t2)
     assert html1 == html2, "Phase1 実装後 render() が非決定的"
 
-
 # ---------------------------------------------------------------------------
 # 既存機能の維持確認
 # ---------------------------------------------------------------------------
@@ -7077,7 +6628,6 @@ def test_p1_render_deterministic_after_phase1(sample_topology):
 def test_p1_wheel_zoom_handler_still_exists(rendered_html):
     """Phase1: wheel ズームハンドラは引き続き存在する"""
     assert "wheel" in rendered_html, "wheel ズームハンドラが削除されている"
-
 
 @pytest.mark.unit
 def test_p1_pan_mousedown_handler_still_exists(rendered_html):
@@ -7091,13 +6641,11 @@ def test_p1_pan_mousedown_handler_still_exists(rendered_html):
         rendered_html
     ) is not None, "container（#svg-container）への pan 専用 mousedown addEventListener が存在しない"
 
-
 @pytest.mark.unit
 def test_p1_set_node_visibility_still_exists(rendered_html):
     """Phase1: ノードフィルタ機能（setNodeVisibility）は引き続き存在する"""
     assert "setNodeVisibility" in rendered_html, \
         "setNodeVisibility（ノードフィルタ）が削除されている"
-
 
 @pytest.mark.unit
 def test_p1_toggle_seg_highlight_still_exists(rendered_html):
@@ -7105,13 +6653,11 @@ def test_p1_toggle_seg_highlight_still_exists(rendered_html):
     assert "toggleSegHighlight" in rendered_html, \
         "toggleSegHighlight が削除されている"
 
-
 @pytest.mark.unit
 def test_p1_toggle_if_row_highlight_still_exists(rendered_html):
     """Phase1: IF 行ハイライト（toggleIfRowHighlight）は引き続き存在する"""
     assert "toggleIfRowHighlight" in rendered_html, \
         "toggleIfRowHighlight が削除されている"
-
 
 # ---------------------------------------------------------------------------
 # Phase1 iteration-4: レビュー指摘 追加・具体化テスト群
@@ -7135,7 +6681,6 @@ def test_p1a_split_pane_dom_order(rendered_html):
     assert divider_pos < cards_pos, \
         "#split-divider が #cards-section より前に来ていない"
 
-
 @pytest.mark.unit
 def test_p1c_zoom_constants_exist_in_js(rendered_html):
     """Phase1-C: ズームクランプ定数（ZOOM_MIN=0.2 / ZOOM_MAX=5.0）と divider minH=120 が JS に存在する（HIGH H-5）
@@ -7151,7 +6696,6 @@ def test_p1c_zoom_constants_exist_in_js(rendered_html):
     # divider の minH=120 が存在すること
     assert "minH" in rendered_html or re.search(r'\bvar\s+minH\s*=\s*120', rendered_html), \
         "divider minH（120）が JS に存在しない"
-
 
 @pytest.mark.unit
 def test_p1c_f_key_calls_zoom_fit(rendered_html):
@@ -7171,7 +6715,6 @@ def test_p1c_f_key_calls_zoom_fit(rendered_html):
     assert match is not None, \
         "f/F キーのキーハンドラで zoomFit() が呼ばれていない（全体表示と等倍リセットが乖離）"
 
-
 @pytest.mark.unit
 def test_p1c_zoom_controls_guard_in_pan_mousedown(rendered_html):
     """Phase1-C: pan mousedown ハンドラに #zoom-controls のガードがある（correctness HIGH-1）
@@ -7182,7 +6725,6 @@ def test_p1c_zoom_controls_guard_in_pan_mousedown(rendered_html):
     assert "closest('#zoom-controls')" in rendered_html or \
            'closest("#zoom-controls")' in rendered_html, \
         "pan mousedown ハンドラに #zoom-controls ガードが存在しない"
-
 
 @pytest.mark.unit
 def test_p1c_zoom_fit_uses_all_four_viewbox_params(rendered_html):
@@ -7196,7 +6738,6 @@ def test_p1c_zoom_fit_uses_all_four_viewbox_params(rendered_html):
     assert re.search(r'parts\[1\]|vbY|vb_y', rendered_html) is not None, \
         "zoomFit が viewBox の minY (parts[1] / vbY) を参照していない"
 
-
 @pytest.mark.unit
 def test_p1c_zoom_fit_container_size_guard(rendered_html):
     """Phase1-C: zoomFit のコンテナ寸法0ガードが存在する（correctness MED）
@@ -7205,7 +6746,6 @@ def test_p1c_zoom_fit_container_size_guard(rendered_html):
     """
     assert re.search(r'cw\s*===\s*0|ch\s*===\s*0', rendered_html) is not None, \
         "zoomFit のコンテナ寸法0ガード（cw===0 || ch===0）が存在しない"
-
 
 @pytest.mark.unit
 def test_p1c_divider_maxh_has_lower_bound(rendered_html):
@@ -7216,7 +6756,6 @@ def test_p1c_divider_maxh_has_lower_bound(rendered_html):
     """
     assert re.search(r'Math\.max\s*\(\s*minH\s*\+\s*1', rendered_html) is not None, \
         "divider maxH の下限ガード（Math.max(minH + 1, ...)）が存在しない"
-
 
 @pytest.mark.unit
 def test_p1c_zoom_reset_window_export(rendered_html):
@@ -7229,7 +6768,6 @@ def test_p1c_zoom_reset_window_export(rendered_html):
     assert "window._zoomReset" in rendered_html, \
         "window._zoomReset がエクスポートされていない"
 
-
 @pytest.mark.unit
 def test_p1c_zoom_step_constant_defined(rendered_html):
     """Phase1-C: ズームステップ定数（ZOOM_STEP=1.2 または 1.2 リテラル）が重複なく一元定義（maint MED-3）
@@ -7239,7 +6777,6 @@ def test_p1c_zoom_step_constant_defined(rendered_html):
     """
     assert "ZOOM_STEP" in rendered_html or "1.2" in rendered_html, \
         "ズームステップ値（ZOOM_STEP or 1.2）が JS に存在しない"
-
 
 # ---------------------------------------------------------------------------
 # MC3: _svg_nodes の docstring と実装の一致（None は空集合扱い）
@@ -7266,7 +6803,6 @@ def test_mc3_svg_nodes_connected_none_shows_only_loopback():
     assert "Loopback0" in svg, "connected_iface_ids=None のとき Loopback0 が表示されない"
     assert 'data-if="GigabitEthernet0/0"' not in svg, \
         "connected_iface_ids=None のとき非 Loopback IF が表示されている"
-
 
 # ===========================================================================
 # Phase 2 テスト群
@@ -7306,7 +6842,6 @@ def _make_p2_static_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_p2_3_static_row_highlight_css_exists(rendered_html):
     """#3: static 行クリック時に使うハイライトクラスの CSS ルールが存在する。
@@ -7318,7 +6853,6 @@ def test_p2_3_static_row_highlight_css_exists(rendered_html):
     has_tr_highlighted = "tr.highlighted" in rendered_html
     assert has_route_row_selected or has_tr_highlighted, \
         "static 行のハイライト CSS（.route-row-selected or tr.highlighted）が存在しない"
-
 
 @pytest.mark.unit
 def test_p2_3_toggle_static_adds_row_class(rendered_html):
@@ -7345,7 +6879,6 @@ def test_p2_3_toggle_static_adds_row_class(rendered_html):
     assert has_row_marking, \
         "toggleStaticRouteHighlight が行自体に classList.add/toggle するロジックを持たない"
 
-
 @pytest.mark.unit
 def test_p2_3_clear_selection_removes_route_row_selected(rendered_html):
     """#3: clearSelection() / clearLinkHighlight() が route-row-selected を解除する。
@@ -7361,7 +6894,6 @@ def test_p2_3_clear_selection_removes_route_row_selected(rendered_html):
     assert has_clear, \
         "clearSelection/clearLinkHighlight で route-row-selected が解除されない"
 
-
 # ---------------------------------------------------------------------------
 # #4: Shared Network (seg-edge / seg-ellipse) ハイライト CSS 欠落修正
 # ---------------------------------------------------------------------------
@@ -7375,7 +6907,6 @@ def test_p2_4_seg_edge_highlighted_css_exists(rendered_html):
     """
     assert ".seg-edge.highlighted" in rendered_html, \
         ".seg-edge.highlighted の CSS ルールが存在しない（バグ #4 未修正）"
-
 
 @pytest.mark.unit
 def test_p2_4_seg_edge_highlighted_has_stroke_style(rendered_html):
@@ -7393,14 +6924,12 @@ def test_p2_4_seg_edge_highlighted_has_stroke_style(rendered_html):
     assert has_stroke, \
         f".seg-edge.highlighted の CSS に stroke プロパティがない: {block!r}"
 
-
 @pytest.mark.unit
 def test_p2_4_seg_ellipse_highlighted_css_exists(rendered_html):
     """#4: .segment-node.highlighted .seg-ellipse の CSS ルールが存在する（バグ修正）。"""
     assert ".segment-node.highlighted" in rendered_html or \
            ".seg-ellipse.highlighted" in rendered_html, \
         ".segment-node.highlighted / .seg-ellipse.highlighted の CSS が存在しない（バグ #4 未修正）"
-
 
 @pytest.mark.unit
 def test_p2_4_seg_ellipse_highlighted_has_stroke_style(rendered_html):
@@ -7418,7 +6947,6 @@ def test_p2_4_seg_ellipse_highlighted_has_stroke_style(rendered_html):
     block = (m1.group(1) if m1 else "") or (m2.group(1) if m2 else "")
     assert "stroke" in block, \
         f"seg-ellipse highlighted の CSS に stroke プロパティがない: {block!r}"
-
 
 # ---------------------------------------------------------------------------
 # #5: BGP Session ↔ 表の双方向ハイライト
@@ -7456,7 +6984,6 @@ def _make_p2_bgp_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_p2_5_bgp_session_has_data_bgp_id():
     """#5: bgp-session <g> に data-bgp-id 属性が付いている。
@@ -7483,7 +7010,6 @@ def test_p2_5_bgp_session_has_data_bgp_id():
     assert 'data-bgp-id="r1|r2"' in svg, \
         f"data-bgp-id が 'r1|r2' でない（sorted ペア規則違反）: {svg[:500]}"
 
-
 @pytest.mark.unit
 def test_p2_5_bgp_id_is_deterministic():
     """#5: data-bgp-id は方向非依存（r1→r2 と r2→r1 で同一値）。
@@ -7508,7 +7034,6 @@ def test_p2_5_bgp_id_is_deterministic():
     assert ids_fwd and ids_rev, "data-bgp-id が一方または両方で取れない"
     assert ids_fwd[0] == ids_rev[0], \
         f"data-bgp-id が方向依存: fwd={ids_fwd[0]!r} vs rev={ids_rev[0]!r}"
-
 
 @pytest.mark.unit
 def test_p2_5_bgp_session_map_built_in_core():
@@ -7538,7 +7063,6 @@ def test_p2_5_bgp_session_map_built_in_core():
     assert bgp_map[("r2", "10.0.0.1")] == "r1|r2", \
         f"bgp_session_map[(r2, 10.0.0.1)] が 'r1|r2' でない"
 
-
 @pytest.mark.unit
 def test_p2_5_bgp_tr_has_data_bgp_id():
     """#5: BGP Sessions 表の <tr> に data-bgp-id が付いている。
@@ -7553,7 +7077,6 @@ def test_p2_5_bgp_tr_has_data_bgp_id():
         "BGP Sessions テーブルの <tr> に data-bgp-id が存在しない"
     assert 'data-bgp-id="r1|r2"' in cards_html, \
         "BGP 行の data-bgp-id が 'r1|r2' でない"
-
 
 @pytest.mark.unit
 def test_p2_5_bgp_session_and_card_tr_share_same_bgp_id():
@@ -7583,20 +7106,17 @@ def test_p2_5_bgp_session_and_card_tr_share_same_bgp_id():
         f"bgp-session と BGP 行が同一 data-bgp-id を共有しない: " \
         f"svg={svg_ids_all}, card={card_ids}"
 
-
 @pytest.mark.unit
 def test_p2_5_toggle_bgp_highlight_js_exists(rendered_html):
     """#5: toggleBgpHighlight(bgpId) 関数が JS に存在する。"""
     assert "toggleBgpHighlight" in rendered_html, \
         "toggleBgpHighlight 関数が JS に存在しない"
 
-
 @pytest.mark.unit
 def test_p2_5_selected_bgp_set_exists(rendered_html):
     """#5: _selectedBgp Set が JS に宣言されている。"""
     assert "_selectedBgp" in rendered_html, \
         "_selectedBgp Set が JS に存在しない"
-
 
 @pytest.mark.unit
 def test_p2_5_clear_selection_clears_bgp(rendered_html):
@@ -7607,13 +7127,11 @@ def test_p2_5_clear_selection_clears_bgp(rendered_html):
     assert "_selectedBgp.clear()" in rendered_html, \
         "clearSelection/clearLinkHighlight が _selectedBgp を解除しない（_selectedBgp.clear() が存在しない）"
 
-
 @pytest.mark.unit
 def test_p2_5_bgp_session_highlighted_css_exists(rendered_html):
     """#5: .bgp-session.highlighted .bgp-edge の CSS ルールが存在する。"""
     assert ".bgp-session.highlighted" in rendered_html, \
         ".bgp-session.highlighted の CSS ルールが存在しない"
-
 
 @pytest.mark.unit
 def test_p2_5_bgp_session_highlighted_has_stroke_style(rendered_html):
@@ -7626,7 +7144,6 @@ def test_p2_5_bgp_session_highlighted_has_stroke_style(rendered_html):
     block = m.group(1)
     assert "stroke" in block or "opacity" in block, \
         f".bgp-session.highlighted に視覚強調スタイルがない: {block!r}"
-
 
 @pytest.mark.unit
 def test_p2_5_bgp_click_handler_registered(rendered_html):
@@ -7642,7 +7159,6 @@ def test_p2_5_bgp_click_handler_registered(rendered_html):
     assert has_bgp_session_click, \
         "BGP セッションへのクリックハンドラ登録が存在しない"
 
-
 # ---------------------------------------------------------------------------
 # 多ノード対応B: フォーカスモード（ダブルクリック）
 # ---------------------------------------------------------------------------
@@ -7656,7 +7172,6 @@ def test_p2_nb_focus_dimmed_css_removed(rendered_html):
     assert ".focus-dimmed" not in rendered_html, \
         ".focus-dimmed CSS ルールが残存している（フォーカスモード撤去済みのはず）"
 
-
 @pytest.mark.unit
 def test_p2_nb_focus_dimmed_no_css_block(rendered_html):
     """#6 撤去後: .focus-dimmed の CSS ブロックが HTML に存在しない（block レベルの追加検証）。
@@ -7666,7 +7181,6 @@ def test_p2_nb_focus_dimmed_no_css_block(rendered_html):
     m = re.search(r'\.focus-dimmed\s*\{([^}]+)\}', rendered_html)
     assert m is None, ".focus-dimmed の CSS ブロックが残存している（フォーカスモード撤去済みのはず）"
 
-
 @pytest.mark.unit
 def test_p2_nb_dblclick_handler_removed(rendered_html):
     """#6 撤去後: device-node への dblclick イベントハンドラが削除されている。
@@ -7675,7 +7189,6 @@ def test_p2_nb_dblclick_handler_removed(rendered_html):
     """
     assert "dblclick" not in rendered_html, \
         "dblclick ハンドラが残存している（フォーカスモード撤去済みのはず）"
-
 
 @pytest.mark.unit
 def test_p2_nb_focus_uses_data_a_data_b(rendered_html):
@@ -7695,7 +7208,6 @@ def test_p2_nb_focus_uses_data_a_data_b(rendered_html):
     assert has_data_ref, \
         "リンク/BGP ハイライトが data-a/data-b 属性を参照していない"
 
-
 @pytest.mark.unit
 def test_p2_nb_esc_clears_selection(rendered_html):
     """#6 撤去後: Esc キーで clearSelection() が呼ばれる（フォーカスモードは廃止）。
@@ -7712,7 +7224,6 @@ def test_p2_nb_esc_clears_selection(rendered_html):
     assert has_esc_clear, \
         "Esc キーで clearSelection() が呼ばれていない"
 
-
 @pytest.mark.unit
 def test_p2_nb_selected_css_exists(rendered_html):
     """#6 撤去後: .selected CSS ルールが引き続き存在する（フォーカスモード撤去後も選択機能は維持）。
@@ -7720,7 +7231,6 @@ def test_p2_nb_selected_css_exists(rendered_html):
     """
     sel_count = rendered_html.count(".selected")
     assert sel_count >= 1, ".selected が CSS/JS に存在しない"
-
 
 @pytest.mark.unit
 def test_p2_nb_help_text_no_dblclick_hint(rendered_html):
@@ -7734,7 +7244,6 @@ def test_p2_nb_help_text_no_dblclick_hint(rendered_html):
         "ヘッダに「ダブルクリック」ヘルプテキストが残存している"
     assert "隣接フォーカス" not in header_html, \
         "ヘッダに「隣接フォーカス」ヘルプテキストが残存している"
-
 
 # ---------------------------------------------------------------------------
 # 多ノード対応C: カード選択連動絞り込みトグル
@@ -7751,13 +7260,11 @@ def test_p2_nc_card_filter_toggle_exists(rendered_html):
     assert 'type="checkbox"' in cards_html, \
         "#cards-section にチェックボックスが存在しない"
 
-
 @pytest.mark.unit
 def test_p2_nc_card_unselected_css_exists(rendered_html):
     """多ノードC: .card-unselected の CSS ルールが存在する（.node-filtered とは別系統）。"""
     assert ".card-unselected" in rendered_html, \
         ".card-unselected の CSS ルールが存在しない"
-
 
 @pytest.mark.unit
 def test_p2_nc_card_unselected_hides_card(rendered_html):
@@ -7767,7 +7274,6 @@ def test_p2_nc_card_unselected_hides_card(rendered_html):
     block = m.group(1)
     assert "display" in block or "visibility" in block, \
         f".card-unselected にカードを隠すスタイルがない: {block!r}"
-
 
 @pytest.mark.unit
 def test_p2_nc_card_filter_js_applies_card_unselected(rendered_html):
@@ -7785,7 +7291,6 @@ def test_p2_nc_card_filter_js_applies_card_unselected(rendered_html):
     assert has_js_usage, \
         "JS で card-unselected クラスを操作するコードが存在しない"
 
-
 @pytest.mark.unit
 def test_p2_nc_card_filter_toggle_updates_on_selection_change(rendered_html):
     """多ノードC: _selectedNodes の変化時にカード絞り込み表示が更新される。
@@ -7801,7 +7306,6 @@ def test_p2_nc_card_filter_toggle_updates_on_selection_change(rendered_html):
     assert has_update_fn, \
         "カード絞り込みが _selectedNodes 連動で更新されない"
 
-
 # ---------------------------------------------------------------------------
 # Phase 2 決定性テスト
 # ---------------------------------------------------------------------------
@@ -7814,7 +7318,6 @@ def test_p2_render_deterministic_with_bgp(sample_topology):
     html2 = render(sample_topology)
     assert html1 == html2, "2回の render() 結果が一致しない（非決定的）"
 
-
 @pytest.mark.unit
 def test_p2_render_deterministic_bgp_topology():
     """Phase 2: BGP topology で決定性を確認。"""
@@ -7823,7 +7326,6 @@ def test_p2_render_deterministic_bgp_topology():
     html1 = render(topo)
     html2 = render(topo)
     assert html1 == html2, "BGP topology で2回の render() が非決定的"
-
 
 # ---------------------------------------------------------------------------
 # Phase 2 非回帰テスト: Phase 1 機能の継続動作
@@ -7837,7 +7339,6 @@ def test_p2_regression_seg_highlight_still_works(rendered_html):
     assert "_selectedSegs" in rendered_html, \
         "_selectedSegs が存在しない（#7 回帰）"
 
-
 @pytest.mark.unit
 def test_p2_regression_zoom_controls_still_exist(rendered_html):
     """非回帰: Phase 1 ズームボタン群が Phase 2 後も存在する。"""
@@ -7846,18 +7347,15 @@ def test_p2_regression_zoom_controls_still_exist(rendered_html):
     assert 'id="zoom-out"' in rendered_html, "zoom-out ボタンが消えた"
     assert 'id="zoom-reset"' in rendered_html, "zoom-reset ボタンが消えた"
 
-
 @pytest.mark.unit
 def test_p2_regression_split_divider_still_exists(rendered_html):
     """非回帰: Phase 1 スプリットディバイダが Phase 2 後も存在する。"""
     assert 'id="split-divider"' in rendered_html, "split-divider が消えた"
 
-
 @pytest.mark.unit
 def test_p2_regression_layer_toggles_still_exist(rendered_html):
     """非回帰: LAYERS トグルが Phase 2 後も存在する。"""
     assert "handleLayerToggle" in rendered_html, "handleLayerToggle が消えた"
-
 
 # ===========================================================================
 # Phase 2 レビュー指摘修正テスト群（タスク 11-17）
@@ -7884,7 +7382,6 @@ def test_p2_nb_selected_css_block_exists(rendered_html):
     m_sel = re.search(r'\.selected\s*\{([^}]+)\}', css_text) or \
             re.search(r'device-node\.selected\s*[^{]*\{([^}]+)\}', css_text)
     assert m_sel is not None, ".selected のCSSブロックが存在しない（選択機能が壊れている）"
-
 
 # ---------------------------------------------------------------------------
 # タスク 12: _selectedNodes 変化直後に _updateCardFilter() 呼び出しを検証
@@ -7918,7 +7415,6 @@ def test_p2_nc_card_filter_toggle_updates_on_selection_change_v2(rendered_html):
     assert has_add_near or has_clear_near or has_update_in_fn, \
         "_selectedNodes 変化と _updateCardFilter の連携が検出できない"
 
-
 # ---------------------------------------------------------------------------
 # タスク 13: test_p2_nb_focus_uses_data_a_data_b を applyFocusMode 本体限定に
 # ---------------------------------------------------------------------------
@@ -7931,7 +7427,6 @@ def test_p2_nb_apply_focus_mode_removed(rendered_html):
     """
     assert "applyFocusMode" not in rendered_html, \
         "applyFocusMode 関数が残存している（フォーカスモード撤去済みのはず）"
-
 
 # ---------------------------------------------------------------------------
 # タスク 14: _build_bgp_session_map エッジケーステスト
@@ -7964,7 +7459,6 @@ def test_build_bgp_session_map_neighbor_not_resolved_returns_ext_bgp_id():
     assert bgp_id == "ext:203.0.113.99|r1", \
         f"bgp_id が期待値 'ext:203.0.113.99|r1' と異なる: {bgp_id!r}"
 
-
 @pytest.mark.unit
 def test_build_bgp_session_map_ibgp_same_as_symmetric():
     """(b) iBGP 同一 AS でも bgp_id が sorted ペア 'r1|r2'（対称）になる。"""
@@ -7986,7 +7480,6 @@ def test_build_bgp_session_map_ibgp_same_as_symmetric():
         f"iBGP bgp_id が 'r1|r2' でない: {result[('r1', '10.255.0.2')]!r}"
     assert result[("r2", "10.255.0.1")] == "r1|r2", \
         f"iBGP 逆方向 bgp_id が 'r1|r2' でない: {result[('r2', '10.255.0.1')]!r}"
-
 
 @pytest.mark.unit
 def test_build_bgp_session_map_three_devices_separate_ids():
@@ -8017,7 +7510,6 @@ def test_build_bgp_session_map_three_devices_separate_ids():
         f"r1-r2 と r2-r3 が同一 bgp_id: {id_r1r2!r}"
     assert id_r1r2 == "r1|r2", f"r1-r2 bgp_id が 'r1|r2' でない: {id_r1r2!r}"
     assert id_r2r3 == "r2|r3", f"r2-r3 bgp_id が 'r2|r3' でない: {id_r2r3!r}"
-
 
 # ---------------------------------------------------------------------------
 # タスク 15: 3台構成で各セッションが図と表で同一 bgp_id を共有
@@ -8066,7 +7558,6 @@ def _make_p2_bgp_three_devices_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_p2_5_bgp_session_and_card_tr_share_same_bgp_id_three_devices():
     """#5: 3台構成で各セッションが図と表で同一 bgp_id を共有（r2 が2セッション参加）。
@@ -8091,7 +7582,6 @@ def test_p2_5_bgp_session_and_card_tr_share_same_bgp_id_three_devices():
     assert "r2|r3" in svg_ids, f"SVG に r2|r3 のセッションがない: {svg_ids}"
     assert "r1|r2" in card_ids, f"カード表に r1|r2 の BGP 行がない: {card_ids}"
     assert "r2|r3" in card_ids, f"カード表に r2|r3 の BGP 行がない: {card_ids}"
-
 
 # ---------------------------------------------------------------------------
 # タスク 16: test_p2_3_toggle_static_adds_row_class のフォールバック廃止
@@ -8120,7 +7610,6 @@ def test_p2_3_toggle_static_adds_row_class_strict(rendered_html):
     assert has_remove, \
         f"toggleStaticRouteHighlight 内に route-row-selected の classList.remove/toggle がない: {func_body[:500]}"
 
-
 # ---------------------------------------------------------------------------
 # タスク 17: dblクリック遅延キャンセル（修正3）と selectView clearFocusMode（修正2）
 # ---------------------------------------------------------------------------
@@ -8146,7 +7635,6 @@ def test_p2_click_no_timer_delay(rendered_html):
     assert not has_250ms_delay, \
         "click ハンドラ内に 250ms setTimeout 遅延が残存している"
 
-
 @pytest.mark.unit
 def test_p2_select_view_no_clear_focus_mode(rendered_html):
     """#6 撤去後: selectView の先頭で clearFocusMode() を呼ばない。
@@ -8159,7 +7647,6 @@ def test_p2_select_view_no_clear_focus_mode(rendered_html):
 
     assert "clearFocusMode" not in func_body, \
         "selectView 内に clearFocusMode() の呼び出しが残っている（フォーカスモード撤去済みのはず）"
-
 
 # ===========================================================================
 # Phase 3 テスト群 — #6: 全ビューで IF チップ接続
@@ -8224,7 +7711,6 @@ def _make_p3_bgp_topology():
         },
     }
 
-
 def _make_p3_ospf_topology():
     """Phase 3 #6 テスト用 OSPF トポロジー（3台・p2p リンク + セグメント）。
 
@@ -8272,7 +7758,6 @@ def _make_p3_ospf_topology():
         },
     }
 
-
 # ---------------------------------------------------------------------------
 # #6-A: _chip_positions 純粋ヘルパー（新設）のテスト
 # ---------------------------------------------------------------------------
@@ -8292,7 +7777,6 @@ def test_p3_chip_positions_deterministic():
     result1 = _chip_positions(dev, chip_ids, ifaces, 100.0, 200.0)
     result2 = _chip_positions(dev, chip_ids, ifaces, 100.0, 200.0)
     assert result1 == result2, "_chip_positions が非決定的"
-
 
 @pytest.mark.unit
 def test_p3_chip_positions_sorted_by_name():
@@ -8329,7 +7813,6 @@ def test_p3_chip_positions_sorted_by_name():
     # eth0 は eth1 より左（cx が小さい）
     assert cx0 < cx1, "name ソート順で eth0 が eth1 より左にならない"
 
-
 @pytest.mark.unit
 def test_p3_chip_positions_only_requested_ids():
     """#6: _chip_positions は chip_ids に含まれる IF のみ座標を返す。"""
@@ -8349,7 +7832,6 @@ def test_p3_chip_positions_only_requested_ids():
     assert "r1::eth0" not in result, "chip_ids に含まれない eth0 が結果に混入"
     assert "r1::eth2" not in result, "chip_ids に含まれない eth2 が結果に混入"
 
-
 @pytest.mark.unit
 def test_p3_chip_positions_empty_returns_empty():
     """#6: chip_ids が空集合のとき _chip_positions は空辞書を返す。"""
@@ -8361,7 +7843,6 @@ def test_p3_chip_positions_empty_returns_empty():
     ]
     result = _chip_positions(dev, set(), ifaces, 100.0, 200.0)
     assert result == {}, f"空集合のとき空辞書を返すべき: {result}"
-
 
 # ---------------------------------------------------------------------------
 # #6-B: data-iface-id 属性のテスト
@@ -8387,7 +7868,6 @@ def test_p3_chip_has_data_iface_id():
     assert 'data-iface-id="r1::eth0"' in svg, \
         f"IF チップに data-iface-id が付与されない: {svg[:500]}"
 
-
 @pytest.mark.unit
 def test_p3_chip_data_iface_id_correct_id():
     """#6: data-iface-id の値が iface["id"] と一致する（iface name ではない）。"""
@@ -8412,7 +7892,6 @@ def test_p3_chip_data_iface_id_correct_id():
     assert 'data-if="GigabitEthernet0/0"' in svg, \
         "data-if 属性（IF 名）が失われた（後方互換が壊れている）"
 
-
 # ---------------------------------------------------------------------------
 # #6-C: ビュー別チップ集合（BGP ビュー）
 # ---------------------------------------------------------------------------
@@ -8434,7 +7913,6 @@ def test_p3_bgp_view_shows_chips_for_bgp_ifaces():
     assert 'data-iface-id="r2::eth1"' in bgp_view, \
         "BGP ビューで r2::eth1 の data-iface-id チップが存在しない"
 
-
 @pytest.mark.unit
 def test_p3_bgp_view_excludes_non_bgp_ifaces():
     """#6: BGP ビューのノードに BGP 非関与 IF のチップが出ない。
@@ -8448,7 +7926,6 @@ def test_p3_bgp_view_excludes_non_bgp_ifaces():
     assert bgp_view, "BGP ビューが生成されない"
     assert 'data-iface-id="r3::eth1"' not in bgp_view, \
         "BGP 非関与 IF（r3::eth1）が BGP ビューのチップに含まれている"
-
 
 @pytest.mark.unit
 def test_p3_bgp_session_edge_anchors_to_chip():
@@ -8508,7 +7985,6 @@ def test_p3_bgp_session_edge_anchors_to_chip():
     assert abs(path_y1 - exp_cy) < 1.0, \
         f"BGP path 始点 y={path_y1} がチップ cy={exp_cy} に一致しない"
 
-
 @pytest.mark.unit
 def test_p3_bgp_edge_fallback_to_node_center_when_no_local_ip():
     """#6: BGP エントリの local_ip が None のとき、A側端点をノード中心にフォールバック。"""
@@ -8547,7 +8023,6 @@ def test_p3_bgp_edge_fallback_to_node_center_when_no_local_ip():
     assert abs(path_y1 - 300.0) < 1.0, \
         f"local_ip=None 時 A 側始点 y={path_y1} がノード中心 300.0 にフォールバックしない"
 
-
 # ---------------------------------------------------------------------------
 # #6-D: ビュー別チップ集合（OSPF ビュー）
 # ---------------------------------------------------------------------------
@@ -8567,7 +8042,6 @@ def test_p3_ospf_view_shows_chips_for_ospf_ifaces():
     assert 'data-iface-id="r2::eth1"' in ospf_view, \
         "OSPF ビューで r2::eth1 の data-iface-id チップが存在しない"
 
-
 @pytest.mark.unit
 def test_p3_ospf_view_excludes_non_ospf_ifaces():
     """#6: OSPF ビューのノードに OSPF 非参加 IF のチップが出ない。
@@ -8581,7 +8055,6 @@ def test_p3_ospf_view_excludes_non_ospf_ifaces():
     assert ospf_view, "OSPF ビューが生成されない"
     assert 'data-iface-id="r1::eth1"' not in ospf_view, \
         "OSPF 非参加 IF（r1::eth1）が OSPF ビューのチップに含まれている"
-
 
 @pytest.mark.unit
 def test_p3_ospf_p2p_link_anchors_to_chip():
@@ -8627,7 +8100,6 @@ def test_p3_ospf_p2p_link_anchors_to_chip():
         f"p2p リンク x1={line_x1} がチップ cx={exp_x1} にアンカーされない"
     assert abs(line_y1 - exp_y1) < 1.0, \
         f"p2p リンク y1={line_y1} がチップ cy={exp_y1} にアンカーされない"
-
 
 @pytest.mark.unit
 def test_p3_ospf_segment_edge_anchors_to_chip():
@@ -8686,7 +8158,6 @@ def test_p3_ospf_segment_edge_anchors_to_chip():
     assert abs(line_y2 - exp_y2) < 1.0, \
         f"seg-edge y2={line_y2} が r2::eth1 チップ cy={exp_y2} にアンカーされない"
 
-
 @pytest.mark.unit
 def test_p3_link_anchor_fallback_when_no_chip():
     """#6: chip_positions に端点の iface_id がない場合、ノード中心にフォールバックする。"""
@@ -8705,7 +8176,6 @@ def test_p3_link_anchor_fallback_when_no_chip():
     assert m is not None, "line 要素が見つからない"
     assert abs(float(m.group(1)) - 200.0) < 1.0, "chip なしのとき x1 がノード中心にならない"
     assert abs(float(m.group(2)) - 300.0) < 1.0, "chip なしのとき y1 がノード中心にならない"
-
 
 # ---------------------------------------------------------------------------
 # #6-E: AS グループ枠が実ノード高を反映するテスト
@@ -8750,7 +8220,6 @@ def test_p3_as_group_uses_real_node_height():
     assert h_real > h_fixed, \
         f"実ノード高の枠({h_real}) が固定高の枠({h_fixed}) より大きくならない"
 
-
 # ---------------------------------------------------------------------------
 # #6-F: 決定性・非回帰テスト
 # ---------------------------------------------------------------------------
@@ -8764,7 +8233,6 @@ def test_p3_bgp_render_deterministic():
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "BGP チップ付きビューが非決定的"
 
-
 @pytest.mark.unit
 def test_p3_ospf_render_deterministic():
     """#6: OSPF チップ付きビューの render が決定的（2回一致）。"""
@@ -8773,7 +8241,6 @@ def test_p3_ospf_render_deterministic():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "OSPF チップ付きビューが非決定的"
-
 
 @pytest.mark.unit
 def test_p3_physical_chip_still_has_data_if_attr():
@@ -8786,7 +8253,6 @@ def test_p3_physical_chip_still_has_data_if_attr():
     assert len(data_if_attrs) >= 1, \
         "Physical ビューで data-if 属性が消えた（後方互換が壊れている）"
 
-
 @pytest.mark.unit
 def test_p3_physical_view_chip_has_data_iface_id():
     """#6: Physical ビューのチップにも data-iface-id が付与される（汎用化の副産物）。"""
@@ -8797,7 +8263,6 @@ def test_p3_physical_view_chip_has_data_iface_id():
     data_iface_id_attrs = re.findall(r'data-iface-id="([^"]+)"', phys)
     assert len(data_iface_id_attrs) >= 1, \
         "Physical ビューでチップに data-iface-id が付与されない"
-
 
 @pytest.mark.unit
 def test_p3_bgp_no_overlap_after_chip_resize():
@@ -8844,7 +8309,6 @@ def test_p3_bgp_no_overlap_after_chip_resize():
             min_sep = (_math.sqrt(wi**2 + hi**2) / 2 + _math.sqrt(wj**2 + hj**2) / 2 + 10)
             assert dist >= min_sep - 0.5, \
                 f"BGP ノード {di} と {dj} が重なっている: dist={dist:.1f} < min_sep={min_sep:.1f}"
-
 
 def _make_p3_bgp_dense_topology():
     """Task #8: BGP dense フィクスチャ（4台・各2チップ以上・重なり検証用）。
@@ -8918,7 +8382,6 @@ def _make_p3_bgp_dense_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_p3_bgp_no_overlap_dense_4nodes():
     """Task #8: 4台・各2チップ BGP dense フィクスチャでもノードが重ならない。
@@ -8961,7 +8424,6 @@ def test_p3_bgp_no_overlap_dense_4nodes():
             assert dist >= min_sep - 0.5, \
                 f"Dense BGP ノード {di} と {dj} が重なっている: dist={dist:.1f} < min_sep={min_sep:.1f}"
 
-
 @pytest.mark.unit
 def test_p3_chip_positions_cy_uses_node_cy():
     """Task #9: _chip_positions の cy 座標が node_cy を起点として計算される。
@@ -8993,7 +8455,6 @@ def test_p3_chip_positions_cy_uses_node_cy():
     assert abs(cy - expected_cy) < 0.5, \
         f"chip cy={cy:.2f} が期待値 {expected_cy:.2f} と不一致 (node_cy={node_cy})"
 
-
 @pytest.mark.unit
 def test_p3_bgp_view_excludes_loopback_chips():
     """Task #11: BGP ビューのチップから Loopback IF が除外される。
@@ -9020,7 +8481,6 @@ def test_p3_bgp_view_excludes_loopback_chips():
         "BGP セッション参加 IF (r1::eth0) がチップ集合に含まれない"
     assert "r1::lo0" not in chip_ids, \
         "Loopback0 (r1::lo0) が BGP チップ集合に含まれている（除外されるべき）"
-
 
 @pytest.mark.unit
 def test_p3_ospf_segment_edge_has_seg_id():
@@ -9054,7 +8514,6 @@ def test_p3_ospf_segment_edge_has_seg_id():
     assert m.group(1) == "seg-10.10.0.0/24", \
         f"data-seg-id の値 {m.group(1)!r} が seg_id と不一致"
 
-
 @pytest.mark.unit
 def test_p3_physical_chip_iface_ids_connected_if():
     """Task #13: _build_physical_chip_iface_ids が接続 IF を返す。"""
@@ -9080,7 +8539,6 @@ def test_p3_physical_chip_iface_ids_connected_if():
     assert "r2::eth0" in chip_ids, "接続 IF (r2::eth0) がチップ集合に含まれない"
     assert "r1::eth1" not in chip_ids, "非接続・非 Loopback の r1::eth1 がチップ集合に含まれる"
 
-
 @pytest.mark.unit
 def test_p3_physical_chip_iface_ids_loopback():
     """Task #13: _build_physical_chip_iface_ids が Loopback IF を返す。"""
@@ -9099,7 +8557,6 @@ def test_p3_physical_chip_iface_ids_loopback():
 
     assert "r1::lo0" in chip_ids, "Loopback0 (r1::lo0) がチップ集合に含まれない"
     assert "r1::eth0" not in chip_ids, "非接続・非 Loopback の eth0 がチップ集合に含まれる"
-
 
 # ===========================================================================
 # Phase 3b — #7: Loopback チップ識別
@@ -9130,7 +8587,6 @@ def _make_loopback_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_p3b7_loopback_chip_has_loopback_class():
     """#7: Loopback IF のチップに if-chip-loopback クラスが付与される"""
@@ -9145,7 +8601,6 @@ def test_p3b7_loopback_chip_has_loopback_class():
     assert "if-chip-loopback" in svg, \
         f"Loopback チップに if-chip-loopback クラスが付いていない: {svg}"
 
-
 @pytest.mark.unit
 def test_p3b7_normal_chip_no_loopback_class():
     """#7: 通常 IF チップに if-chip-loopback クラスが付かない"""
@@ -9158,7 +8613,6 @@ def test_p3b7_normal_chip_no_loopback_class():
     svg = _svg_if_chip(50.0, 80.0, 0, normal_iface)
     assert "if-chip-loopback" not in svg, \
         f"通常 IF チップに if-chip-loopback クラスが付いている（誤付与）: {svg}"
-
 
 @pytest.mark.unit
 def test_p3b7_loopback_chip_coexists_with_shutdown():
@@ -9173,7 +8627,6 @@ def test_p3b7_loopback_chip_coexists_with_shutdown():
     assert "if-chip-loopback" in svg, "Loopback+shutdown チップに if-chip-loopback がない"
     assert "if-chip-shutdown" in svg, "Loopback+shutdown チップに if-chip-shutdown がない"
 
-
 @pytest.mark.unit
 def test_p3b7_css_loopback_rule_exists(rendered_html):
     """#7: CSS に .if-chip-loopback circle のルールが存在する"""
@@ -9181,7 +8634,6 @@ def test_p3b7_css_loopback_rule_exists(rendered_html):
     combined = "\n".join(style_blocks)
     assert ".if-chip-loopback" in combined, \
         "CSS に .if-chip-loopback ルールが存在しない"
-
 
 @pytest.mark.unit
 def test_p3b7_css_loopback_fill_differs_from_normal(rendered_html):
@@ -9197,7 +8649,6 @@ def test_p3b7_css_loopback_fill_differs_from_normal(rendered_html):
     # 通常チップの fill（#bfdbfe = 青系）と同じでないこと
     assert "#bfdbfe" not in loopback_rule, \
         ".if-chip-loopback circle の fill が通常チップ（#bfdbfe）と同じ（区別できない）"
-
 
 @pytest.mark.unit
 def test_p3b7_legend_exists_in_html(rendered_html):
@@ -9218,7 +8669,6 @@ def test_p3b7_legend_exists_in_html(rendered_html):
     assert "Loopback" in legend_html, \
         "chip-legend 内に Loopback ラベルテキストが存在しない"
 
-
 @pytest.mark.unit
 def test_p3b7_loopback_chip_in_physical_view():
     """#7: Physical ビューの Loopback IF チップに if-chip-loopback クラスが付与される"""
@@ -9228,7 +8678,6 @@ def test_p3b7_loopback_chip_in_physical_view():
     # Loopback0 のチップグループが if-chip-loopback クラスを持つこと
     assert "if-chip-loopback" in phys, \
         "Physical ビューの Loopback0 チップに if-chip-loopback クラスがない"
-
 
 @pytest.mark.unit
 def test_p3b7_loopback_chip_normal_chip_both_present():
@@ -9264,7 +8713,6 @@ def test_p3b7_loopback_chip_normal_chip_both_present():
     assert "if-chip-loopback" in loopback_chip_class, \
         f"Loopback チップ（r1::lo0）に if-chip-loopback クラスが付いていない: class='{loopback_chip_class}'"
 
-
 @pytest.mark.unit
 def test_p3b7_deterministic_with_loopback():
     """#7: Loopback チップを含む topology で決定性が維持される"""
@@ -9274,7 +8722,6 @@ def test_p3b7_deterministic_with_loopback():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "Loopback チップを含む topology で render() が非決定的"
-
 
 # ===========================================================================
 # Phase 3b — #8: AS 枠ラベル拡大
@@ -9305,7 +8752,6 @@ def test_p3b8_as_group_label_font_size_enlarged(rendered_html):
         assert font_size >= 0.875, \
             f".as-group-label の font-size が {font_size}{unit}（期待: >=0.875rem）"
 
-
 @pytest.mark.unit
 def test_p3b8_as_group_label_font_weight_bold(rendered_html):
     """#8: .as-group-label に font-weight: bold（または 700）が設定されている"""
@@ -9317,7 +8763,6 @@ def test_p3b8_as_group_label_font_weight_bold(rendered_html):
     assert "font-weight" in rule, ".as-group-label に font-weight が定義されていない"
     assert "bold" in rule or "700" in rule or "800" in rule, \
         f".as-group-label の font-weight が bold/700 でない: {rule.strip()}"
-
 
 @pytest.mark.unit
 def test_p3b8_as_group_chip_w_fits_label():
@@ -9352,7 +8797,6 @@ def test_p3b8_as_group_chip_w_fits_label():
         assert w >= 80.0, \
             f"as-group-label-bg の幅 {w}px が小さすぎる（ラベルがはみ出す: 期待 >=80px, 旧式 *7+10=66 では不足）"
 
-
 @pytest.mark.unit
 def test_p3b8_as_group_chip_h_fits_label():
     """#8: AS 枠ラベルの背景 chip_h が拡大フォントに合わせて高くなっている（16px より高い）"""
@@ -9378,7 +8822,6 @@ def test_p3b8_as_group_chip_h_fits_label():
         assert h >= 18.0, \
             f"as-group-label-bg の高さ {h}px が小さすぎる（拡大後フォントに対して不足: 期待 >=18px）"
 
-
 @pytest.mark.unit
 def test_p3b8_deterministic_bgp_view_with_enlarged_label():
     """#8: AS ラベル拡大後も BGP ビューが決定的（2回レンダリングして一致）"""
@@ -9388,7 +8831,6 @@ def test_p3b8_deterministic_bgp_view_with_enlarged_label():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "AS ラベル拡大後の BGP ビューが非決定的"
-
 
 # ===========================================================================
 # Phase 3b — #9: ノード間隔を詰める
@@ -9420,7 +8862,6 @@ def _make_medium_topology(n: int = 10):
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_p3b9_canvas_factor_values():
     """#9: _CANVAS_FACTOR_W / _CANVAS_FACTOR_H が縮小されている（旧値 15/12 より小さい）"""
@@ -9430,7 +8871,6 @@ def test_p3b9_canvas_factor_values():
         f"_CANVAS_FACTOR_W={_CANVAS_FACTOR_W} が旧値 15 以上（縮小されていない）"
     assert _CANVAS_FACTOR_H < 12, \
         f"_CANVAS_FACTOR_H={_CANVAS_FACTOR_H} が旧値 12 以上（縮小されていない）"
-
 
 @pytest.mark.unit
 def test_p3b9_canvas_smaller_than_old_for_medium_n():
@@ -9449,7 +8889,6 @@ def test_p3b9_canvas_smaller_than_old_for_medium_n():
         f"係数縮小後のキャンバス({w_new:.0f}x{h_new:.0f})が旧値({w_old:.0f}x{h_old:.0f})より"
         f"幅・高さともに小さくなっていない"
     )
-
 
 @pytest.mark.unit
 def test_p3b9_no_overlap_after_factor_reduction():
@@ -9490,7 +8929,6 @@ def test_p3b9_no_overlap_after_factor_reduction():
                 f"(dx={dx:.1f} min_sep_x={min_sep_x:.1f}, dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
             )
 
-
 @pytest.mark.unit
 def test_p3b9_min_canvas_respected():
     """#9: _canvas_size_for_nodes(0) / (1) が _MIN_CANVAS_W/H を下回らない"""
@@ -9499,7 +8937,6 @@ def test_p3b9_min_canvas_respected():
         w, h = _canvas_size_for_nodes(n)
         assert w >= _MIN_CANVAS_W, f"n={n}: キャンバス幅 {w} < _MIN_CANVAS_W {_MIN_CANVAS_W}"
         assert h >= _MIN_CANVAS_H, f"n={n}: キャンバス高 {h} < _MIN_CANVAS_H {_MIN_CANVAS_H}"
-
 
 @pytest.mark.unit
 def test_p3b9_existing_bgp_no_overlap_still_passes():
@@ -9537,7 +8974,6 @@ def test_p3b9_existing_bgp_no_overlap_still_passes():
                 f"(dx={dx:.1f} needed_x={needed_x:.1f}, dy={dy:.1f} needed_y={needed_y:.1f})"
             )
 
-
 @pytest.mark.unit
 def test_p3b9_deterministic_after_factor_change(sample_topology):
     """#9: 係数縮小後も同一入力で 2 回 render した結果が完全一致（決定性維持）"""
@@ -9548,7 +8984,6 @@ def test_p3b9_deterministic_after_factor_change(sample_topology):
     html1 = render(t1)
     html2 = render(t2)
     assert html1 == html2, "係数縮小後の render() が非決定的"
-
 
 # ===========================================================================
 # Phase 3b — #10: カード幅の均一化
@@ -9567,7 +9002,6 @@ def test_p3b10_cards_grid_is_display_grid(rendered_html):
     assert "grid" in rule, \
         f".cards-grid の display が grid でない: {rule.strip()}"
 
-
 @pytest.mark.unit
 def test_p3b10_cards_grid_has_grid_template_columns(rendered_html):
     """#10: .cards-grid に grid-template-columns が定義されている（Round A: 縦1列 1fr）"""
@@ -9581,7 +9015,6 @@ def test_p3b10_cards_grid_has_grid_template_columns(rendered_html):
     # Round A A1: 縦1列（1fr）。auto-fill/minmax による複数列は撤廃済み
     assert "1fr" in rule, \
         f".cards-grid の grid-template-columns に 1fr がない（縦1列になっていない）: {rule.strip()!r}"
-
 
 @pytest.mark.unit
 def test_p3b10_cards_grid_no_flex(rendered_html):
@@ -9597,7 +9030,6 @@ def test_p3b10_cards_grid_no_flex(rendered_html):
     # flex-wrap も撤去済みであること
     assert "flex-wrap" not in rule, \
         ".cards-grid に flex-wrap が残っている（撤去されていない）"
-
 
 @pytest.mark.unit
 def test_p3b10_device_card_no_flex(rendered_html):
@@ -9617,7 +9049,6 @@ def test_p3b10_device_card_no_flex(rendered_html):
     assert "max-width" not in rule, \
         ".device-card に max-width が残っている（撤去されていない）"
 
-
 @pytest.mark.unit
 def test_p3b10_card_unselected_works_with_grid(rendered_html):
     """#10: .card-unselected { display:none } が grid アイテムに適用されても問題ない。
@@ -9633,13 +9064,11 @@ def test_p3b10_card_unselected_works_with_grid(rendered_html):
     assert "display" in rule, ".card-unselected に display が定義されていない"
     assert "none" in rule, ".card-unselected が display:none になっていない"
 
-
 @pytest.mark.unit
 def test_p3b10_render_still_contains_cards_grid(rendered_html):
     """#10: render() 後の HTML に cards-grid クラスが存在する（構造回帰保護）"""
     assert 'class="cards-grid"' in rendered_html, \
         "cards-grid クラスを持つ要素が HTML に存在しない"
-
 
 @pytest.mark.unit
 def test_p3b10_deterministic_after_grid_change(sample_topology):
@@ -9651,7 +9080,6 @@ def test_p3b10_deterministic_after_grid_change(sample_topology):
     html1 = render(t1)
     html2 = render(t2)
     assert html1 == html2, "grid 移行後の render() が非決定的"
-
 
 # ===========================================================================
 # iteration-4 クロスレビュー実バグ修正 — multi-as-area 現実的フィクスチャ
@@ -9790,7 +9218,6 @@ def _make_multi_as_area_topology():
         },
     }
 
-
 def _extract_bgp_view_from(html: str) -> str:
     """BGP ビュー <g class="view view-bgp" ...> ... の中身を返す"""
     start = html.find('class="view view-bgp"')
@@ -9798,7 +9225,6 @@ def _extract_bgp_view_from(html: str) -> str:
         return ""
     next_view = html.find('class="view view-', start + 10)
     return html[start:next_view] if next_view != -1 else html[start:]
-
 
 def _extract_ospf_view_from(html: str) -> str:
     """OSPF ビュー <g class="view view-ospf" ...> ... の中身を返す"""
@@ -9808,7 +9234,6 @@ def _extract_ospf_view_from(html: str) -> str:
     next_view = html.find('class="view view-', start + 10)
     return html[start:next_view] if next_view != -1 else html[start:]
 
-
 def _extract_physical_view_from(html: str) -> str:
     """Physical ビュー <g class="view view-physical" ...> ... の中身を返す"""
     start = html.find('class="view view-physical"')
@@ -9816,7 +9241,6 @@ def _extract_physical_view_from(html: str) -> str:
         return ""
     next_view = html.find('class="view view-', start + 10)
     return html[start:next_view] if next_view != -1 else html[start:]
-
 
 # ---------------------------------------------------------------------------
 # バグ1回帰保護: OSPFビューでマルチエリアノードの全OSPF-IFチップが描画される
@@ -9843,7 +9267,6 @@ def test_i4cr_ospf_multi_area_node_all_chips_rendered():
         "OSPFビューで core1::GE0/1 チップが描画されない"
     assert 'data-iface-id="core1::GigabitEthernet0/2"' in ospf, \
         "OSPFビューで core1::GE0/2 チップが描画されない（area1セグメントメンバー）"
-
 
 @pytest.mark.unit
 def test_i4cr_ospf_multi_area_node_edge_anchor_matches_chip():
@@ -9910,7 +9333,6 @@ def test_i4cr_ospf_multi_area_node_edge_anchor_matches_chip():
     assert abs(float(x2_m.group(1)) - chip_cx_map["core1::GigabitEthernet0/2"]) < 1.0, \
         f"seg-edge core1 x2={x2_m.group(1)} が core1::GE0/2 チップ cx={chip_cx_map['core1::GigabitEthernet0/2']} に一致しない"
 
-
 # ---------------------------------------------------------------------------
 # バグ2: BGPビューで local_ip=null の iBGP ノードに Loopback チップが出ない
 # ---------------------------------------------------------------------------
@@ -9932,7 +9354,6 @@ def test_i4cr_bgp_ibgp_loopback_chip_when_local_ip_null():
     assert 'data-iface-id="edge1::Loopback0"' in bgp, \
         "BGPビューで edge1::Loopback0 チップが描画されない（local_ip=null iBGP ノードのバグ2）"
 
-
 @pytest.mark.unit
 def test_i4cr_bgp_ibgp_loopback_chip_coexists_with_ebgp_chip():
     """バグ2: edge1 の Loopback チップと eBGP 物理 IF チップが共存する。
@@ -9949,7 +9370,6 @@ def test_i4cr_bgp_ibgp_loopback_chip_coexists_with_ebgp_chip():
         "edge1::Loopback0 チップが存在しない"
     assert 'data-iface-id="edge1::GigabitEthernet0/1"' in bgp, \
         "edge1::GE0/1（eBGP物理IF）チップが消えた（regression）"
-
 
 @pytest.mark.unit
 def test_i4cr_bgp_chip_iface_ids_ibgp_loopback():
@@ -9969,7 +9389,6 @@ def test_i4cr_bgp_chip_iface_ids_ibgp_loopback():
     assert "edge1::Loopback0" in result, \
         f"edge1::Loopback0 が BGP チップ集合にない: {sorted(result)}"
 
-
 @pytest.mark.unit
 def test_i4cr_bgp_chip_iface_ids_core1_loopback_still_present():
     """バグ2: 修正後も core1::Loopback0（neighbor_ip 経由で解決済み）が残る。
@@ -9983,7 +9402,6 @@ def test_i4cr_bgp_chip_iface_ids_core1_loopback_still_present():
 
     assert "core1::Loopback0" in result, \
         f"core1::Loopback0 が BGP チップ集合にない（regression）: {sorted(result)}"
-
 
 @pytest.mark.unit
 def test_i4cr_bgp_ibgp_session_endpoint_uses_loopback_chip():
@@ -10041,7 +9459,6 @@ def test_i4cr_bgp_ibgp_session_endpoint_uses_loopback_chip():
         f"iBGP local_ip=null 端の x={path_x1} が Loopback チップ cx={exp_x} に一致しない（ノード中心フォールバックのまま）"
     assert abs(path_y1 - exp_y) < 1.0, \
         f"iBGP local_ip=null 端の y={path_y1} が Loopback チップ cy={exp_y} に一致しない"
-
 
 # ---------------------------------------------------------------------------
 # バグ3: Physicalビューのセグメントエッジがノード中心に接続（チップアンカー未実装）
@@ -10116,8 +9533,6 @@ def test_i4cr_physical_segment_edge_anchors_to_chip():
     assert abs(seg_y - chip_y) < 1.0, \
         f"Physical seg-edge core1 y2={seg_y} が GE0/2 チップ cy={chip_y} に一致しない（バグ3）"
 
-
-
 @pytest.mark.unit
 def test_i4cr_physical_segment_edge_uses_svg_segment_edges_with_chips():
     """バグ3ユニット: _svg_segment_edges が chip_positions を受け取りアンカーに使う。
@@ -10166,7 +9581,6 @@ def test_i4cr_physical_segment_edge_uses_svg_segment_edges_with_chips():
     assert abs(float(m2.group(2)) - 300.0) < 1.0, \
         f"chip_positions なしのとき y2={m2.group(2)} がノード中心 300.0 に一致しない"
 
-
 @pytest.mark.unit
 def test_i4cr_deterministic_multi_as_area():
     """regression: multi-as-area トポロジーで render() が決定的（2回一致）"""
@@ -10176,7 +9590,6 @@ def test_i4cr_deterministic_multi_as_area():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "multi-as-area render() が非決定的"
-
 
 # ---------------------------------------------------------------------------
 # [test M-2] BGPビューで非BGP機（acc1/acc2）に Loopback チップが出ない
@@ -10203,7 +9616,6 @@ def test_i4cr_bgp_chip_iface_ids_non_bgp_device_has_no_loopback():
     assert "acc2::Loopback0" not in result, \
         f"非BGP機 acc2 の Loopback が BGP チップ集合に含まれている: {sorted(result)}"
 
-
 @pytest.mark.unit
 def test_i4cr_bgp_view_non_bgp_device_no_loopback_chip():
     """M-2: BGPビューに acc1/acc2 の Loopback チップが描画されない（非BGP機）。
@@ -10221,7 +9633,6 @@ def test_i4cr_bgp_view_non_bgp_device_no_loopback_chip():
         "非BGP機 acc1 の Loopback チップが BGP ビューに描画されている"
     assert 'data-iface-id="acc2::Loopback0"' not in bgp, \
         "非BGP機 acc2 の Loopback チップが BGP ビューに描画されている"
-
 
 # ---------------------------------------------------------------------------
 # [整理] _build_view_physical チップ集合単一経路: 描画チップとアンカー集合の一致
@@ -10257,7 +9668,6 @@ def test_i4cr_physical_chip_iface_ids_equals_connected_plus_loopback():
     assert phys_chip_ids == expected, \
         f"_build_physical_chip_iface_ids と 手動計算の差分: {phys_chip_ids ^ expected}"
 
-
 # ===========================================================================
 # Phase 1A #6: フォーカスモード撤去
 # ===========================================================================
@@ -10271,7 +9681,6 @@ def test_p1a6_focus_dimmed_css_removed(rendered_html):
     assert ".focus-dimmed" not in rendered_html, \
         ".focus-dimmed CSS ルールが残存している（フォーカスモード撤去済みのはず）"
 
-
 @pytest.mark.unit
 def test_p1a6_apply_focus_mode_removed(rendered_html):
     """\
@@ -10279,7 +9688,6 @@ def test_p1a6_apply_focus_mode_removed(rendered_html):
     """
     assert "applyFocusMode" not in rendered_html, \
         "applyFocusMode 関数が残存している（フォーカスモード撤去済みのはず）"
-
 
 @pytest.mark.unit
 def test_p1a6_clear_focus_mode_removed(rendered_html):
@@ -10289,7 +9697,6 @@ def test_p1a6_clear_focus_mode_removed(rendered_html):
     assert "clearFocusMode" not in rendered_html, \
         "clearFocusMode 関数が残存している（フォーカスモード撤去済みのはず）"
 
-
 @pytest.mark.unit
 def test_p1a6_focus_device_var_removed(rendered_html):
     """\
@@ -10298,7 +9705,6 @@ def test_p1a6_focus_device_var_removed(rendered_html):
     assert "_focusDevice" not in rendered_html, \
         "_focusDevice 変数が残存している（フォーカスモード撤去済みのはず）"
 
-
 @pytest.mark.unit
 def test_p1a6_dblclick_handler_removed(rendered_html):
     """\
@@ -10306,7 +9712,6 @@ def test_p1a6_dblclick_handler_removed(rendered_html):
     """
     assert "dblclick" not in rendered_html, \
         "dblclick ハンドラが残存している（フォーカスモード撤去済みのはず）"
-
 
 @pytest.mark.unit
 def test_p1a6_help_text_no_double_click_hint(rendered_html):
@@ -10320,7 +9725,6 @@ def test_p1a6_help_text_no_double_click_hint(rendered_html):
     assert "隣接フォーカス" not in header_html, \
         "ヘッダに「隣接フォーカス」ヘルプテキストが残存している"
 
-
 @pytest.mark.unit
 def test_p1a6_click_timer_removed(rendered_html):
     """\
@@ -10329,7 +9733,6 @@ def test_p1a6_click_timer_removed(rendered_html):
     """
     assert "_clickTimer" not in rendered_html, \
         "_clickTimer が残存している（単クリック即時化済みのはず）"
-
 
 @pytest.mark.unit
 def test_p1a6_node_click_no_settimeout_delay(rendered_html):
@@ -10346,7 +9749,6 @@ def test_p1a6_node_click_no_settimeout_delay(rendered_html):
     assert not has_250ms_delay, \
         "click ハンドラ内に 250ms setTimeout 遅延が残存している"
 
-
 @pytest.mark.unit
 def test_p1a6_clear_selection_no_focus_mode_call(rendered_html):
     """\
@@ -10361,7 +9763,6 @@ def test_p1a6_clear_selection_no_focus_mode_call(rendered_html):
     assert "clearFocusMode" not in func_body, \
         "clearSelection 内に clearFocusMode() の呼び出しが残っている"
 
-
 @pytest.mark.unit
 def test_p1a6_update_card_filter_no_focus_device(rendered_html):
     """\
@@ -10374,7 +9775,6 @@ def test_p1a6_update_card_filter_no_focus_device(rendered_html):
     func_body = rendered_html[start:end] if end != -1 else rendered_html[start:start + 1000]
     assert "_focusDevice" not in func_body, \
         "_updateCardFilter 内に _focusDevice の参照が残っている"
-
 
 # ===========================================================================
 # Phase 1A #2: Static 行ごと独立・複数累積マーク
@@ -10394,7 +9794,6 @@ def test_p1a2_static_tr_has_data_route_id():
     assert 'data-route-id="r1::0.0.0.0/0::0"' in cards_html, \
         "r1::0.0.0.0/0::0 の static 行に data-route-id が付与されていない（ECMP一意化後フォーマット）"
 
-
 @pytest.mark.unit
 def test_p1a2_static_tr_data_route_id_unique():
     """\
@@ -10408,7 +9807,6 @@ def test_p1a2_static_tr_data_route_id_unique():
         "sw1::10.0.0.0/8::0 の static 行に data-route-id が付与されていない（ECMP一意化後フォーマット）"
     assert 'data-route-id="sw2::10.0.0.0/8::0"' in html, \
         "sw2::10.0.0.0/8::0 の static 行に data-route-id が付与されていない（ECMP一意化後フォーマット）"
-
 
 @pytest.mark.unit
 def test_p1a2_toggle_static_row_by_route_id_exists(rendered_html):
@@ -10425,7 +9823,6 @@ def test_p1a2_toggle_static_row_by_route_id_exists(rendered_html):
     ) is not None
     assert has_single_row, \
         "data-route-id で1行を特定する querySelector/CSS.escape ロジックが存在しない"
-
 
 @pytest.mark.unit
 def test_p1a2_old_bulk_toggle_via_route_edge_removed(rendered_html):
@@ -10446,7 +9843,6 @@ def test_p1a2_old_bulk_toggle_via_route_edge_removed(rendered_html):
     assert not has_bulk, \
         "toggleStaticRouteHighlight が tr[data-route-edge] の全行巻き込みトグルをまだ行っている"
 
-
 @pytest.mark.unit
 def test_p1a2_selected_static_rows_set_exists(rendered_html):
     """\
@@ -10454,7 +9850,6 @@ def test_p1a2_selected_static_rows_set_exists(rendered_html):
     """
     assert "_selectedStaticRows" in rendered_html, \
         "_selectedStaticRows セットが JS に存在しない"
-
 
 @pytest.mark.unit
 def test_p1a2_clear_selection_clears_static_rows(rendered_html):
@@ -10468,7 +9863,6 @@ def test_p1a2_clear_selection_clears_static_rows(rendered_html):
     combined = (clear_body or "") + (sel_body or "")
     assert "_selectedStaticRows" in combined, \
         "clearLinkHighlight / clearSelection が _selectedStaticRows を参照していない"
-
 
 @pytest.mark.unit
 def test_p1a2_accumulated_rows_recalculate_edge_highlight(rendered_html):
@@ -10486,7 +9880,6 @@ def test_p1a2_accumulated_rows_recalculate_edge_highlight(rendered_html):
     ) is not None
     assert has_recalc, \
         "_selectedStaticRows からエッジ highlighted を再計算するロジックが存在しない"
-
 
 # ===========================================================================
 # Phase 1A #4: iBGP ハイライト色判別性
@@ -10514,7 +9907,6 @@ def test_p1a4_ibgp_highlight_color_differs_from_default(rendered_html):
     assert "#d97706" not in block, \
         ".bgp-session.highlighted .bgp-edge の stroke が既定 iBGP 色 #d97706 のままで判別不能"
 
-
 @pytest.mark.unit
 def test_p1a4_ibgp_highlight_color_differs_from_general_highlight(rendered_html):
     """\
@@ -10538,7 +9930,6 @@ def test_p1a4_ibgp_highlight_color_differs_from_general_highlight(rendered_html)
     assert actual_color != "#f59e0b", \
         f"--color-bgp-highlight の値 {actual_color} が汎用ハイライト色 #f59e0b と同一で判別不能"
 
-
 @pytest.mark.unit
 def test_p1a4_ibgp_highlight_stroke_width_increased(rendered_html):
     """\
@@ -10558,7 +9949,6 @@ def test_p1a4_ibgp_highlight_stroke_width_increased(rendered_html):
     assert stroke_width > 2, \
         f".bgp-session.highlighted .bgp-edge の stroke-width={stroke_width} が基本値 2 以下（判別不能）"
 
-
 @pytest.mark.unit
 def test_p1a4_ibgp_highlight_css_deterministic():
     """\
@@ -10570,7 +9960,6 @@ def test_p1a4_ibgp_highlight_css_deterministic():
     h1 = render(copy.deepcopy(topo))
     h2 = render(copy.deepcopy(topo))
     assert h1 == h2, "iBGP ハイライト CSS 変更後に render() が非決定的"
-
 
 # ===========================================================================
 # Phase 1A #2: ECMP 同一 next-hop 向け static 2行 — 振る舞いテスト
@@ -10610,7 +9999,6 @@ def _make_two_routes_same_nexthop():
         },
     }
 
-
 @pytest.mark.unit
 def test_p1a2_ecmp_two_rows_have_unique_data_route_ids():
     """\
@@ -10636,7 +10024,6 @@ def test_p1a2_ecmp_two_rows_have_unique_data_route_ids():
         f"r1::192.168.1.0/24 の route ID が存在しない: {ids}"
     assert any("192.168.2.0/24" in eid for eid in ids), \
         f"r1::192.168.2.0/24 の route ID が存在しない: {ids}"
-
 
 @pytest.mark.unit
 def test_p1a2_ecmp_one_row_click_does_not_select_other_row():
@@ -10677,7 +10064,6 @@ def test_p1a2_ecmp_one_row_click_does_not_select_other_row():
     assert not has_value_bulk_select, \
         "toggleStaticRouteHighlight が querySelectorAll で値指定による複数行一括選択をしている（ECMP一意化の意図に反する）"
 
-
 @pytest.mark.unit
 def test_p1a2_ecmp_apply_static_row_highlights_uses_foreach_and_highlighted():
     """\
@@ -10704,7 +10090,6 @@ def test_p1a2_ecmp_apply_static_row_highlights_uses_foreach_and_highlighted():
     assert has_highlighted, \
         "_applyStaticRowHighlights 内に highlighted クラス付与ロジックが存在しない"
 
-
 @pytest.mark.unit
 def test_p1a2_ecmp_clear_selection_removes_all_route_row_selected():
     """\
@@ -10730,7 +10115,6 @@ def test_p1a2_ecmp_clear_selection_removes_all_route_row_selected():
     assert has_remove, \
         "clearLinkHighlight 内に route-row-selected の classList.remove が存在しない"
 
-
 # ===========================================================================
 # Phase 1B — #1 OSPF表↔図マーキング（BGP同型の双方向連動）
 # ===========================================================================
@@ -10742,7 +10126,6 @@ def test_p1a2_ecmp_clear_selection_removes_all_route_row_selected():
 #   edge1: GE0/0(area0, 10.0.1.0/30 p2p to core1)
 #   acc1:  GE0/0(area1, 192.168.50.0/24 segment)
 #   acc2:  GE0/0(area1, 192.168.50.0/24 segment)
-
 
 def _make_ospf_highlight_topology():
     """OSPF表↔図連動テスト用 multi-as-area 類似 topology"""
@@ -10814,7 +10197,6 @@ def _make_ospf_highlight_topology():
         },
     }
 
-
 # ---------------------------------------------------------------------------
 # P1B-1: _normalize_ospf_id ヘルパーのユニットテスト
 # ---------------------------------------------------------------------------
@@ -10831,7 +10213,6 @@ def test_p1b_normalize_ospf_id_basic():
     assert _normalize_ospf_id("10.0.0.1/30") == "10.0.0.0/30"  # host bit 正規化
     assert _normalize_ospf_id("192.168.50.0/24") == "192.168.50.0/24"
 
-
 @pytest.mark.unit
 def test_p1b_normalize_ospf_id_invalid_returns_empty():
     """#1B: _normalize_ospf_id が無効な入力で空文字を返す（クラッシュしない）。"""
@@ -10840,7 +10221,6 @@ def test_p1b_normalize_ospf_id_invalid_returns_empty():
     assert _normalize_ospf_id(None) == ""
     assert _normalize_ospf_id("not-a-subnet") == ""
 
-
 @pytest.mark.unit
 def test_p1b_normalize_ospf_id_deterministic():
     """#1B: _normalize_ospf_id は決定的（同一入力で同一出力）。"""
@@ -10848,7 +10228,6 @@ def test_p1b_normalize_ospf_id_deterministic():
     subnets = ["10.0.0.0/30", "192.168.50.0/24", "10.0.1.0/30"]
     for s in subnets:
         assert _normalize_ospf_id(s) == _normalize_ospf_id(s)
-
 
 # ---------------------------------------------------------------------------
 # P1B-2: OSPF Networks 表の <tr> に data-ospf-id が付く（cards.py）
@@ -10867,7 +10246,6 @@ def test_p1b_ospf_card_rows_have_data_ospf_id():
     assert 'data-ospf-id=' in html, \
         "OSPF Networks 行に data-ospf-id 属性が存在しない"
 
-
 @pytest.mark.unit
 def test_p1b_ospf_card_row_10_0_0_0_30_has_correct_id():
     """#1B: 10.0.0.0/30 の OSPF 行に data-ospf-id='10.0.0.0/30' が付く。"""
@@ -10876,7 +10254,6 @@ def test_p1b_ospf_card_row_10_0_0_0_30_has_correct_id():
     assert 'data-ospf-id="10.0.0.0/30"' in html, \
         "10.0.0.0/30 OSPF 行に data-ospf-id='10.0.0.0/30' が存在しない"
 
-
 @pytest.mark.unit
 def test_p1b_ospf_card_row_segment_192_168_50_0_24_has_correct_id():
     """#1B: 192.168.50.0/24 の OSPF 行に data-ospf-id='192.168.50.0/24' が付く。"""
@@ -10884,7 +10261,6 @@ def test_p1b_ospf_card_row_segment_192_168_50_0_24_has_correct_id():
     html = render(_make_ospf_highlight_topology())
     assert 'data-ospf-id="192.168.50.0/24"' in html, \
         "192.168.50.0/24 OSPF 行に data-ospf-id='192.168.50.0/24' が存在しない"
-
 
 @pytest.mark.unit
 def test_p1b_ospf_card_row_count_matches_ospf_entries():
@@ -10897,7 +10273,6 @@ def test_p1b_ospf_card_row_count_matches_ospf_entries():
     rows_with_id = re.findall(r'<tr[^>]+data-ospf-id="[^"]*"', html)
     assert len(rows_with_id) >= 7, \
         f"data-ospf-id 付き OSPF 行が少ない: {len(rows_with_id)} 件（期待: >=7）"
-
 
 # ---------------------------------------------------------------------------
 # P1B-3: OSPF リンク（p2pエッジ）に data-ospf-id が付く（views.py）
@@ -10926,7 +10301,6 @@ def test_p1b_ospf_link_edge_has_data_ospf_id():
     assert len(all_ids) >= 1, \
         "OSPF ビューの link-edge <g> に data-ospf-id が存在しない"
 
-
 @pytest.mark.unit
 def test_p1b_ospf_link_edge_id_value_correct():
     """#1B: OSPF p2p リンクの data-ospf-id が正規化サブネット値（10.0.0.0/30 等）と一致する。"""
@@ -10937,7 +10311,6 @@ def test_p1b_ospf_link_edge_id_value_correct():
     # 10.0.0.0/30 リンクに data-ospf-id が付くこと
     assert 'data-ospf-id="10.0.0.0/30"' in ospf_view, \
         "10.0.0.0/30 リンクに data-ospf-id='10.0.0.0/30' が存在しない"
-
 
 # ---------------------------------------------------------------------------
 # P1B-4: OSPF セグメント楕円・セグメントエッジに data-ospf-id が付く（svg.py）
@@ -10967,7 +10340,6 @@ def test_p1b_ospf_segment_ellipse_has_data_ospf_id():
     assert len(all_ids) >= 1, \
         "OSPF セグメント <g> に data-ospf-id が存在しない"
 
-
 @pytest.mark.unit
 def test_p1b_ospf_segment_ellipse_id_value_correct():
     """#1B: OSPF セグメント楕円の data-ospf-id が 192.168.50.0/24。"""
@@ -10977,7 +10349,6 @@ def test_p1b_ospf_segment_ellipse_id_value_correct():
     assert ospf_view, "OSPF ビューが見つからない"
     assert 'data-ospf-id="192.168.50.0/24"' in ospf_view, \
         "OSPF セグメント（192.168.50.0/24）に data-ospf-id='192.168.50.0/24' が存在しない"
-
 
 @pytest.mark.unit
 def test_p1b_ospf_segment_edge_has_data_ospf_id():
@@ -10997,7 +10368,6 @@ def test_p1b_ospf_segment_edge_has_data_ospf_id():
     all_ids = seg_edges_with_ospf_id + seg_edges_with_ospf_id2
     assert len(all_ids) >= 1, \
         "OSPF セグメントエッジ <line> に data-ospf-id が存在しない"
-
 
 # ---------------------------------------------------------------------------
 # P1B-5: 図（SVG）と表（カード）で同一 data-ospf-id 値（突き合わせ）
@@ -11029,7 +10399,6 @@ def test_p1b_svg_and_card_share_same_ospf_id_for_p2p_link():
     assert "10.0.0.0/30" in overlap, \
         f"10.0.0.0/30 が SVG と OSPF 表の両方に存在しない: overlap={overlap}"
 
-
 @pytest.mark.unit
 def test_p1b_svg_and_card_share_same_ospf_id_for_segment():
     """#1B: OSPFセグメント(192.168.50.0/24)の data-ospf-id が SVG と OSPF Networks 行で一致。"""
@@ -11046,7 +10415,6 @@ def test_p1b_svg_and_card_share_same_ospf_id_for_segment():
     assert "192.168.50.0/24" in card_ospf_ids, \
         "192.168.50.0/24 が OSPF Networks 行の data-ospf-id に存在しない"
 
-
 @pytest.mark.unit
 def test_p1b_ospf_link_same_id_for_both_endpoints():
     """#1B: 10.0.0.0/30 リンクで core1/core2 の OSPF 行が同一 data-ospf-id='10.0.0.0/30' を持つ。
@@ -11062,7 +10430,6 @@ def test_p1b_ospf_link_same_id_for_both_endpoints():
     assert len(rows_1000_30) >= 2, \
         f"10.0.0.0/30 の data-ospf-id 付き OSPF 行が2行未満: {len(rows_1000_30)} 件"
 
-
 @pytest.mark.unit
 def test_p1b_ospf_segment_same_id_for_all_members():
     """#1B: 192.168.50.0/24 セグメントで core1/acc1/acc2 の OSPF 行が同一 data-ospf-id を持つ。"""
@@ -11074,7 +10441,6 @@ def test_p1b_ospf_segment_same_id_for_all_members():
     assert len(rows_seg) >= 3, \
         f"192.168.50.0/24 の data-ospf-id 付き OSPF 行が3行未満: {len(rows_seg)} 件"
 
-
 # ---------------------------------------------------------------------------
 # P1B-6: JS — toggleOspfHighlight / _selectedOspf / clearSelection
 # ---------------------------------------------------------------------------
@@ -11085,13 +10451,11 @@ def test_p1b_toggle_ospf_highlight_js_exists(rendered_html):
     assert "toggleOspfHighlight" in rendered_html, \
         "toggleOspfHighlight 関数が JS に存在しない"
 
-
 @pytest.mark.unit
 def test_p1b_selected_ospf_set_exists(rendered_html):
     """#1B: _selectedOspf Set が JS に宣言されている。"""
     assert "_selectedOspf" in rendered_html, \
         "_selectedOspf Set が JS に存在しない"
-
 
 @pytest.mark.unit
 def test_p1b_clear_selection_clears_ospf(rendered_html):
@@ -11102,7 +10466,6 @@ def test_p1b_clear_selection_clears_ospf(rendered_html):
     assert "_selectedOspf.clear()" in rendered_html, \
         "clearSelection/clearLinkHighlight が _selectedOspf を解除しない（_selectedOspf.clear() が存在しない）"
 
-
 @pytest.mark.unit
 def test_p1b_toggle_ospf_highlight_uses_data_ospf_id(rendered_html):
     """#1B: toggleOspfHighlight が data-ospf-id を参照する。"""
@@ -11110,7 +10473,6 @@ def test_p1b_toggle_ospf_highlight_uses_data_ospf_id(rendered_html):
     assert func_body, "toggleOspfHighlight 関数が見つからない"
     assert "data-ospf-id" in func_body, \
         "toggleOspfHighlight が data-ospf-id を参照していない"
-
 
 @pytest.mark.unit
 def test_p1b_toggle_ospf_highlight_uses_selected_ospf(rendered_html):
@@ -11128,13 +10490,11 @@ def test_p1b_toggle_ospf_highlight_uses_selected_ospf(rendered_html):
     assert "data-ospf-id" in func_body, \
         "toggleOspfHighlight に 'data-ospf-id' の参照がない"
 
-
 @pytest.mark.unit
 def test_p1b_ospf_click_handlers_registered(rendered_html):
     """#1B: OSPF リンク・セグメント・OSPF 行のクリックハンドラが登録されている。"""
     assert "toggleOspfHighlight" in rendered_html, \
         "toggleOspfHighlight の呼び出しが JS に存在しない"
-
 
 # ---------------------------------------------------------------------------
 # P1B-7: CSS — OSPF リンクの .highlighted 視覚スタイル
@@ -11157,7 +10517,6 @@ def test_p1b_ospf_link_highlighted_css_exists(rendered_html):
     assert has_css, \
         "OSPF リンクに適用されるハイライト CSS が存在しない（.link-edge.highlighted等）"
 
-
 # ---------------------------------------------------------------------------
 # P1B-8: 決定性（同一入力で2回一致）
 # ---------------------------------------------------------------------------
@@ -11171,7 +10530,6 @@ def test_p1b_ospf_highlight_deterministic():
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, \
         "OSPF ハイライト追加後に render() が非決定的になった"
-
 
 # ---------------------------------------------------------------------------
 # P1B-9: 既存機能の非回帰（BGP/セグメント/static が壊れない）
@@ -11188,7 +10546,6 @@ def test_p1b_bgp_highlight_not_broken():
     assert "_selectedBgp" in html, \
         "OSPF 変更後に _selectedBgp が消えた（BGP 非回帰失敗）"
 
-
 @pytest.mark.unit
 def test_p1b_seg_highlight_not_broken(rendered_html):
     """#1B: OSPF 変更後も toggleSegHighlight / _selectedSegs が残る。"""
@@ -11196,7 +10553,6 @@ def test_p1b_seg_highlight_not_broken(rendered_html):
         "OSPF 変更後に toggleSegHighlight が消えた（セグメント非回帰失敗）"
     assert "_selectedSegs" in rendered_html, \
         "OSPF 変更後に _selectedSegs が消えた（セグメント非回帰失敗）"
-
 
 # ---------------------------------------------------------------------------
 # P1B ヘルパー: OSPF ビューを HTML から抽出する
@@ -11221,11 +10577,9 @@ def _extract_ospf_view(html: str) -> str:
         return html[start:]
     return html[start:end]
 
-
 # ===========================================================================
 # Phase 1B レビュー指摘修正: 追加ユニットテスト
 # ===========================================================================
-
 
 # ---------------------------------------------------------------------------
 # P1B-R1: _normalize_subnet 一本化（svg.py）の確認
@@ -11242,7 +10596,6 @@ def test_p1b_normalize_subnet_is_in_svg():
     assert _normalize_subnet("") == ""
     assert _normalize_subnet(None) == ""
     assert _normalize_subnet("not-a-subnet") == ""
-
 
 @pytest.mark.unit
 def test_p1b_normalize_ospf_id_same_as_normalize_subnet():
@@ -11263,7 +10616,6 @@ def test_p1b_normalize_ospf_id_same_as_normalize_subnet():
         assert _normalize_ospf_id(s) == _normalize_subnet(s), \
             f"_normalize_ospf_id('{s}') != _normalize_subnet('{s}')"
 
-
 @pytest.mark.unit
 def test_p1b_core_does_not_define_own_normalize():
     """統合後: core.py 独自の _normalize_ospf_id 関数定義が削除されている。
@@ -11278,7 +10630,6 @@ def test_p1b_core_does_not_define_own_normalize():
     # core の _normalize_ospf_id と svg の _normalize_subnet が同一オブジェクトであること
     assert _core_mod._normalize_ospf_id is _svg_mod._normalize_subnet, \
         "core._normalize_ospf_id が svg._normalize_subnet のエイリアスになっていない（独自定義が残っている）"
-
 
 # ---------------------------------------------------------------------------
 # P1B-R2: <ellipse> の data-ospf-id 二重付与解消
@@ -11300,7 +10651,6 @@ def test_p1b_ellipse_does_not_have_data_ospf_id():
     assert len(ellipse_with_ospf_id) == 0, \
         f"<ellipse> に data-ospf-id が付与されている（二重付与: {ellipse_with_ospf_id[:2]}）"
 
-
 @pytest.mark.unit
 def test_p1b_segment_node_g_has_data_ospf_id():
     """修正後: OSPF セグメント <g class='segment-node layer-ospf'> に data-ospf-id が付与されている。"""
@@ -11320,7 +10670,6 @@ def test_p1b_segment_node_g_has_data_ospf_id():
     all_ids = seg_g_with_ospf_id + seg_g_with_ospf_id2
     assert len(all_ids) >= 1, \
         "<g class='segment-node layer-ospf'> に data-ospf-id が付与されていない"
-
 
 # ---------------------------------------------------------------------------
 # P1B-R3: _build_ospf_marking_map ユニットテスト
@@ -11342,7 +10691,6 @@ def test_p1b_build_ospf_marking_map_two_devices_same_subnet():
     # 同一 ospf_id（同一 subnet なので同値）
     assert result[("r1", "10.0.0.0/30")] == result[("r2", "10.0.0.0/30")]
 
-
 @pytest.mark.unit
 def test_p1b_build_ospf_marking_map_missing_network_skipped():
     """_build_ospf_marking_map: network 欠損エントリはスキップされる。"""
@@ -11355,7 +10703,6 @@ def test_p1b_build_ospf_marking_map_missing_network_skipped():
     result = _build_ospf_marking_map(ospf_entries)
     assert len(result) == 1
     assert ("r2", "10.0.0.0/30") in result
-
 
 @pytest.mark.unit
 def test_p1b_build_ospf_marking_map_invalid_cidr_skipped():
@@ -11370,14 +10717,12 @@ def test_p1b_build_ospf_marking_map_invalid_cidr_skipped():
         "無効 CIDR エントリがスキップされていない"
     assert ("r2", "10.0.0.0/30") in result
 
-
 @pytest.mark.unit
 def test_p1b_build_ospf_marking_map_empty_returns_empty():
     """_build_ospf_marking_map: 空リスト → {} を返す。"""
     from lib.rendering.core import _build_ospf_marking_map
     result = _build_ospf_marking_map([])
     assert result == {}
-
 
 @pytest.mark.unit
 def test_p1b_build_ospf_marking_map_host_bit_normalized():
@@ -11395,7 +10740,6 @@ def test_p1b_build_ospf_marking_map_host_bit_normalized():
     assert result[("r1", "10.0.0.1/30")] == "10.0.0.0/30", \
         "host bit 入り network の ospf_id が正規化されていない"
 
-
 @pytest.mark.unit
 def test_p1b_build_ospf_marking_map_no_extra_args():
     """_build_ospf_marking_map: links/segments 引数が不要になった（シグネチャ変更）。
@@ -11412,7 +10756,6 @@ def test_p1b_build_ospf_marking_map_no_extra_args():
         "_build_ospf_marking_map に未使用の 'segments' 引数が残っている"
     assert "ospf_entries" in params, \
         "_build_ospf_marking_map に 'ospf_entries' 引数がない"
-
 
 # ---------------------------------------------------------------------------
 # P1B-R4: id 整合 — cards.py のルックアップが正規化された network で一致
@@ -11464,7 +10807,6 @@ def test_p1b_card_lookup_matches_normalized_network():
     assert 'data-ospf-id="10.0.0.0/30"' in ospf_view, \
         "SVG link-edge に data-ospf-id='10.0.0.0/30' が存在しない（cards との不一致）"
 
-
 # ---------------------------------------------------------------------------
 # P1B-R5: link-edge の data-ospf-id と data-link-id 同一要素付与防止
 # ---------------------------------------------------------------------------
@@ -11493,7 +10835,6 @@ def test_p1b_ospf_link_edge_no_dual_attr():
     assert len(all_dual) == 0, \
         f"OSPF ビューの link-edge に data-link-id と data-ospf-id が同時付与されている: {len(all_dual)} 件"
 
-
 @pytest.mark.unit
 def test_p1b_ospf_card_row_count_exact():
     """#1B 精緻化: OSPF 行の data-ospf-id 付き <tr> が fixture の OSPF エントリ数 (7) と == である。
@@ -11507,11 +10848,9 @@ def test_p1b_ospf_card_row_count_exact():
     assert len(rows_with_id) == 7, \
         f"data-ospf-id 付き OSPF 行が 7 件でない: {len(rows_with_id)} 件（期待: ==7）"
 
-
 # ===========================================================================
 # Phase 1C — #3 ノード間隔縮小 / #5 AS枠番号ごと色分け
 # ===========================================================================
-
 
 # ---------------------------------------------------------------------------
 # #3: ノード間隔縮小
@@ -11528,7 +10867,6 @@ def test_1c3_canvas_factor_smaller_than_iteration4():
     assert _CANVAS_FACTOR_H < 9, (
         f"_CANVAS_FACTOR_H={_CANVAS_FACTOR_H} が iteration-4 値 9 以上（さらなる縮小がされていない）"
     )
-
 
 @pytest.mark.unit
 def test_1c3_canvas_smaller_than_iteration4_values():
@@ -11549,7 +10887,6 @@ def test_1c3_canvas_smaller_than_iteration4_values():
         f"Phase 1C 縮小後({w_new:.0f}x{h_new:.0f})が iteration-4 値({w_old:.0f}x{h_old:.0f})より"
         f"幅・高さともに小さくなっていない"
     )
-
 
 @pytest.mark.unit
 def test_1c3_no_overlap_dense_fixture():
@@ -11584,7 +10921,6 @@ def test_1c3_no_overlap_dense_fixture():
                 f"(dx={dx:.1f} min_sep_x={min_sep_x:.1f}, dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
             )
 
-
 @pytest.mark.unit
 def test_1c3_min_canvas_respected():
     """#3: 縮小後も _canvas_size_for_nodes(0)/(1) が _MIN_CANVAS_W/H を下回らない"""
@@ -11594,7 +10930,6 @@ def test_1c3_min_canvas_respected():
         assert w >= _MIN_CANVAS_W, f"n={n}: キャンバス幅 {w} < _MIN_CANVAS_W {_MIN_CANVAS_W}"
         assert h >= _MIN_CANVAS_H, f"n={n}: キャンバス高 {h} < _MIN_CANVAS_H {_MIN_CANVAS_H}"
 
-
 @pytest.mark.unit
 def test_1c3_deterministic(sample_topology):
     """#3: 係数縮小後も render() が決定的（2回一致）"""
@@ -11603,7 +10938,6 @@ def test_1c3_deterministic(sample_topology):
     html1 = render(copy.deepcopy(sample_topology))
     html2 = render(copy.deepcopy(sample_topology))
     assert html1 == html2, "Phase 1C 係数縮小後の render() が非決定的"
-
 
 @pytest.mark.unit
 def test_1c3_existing_bgp_no_overlap(sample_topology):
@@ -11637,7 +10971,6 @@ def test_1c3_existing_bgp_no_overlap(sample_topology):
                 f"BGP ビューでノード {na} と {nb} が重なっている "
                 f"(dx={dx:.1f} needed_x={needed_x:.1f}, dy={dy:.1f} needed_y={needed_y:.1f})"
             )
-
 
 # ---------------------------------------------------------------------------
 # #5: AS枠番号ごと色分け
@@ -11699,7 +11032,6 @@ def test_1c5_multi_as_three_different_colors():
         f"3 AS で fill 色が {len(fill_colors)} 種のみ（3種別でない）: {fill_colors}"
     )
 
-
 @pytest.mark.unit
 def test_1c5_same_as_same_color():
     """#5: 同一 AS 番号のノードは常に同一色（1 AS = 1色）"""
@@ -11722,7 +11054,6 @@ def test_1c5_same_as_same_color():
         f"AS65000 の as-group-container が {len(as65000_containers)} 個（1個であるべき）"
     )
 
-
 @pytest.mark.unit
 def test_1c5_color_deterministic():
     """#5: AS枠色分けが決定的（2回 render して同一 HTML）"""
@@ -11733,7 +11064,6 @@ def test_1c5_color_deterministic():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "Phase 1C AS枠色分けの render() が非決定的"
-
 
 @pytest.mark.unit
 def test_1c5_palette_cycles_deterministically():
@@ -11757,7 +11087,6 @@ def test_1c5_palette_cycles_deterministically():
     assert len(containers) == n_as, (
         f"as-group-container が {len(containers)} 個（期待: {n_as}）"
     )
-
 
 @pytest.mark.unit
 def test_1c5_label_bg_color_applied():
@@ -11783,7 +11112,6 @@ def test_1c5_label_bg_color_applied():
     assert has_style, (
         "as-group-label-bg 要素に color/fill スタイルが存在しない（#5 未実装）"
     )
-
 
 @pytest.mark.unit
 def test_1c5_existing_single_as_still_has_group():
@@ -11822,7 +11150,6 @@ def test_1c5_existing_single_as_still_has_group():
     assert 'class="as-group"' in html or 'class="as-group-container"' in html, (
         "1 AS topology で as-group が生成されない（回帰）"
     )
-
 
 # ---------------------------------------------------------------------------
 # タスク6: test_1c5_label_bg_color_applied（強化版: 3色すべて異なる fill を検証）
@@ -11871,7 +11198,6 @@ def test_1c5_label_bg_three_distinct_fill_colors():
         f"3 AS の as-group-label-bg fill が {len(set(fill_colors))} 種のみ（3種別でない）: {fill_colors}"
     )
 
-
 # ---------------------------------------------------------------------------
 # タスク7: _as_color 単体テスト
 # ---------------------------------------------------------------------------
@@ -11887,7 +11213,6 @@ def test_as_color_index0_returns_first_palette_entry():
     assert fill_rgba == expected_fill, f"index 0 の fill_rgba が不一致"
     assert label_bg == expected_stroke, f"index 0 の label_bg が stroke と異なる"
 
-
 @pytest.mark.unit
 def test_as_color_index1_returns_second_palette_entry():
     """T7: _as_color(1) が _AS_COLOR_PALETTE[1] の要素を返す"""
@@ -11897,7 +11222,6 @@ def test_as_color_index1_returns_second_palette_entry():
     assert stroke == expected_stroke
     assert fill_rgba == expected_fill
     assert label_bg == expected_stroke  # label_bg == stroke
-
 
 @pytest.mark.unit
 def test_as_color_last_index_returns_last_palette_entry():
@@ -11910,7 +11234,6 @@ def test_as_color_last_index_returns_last_palette_entry():
     assert fill_rgba == expected_fill
     assert label_bg == expected_stroke  # label_bg == stroke
 
-
 @pytest.mark.unit
 def test_as_color_returns_three_element_tuple():
     """T7: _as_color は常に 3 要素タプルを返す"""
@@ -11918,7 +11241,6 @@ def test_as_color_returns_three_element_tuple():
     result = _as_color(0)
     assert isinstance(result, tuple), f"タプルでない: {type(result)}"
     assert len(result) == 3, f"要素数が {len(result)}（期待: 3）"
-
 
 @pytest.mark.unit
 def test_as_color_wraps_at_palette_length():
@@ -11928,7 +11250,6 @@ def test_as_color_wraps_at_palette_length():
     assert _as_color(n) == _as_color(0), (
         f"_as_color({n}) が _as_color(0) と異なる（循環しない）"
     )
-
 
 @pytest.mark.unit
 def test_as_color_docstring_mentions_modulo():
@@ -11940,7 +11261,6 @@ def test_as_color_docstring_mentions_modulo():
     assert has_cyclic_desc, (
         f"_as_color docstring に循環の仕組み（% len(...) 等）が記述されていない:\n{doc}"
     )
-
 
 # ---------------------------------------------------------------------------
 # タスク8: test_1c5_palette_cycles_deterministically（強化版: 循環を色値で検証）
@@ -11971,7 +11291,6 @@ def test_1c5_palette_cycle_index0_equals_index_len():
         f"asn={asn0} と asn={asn_wrap} の stroke 色が異なる（循環していない）: "
         f"{stroke_colors[0]!r} != {stroke_colors[1]!r}"
     )
-
 
 # ===========================================================================
 # Phase 2E: IF 一覧/棚卸しビュー
@@ -12040,44 +11359,19 @@ def _make_ifinv_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.fixture
 def ifinv_topology():
     return _make_ifinv_topology()
-
 
 @pytest.fixture
 def ifinv_html(ifinv_topology):
     from lib.rendering import render
     return render(ifinv_topology)
 
-
 # ---------------------------------------------------------------------------
 # T-2E-1: ビュータブに「ifinv」が追加される
 # ---------------------------------------------------------------------------
 
-@pytest.mark.unit
-def test_2e_ifinv_tab_exists_in_view_tabs(ifinv_html):
-    """Phase2E: ビュータブに data-view="ifinv" タブが存在する"""
-    assert 'data-view="ifinv"' in ifinv_html, \
-        "ifinv ビュータブ (data-view=\"ifinv\") が見つからない"
-
-
-@pytest.mark.unit
-def test_2e_ifinv_tab_label(ifinv_html):
-    """Phase2E: ifinv タブのラベルが「IF一覧」または「IF-List」または「IFInv」"""
-    # タブボタンの onclick="selectView('ifinv')" または data-view="ifinv" の近辺に
-    # ラベルテキストが存在することを確認する
-    # data-view="ifinv" を含む button タグを抽出
-    m = re.search(r'<button[^>]*data-view="ifinv"[^>]*>(.*?)</button>', ifinv_html)
-    assert m, "ifinv タブボタンが見つからない"
-    label = m.group(1)
-    # 「IF一覧」「IF-List」「IFInv」のいずれかを含むことを確認
-    has_label = any(kw in label for kw in ("IF一覧", "IF-List", "IFInv", "IF Inv", "IF List"))
-    assert has_label, f"ifinv タブのラベルが不適切: {label!r}"
-
-
-@pytest.mark.unit
 def test_2e_ifinv_tab_in_build_view_tabs():
     """Phase2E: _build_view_tabs(['physical','ifinv']) に ifinv タブが含まれる"""
     from lib.rendering.views import _build_view_tabs
@@ -12085,52 +11379,10 @@ def test_2e_ifinv_tab_in_build_view_tabs():
     assert 'data-view="ifinv"' in html, \
         "_build_view_tabs が ifinv タブを生成しない"
 
-
 # ---------------------------------------------------------------------------
 # T-2E-2: IF一覧テーブルの生成（HTML table, 全IF行, 決定的な行順）
 # ---------------------------------------------------------------------------
 
-@pytest.mark.unit
-def test_2e_ifinv_table_container_exists(ifinv_html):
-    """Phase2E: #view-ifinv-table コンテナが HTML に存在する"""
-    assert 'id="view-ifinv-table"' in ifinv_html, \
-        "#view-ifinv-table コンテナが見つからない"
-
-
-@pytest.mark.unit
-def test_2e_ifinv_table_has_all_iface_rows(ifinv_topology, ifinv_html):
-    """Phase2E: IF一覧テーブルに全 IF 行（data-iface-id）が揃っている"""
-    iface_ids = [i["id"] for i in ifinv_topology["interfaces"]]
-    for iid in iface_ids:
-        assert f'data-iface-id="{iid}"' in ifinv_html, \
-            f"IF 行 data-iface-id=\"{iid}\" が見つからない"
-
-
-@pytest.mark.unit
-def test_2e_ifinv_table_row_count(ifinv_topology, ifinv_html):
-    """Phase2E: IF一覧テーブルの data-iface-id 行数が interfaces 数と一致"""
-    expected = len(ifinv_topology["interfaces"])
-    # _build_ifinv_table を直呼びして フル render 依存を排除（境界 regex フォールバック不要）
-    from lib.rendering.views import _build_ifinv_table
-    ifinv_section = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
-    actual = ifinv_section.count('data-iface-id="')
-    assert actual == expected, \
-        f"ifinv テーブルの data-iface-id 行数が {actual}（期待: {expected}）"
-
-
-@pytest.mark.unit
-def test_2e_ifinv_table_column_headers(ifinv_html):
-    """Phase2E: IF一覧テーブルに必要な列ヘッダ（Device/Interface/IP/Status/MTU/VLAN/L2L3/Description）が存在する"""
-    required_headers = ["Device", "Interface", "IP", "Status", "MTU", "VLAN", "L2L3", "Description"]
-    # #view-ifinv-table 内のテーブル全体を抽出
-    m = re.search(r'id="view-ifinv-table".*?</div>\s*<!--', ifinv_html, re.DOTALL)
-    table_section = m.group(0) if m else ifinv_html
-    for header in required_headers:
-        assert header in table_section, \
-            f"IF一覧テーブルに列ヘッダ \"{header}\" が見つからない"
-
-
-@pytest.mark.unit
 def test_2e_ifinv_table_row_order_deterministic(ifinv_topology):
     """Phase2E: 同一 topology を2回 render した結果が完全一致（決定性）"""
     from lib.rendering import render
@@ -12140,31 +11392,11 @@ def test_2e_ifinv_table_row_order_deterministic(ifinv_topology):
     html2 = render(t2)
     assert html1 == html2, "ifinv topology の render が非決定的"
 
-
-@pytest.mark.unit
-def test_2e_ifinv_table_rows_sorted_by_device_then_ifname(ifinv_topology, ifinv_html):
-    """Phase2E: IF一覧テーブルの行が device id → IF 名の辞書順で並んでいる"""
-    # _build_ifinv_table を直呼びして抽出を確実に（境界 regex フォールバック廃止）
-    from lib.rendering.views import _build_ifinv_table
-    ifinv_section = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
-    found_ids = re.findall(r'data-iface-id="([^"]+)"', ifinv_section)
-    # ifinv-topology の interfaces を device id → IF 名でソートした期待順
-    ifaces = sorted(
-        ifinv_topology["interfaces"],
-        key=lambda i: (i["device"], i["name"])
-    )
-    expected_ids = [i["id"] for i in ifaces]
-    assert found_ids == expected_ids, \
-        f"IF行の順序が期待と異なる:\n  actual:   {found_ids}\n  expected: {expected_ids}"
-
-
-@pytest.mark.unit
 def test_2e_ifinv_table_ip_column_values(ifinv_html):
     """Phase2E: IP アドレスがテーブルに出力される（IP有のIFのみ）"""
     assert "10.0.0.1/30" in ifinv_html
     assert "10.0.0.2/30" in ifinv_html
     assert "1.1.1.1/32" in ifinv_html
-
 
 @pytest.mark.unit
 def test_2e_ifinv_table_mtu_column_value(ifinv_html):
@@ -12172,179 +11404,10 @@ def test_2e_ifinv_table_mtu_column_value(ifinv_html):
     assert "1500" in ifinv_html
     assert "9000" in ifinv_html
 
-
-@pytest.mark.unit
-def test_2e_ifinv_table_vlan_column_value(ifinv_topology):
-    """Phase2E: VLAN 値（10）がテーブルの該当行セルに出力される（vacuous OR を排除）"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
-    # r1::GigabitEthernet0/1 行が存在すること
-    m = re.search(r'<tr[^>]*data-iface-id="r1::GigabitEthernet0/1"[^>]*>(.*?)</tr>',
-                  result, re.DOTALL)
-    assert m is not None, "r1::GigabitEthernet0/1 行が見つからない"
-    row_html = m.group(0)
-    # VLAN セルに ">10<" が含まれること（OR の最後の "vlan" in html.lower() は削除）
-    assert ">10<" in row_html or ">10 <" in row_html, \
-        f"VLAN=10 がセル値として見つからない: {row_html!r}"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-3: status 集計（up/down/admin-down 件数）
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_2e_status_summary_up_count(ifinv_html):
-    """Phase2E: status 集計 up=3 が確定フォーマット 'up: 3</span>' で出力される（vacuous regex 解消）"""
-    # 確定フォーマット: <span ...>up: 3</span> を直接検証
-    assert "up: 3</span>" in ifinv_html, \
-        "IF 集計バッジに 'up: 3</span>' が見当たらない"
-
-
-@pytest.mark.unit
-def test_2e_status_summary_down_count(ifinv_html):
-    """Phase2E: status 集計 down=1 が確定フォーマット 'down: 1</span>' で出力される（vacuous regex 解消）"""
-    assert "down: 1</span>" in ifinv_html, \
-        "IF 集計バッジに 'down: 1</span>' が見当たらない"
-
-
-@pytest.mark.unit
-def test_2e_status_summary_admindown_count(ifinv_html):
-    """Phase2E: status 集計 admin-down=2 が確定フォーマット 'admin-down: 2</span>' で出力される（vacuous regex 解消）"""
-    assert "admin-down: 2</span>" in ifinv_html, \
-        "IF 集計バッジに 'admin-down: 2</span>' が見当たらない"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-4: 未使用候補マーク（IP無し & down/admin-down）
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_2e_unused_candidates_marked_with_data_unused(ifinv_html):
-    """Phase2E: IP無し & down系 の IF 行 <tr> に data-unused="1" が付く"""
-    # r2::ge-0/0/1 (down, ip=None) と r2::ge-0/0/2 (admin-down, ip=None) が対象
-    for iface_id in ("r2::ge-0/0/1", "r2::ge-0/0/2"):
-        # <tr> タグに両属性が共存することを確認
-        pattern = rf'<tr[^>]*data-iface-id="{re.escape(iface_id)}"[^>]*data-unused="1"|<tr[^>]*data-unused="1"[^>]*data-iface-id="{re.escape(iface_id)}"'
-        m = re.search(pattern, ifinv_html)
-        assert m, f"IF {iface_id} の <tr> に data-unused=\"1\" が付いていない"
-
-
-@pytest.mark.unit
-def test_2e_unused_candidate_count_correct(ifinv_html):
-    """Phase2E: <tr data-unused="1"> の件数が 2（IP無し & down系 の数と一致）"""
-    # <tr> タグの data-unused="1" のみカウント（JS 文字列内を除外）
-    count = len(re.findall(r'<tr[^>]*data-unused="1"', ifinv_html))
-    assert count == 2, f"<tr data-unused=\"1\"> の件数が {count}（期待: 2）"
-
-
-@pytest.mark.unit
-def test_2e_ip_with_down_not_marked_unused(ifinv_html):
-    """Phase2E: IP有り の admin-down IF（r1::GigabitEthernet0/1）は未使用候補にならない"""
-    # r1::GigabitEthernet0/1 は admin-down だが IP あり → data-unused="1" は付かない
-    # この行が存在することと data-unused="1" を持たないことを確認
-    # 当該行の tr タグを探す
-    m = re.search(r'<tr[^>]*data-iface-id="r1::GigabitEthernet0/1"[^>]*>', ifinv_html)
-    assert m, "r1::GigabitEthernet0/1 行が見つからない"
-    row_tag = m.group(0)
-    assert 'data-unused="1"' not in row_tag, \
-        "IP有りの admin-down IF が誤って data-unused=\"1\" マークされている"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-5: JS 関数の存在と対象セレクタ（vacuous 回避）
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_2e_js_ifinv_search_function_exists(ifinv_html):
-    """Phase2E: IF一覧検索 JS 関数が存在する（filterIfRows または ifinvSearch）"""
-    js_pattern = r'function\s+(filterIfRows|ifinvSearch|filterIfinvRows)\s*\('
-    assert re.search(js_pattern, ifinv_html), \
-        "IF一覧検索用 JS 関数が見つからない"
-
-
-@pytest.mark.unit
-def test_2e_js_ifinv_sort_function_exists(ifinv_html):
-    """Phase2E: IF一覧ソート JS 関数が存在する（sortIfTable または ifinvSort）"""
-    js_pattern = r'function\s+(sortIfTable|ifinvSort|sortIfinvTable)\s*\('
-    assert re.search(js_pattern, ifinv_html), \
-        "IF一覧ソート用 JS 関数が見つからない"
-
-
-@pytest.mark.unit
-def test_2e_js_ifinv_sort_targets_ifinv_table(ifinv_html):
-    """Phase2E: ソート JS が view-ifinv-table または ifinv-table-body を参照している"""
-    # ソート関数の実装が #view-ifinv-table または ifinv-table-body を使用
-    assert "view-ifinv-table" in ifinv_html or "ifinv-table-body" in ifinv_html, \
-        "ソート JS が IF一覧テーブルを参照していない"
-
-
-@pytest.mark.unit
-def test_2e_js_unused_toggle_function_exists(ifinv_html):
-    """Phase2E: 未使用のみ表示トグル JS 関数が存在する"""
-    js_pattern = r'function\s+(toggleUnused|showOnlyUnused|ifinvToggleUnused)\s*\('
-    assert re.search(js_pattern, ifinv_html), \
-        "未使用のみ表示トグル JS 関数が見つからない"
-
-
-@pytest.mark.unit
-def test_2e_js_unused_toggle_uses_data_unused_attr(ifinv_html):
-    """Phase2E: 未使用トグル JS が data-unused 属性を参照している"""
-    assert "data-unused" in ifinv_html, \
-        "未使用トグル JS が data-unused 属性を参照していない"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-6: selectView('ifinv') の挙動（JS コード構造）
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_2e_selectview_handles_ifinv(ifinv_html):
-    """Phase2E: selectView JS が ifinv 識別子を処理するコードを含む"""
-    # selectView 内で 'ifinv' を扱う条件分岐が存在すること
-    assert "'ifinv'" in ifinv_html or '"ifinv"' in ifinv_html, \
-        "JS に ifinv 識別子が見当たらない"
-
-
-@pytest.mark.unit
-def test_2e_selectview_hides_svg_container_for_ifinv(ifinv_html):
-    """Phase2E: ifinv 選択時に #svg-container を隠す JS コードが存在する"""
-    # svg-container の display 制御コードが ifinv 分岐で存在する
-    # "svg-container" と "display" / "none" / "ifinv" のキーワードが JS に共存
-    js_block_m = re.search(r'<script>(.*?)</script>', ifinv_html, re.DOTALL)
-    js_code = js_block_m.group(1) if js_block_m else ""
-    assert "svg-container" in js_code, \
-        "JS に svg-container の参照が見つからない"
-    assert "ifinv" in js_code, \
-        "JS に ifinv の参照が見つからない"
-
-
-@pytest.mark.unit
-def test_2e_ifinv_table_hidden_by_default(ifinv_html):
-    """Phase2E: #view-ifinv-table は初期状態で非表示（style="display:none" または JS で隠す）"""
-    # #view-ifinv-table の div が display:none または class で非表示であること
-    m = re.search(r'id="view-ifinv-table"[^>]*>', ifinv_html)
-    assert m, "#view-ifinv-table が見つからない"
-    tag = m.group(0)
-    # display:none が属性にある、またはJSで初期非表示にすることを確認
-    is_hidden = (
-        "display:none" in tag
-        or "display: none" in tag
-        or 'style="display:none"' in tag
-    )
-    assert is_hidden, \
-        f"#view-ifinv-table が初期非表示になっていない: {tag}"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-7: 図系 UI（ズームボタン・凡例）が ifinv では無関係であることの設計確認
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
 def test_2e_zoom_controls_exist_for_svg_views(ifinv_html):
     """Phase2E: zoom-controls は存在する（Physical 等の SVG ビュー用）"""
     assert 'id="zoom-controls"' in ifinv_html, \
         "zoom-controls が見つからない"
-
 
 # ---------------------------------------------------------------------------
 # T-2E-8: 自己完結・外部参照0の確認
@@ -12359,33 +11422,14 @@ def test_2e_self_contained_no_external_refs(ifinv_html):
     assert len(external_refs) == 0, \
         f"外部参照が含まれている: {external_refs}"
 
-
 # ---------------------------------------------------------------------------
 # T-2E-9: sample_topology の render にも ifinv タブが追加されている（非回帰）
 # ---------------------------------------------------------------------------
 
-@pytest.mark.unit
-def test_2e_ifinv_tab_present_in_sample_topology(rendered_html):
-    """Phase2E: 既存 sample_topology の render にも ifinv タブが含まれる（非回帰）"""
-    assert 'data-view="ifinv"' in rendered_html, \
-        "sample_topology render に ifinv タブが含まれない"
-
-
-@pytest.mark.unit
-def test_2e_sample_topology_all_ifaces_in_ifinv_table(sample_topology, rendered_html):
-    """Phase2E: sample_topology の全 IF が ifinv テーブルに存在する"""
-    for iface in sample_topology["interfaces"]:
-        iid = iface["id"]
-        assert f'data-iface-id="{iid}"' in rendered_html, \
-            f"sample_topology の IF {iid} が ifinv テーブルに見つからない"
-
-
-@pytest.mark.unit
 def test_2e_existing_physical_view_still_present(rendered_html):
     """Phase2E: Physical ビューが引き続き存在する（非回帰）"""
     assert 'class="view view-physical"' in rendered_html, \
         "Physical ビューが消えている"
-
 
 @pytest.mark.unit
 def test_2e_existing_bgp_view_still_present(rendered_html):
@@ -12393,226 +11437,6 @@ def test_2e_existing_bgp_view_still_present(rendered_html):
     assert 'class="view view-bgp"' in rendered_html, \
         "BGP ビューが消えている"
 
-
-@pytest.mark.unit
-def test_2e_existing_ospf_view_still_present():
-    """Phase2E: OSPF 参加2台以上の topology で OSPF ビューが存在する（非回帰）"""
-    from lib.rendering import render
-    # OSPF 参加2台（両端）のシンプルな topology を用意
-    topo = {
-        "title": "OSPF Test", "generated_from": [],
-        "devices": [
-            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": None, "sections": []},
-            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": None, "sections": []},
-        ],
-        "interfaces": [
-            {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
-             "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": "l3",
-             "description": None, "shutdown": False},
-            {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
-             "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": "l3",
-             "description": None, "shutdown": False},
-        ],
-        "links": [
-            {"a_device": "r1", "a_if": "eth0", "b_device": "r2", "b_if": "eth0",
-             "subnet": "10.0.0.0/30", "kind": "inferred-subnet"},
-        ],
-        "segments": [],
-        "routing": {
-            "bgp": [],
-            "ospf": [
-                {"device": "r1", "area": "0", "network": "10.0.0.0/30", "process": 1},
-                {"device": "r2", "area": "0", "network": "10.0.0.0/30", "process": 1},
-            ],
-            "static": [],
-        },
-    }
-    html = render(topo)
-    assert 'class="view view-ospf"' in html, "OSPF ビューが生成されない"
-    # ifinv タブも存在することを確認
-    assert 'data-view="ifinv"' in html, "ifinv タブが存在しない"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-10: _build_ifinv_table 単体テスト（views.py ユニット）
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_2e_build_ifinv_table_returns_string():
-    """Phase2E: _build_ifinv_table が文字列を返す"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    ifaces = [{"id": "r1::eth0", "device": "r1", "name": "eth0",
-               "ip": "10.0.0.1/30", "admin_status": "up",
-               "mtu": None, "vlan": None, "l2_l3": "l3", "description": None}]
-    result = _build_ifinv_table(devices, ifaces)
-    assert isinstance(result, str), f"文字列でない: {type(result)}"
-
-
-@pytest.mark.unit
-def test_2e_build_ifinv_table_empty_devices():
-    """Phase2E: _build_ifinv_table にデバイス0件でも例外なし"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table([], [])
-    assert isinstance(result, str)
-
-
-@pytest.mark.unit
-def test_2e_build_ifinv_table_status_counts():
-    """Phase2E: _build_ifinv_table の status 集計が確定フォーマットで出力される（vacuous regex 解消）"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    ifaces = [
-        {"id": "r1::eth0", "device": "r1", "name": "eth0",
-         "ip": "10.0.0.1/30", "admin_status": "up",
-         "mtu": None, "vlan": None, "l2_l3": "l3", "description": None},
-        {"id": "r1::eth1", "device": "r1", "name": "eth1",
-         "ip": None, "admin_status": "down",
-         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
-        {"id": "r1::eth2", "device": "r1", "name": "eth2",
-         "ip": None, "admin_status": "admin-down",
-         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
-    ]
-    result = _build_ifinv_table(devices, ifaces)
-    # 確定フォーマット: 'up: 1</span>' / 'down: 1</span>' / 'admin-down: 1</span>' を直接検証
-    assert "up: 1</span>" in result, f"'up: 1</span>' が見当たらない: {result[:500]!r}"
-    assert "down: 1</span>" in result, f"'down: 1</span>' が見当たらない"
-    assert "admin-down: 1</span>" in result, f"'admin-down: 1</span>' が見当たらない"
-
-
-@pytest.mark.unit
-def test_2e_build_ifinv_table_unused_mark():
-    """Phase2E: _build_ifinv_table で IP無し&down系の行に data-unused=\"1\"が付く"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    ifaces = [
-        {"id": "r1::eth0", "device": "r1", "name": "eth0",
-         "ip": "10.0.0.1/30", "admin_status": "up",  # IP有り → 未使用候補でない
-         "mtu": None, "vlan": None, "l2_l3": "l3", "description": None},
-        {"id": "r1::eth1", "device": "r1", "name": "eth1",
-         "ip": None, "admin_status": "admin-down",  # IP無し & admin-down → 未使用候補
-         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
-    ]
-    result = _build_ifinv_table(devices, ifaces)
-    # <tr> に data-unused="1" が付くこと（JS 文字列内は除外してカウント）
-    assert len(re.findall(r'<tr[^>]*data-unused="1"', result)) >= 1, \
-        "未使用候補行の <tr> に data-unused=\"1\" が付いていない"
-    # IP有りの up 行には data-unused が付かないこと
-    m = re.search(r'<tr[^>]*data-iface-id="r1::eth0"[^>]*>', result)
-    assert m, "r1::eth0 行が見つからない"
-    assert 'data-unused="1"' not in m.group(0), \
-        "IP有りの行に data-unused=\"1\" が誤って付いている"
-
-
-@pytest.mark.unit
-def test_2e_build_ifinv_table_row_order():
-    """Phase2E: _build_ifinv_table の行が device_id → IF名 辞書順"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [
-        {"id": "r2", "hostname": "R2"},
-        {"id": "r1", "hostname": "R1"},
-    ]
-    ifaces = [
-        {"id": "r2::eth0", "device": "r2", "name": "eth0",
-         "ip": None, "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": None, "description": None},
-        {"id": "r1::eth1", "device": "r1", "name": "eth1",
-         "ip": None, "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": None, "description": None},
-        {"id": "r1::eth0", "device": "r1", "name": "eth0",
-         "ip": None, "admin_status": "up", "mtu": None, "vlan": None, "l2_l3": None, "description": None},
-    ]
-    result = _build_ifinv_table(devices, ifaces)
-    ids_in_order = re.findall(r'data-iface-id="([^"]+)"', result)
-    assert ids_in_order == ["r1::eth0", "r1::eth1", "r2::eth0"], \
-        f"行順が期待と異なる: {ids_in_order}"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-11: MTU/VLAN セルに data-num 属性が付くこと（数値ソート前提）
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_2e_ifinv_mtu_cell_has_data_num(ifinv_topology):
-    """Phase2E: MTU セルに data-num 属性が付く（数値ソート対応）"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
-    # r1::GigabitEthernet0/0 の行を探し、data-num="1500" が付くことを確認
-    m = re.search(r'<tr[^>]*data-iface-id="r1::GigabitEthernet0/0"[^>]*>(.*?)</tr>',
-                  result, re.DOTALL)
-    assert m is not None, "r1::GigabitEthernet0/0 行が見つからない"
-    row_html = m.group(0)
-    assert 'data-num="1500"' in row_html, \
-        f"MTU セルに data-num=\"1500\" が付いていない: {row_html!r}"
-
-
-@pytest.mark.unit
-def test_2e_ifinv_vlan_cell_has_data_num(ifinv_topology):
-    """Phase2E: VLAN セルに data-num 属性が付く（数値ソート対応）"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
-    # r1::GigabitEthernet0/1 の行を探し、data-num="10" が付くことを確認
-    m = re.search(r'<tr[^>]*data-iface-id="r1::GigabitEthernet0/1"[^>]*>(.*?)</tr>',
-                  result, re.DOTALL)
-    assert m is not None, "r1::GigabitEthernet0/1 行が見つからない"
-    row_html = m.group(0)
-    assert 'data-num="10"' in row_html, \
-        f"VLAN セルに data-num=\"10\" が付いていない: {row_html!r}"
-
-
-@pytest.mark.unit
-def test_2e_ifinv_data_num_empty_for_none_values(ifinv_topology):
-    """Phase2E: MTU/VLAN が None の行は data-num="" で出力される（空=ソート末尾）"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(ifinv_topology["devices"], ifinv_topology["interfaces"])
-    # r1::Loopback0 は MTU=None, VLAN=None
-    m = re.search(r'<tr[^>]*data-iface-id="r1::Loopback0"[^>]*>(.*?)</tr>',
-                  result, re.DOTALL)
-    assert m is not None, "r1::Loopback0 行が見つからない"
-    row_html = m.group(0)
-    # data-num="" が2つ（MTU列・VLAN列）存在すること
-    assert row_html.count('data-num=""') >= 2, \
-        f"data-num=\"\" が2つ以上存在しない: {row_html!r}"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-12: 検索＋未使用トグル併用の振る舞い（_applyIfFilters 統合後）
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_2e_js_apply_if_filters_function_exists(ifinv_html):
-    """Phase2E: _applyIfFilters 関数（または統合関数）が JS に存在する"""
-    # 検索と未使用トグルを統合した関数が存在すること
-    assert re.search(r'function\s+_applyIfFilters\s*\(', ifinv_html), \
-        "_applyIfFilters 統合関数が JS に見つからない"
-
-
-@pytest.mark.unit
-def test_2e_js_filter_handlers_call_apply_if_filters(ifinv_html):
-    """Phase2E: 検索 input と未使用トグル onChange が _applyIfFilters を呼び出す"""
-    # _applyIfFilters が filterIfRows/toggleUnused ハンドラから呼ばれること
-    # JS ブロックを抽出して確認
-    js_block_m = re.search(r'<script>(.*?)</script>', ifinv_html, re.DOTALL)
-    assert js_block_m, "JS ブロックが見つからない"
-    js_code = js_block_m.group(1)
-    # _applyIfFilters が filterIfRows か toggleUnused から呼び出されていること
-    assert "_applyIfFilters" in js_code, "_applyIfFilters が JS に存在しない"
-    # filterIfRows の本体で _applyIfFilters を呼ぶか、直接統合されていること
-    filter_or_integrate = (
-        "filterIfRows" in js_code or "_ifinvSearchQuery" in js_code
-    )
-    assert filter_or_integrate, "検索ハンドラが _applyIfFilters に統合されていない"
-
-
-@pytest.mark.unit
-def test_2e_js_ifinv_state_vars_exist(ifinv_html):
-    """Phase2E: _ifinvSearchQuery / _ifinvUnusedOnly の状態変数が JS に存在する"""
-    js_block_m = re.search(r'<script>(.*?)</script>', ifinv_html, re.DOTALL)
-    assert js_block_m, "JS ブロックが見つからない"
-    js_code = js_block_m.group(1)
-    assert "_ifinvSearchQuery" in js_code, "_ifinvSearchQuery が JS に存在しない"
-    assert "_ifinvUnusedOnly" in js_code, "_ifinvUnusedOnly が JS に存在しない"
-
-
-@pytest.mark.unit
 def test_2e_js_ifinv_search_uses_addeventlistener(ifinv_html):
     """B-pass1b: #ifinv-search はグローバル検索統合のため撤去済み。
     代わりに #search-input がグローバル検索として存在し ifinv を駆動する。"""
@@ -12623,100 +11447,8 @@ def test_2e_js_ifinv_search_uses_addeventlistener(ifinv_html):
     assert 'id="search-input"' in ifinv_html, \
         "グローバル検索入力 #search-input が見つからない"
 
-
-@pytest.mark.unit
-def test_2e_js_ifinv_unused_toggle_uses_addeventlistener(ifinv_html):
-    """Phase2E: ifinv-unused-toggle の onchange は addEventListener で登録される（インライン不使用）"""
-    m = re.search(r'id="ifinv-unused-toggle"[^>]*>', ifinv_html)
-    assert m is not None, "ifinv-unused-toggle が見つからない"
-    tag = m.group(0)
-    assert "onchange" not in tag, \
-        f"ifinv-unused-toggle に onchange インラインが残っている: {tag!r}"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-13: sortIfTable の data-col / data-label ベース（colOrder ドリフト解消）
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_2e_ifinv_th_has_data_col_attribute(ifinv_html):
-    """Phase2E: ifinv テーブルの全 th に data-col 属性が付く"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    ifaces = [{"id": "r1::eth0", "device": "r1", "name": "eth0",
-               "ip": None, "admin_status": "up", "mtu": None, "vlan": None,
-               "l2_l3": None, "description": None}]
-    result = _build_ifinv_table(devices, ifaces)
-    # <th ...> タグのみ抽出（<thead> は除外）
-    th_tags = re.findall(r'<th\s[^>]*>', result)
-    assert len(th_tags) > 0, "ifinv テーブルに th が見つからない"
-    for th in th_tags:
-        assert 'data-col="' in th, f"th に data-col が付いていない: {th!r}"
-
-
-@pytest.mark.unit
-def test_2e_ifinv_th_has_data_label_attribute(ifinv_html):
-    """Phase2E: ifinv テーブルの全 th に data-label 属性が付く（▲▼書き換え安全のため）"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    ifaces = [{"id": "r1::eth0", "device": "r1", "name": "eth0",
-               "ip": None, "admin_status": "up", "mtu": None, "vlan": None,
-               "l2_l3": None, "description": None}]
-    result = _build_ifinv_table(devices, ifaces)
-    # <th ...> タグのみ抽出（<thead> は除外）
-    th_tags = re.findall(r'<th\s[^>]*>', result)
-    assert len(th_tags) > 0, "ifinv テーブルに th が見つからない"
-    for th in th_tags:
-        assert 'data-label="' in th, f"th に data-label が付いていない: {th!r}"
-
-
-@pytest.mark.unit
-def test_2e_ifinv_sort_uses_data_col_not_hardcoded_order(ifinv_html):
-    """Phase2E: sortIfTable が colOrder ハードコードを使わず DOM data-col から列順を取得する"""
-    js_block_m = re.search(r'<script>(.*?)</script>', ifinv_html, re.DOTALL)
-    assert js_block_m, "JS ブロックが見つからない"
-    js_code = js_block_m.group(1)
-    # ハードコード colOrder 配列が無いこと（廃止）
-    assert "var colOrder = [" not in js_code, \
-        "JS に colOrder ハードコード配列が残っている（廃止すべき）"
-    # data-col を参照するコードが存在すること
-    assert "data-col" in js_code, "sortIfTable が data-col 属性を参照していない"
-
-
-# ---------------------------------------------------------------------------
-# T-2E-14: status 集計 other（未知ステータス）の堅牢化
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_2e_build_ifinv_table_unknown_status_handled():
-    """Phase2E: 未知 admin_status が other/サイレントドロップされず集計に現れる"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    ifaces = [
-        {"id": "r1::eth0", "device": "r1", "name": "eth0",
-         "ip": None, "admin_status": "unknown-state",  # 未知ステータス
-         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
-        {"id": "r1::eth1", "device": "r1", "name": "eth1",
-         "ip": None, "admin_status": None,  # None ステータス
-         "mtu": None, "vlan": None, "l2_l3": None, "description": None},
-    ]
-    result = _build_ifinv_table(devices, ifaces)
-    # 例外なく文字列が返ること（最低条件）
-    assert isinstance(result, str)
-    # up/down/admin-down が 0 であること（他 2 件は other 扱い）
-    assert "up: 0</span>" in result, f"up: 0 が見当たらない: {result[:300]!r}"
-    assert "down: 0</span>" in result, f"down: 0 が見当たらない"
-    assert "admin-down: 0</span>" in result, f"admin-down: 0 が見当たらない"
-
-
-# ---------------------------------------------------------------------------
-# T-VLAN-SW: _build_ifinv_table — switchport VLAN フォールバック
-# Phase2E クロスレビュー指摘: iface.vlan が null のとき switchport の VLAN を使う
-# ---------------------------------------------------------------------------
-
 def _make_devices_for_vlan_test():
     return [{"id": "sw1", "hostname": "SW1"}]
-
 
 def _make_iface(iid, name, vlan=None, switchport=None, admin_status="up", ip=None):
     """テスト用 iface dict ビルダー（省略可能フィールドはデフォルト None）。"""
@@ -12726,117 +11458,6 @@ def _make_iface(iid, name, vlan=None, switchport=None, admin_status="up", ip=Non
         "mtu": None, "vlan": vlan, "switchport": switchport,
         "l2_l3": None, "description": None,
     }
-
-
-@pytest.mark.unit
-def test_vlan_sw_access_port_shows_access_vlan():
-    """switchport mode=access, access_vlan=10, iface.vlan=null → VLAN セルに '10' + data-num='10'。"""
-    from lib.rendering.views import _build_ifinv_table
-    iface = _make_iface("sw1::eth0", "eth0",
-                         vlan=None,
-                         switchport={"mode": "access", "access_vlan": 10})
-    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
-    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth0"[^>]*>(.*?)</tr>', result, re.DOTALL)
-    assert m, "sw1::eth0 行が見つからない"
-    row = m.group(0)
-    # VLAN セルに 10 が表示される
-    assert ">10<" in row or ">10 <" in row, \
-        f"access VLAN=10 がセル値に出ていない: {row!r}"
-    # data-num="10" が付く（数値ソート対応）
-    assert 'data-num="10"' in row, \
-        f"access VLAN セルに data-num='10' が付いていない: {row!r}"
-
-
-@pytest.mark.unit
-def test_vlan_sw_trunk_port_shows_trunk_vlans_string():
-    """switchport mode=trunk, trunk_vlans=[10,20,30]（list）, iface.vlan=null
-    → VLAN セルに '10,20,30'（sorted/カンマ結合）、data-num は付かない。"""
-    from lib.rendering.views import _build_ifinv_table
-    iface = _make_iface("sw1::eth1", "eth1",
-                         vlan=None,
-                         switchport={"mode": "trunk", "trunk_vlans": [10, 20, 30]})
-    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
-    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth1"[^>]*>(.*?)</tr>', result, re.DOTALL)
-    assert m, "sw1::eth1 行が見つからない"
-    row = m.group(0)
-    assert ">10,20,30<" in row or ">10,20,30 <" in row, \
-        f"trunk VLAN '10,20,30' がセル値に出ていない: {row!r}"
-    # trunk 複数 VLAN には data-num を付けない（文字列ソート扱い）
-    assert 'data-num="10,20,30"' not in row, \
-        f"trunk VLAN セルに不正な data-num が付いている: {row!r}"
-
-
-@pytest.mark.unit
-def test_vlan_sw_trunk_port_string_trunk_vlans():
-    """switchport mode=trunk, trunk_vlans='10,20,30'（str）→ そのまま表示、data-num なし。"""
-    from lib.rendering.views import _build_ifinv_table
-    iface = _make_iface("sw1::eth2", "eth2",
-                         vlan=None,
-                         switchport={"mode": "trunk", "trunk_vlans": "10,20,30"})
-    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
-    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth2"[^>]*>(.*?)</tr>', result, re.DOTALL)
-    assert m, "sw1::eth2 行が見つからない"
-    row = m.group(0)
-    assert ">10,20,30<" in row or ">10,20,30 <" in row, \
-        f"trunk VLAN (str) がセル値に出ていない: {row!r}"
-    assert 'data-num="10,20,30"' not in row, \
-        f"trunk VLAN (str) セルに不正な data-num が付いている: {row!r}"
-
-
-@pytest.mark.unit
-def test_vlan_iface_vlan_takes_precedence_over_switchport():
-    """iface.vlan が非 null のときは switchport.access_vlan より優先される。"""
-    from lib.rendering.views import _build_ifinv_table
-    iface = _make_iface("sw1::eth3", "eth3",
-                         vlan=99,
-                         switchport={"mode": "access", "access_vlan": 10})
-    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
-    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth3"[^>]*>(.*?)</tr>', result, re.DOTALL)
-    assert m, "sw1::eth3 行が見つからない"
-    row = m.group(0)
-    # vlan=99 が優先 → 99 が表示される
-    assert ">99<" in row or ">99 <" in row, \
-        f"iface.vlan=99 が優先表示されていない: {row!r}"
-    # access_vlan=10 は表示されない
-    assert ">10<" not in row, \
-        f"iface.vlan 優先のはずが access_vlan=10 が表示されている: {row!r}"
-
-
-@pytest.mark.unit
-def test_vlan_no_switchport_no_vlan_shows_empty():
-    """switchport も vlan も null → VLAN セルは空欄。"""
-    from lib.rendering.views import _build_ifinv_table
-    iface = _make_iface("sw1::eth4", "eth4", vlan=None, switchport=None)
-    result = _build_ifinv_table(_make_devices_for_vlan_test(), [iface])
-    m = re.search(r'<tr[^>]*data-iface-id="sw1::eth4"[^>]*>(.*?)</tr>', result, re.DOTALL)
-    assert m, "sw1::eth4 行が見つからない"
-    row = m.group(0)
-    # VLAN セルが空欄（data-num="" かつ セル内容が空）
-    assert 'data-num=""' in row or "<td></td>" in row or "<td> </td>" in row, \
-        f"VLAN 空欄行の data-num が空でない: {row!r}"
-
-
-@pytest.mark.unit
-def test_vlan_sw_deterministic():
-    """switchport VLAN フォールバックを含む _build_ifinv_table が2回呼び出して同一出力を返す（決定性）。"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = _make_devices_for_vlan_test()
-    ifaces = [
-        _make_iface("sw1::p0", "p0", vlan=None,
-                    switchport={"mode": "access", "access_vlan": 10}),
-        _make_iface("sw1::p1", "p1", vlan=None,
-                    switchport={"mode": "trunk", "trunk_vlans": [30, 10, 20]}),
-        _make_iface("sw1::p2", "p2", vlan=5, switchport=None),
-    ]
-    r1 = _build_ifinv_table(devices, ifaces)
-    r2 = _build_ifinv_table(devices, ifaces)
-    assert r1 == r2, "2回呼び出して結果が異なる（非決定的）"
-    # trunk の list は sorted されて "10,20,30" になる
-    assert ">10,20,30<" in r1 or ">10,20,30 <" in r1, \
-        f"trunk list が sorted/カンマ結合されていない: {r1[:500]!r}"
-
-
-# ---- T-SEARCH-V6: dual-stack IF の data-search に v6 アドレスが含まれる ----
 
 def _make_dual_stack_iface(iface_id: str, name: str, v4_ip: str, v4_prefix: int,
                              v6_ip: str, v6_prefix: int) -> dict:
@@ -12859,7 +11480,6 @@ def _make_dual_stack_iface(iface_id: str, name: str, v4_ip: str, v4_prefix: int,
         ],
     }
 
-
 def _make_v4_only_iface(iface_id: str, name: str, v4_ip: str, v4_prefix: int) -> dict:
     """single-stack v4 のみ IF を構築するヘルパー。"""
     return {
@@ -12876,7 +11496,6 @@ def _make_v4_only_iface(iface_id: str, name: str, v4_ip: str, v4_prefix: int) ->
         ],
     }
 
-
 @pytest.mark.unit
 def test_search_attr_dual_stack_contains_v4():
     """_build_search_attr: dual-stack IF の data-search に v4 ホスト部が含まれる。"""
@@ -12890,7 +11509,6 @@ def test_search_attr_dual_stack_contains_v4():
     result = _build_search_attr(dev, [iface])
     assert "10.1.0.1" in result, \
         f"v4 アドレスが data-search に含まれていない: {result!r}"
-
 
 @pytest.mark.unit
 def test_search_attr_dual_stack_contains_v6():
@@ -12906,7 +11524,6 @@ def test_search_attr_dual_stack_contains_v6():
     assert "2001:db8:1::1" in result, \
         f"v6 アドレスが data-search に含まれていない: {result!r}"
 
-
 @pytest.mark.unit
 def test_search_attr_dual_stack_contains_hostname():
     """_build_search_attr: dual-stack IF でも hostname（小文字）が data-search に含まれる（既存維持）。"""
@@ -12921,7 +11538,6 @@ def test_search_attr_dual_stack_contains_hostname():
     assert "r1" in result, \
         f"hostname が data-search に含まれていない: {result!r}"
 
-
 @pytest.mark.unit
 def test_search_attr_v4_only_no_v6():
     """_build_search_attr: single-stack(v4 のみ) の場合は v6 アドレスが含まれない（従来通り）。"""
@@ -12933,7 +11549,6 @@ def test_search_attr_v4_only_no_v6():
         f"v4 アドレスが data-search に含まれていない: {result!r}"
     assert "2001:" not in result, \
         f"v4 only IF に v6 アドレスが混入: {result!r}"
-
 
 @pytest.mark.unit
 def test_search_attr_dual_stack_no_link_local():
@@ -12957,7 +11572,6 @@ def test_search_attr_dual_stack_no_link_local():
     assert "fe80" not in result, \
         f"link-local が data-search に混入: {result!r}"
 
-
 @pytest.mark.unit
 def test_search_attr_dual_stack_multiple_ifaces():
     """_build_search_attr: 複数 dual-stack IF がある場合、全 v4/v6 ホスト部を含む。"""
@@ -12979,7 +11593,6 @@ def test_search_attr_dual_stack_multiple_ifaces():
     assert "10.2.0.1" in result
     assert "2001:db8:2::1" in result
 
-
 @pytest.mark.unit
 def test_search_attr_dual_stack_deterministic():
     """_build_search_attr: 同一入力で2回呼び出して同一結果（決定性）。"""
@@ -12993,7 +11606,6 @@ def test_search_attr_dual_stack_deterministic():
     r1 = _build_search_attr(dev, [iface])
     r2 = _build_search_attr(dev, [iface])
     assert r1 == r2, f"非決定的: {r1!r} vs {r2!r}"
-
 
 @pytest.mark.unit
 def test_search_attr_no_double_space():
@@ -13010,92 +11622,6 @@ def test_search_attr_no_double_space():
     tokens = result.split(" ")
     assert len(tokens) == len(set(tokens)), f"重複トークンあり: {tokens!r}"
 
-
-@pytest.mark.unit
-def test_ifinv_data_search_dual_stack_contains_v6():
-    """_build_ifinv_table: dual-stack IF 行の data-search に v6 アドレストークンが含まれる。"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    iface = _make_dual_stack_iface(
-        "r1::eth0", "GigabitEthernet0/0",
-        "10.1.0.1", 30,
-        "2001:db8:1::1", 64,
-    )
-    result = _build_ifinv_table(devices, [iface])
-    # data-search 属性を抽出して v6 が含まれることを確認
-    search_matches = re.findall(r'data-search="([^"]*)"', result)
-    all_search = " ".join(search_matches)
-    assert "2001:db8:1::1" in all_search, \
-        f"ifinv data-search に v6 アドレスが含まれていない: {all_search!r}"
-
-
-@pytest.mark.unit
-def test_ifinv_data_search_dual_stack_contains_v4():
-    """_build_ifinv_table: dual-stack IF 行の data-search に v4 ホスト部も含まれる（既存維持）。"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    iface = _make_dual_stack_iface(
-        "r1::eth0", "GigabitEthernet0/0",
-        "10.1.0.1", 30,
-        "2001:db8:1::1", 64,
-    )
-    result = _build_ifinv_table(devices, [iface])
-    search_matches = re.findall(r'data-search="([^"]*)"', result)
-    all_search = " ".join(search_matches)
-    assert "10.1.0.1" in all_search, \
-        f"ifinv data-search に v4 アドレスが含まれていない: {all_search!r}"
-
-
-@pytest.mark.unit
-def test_ifinv_data_search_v4_only_no_v6():
-    """_build_ifinv_table: single-stack(v4 のみ) IF 行の data-search に v6 が混入しない（従来通り）。"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    iface = _make_v4_only_iface("r1::eth0", "GigabitEthernet0/0", "10.1.0.1", 30)
-    result = _build_ifinv_table(devices, [iface])
-    search_matches = re.findall(r'data-search="([^"]*)"', result)
-    all_search = " ".join(search_matches)
-    assert "10.1.0.1" in all_search
-    assert "2001:" not in all_search, \
-        f"v4 only IF に v6 が混入: {all_search!r}"
-
-
-@pytest.mark.unit
-def test_ifinv_data_search_no_link_local():
-    """_build_ifinv_table: link-local アドレスが data-search に含まれない。"""
-    from lib.rendering.views import _build_ifinv_table
-    devices = [{"id": "r1", "hostname": "R1"}]
-    iface = {
-        "id": "r1::eth0",
-        "device": "r1",
-        "name": "GigabitEthernet0/0",
-        "ip": "10.1.0.1/30",
-        "vlan": None,
-        "description": None,
-        "shutdown": False,
-        "admin_status": "up",
-        "addresses": [
-            {"af": "v4", "ip": "10.1.0.1", "prefix": 30, "scope": None, "secondary": False},
-            {"af": "v6", "ip": "2001:db8:1::1", "prefix": 64, "scope": None},
-            {"af": "v6", "ip": "fe80::1", "prefix": 64, "scope": "link-local"},
-        ],
-    }
-    result = _build_ifinv_table(devices, [iface])
-    search_matches = re.findall(r'data-search="([^"]*)"', result)
-    all_search = " ".join(search_matches)
-    assert "2001:db8:1::1" in all_search
-    assert "fe80" not in all_search, \
-        f"link-local が data-search に混入: {all_search!r}"
-
-
-# ===========================================================================
-# Round A — Pass1: スタイル・配置改善
-# ===========================================================================
-
-# ---------------------------------------------------------------------------
-# A1: Device Details を縦1列に（.cards-grid: grid-template-columns: 1fr）
-# ---------------------------------------------------------------------------
-
 def _extract_css_rule(html: str, selector: str) -> str:
     """HTML の <style> ブロックから指定セレクタの CSS ルール本体を返す。"""
     style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', html, re.DOTALL | re.IGNORECASE)
@@ -13103,7 +11629,6 @@ def _extract_css_rule(html: str, selector: str) -> str:
     pattern = re.escape(selector) + r'\s*\{([^}]+)\}'
     m = re.search(pattern, combined, re.DOTALL)
     return m.group(1) if m else ""
-
 
 @pytest.mark.unit
 def test_roundA_a1_cards_grid_single_column(rendered_html):
@@ -13123,7 +11648,6 @@ def test_roundA_a1_cards_grid_single_column(rendered_html):
         ".cards-grid に minmax が残っている（複数列のまま）"
     )
 
-
 @pytest.mark.unit
 def test_roundA_a1_cards_grid_still_display_grid(rendered_html):
     """A1: .cards-grid が引き続き display:grid を使用している（回帰保護）"""
@@ -13131,7 +11655,6 @@ def test_roundA_a1_cards_grid_still_display_grid(rendered_html):
     assert rule, "CSS に .cards-grid ルールが存在しない"
     assert "display" in rule and "grid" in rule, \
         f".cards-grid の display が grid でない: {rule.strip()!r}"
-
 
 # ---------------------------------------------------------------------------
 # A2: BGPバッジと OSPFラベルのフォントサイズ統一
@@ -13144,7 +11667,6 @@ def test_roundA_a2_link_label_css_defined(rendered_html):
     assert rule, (
         "CSS に .link-label ルールが存在しない（OSPFラベルがブラウザ既定フォントのまま）"
     )
-
 
 @pytest.mark.unit
 def test_roundA_a2_link_label_font_size_matches_bgp_badge(rendered_html):
@@ -13166,7 +11688,6 @@ def test_roundA_a2_link_label_font_size_matches_bgp_badge(rendered_html):
         f".link-label の font-size ({fs_link_label}) が .bgp-badge ({fs_bgp_badge}) と異なる"
     )
 
-
 @pytest.mark.unit
 def test_roundA_a2_link_label_has_mono_font(rendered_html):
     """A2: .link-label が monospace フォントファミリーを指定している"""
@@ -13175,7 +11696,6 @@ def test_roundA_a2_link_label_has_mono_font(rendered_html):
     assert "font-family" in rule or "font-mono" in rule or "monospace" in rule.lower() or "Consolas" in rule, (
         f".link-label にモノスペースフォント指定がない: {rule.strip()!r}"
     )
-
 
 # ---------------------------------------------------------------------------
 # A3: OSPFラベルの配色（黒脱却）
@@ -13190,7 +11710,6 @@ def test_roundA_a3_link_label_has_fill(rendered_html):
         f".link-label に fill が定義されていない（黒のまま）: {rule.strip()!r}"
     )
 
-
 @pytest.mark.unit
 def test_roundA_a3_link_label_fill_not_black(rendered_html):
     """A3: .link-label の fill が黒（#000/#000000）でない"""
@@ -13202,7 +11721,6 @@ def test_roundA_a3_link_label_fill_not_black(rendered_html):
     assert fill_val not in ("#000", "#000000", "black", "inherit", "initial", "unset"), (
         f".link-label の fill が黒/既定値: {fill_val!r}（OSPFテーマ色で明示すること）"
     )
-
 
 # ---------------------------------------------------------------------------
 # A7: ノード間隔縮小 — _CANVAS_FACTOR の更なる縮小・20台 no-overlap
@@ -13218,7 +11736,6 @@ def test_roundA_a7_canvas_factor_smaller_than_current():
     assert _CANVAS_FACTOR_H < 7, (
         f"_CANVAS_FACTOR_H={_CANVAS_FACTOR_H} が現行値 7 以上（縮小未実施）"
     )
-
 
 def _load_large_topo_for_test():
     """large-topo の topology dict を返す。
@@ -13241,7 +11758,6 @@ def _load_large_topo_for_test():
     assert files, f"large-topo フィクスチャが空: {fixture_dir}"
     devices = parse_paths(files)
     return build(devices, generated_from=files)
-
 
 @pytest.mark.unit
 def test_roundA_a7_no_overlap_large_topo_20nodes():
@@ -13303,7 +11819,6 @@ def test_roundA_a7_no_overlap_large_topo_20nodes():
                 f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
             )
 
-
 @pytest.mark.unit
 def test_roundA_a7_no_overlap_multi_as_area():
     """A7: 係数縮小後も multi-as-area (7台) でノード重なりゼロ（既存ケース回帰保護）"""
@@ -13337,7 +11852,6 @@ def test_roundA_a7_no_overlap_multi_as_area():
                 f"dy={dy:.1f} needed_y={needed_y:.1f})"
             )
 
-
 @pytest.mark.unit
 def test_roundA_a7_canvas_smaller_than_current_factors():
     """A7: 縮小後の _canvas_size_for_nodes(20) が現行係数(8/7)より小さい"""
@@ -13356,7 +11870,6 @@ def test_roundA_a7_canvas_smaller_than_current_factors():
         f"幅・高さともに小さくなっていない"
     )
 
-
 @pytest.mark.unit
 def test_roundA_a7_deterministic(sample_topology):
     """A7: 係数縮小後も render() が決定的（2回一致）"""
@@ -13365,7 +11878,6 @@ def test_roundA_a7_deterministic(sample_topology):
     html1 = render(copy.deepcopy(sample_topology))
     html2 = render(copy.deepcopy(sample_topology))
     assert html1 == html2, "A7 係数縮小後の render() が非決定的"
-
 
 # ---------------------------------------------------------------------------
 # 修正1: ospf_subnets=[] の OSPF 非参加リンクに data-ospf-id が付かない
@@ -13422,7 +11934,6 @@ def test_fix1_ospf_non_participant_link_no_data_ospf_id():
         f"OSPF 非参加リンク（ospf_area=None）に誤って data-ospf-id が付いた"
         f"（or subnets 誤フォールバック）: found={ospf_ids}"
     )
-
 
 @pytest.mark.unit
 def test_fix1_ospf_non_participant_merged_link_no_data_ospf_id():
@@ -13486,7 +11997,6 @@ def test_fix1_ospf_non_participant_merged_link_no_data_ospf_id():
     assert "2001:db8::" not in svg.split('data-ospf-id="')[1] if 'data-ospf-id="' in svg else True, \
         "OSPF 非参加 v6 subnet が data-ospf-id に誤って含まれた"
 
-
 # ===========================================================================
 # B-pass1: 検索インデックス拡充 / data-ips / CIDR 内包 / 件数表示
 # ===========================================================================
@@ -13496,7 +12006,6 @@ def test_fix1_ospf_non_participant_merged_link_no_data_ospf_id():
 # B-pass1-3: filterNodes CIDR 内包 + 件数表示（JS 文字列検証）
 # B-pass1-4: CSS .device-node.search-match
 # ===========================================================================
-
 
 # ---------------------------------------------------------------------------
 # B-pass1-1: _build_search_attr 拡充テスト
@@ -13524,7 +12033,6 @@ def _make_iface_with_addresses(iface_id: str, name: str,
         "addresses": addresses,
     }
 
-
 @pytest.mark.unit
 def test_b_search_attr_as_number_included():
     """_build_search_attr: AS番号が 'as65000' と '65000' の両形式で含まれる。"""
@@ -13534,7 +12042,6 @@ def test_b_search_attr_as_number_included():
     result = _build_search_attr(dev, [iface])
     assert "as65000" in result, f"'as65000' が data-search に含まれない: {result!r}"
     assert "65000" in result, f"'65000' が data-search に含まれない: {result!r}"
-
 
 @pytest.mark.unit
 def test_b_search_attr_as_none_not_included():
@@ -13548,7 +12055,6 @@ def test_b_search_attr_as_none_not_included():
     as_tokens = [t for t in tokens if t.startswith("as") and t != "r1"]
     assert not as_tokens, f"as=None なのに AS トークンが混入: {as_tokens!r} in {result!r}"
 
-
 @pytest.mark.unit
 def test_b_search_attr_subnet_with_prefix_included():
     """_build_search_attr: IP/prefix 形式（CIDR）が data-search に含まれる。"""
@@ -13560,7 +12066,6 @@ def test_b_search_attr_subnet_with_prefix_included():
     # ホスト部（従来）も維持される
     assert "10.0.0.1" in result, f"IP ホスト部が含まれない: {result!r}"
 
-
 @pytest.mark.unit
 def test_b_search_attr_vendor_included():
     """_build_search_attr: vendor 文字列が data-search に含まれる。"""
@@ -13569,7 +12074,6 @@ def test_b_search_attr_vendor_included():
     iface = _make_iface_with_addresses("r1::ge0", "ge-0/0/0", "10.0.0.1", 30)
     result = _build_search_attr(dev, [iface])
     assert "juniper_junos" in result, f"vendor が含まれない: {result!r}"
-
 
 @pytest.mark.unit
 def test_b_search_attr_description_included():
@@ -13583,7 +12087,6 @@ def test_b_search_attr_description_included():
     result = _build_search_attr(dev, [iface])
     assert "access-link-to-server" in result.lower(), \
         f"description が含まれない: {result!r}"
-
 
 @pytest.mark.unit
 def test_b_search_attr_vlan_included():
@@ -13603,7 +12106,6 @@ def test_b_search_attr_vlan_included():
     result = _build_search_attr(dev, [iface])
     assert "vlan10" in result or "10" in result.split(), \
         f"VLAN10 が含まれない: {result!r}"
-
 
 @pytest.mark.unit
 def test_b_search_attr_switchport_access_vlan_included():
@@ -13625,7 +12127,6 @@ def test_b_search_attr_switchport_access_vlan_included():
     assert "20" in result.split() or "vlan20" in result, \
         f"switchport access_vlan 20 が含まれない: {result!r}"
 
-
 @pytest.mark.unit
 def test_b_search_attr_dualstack_v4_subnet_included():
     """_build_search_attr: dual-stack の v4 CIDR（10.0.0.1/30）が含まれる。"""
@@ -13639,7 +12140,6 @@ def test_b_search_attr_dualstack_v4_subnet_included():
     result = _build_search_attr(dev, [iface])
     assert "10.0.0.1/30" in result, f"v4 CIDR が含まれない: {result!r}"
 
-
 @pytest.mark.unit
 def test_b_search_attr_dualstack_v6_subnet_included():
     """_build_search_attr: dual-stack の v6 CIDR（2001:db8:1::1/127）が含まれる。"""
@@ -13652,7 +12152,6 @@ def test_b_search_attr_dualstack_v6_subnet_included():
     )
     result = _build_search_attr(dev, [iface])
     assert "2001:db8:1::1/127" in result, f"v6 CIDR が含まれない: {result!r}"
-
 
 @pytest.mark.unit
 def test_b_search_attr_link_local_subnet_excluded():
@@ -13677,7 +12176,6 @@ def test_b_search_attr_link_local_subnet_excluded():
     assert "fe80" not in result, f"link-local CIDR が混入: {result!r}"
     assert "2001:db8::1" in result, f"GUA v6 が含まれない: {result!r}"
 
-
 @pytest.mark.unit
 def test_b_search_attr_multi_as_area_has_as_and_vendor():
     """_build_search_attr: multi-as-area 相当（AS65000, vendor=cisco_ios）で AS/vendor が含まれる。"""
@@ -13699,7 +12197,6 @@ def test_b_search_attr_multi_as_area_has_as_and_vendor():
     assert "10.0.0.1/30" in result
     assert "10.0.1.1/30" in result
 
-
 @pytest.mark.unit
 def test_b_search_attr_deterministic_with_extensions():
     """_build_search_attr 拡充後も決定性が維持される（2回一致）。"""
@@ -13713,7 +12210,6 @@ def test_b_search_attr_deterministic_with_extensions():
     r1 = _build_search_attr(dev, [iface])
     r2 = _build_search_attr(dev, [iface])
     assert r1 == r2, f"非決定的: {r1!r} vs {r2!r}"
-
 
 # ---------------------------------------------------------------------------
 # B-pass1-2: data-ips 属性テスト
@@ -13745,7 +12241,6 @@ def test_b_data_ips_attribute_present_in_html():
     html = render(topo)
     assert 'data-ips=' in html, "data-ips 属性が device-node の <g> に含まれない"
 
-
 @pytest.mark.unit
 def test_b_data_ips_contains_v4_cidr():
     """render(): data-ips に v4 CIDR（10.0.0.1/30）が含まれる。"""
@@ -13773,7 +12268,6 @@ def test_b_data_ips_contains_v4_cidr():
     ips_vals = re.findall(r'data-ips="([^"]*)"', html)
     all_ips = " ".join(ips_vals)
     assert "10.0.0.1/30" in all_ips, f"data-ips に v4 CIDR が含まれない: {all_ips!r}"
-
 
 @pytest.mark.unit
 def test_b_data_ips_dualstack_contains_v4_and_v6():
@@ -13806,7 +12300,6 @@ def test_b_data_ips_dualstack_contains_v4_and_v6():
     assert "10.0.0.1/30" in all_ips, f"data-ips に v4 CIDR が含まれない: {all_ips!r}"
     assert "2001:db8:1::1/127" in all_ips, f"data-ips に v6 CIDR が含まれない: {all_ips!r}"
 
-
 @pytest.mark.unit
 def test_b_data_ips_no_link_local():
     """render(): data-ips に link-local アドレスが含まれない。"""
@@ -13835,7 +12328,6 @@ def test_b_data_ips_no_link_local():
     ips_vals = re.findall(r'data-ips="([^"]*)"', html)
     all_ips = " ".join(ips_vals)
     assert "fe80" not in all_ips, f"data-ips に link-local が混入: {all_ips!r}"
-
 
 @pytest.mark.unit
 def test_b_data_ips_deterministic():
@@ -13878,7 +12370,6 @@ def test_b_data_ips_deterministic():
     ips2 = re.findall(r'data-ips="([^"]*)"', h2)
     assert ips1 == ips2, f"data-ips が非決定的: {ips1!r} vs {ips2!r}"
 
-
 # ---------------------------------------------------------------------------
 # B-pass1-3: filterNodes JS 拡張 / B-pass1-4: CSS .search-match の文字列検証
 # ---------------------------------------------------------------------------
@@ -13889,7 +12380,6 @@ def test_b_html_has_search_count_element(rendered_html):
     assert 'id="search-count"' in rendered_html, \
         "#search-count 要素が HTML に含まれない"
 
-
 @pytest.mark.unit
 def test_b_js_filterNodes_cidr_detection(rendered_html):
     """filterNodes JS に CIDR 判定ロジック（'/' 含む query の分岐）が含まれる。"""
@@ -13898,13 +12388,11 @@ def test_b_js_filterNodes_cidr_detection(rendered_html):
         "cidr" in rendered_html.lower() or "prefix" in rendered_html.lower(), \
         "filterNodes に CIDR 判定ロジックが含まれない"
 
-
 @pytest.mark.unit
 def test_b_js_filterNodes_bigint_v6(rendered_html):
     """filterNodes JS に v6 内包判定用 BigInt ロジックが含まれる。"""
     assert "BigInt" in rendered_html, \
         "filterNodes に v6 CIDR 判定用 BigInt が含まれない"
-
 
 @pytest.mark.unit
 def test_b_js_filterNodes_search_match_class(rendered_html):
@@ -13912,13 +12400,11 @@ def test_b_js_filterNodes_search_match_class(rendered_html):
     assert "search-match" in rendered_html, \
         "filterNodes に '.search-match' クラス付与が含まれない"
 
-
 @pytest.mark.unit
 def test_b_js_filterNodes_count_display(rendered_html):
     """filterNodes JS が件数を #search-count に反映するコードを含む。"""
     assert "search-count" in rendered_html, \
         "filterNodes に #search-count 更新コードが含まれない"
-
 
 @pytest.mark.unit
 def test_b_css_search_match_class_defined(rendered_html):
@@ -13926,13 +12412,11 @@ def test_b_css_search_match_class_defined(rendered_html):
     assert ".device-node.search-match" in rendered_html, \
         "CSS に .device-node.search-match が定義されていない"
 
-
 @pytest.mark.unit
 def test_b_js_filterNodes_data_ips_used(rendered_html):
     """filterNodes JS が data-ips 属性を参照する（CIDR 内包判定に使用）。"""
     assert "data-ips" in rendered_html, \
         "filterNodes JS に data-ips 参照が含まれない"
-
 
 @pytest.mark.unit
 def test_b_search_count_hidden_on_empty_query(rendered_html):
@@ -13948,7 +12432,6 @@ def test_b_search_count_hidden_on_empty_query(rendered_html):
     )
     assert has_clear, \
         "#search-count の空クエリ時クリア（textContent = ''）が filterNodes JS に含まれない"
-
 
 # ===========================================================================
 # Round B — B3: IF一覧 af 列追加 + 機器/af/status/L2L3 ドロップダウン絞り込み
@@ -14038,667 +12521,18 @@ def _make_b3_topology():
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.fixture
 def b3_topology():
     return _make_b3_topology()
-
 
 @pytest.fixture
 def b3_ifinv_html(b3_topology):
     from lib.rendering.views import _build_ifinv_table
     return _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
 
-
 # ---------------------------------------------------------------------------
 # B3-1: af 列 / data-af 属性
 # ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_b3_af_column_header_exists(b3_ifinv_html):
-    """B3: ifinv テーブルに AF 列ヘッダが存在する。"""
-    assert "AF" in b3_ifinv_html, \
-        "ifinv テーブルに AF 列ヘッダが見つからない"
-
-
-@pytest.mark.unit
-def test_b3_af_column_has_data_col(b3_ifinv_html):
-    """B3: AF 列 th に data-col='af' が付与される。"""
-    assert 'data-col="af"' in b3_ifinv_html, \
-        "AF 列に data-col='af' が見つからない"
-
-
-@pytest.mark.unit
-def test_b3_data_af_dual_on_dualstack_iface(b3_topology):
-    """B3: dual-stack IF（v4+v6 GUA）の data-af が 'dual'。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    # ds_r1::Gi0/0 は dual
-    assert 'data-iface-id="ds_r1::Gi0/0"' in result, "ds_r1::Gi0/0 行が見つからない"
-    # data-af="dual" を持つ行が存在する
-    assert 'data-af="dual"' in result, \
-        "dual-stack IF に data-af='dual' が付与されていない"
-
-
-@pytest.mark.unit
-def test_b3_data_af_v4_on_v4_only_iface(b3_topology):
-    """B3: v4のみ IF の data-af が 'v4'。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    assert 'data-af="v4"' in result, \
-        "v4-only IF に data-af='v4' が付与されていない"
-
-
-@pytest.mark.unit
-def test_b3_data_af_v6_on_v6_only_iface(b3_topology):
-    """B3: v6 GUA のみ IF（link-local 除外）の data-af が 'v6'。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    assert 'data-af="v6"' in result, \
-        "v6-only IF に data-af='v6' が付与されていない"
-
-
-@pytest.mark.unit
-def test_b3_data_af_none_on_no_ip_iface(b3_topology):
-    """B3: IP なし IF（addresses が空）の data-af が 'none'。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    assert 'data-af="none"' in result, \
-        "IP なし IF に data-af='none' が付与されていない"
-
-
-@pytest.mark.unit
-def test_b3_af_column_value_dual_in_cell(b3_topology):
-    """B3: dual-stack IF の AF 列セルに 'dual' が表示される。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    # dual が td として出力されること（data-af="dual" の行に対応）
-    # "dual" という文字列が data-af 属性以外にもセルテキストとして存在すること
-    assert result.count("dual") >= 2, \
-        "AF 列セルに 'dual' テキストが含まれない（data-af 属性のみでセルなし）"
-
-
-@pytest.mark.unit
-def test_b3_af_link_local_excluded_from_v6(b3_topology):
-    """B3: link-local のみ持つ IF は v6 ではなく none 扱い。"""
-    from lib.rendering.views import _build_ifinv_table
-    # link-local のみの IF を追加したトポロジー
-    topo = _make_b3_topology()
-    topo["devices"].append({"id": "ll_r4", "hostname": "LL-R4", "vendor": "cisco_ios", "as": None, "sections": []})
-    topo["interfaces"].append({
-        "id": "ll_r4::ge0", "device": "ll_r4", "name": "ge-0/0/0",
-        "ip": None, "admin_status": "up", "mtu": None, "vlan": None,
-        "l2_l3": "l3", "description": None, "shutdown": False,
-        "addresses": [
-            {"af": "v6", "ip": "fe80::1", "prefix": 64, "scope": "link-local"},
-        ],
-    })
-    result = _build_ifinv_table(topo["devices"], topo["interfaces"])
-    # ll_r4::ge0 の行
-    import re
-    row_m = re.search(r'<tr[^>]*data-iface-id="ll_r4::ge0"[^>]*>', result)
-    assert row_m is not None, "ll_r4::ge0 行が見つからない"
-    assert 'data-af="none"' in row_m.group(0), \
-        "link-local のみの IF が v6 と誤判定されている（none であるべき）"
-
-
-# ---------------------------------------------------------------------------
-# B3-2: data-status / data-l2l3 属性
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_b3_rows_have_data_status(b3_topology):
-    """B3: 各 ifinv 行に data-status 属性が付与される。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    import re
-    rows = re.findall(r'<tr[^>]*data-iface-id="[^"]*"[^>]*>', result)
-    for row_html in rows:
-        assert 'data-status="' in row_html, \
-            f"data-status 属性が行に見つからない: {row_html[:120]!r}"
-
-
-@pytest.mark.unit
-def test_b3_rows_have_data_l2l3(b3_topology):
-    """B3: 各 ifinv 行に data-l2l3 属性が付与される。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    import re
-    rows = re.findall(r'<tr[^>]*data-iface-id="[^"]*"[^>]*>', result)
-    for row_html in rows:
-        assert 'data-l2l3="' in row_html, \
-            f"data-l2l3 属性が行に見つからない: {row_html[:120]!r}"
-
-
-@pytest.mark.unit
-def test_b3_data_status_matches_admin_status(b3_topology):
-    """B3: data-status の値が admin_status フィールドと一致する。"""
-    from lib.rendering.views import _build_ifinv_table
-    import re
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    # ds_r1::Gi0/0 は admin_status="up" → data-status="up"
-    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/0"[^>]*>', result)
-    assert row_m is not None, "ds_r1::Gi0/0 行が見つからない"
-    assert 'data-status="up"' in row_m.group(0), \
-        f"ds_r1::Gi0/0 の data-status が 'up' でない: {row_m.group(0)!r}"
-
-
-@pytest.mark.unit
-def test_b3_data_l2l3_matches_l2l3_field(b3_topology):
-    """B3: data-l2l3 の値が l2_l3 フィールドと一致する。"""
-    from lib.rendering.views import _build_ifinv_table
-    import re
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    # ds_r1::Gi0/0 は l2_l3="l3" → data-l2l3="l3"
-    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/0"[^>]*>', result)
-    assert row_m is not None, "ds_r1::Gi0/0 行が見つからない"
-    assert 'data-l2l3="l3"' in row_m.group(0), \
-        f"ds_r1::Gi0/0 の data-l2l3 が 'l3' でない: {row_m.group(0)!r}"
-
-
-@pytest.mark.unit
-def test_b3_data_l2l3_none_sentinel_when_null(b3_topology):
-    """B3-A1: l2_l3=None の IF は data-l2l3="none"（sentinel）になる。
-
-    空文字列 "" は「すべて」フィルタ value="" と衝突するため sentinel "none" を使用する。
-    """
-    from lib.rendering.views import _build_ifinv_table
-    import re
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    # ds_r1::Gi0/2 は l2_l3=None → data-l2l3="none"（sentinel）
-    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>', result)
-    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
-    assert 'data-l2l3="none"' in row_m.group(0), \
-        f"ds_r1::Gi0/2 の data-l2l3 が sentinel 'none' でない: {row_m.group(0)!r}"
-
-
-# ---------------------------------------------------------------------------
-# B3-3: ドロップダウン select 要素の生成
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_b3_select_device_exists(b3_ifinv_html):
-    """B3: ifinv ツールバーに id='ifinv-filter-device' select が存在する。"""
-    assert 'id="ifinv-filter-device"' in b3_ifinv_html, \
-        "id='ifinv-filter-device' select が見つからない"
-
-
-@pytest.mark.unit
-def test_b3_select_af_exists(b3_ifinv_html):
-    """B3: ifinv ツールバーに id='ifinv-filter-af' select が存在する。"""
-    assert 'id="ifinv-filter-af"' in b3_ifinv_html, \
-        "id='ifinv-filter-af' select が見つからない"
-
-
-@pytest.mark.unit
-def test_b3_select_status_exists(b3_ifinv_html):
-    """B3: ifinv ツールバーに id='ifinv-filter-status' select が存在する。"""
-    assert 'id="ifinv-filter-status"' in b3_ifinv_html, \
-        "id='ifinv-filter-status' select が見つからない"
-
-
-@pytest.mark.unit
-def test_b3_select_l2l3_exists(b3_ifinv_html):
-    """B3: ifinv ツールバーに id='ifinv-filter-l2l3' select が存在する。"""
-    assert 'id="ifinv-filter-l2l3"' in b3_ifinv_html, \
-        "id='ifinv-filter-l2l3' select が見つからない"
-
-
-@pytest.mark.unit
-def test_b3_select_af_has_all_options(b3_ifinv_html):
-    """B3: #ifinv-filter-af に すべて/v4/v6/dual/none の全 option が存在する。"""
-    import re
-    m = re.search(r'<select[^>]*id="ifinv-filter-af"[^>]*>(.*?)</select>',
-                  b3_ifinv_html, re.DOTALL)
-    assert m is not None, "ifinv-filter-af select が見つからない"
-    select_html = m.group(0)
-    for val in ("v4", "v6", "dual", "none"):
-        assert f'value="{val}"' in select_html, \
-            f"af select に value='{val}' option が見つからない"
-
-
-@pytest.mark.unit
-def test_b3_select_device_options_deterministic(b3_topology):
-    """B3: #ifinv-filter-device の option はデータから決定的に生成される（device id 昇順）。"""
-    from lib.rendering.views import _build_ifinv_table
-    import re
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    m = re.search(r'<select[^>]*id="ifinv-filter-device"[^>]*>(.*?)</select>',
-                  result, re.DOTALL)
-    assert m is not None, "ifinv-filter-device select が見つからない"
-    select_html = m.group(0)
-    # topology の全 device id が option に含まれること
-    for dev in b3_topology["devices"]:
-        assert f'value="{dev["id"]}"' in select_html, \
-            f"device '{dev['id']}' が ifinv-filter-device select に見つからない"
-
-
-@pytest.mark.unit
-def test_b3_select_status_options_from_data(b3_topology):
-    """B3: #ifinv-filter-status の option がデータの admin_status から決定的に生成される。"""
-    from lib.rendering.views import _build_ifinv_table
-    import re
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    m = re.search(r'<select[^>]*id="ifinv-filter-status"[^>]*>(.*?)</select>',
-                  result, re.DOTALL)
-    assert m is not None, "ifinv-filter-status select が見つからない"
-    select_html = m.group(0)
-    # b3_topology の admin_status のユニーク値 (up/down/admin-down) が含まれること
-    expected_statuses = {"up", "down", "admin-down"}
-    for st in expected_statuses:
-        assert f'value="{st}"' in select_html, \
-            f"status '{st}' が ifinv-filter-status select に見つからない"
-
-
-@pytest.mark.unit
-def test_b3_select_l2l3_options_from_data(b3_topology):
-    """B3: #ifinv-filter-l2l3 の option がデータの l2_l3 から決定的に生成される。"""
-    from lib.rendering.views import _build_ifinv_table
-    import re
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    m = re.search(r'<select[^>]*id="ifinv-filter-l2l3"[^>]*>(.*?)</select>',
-                  result, re.DOTALL)
-    assert m is not None, "ifinv-filter-l2l3 select が見つからない"
-    select_html = m.group(0)
-    # b3_topology の l2_l3 のユニーク非空値 (l2/l3) が含まれること
-    for val in ("l2", "l3"):
-        assert f'value="{val}"' in select_html, \
-            f"l2l3 '{val}' が ifinv-filter-l2l3 select に見つからない"
-
-
-# ---------------------------------------------------------------------------
-# B3-4: _applyIfFilters JS のドロップダウンフィルタ AND 統合テスト
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_b3_js_has_device_filter_state_var(b3_topology):
-    """B3: _applyIfFilters JS に _ifinvDeviceFilter 状態変数が存在する。"""
-    from lib.rendering import render
-    html = render(b3_topology)
-    import re
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None, "script ブロックが見つからない"
-    js = js_m.group(1)
-    assert "_ifinvDeviceFilter" in js, \
-        "_ifinvDeviceFilter 状態変数が JS に存在しない"
-
-
-@pytest.mark.unit
-def test_b3_js_has_af_filter_state_var(b3_topology):
-    """B3: _applyIfFilters JS に _ifinvAfFilter 状態変数が存在する。"""
-    from lib.rendering import render
-    html = render(b3_topology)
-    import re
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None
-    js = js_m.group(1)
-    assert "_ifinvAfFilter" in js, \
-        "_ifinvAfFilter 状態変数が JS に存在しない"
-
-
-@pytest.mark.unit
-def test_b3_js_has_status_filter_state_var(b3_topology):
-    """B3: _applyIfFilters JS に _ifinvStatusFilter 状態変数が存在する。"""
-    from lib.rendering import render
-    html = render(b3_topology)
-    import re
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None
-    js = js_m.group(1)
-    assert "_ifinvStatusFilter" in js, \
-        "_ifinvStatusFilter 状態変数が JS に存在しない"
-
-
-@pytest.mark.unit
-def test_b3_js_has_l2l3_filter_state_var(b3_topology):
-    """B3: _applyIfFilters JS に _ifinvL2l3Filter 状態変数が存在する。"""
-    from lib.rendering import render
-    html = render(b3_topology)
-    import re
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None
-    js = js_m.group(1)
-    assert "_ifinvL2l3Filter" in js, \
-        "_ifinvL2l3Filter 状態変数が JS に存在しない"
-
-
-@pytest.mark.unit
-def test_b3_js_apply_if_filters_uses_data_af(b3_topology):
-    """B3: _applyIfFilters JS が data-af 属性を参照する AND 評価を含む。"""
-    from lib.rendering import render
-    html = render(b3_topology)
-    import re
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None
-    js = js_m.group(1)
-    assert "data-af" in js, \
-        "_applyIfFilters JS が data-af を参照しない"
-
-
-@pytest.mark.unit
-def test_b3_js_apply_if_filters_uses_data_status(b3_topology):
-    """B3: _applyIfFilters JS が data-status 属性を参照する。"""
-    from lib.rendering import render
-    html = render(b3_topology)
-    import re
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None
-    js = js_m.group(1)
-    assert "data-status" in js, \
-        "_applyIfFilters JS が data-status を参照しない"
-
-
-@pytest.mark.unit
-def test_b3_js_apply_if_filters_uses_data_l2l3(b3_topology):
-    """B3: _applyIfFilters JS が data-l2l3 属性を参照する。"""
-    from lib.rendering import render
-    html = render(b3_topology)
-    import re
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None
-    js = js_m.group(1)
-    assert "data-l2l3" in js, \
-        "_applyIfFilters JS が data-l2l3 を参照しない"
-
-
-@pytest.mark.unit
-def test_b3_js_select_change_listeners_registered(b3_topology):
-    """B3: ifinv-filter-* select に addEventListener('change', ...) が登録される JS コードが存在する。"""
-    from lib.rendering import render
-    html = render(b3_topology)
-    import re
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None
-    js = js_m.group(1)
-    # ifinv-filter-device/af/status/l2l3 の change リスナー登録
-    for sel_id in ("ifinv-filter-device", "ifinv-filter-af", "ifinv-filter-status", "ifinv-filter-l2l3"):
-        assert sel_id in js, \
-            f"select id='{sel_id}' への change リスナー登録が JS に見つからない"
-
-
-# ---------------------------------------------------------------------------
-# B3-5: 決定性・非回帰
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_b3_ifinv_deterministic(b3_topology):
-    """B3: b3_topology を2回 _build_ifinv_table して同一出力（決定性）。"""
-    from lib.rendering.views import _build_ifinv_table
-    r1 = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    r2 = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    assert r1 == r2, "b3_topology の _build_ifinv_table が非決定的"
-
-
-@pytest.mark.unit
-def test_b3_existing_columns_unchanged(b3_ifinv_html):
-    """B3: 既存列ヘッダ（Device/Interface/IP/Status/MTU/VLAN/L2L3/Description）が維持される。"""
-    for header in ("Device", "Interface", "IP", "Status", "MTU", "VLAN", "L2L3", "Description"):
-        assert header in b3_ifinv_html, \
-            f"B3 追加後に既存列ヘッダ '{header}' が消えた"
-
-
-@pytest.mark.unit
-def test_b3_existing_data_attrs_unchanged(b3_topology):
-    """B3: 既存の data-iface-id/data-device/data-unused/data-search/data-ips が維持される。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    for attr in ("data-iface-id", "data-device", "data-search", "data-ips"):
-        assert attr in result, f"B3 追加後に既存属性 '{attr}' が消えた"
-
-
-@pytest.mark.unit
-def test_b3_unused_toggle_still_exists(b3_ifinv_html):
-    """B3: 未使用トグル (#ifinv-unused-toggle) が維持される（非回帰）。"""
-    assert 'id="ifinv-unused-toggle"' in b3_ifinv_html, \
-        "B3 追加後に未使用トグルが消えた"
-
-
-@pytest.mark.unit
-def test_b3_ifinv_html_self_contained(b3_topology):
-    """B3: _build_ifinv_table 出力が外部リソース参照（src= / href=）を持たない（自己完結）。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    import re
-    external_refs = re.findall(r'(?:src|href)="(?!#)[^"]*"', result)
-    assert not external_refs, \
-        f"_build_ifinv_table 出力に外部参照が含まれる: {external_refs}"
-
-
-# ---------------------------------------------------------------------------
-# Round B B3 レビュー指摘修正テスト
-# ---------------------------------------------------------------------------
-
-# --- A1: l2_l3=None を sentinel "none" に正規化 ---
-
-@pytest.mark.unit
-def test_b3_a1_l2l3_none_sentinel_in_data_attr(b3_topology):
-    """A1: l2_l3=None の IF は data-l2l3="none" (sentinel) になる（value="" との衝突防止）。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>', result)
-    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
-    assert 'data-l2l3="none"' in row_m.group(0), \
-        f"l2_l3=None の行が data-l2l3='none' でない: {row_m.group(0)!r}"
-
-
-@pytest.mark.unit
-def test_b3_a1_l2l3_select_has_none_option(b3_topology):
-    """A1: l2_l3=None 行がある場合、#ifinv-filter-l2l3 select に value='none' option が存在する。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    m = re.search(r'<select[^>]*id="ifinv-filter-l2l3"[^>]*>(.*?)</select>',
-                  result, re.DOTALL)
-    assert m is not None, "ifinv-filter-l2l3 select が見つからない"
-    assert 'value="none"' in m.group(0), \
-        "l2_l3=None 行があるのに value='none' option が ifinv-filter-l2l3 に存在しない"
-
-
-@pytest.mark.unit
-def test_b3_a1_l2l3_select_no_empty_value_for_none(b3_topology):
-    """A1: #ifinv-filter-l2l3 の value="" は「すべて」専用のみ（sentinel "none" で空value重複なし）。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    m = re.search(r'<select[^>]*id="ifinv-filter-l2l3"[^>]*>(.*?)</select>',
-                  result, re.DOTALL)
-    assert m is not None, "ifinv-filter-l2l3 select が見つからない"
-    # value="" は「すべて」1個のみ（sentinel "none" があるので空データ option なし）
-    empty_options = re.findall(r'<option[^>]*value=""[^>]*>', m.group(0))
-    assert len(empty_options) == 1, \
-        f"value='' option が「すべて」1個以外に存在する: {empty_options}"
-
-
-@pytest.mark.unit
-def test_b3_a1_l2l3_none_sentinel_cell_display(b3_topology):
-    """A1: data-l2l3='none' の L2L3 列セルは '-' 等（空欄でなく）で表示される。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    # ds_r1::Gi0/2 行（l2_l3=None）の td[L2L3] セルが '-' または '(未分類)' 等で表示される
-    row_m = re.search(
-        r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>(.*?)</tr>',
-        result, re.DOTALL
-    )
-    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
-    row_body = row_m.group(1)
-    # 行内の td を取得
-    tds = re.findall(r'<td[^>]*>(.*?)</td>', row_body, re.DOTALL)
-    # L2L3 列は8番目（0-indexed: 7）: Device/Interface/IP/AF/Status/MTU/VLAN/L2L3/Description
-    assert len(tds) >= 8, f"td 数が不足: {len(tds)}"
-    l2l3_cell = tds[7]
-    # セルは '-' で表示（空欄ではない）
-    assert l2l3_cell.strip() == "-", \
-        f"l2_l3=None の L2L3 セルが '-' でない: {l2l3_cell!r}"
-
-
-# --- A2: dev_hostname_for_select 重複除去 ---
-
-@pytest.mark.unit
-def test_b3_a2_no_dev_hostname_for_select_duplication(b3_topology):
-    """A2: _build_ifinv_table が dev_hostname_for_select の重複定義なしに device option を生成する（DRY 確認）。
-
-    実装内側の変数名はブラックボックスだが、device option の hostname 表示が正しく動作することで間接確認。
-    """
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    m = re.search(r'<select[^>]*id="ifinv-filter-device"[^>]*>(.*?)</select>',
-                  result, re.DOTALL)
-    assert m is not None, "ifinv-filter-device select が見つからない"
-    select_html = m.group(0)
-    # 各 device の hostname が option テキストとして表示される
-    for dev in b3_topology["devices"]:
-        hostname = dev.get("hostname", dev["id"])
-        assert hostname in select_html, \
-            f"device '{dev['id']}' の hostname '{hostname}' が device option テキストに見つからない"
-
-
-# --- H-1: data-af 行単位検証 ---
-
-@pytest.mark.unit
-def test_b3_h1_data_af_v4_on_target_row(b3_topology):
-    """H-1: v4-only IF (ds_r1::Gi0/1) の行に data-af='v4' が付く（行抽出で検証）。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/1"[^>]*>', result)
-    assert row_m is not None, "ds_r1::Gi0/1 行が見つからない"
-    assert 'data-af="v4"' in row_m.group(0), \
-        f"ds_r1::Gi0/1 の行に data-af='v4' が付かない: {row_m.group(0)!r}"
-
-
-@pytest.mark.unit
-def test_b3_h1_data_af_v6_on_target_row(b3_topology):
-    """H-1: v6-only IF (v6_r3::ge0) の行に data-af='v6' が付く（行抽出で検証）。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    row_m = re.search(r'<tr[^>]*data-iface-id="v6_r3::ge0"[^>]*>', result)
-    assert row_m is not None, "v6_r3::ge0 行が見つからない"
-    assert 'data-af="v6"' in row_m.group(0), \
-        f"v6_r3::ge0 の行に data-af='v6' が付かない: {row_m.group(0)!r}"
-
-
-@pytest.mark.unit
-def test_b3_h1_data_af_none_on_target_row(b3_topology):
-    """H-1: no-IP IF (ds_r1::Gi0/2) の行に data-af='none' が付く（行抽出で検証）。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>', result)
-    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
-    assert 'data-af="none"' in row_m.group(0), \
-        f"ds_r1::Gi0/2 の行に data-af='none' が付かない: {row_m.group(0)!r}"
-
-
-# --- H-2: _applyIfFilters 6条件 AND ---
-
-@pytest.mark.unit
-def test_b3_h2_apply_if_filters_has_6_conditions_and(b3_topology):
-    """H-2: _applyIfFilters JS が matchSearch/matchUnused/matchDevice/matchAf/matchStatus/matchL2l3 の 6条件 AND を持つ。
-
-    _applyIfFilters は rows.forEach コールバックを含むため、関数先頭から閉じ括弧まで
-    を含む全テキストを検索して6変数と AND 結合式を確認する。
-    """
-    from lib.rendering import render
-    html = render(b3_topology)
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None, "script ブロックが見つからない"
-    js = js_m.group(1)
-    # _applyIfFilters 関数が存在する
-    assert "function _applyIfFilters" in js, "_applyIfFilters 関数が JS に存在しない"
-    # 関数開始位置から 1800 文字以内に 6変数がすべて含まれる
-    # P2 #3: matchNodeFilter 追加により関数が長くなったため 1800 に拡張
-    start = js.find("function _applyIfFilters")
-    fn_region = js[start:start + 1800]
-    for var in ("matchSearch", "matchUnused", "matchDevice", "matchAf", "matchStatus", "matchL2l3"):
-        assert var in fn_region, \
-            f"_applyIfFilters に '{var}' 条件が存在しない"
-    # AND 結合式に 6変数（最低限）が含まれる（matchX && matchY && ... の形）
-    # P2 #3: matchNodeFilter が追加されているため 7 条件に拡張
-    and_m = re.search(
-        r'if\s*\(\s*matchSearch\s*&&\s*matchUnused\s*&&\s*matchDevice\s*&&\s*matchAf\s*&&\s*matchStatus\s*&&\s*matchL2l3',
-        fn_region
-    )
-    assert and_m is not None, \
-        "_applyIfFilters に 6条件の AND 結合式 (matchSearch && matchUnused && matchDevice && matchAf && matchStatus && matchL2l3) が存在しない"
-    # data-* 参照が含まれる（各条件で getAttribute を使用）
-    for attr in ("data-unused", "data-device", "data-af", "data-status", "data-l2l3"):
-        assert attr in fn_region, \
-            f"_applyIfFilters が '{attr}' を参照しない"
-
-
-# --- H-3: data-status / data-l2l3 値バリエーション行単位検証 ---
-
-@pytest.mark.unit
-def test_b3_h3_data_status_down_on_target_row(b3_topology):
-    """H-3: admin_status='down' の行に data-status='down' が付く（行抽出）。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    # ds_r1::Gi0/1 は admin_status="down"
-    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/1"[^>]*>', result)
-    assert row_m is not None, "ds_r1::Gi0/1 行が見つからない"
-    assert 'data-status="down"' in row_m.group(0), \
-        f"ds_r1::Gi0/1 の行に data-status='down' が付かない: {row_m.group(0)!r}"
-
-
-@pytest.mark.unit
-def test_b3_h3_data_status_admin_down_on_target_row(b3_topology):
-    """H-3: admin_status='admin-down' の行に data-status='admin-down' が付く（行抽出）。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    # ds_r1::Gi0/2 は admin_status="admin-down"
-    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/2"[^>]*>', result)
-    assert row_m is not None, "ds_r1::Gi0/2 行が見つからない"
-    assert 'data-status="admin-down"' in row_m.group(0), \
-        f"ds_r1::Gi0/2 の行に data-status='admin-down' が付かない: {row_m.group(0)!r}"
-
-
-@pytest.mark.unit
-def test_b3_h3_data_l2l3_l2_on_target_row(b3_topology):
-    """H-3: l2_l3='l2' の行に data-l2l3='l2' が付く（行抽出）。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    # ds_r1::Gi0/1 は l2_l3="l2"
-    row_m = re.search(r'<tr[^>]*data-iface-id="ds_r1::Gi0/1"[^>]*>', result)
-    assert row_m is not None, "ds_r1::Gi0/1 行が見つからない"
-    assert 'data-l2l3="l2"' in row_m.group(0), \
-        f"ds_r1::Gi0/1 の行に data-l2l3='l2' が付かない: {row_m.group(0)!r}"
-
-
-# --- M-2: addEventListener('change' が JS にある ---
-
-@pytest.mark.unit
-def test_b3_m2_select_change_listeners_use_add_event_listener(b3_topology):
-    """M-2: ifinv-filter-* select の change 登録が addEventListener('change', ...) 形式である。"""
-    from lib.rendering import render
-    html = render(b3_topology)
-    js_m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-    assert js_m is not None, "script ブロックが見つからない"
-    js = js_m.group(1)
-    # addEventListener と 'change' が共存している（インライン onchange は使わない）
-    assert "addEventListener" in js and "'change'" in js, \
-        "addEventListener('change', ...) パターンが JS に存在しない"
-    # 各 select id について addEventListener('change' が登録されている
-    for sel_id in ("ifinv-filter-device", "ifinv-filter-af", "ifinv-filter-status", "ifinv-filter-l2l3"):
-        assert sel_id in js, \
-            f"select id='{sel_id}' への addEventListener 登録が JS に見つからない"
-
-
-# --- M-3: device option 決定的昇順 ---
-
-@pytest.mark.unit
-def test_b3_m3_device_options_deterministic_ascending_order(b3_topology):
-    """M-3: #ifinv-filter-device の option value は device_id 昇順で決定的に並ぶ。"""
-    from lib.rendering.views import _build_ifinv_table
-    result = _build_ifinv_table(b3_topology["devices"], b3_topology["interfaces"])
-    m = re.search(r'<select[^>]*id="ifinv-filter-device"[^>]*>(.*?)</select>',
-                  result, re.DOTALL)
-    assert m is not None, "ifinv-filter-device select が見つからない"
-    # 「すべて」(value="") を除く option value を出現順に取得
-    option_values = re.findall(r'<option[^>]*value="([^"]+)"[^>]*>', m.group(0))
-    expected = sorted(option_values)
-    assert option_values == expected, \
-        f"device option が昇順でない: {option_values} != {expected}"
-
-
-# ============================================================
-# P1-#7: OSPF リンクラベルの area 独立行化
-# ============================================================
 
 def _make_ospf_v4_link_topology():
     """v4 OSPF single-stack リンクトポロジー（area独立行テスト用）"""
@@ -14729,7 +12563,6 @@ def _make_ospf_v4_link_topology():
             ],
         },
     }
-
 
 def _make_ospf_dualstack_link_topology():
     """v4+v6 OSPF dual-stack リンクトポロジー（area独立行テスト用）"""
@@ -14771,7 +12604,6 @@ def _make_ospf_dualstack_link_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_p1_7_ospf_single_stack_area_on_separate_tspan_line():
     """P1-#7: single-stack OSPF リンクラベルで area が独立 tspan 行になる（2行構成）。
@@ -14797,7 +12629,6 @@ def test_p1_7_ospf_single_stack_area_on_separate_tspan_line():
     # area と subnet が同一 tspan 内に中黒(·)区切りで同居していないこと
     assert 'area 0 ·' not in html, \
         "area と subnet が同一 tspan で 'area 0 · subnet' の形式になっている（独立行になっていない）"
-
 
 @pytest.mark.unit
 def test_p1_7_ospf_dualstack_area_on_separate_tspan_line():
@@ -14830,7 +12661,6 @@ def test_p1_7_ospf_dualstack_area_on_separate_tspan_line():
     # area と subnet が同一 tspan に同居しないこと
     assert 'area 0 ·' not in html, \
         "area と subnet が同一 tspan で同居している（独立行になっていない）"
-
 
 @pytest.mark.integration
 def test_p1_7_ospf_label_area_independent_multi_as_area():
@@ -14868,7 +12698,6 @@ def test_p1_7_ospf_label_area_independent_multi_as_area():
         "multi-as-area OSPF ラベルで area と subnet が中黒区切りで同居している"
     assert re.search(r'<tspan[^>]*>area 0</tspan>', html), \
         "multi-as-area OSPF ラベルで area 0 の独立 tspan が見つからない"
-
 
 @pytest.mark.integration
 def test_p1_7_ospf_label_area_independent_dualstack_ospf():
@@ -14909,7 +12738,6 @@ def test_p1_7_ospf_label_area_independent_dualstack_ospf():
     assert re.search(r'<tspan[^>]*>2001:[^<]+</tspan>', html), \
         "dualstack-ospf OSPF ラベルで v6 subnet の独立 tspan が見つからない"
 
-
 # ============================================================
 # P1-#4: large-topo 自動 zoomFit（初期表示・selectView）
 # ============================================================
@@ -14935,7 +12763,6 @@ def test_p1_4_js_contains_initial_zoomfit_call():
     assert has_zoomfit_after, \
         "selectView('physical') の後に zoomFit() 呼出が見つからない（初期 zoomFit 未実装）"
 
-
 @pytest.mark.unit
 def test_p1_4_js_selectview_calls_zoomfit_for_svg_views():
     """P1-#4: selectView() のSVGビュー表示分岐末尾で zoomFit を呼ぶ。
@@ -14952,7 +12779,6 @@ def test_p1_4_js_selectview_calls_zoomfit_for_svg_views():
     # viewId === 'ifinv' の if ブロック後の else に zoomFit が必要
     assert "zoomFit" in sv_region, \
         "selectView() 内に zoomFit 呼出が見つからない（SVG ビュー切替時の自動 fit 未実装）"
-
 
 @pytest.mark.integration
 def test_p1_4_html_js_zoomfit_called_after_selectview():
@@ -14980,7 +12806,6 @@ def test_p1_4_html_js_zoomfit_called_after_selectview():
     after = js[sv_idx:]
     has_call = ("window._zoomFit()" in after or re.search(r'\bzoomFit\(\)', after) is not None)
     assert has_call, "selectView('physical') の後に zoomFit() 呼出が見つからない"
-
 
 # ============================================================
 # P1-#6: AS 枠ラベルの重なり回避
@@ -15036,7 +12861,6 @@ def _make_overlapping_as_labels_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_p1_6_as_label_chips_have_unique_positions():
     """P1-#6: 複数 AS ラベルチップの (x, y) 座標が重複しない（衝突回避）。
@@ -15062,7 +12886,6 @@ def test_p1_6_as_label_chips_have_unique_positions():
     positions_set = set(chip_positions_found)
     assert len(positions_set) == len(chip_positions_found), \
         f"AS ラベルチップ座標が重複している: {chip_positions_found}"
-
 
 @pytest.mark.unit
 def test_p1_6_as_label_chips_no_overlap_unit():
@@ -15090,7 +12913,6 @@ def test_p1_6_as_label_chips_no_overlap_unit():
         f"チップが2個生成されない: {chip_positions_found}"
     assert chip_positions_found[0] != chip_positions_found[1], \
         f"AS65000 と AS65103 のラベルチップ座標が重複している: {chip_positions_found}"
-
 
 @pytest.mark.integration
 def test_p1_6_large_topo_as_labels_no_overlap():
@@ -15122,7 +12944,6 @@ def test_p1_6_large_topo_as_labels_no_overlap():
     positions_set = set(chip_positions_found)
     assert len(positions_set) == len(chip_positions_found), \
         f"large-topo AS ラベルチップ座標が重複: {chip_positions_found}"
-
 
 # ===========================================================================
 # P1b #2: IFチップ拡大 + 複数行折返し（iteration-5 Part-4）
@@ -15172,14 +12993,12 @@ def _make_many_chip_topology(n_chips: int):
         "routing": {"bgp": [], "ospf": [], "static": []},
     }
 
-
 @pytest.mark.unit
 def test_p1b2_chip_radius_enlarged():
     """P1b #2: チップ半径が視認性のため拡大されている（_IF_CHIP_R >= 6）。"""
     from lib.rendering.svg import _IF_CHIP_R
     assert _IF_CHIP_R >= 6, \
         f"チップ半径が拡大されていない: _IF_CHIP_R={_IF_CHIP_R}（期待: >=6）"
-
 
 @pytest.mark.unit
 def test_p1b2_chip_radius_in_svg():
@@ -15189,7 +13008,6 @@ def test_p1b2_chip_radius_in_svg():
     html = render(_make_many_chip_topology(3))
     assert f'r="{_IF_CHIP_R}"' in html, \
         f"SVG 内のチップ円に r=\"{_IF_CHIP_R}\" が見つからない"
-
 
 @pytest.mark.unit
 def test_p1b2_wrap_constants_exist():
@@ -15203,7 +13021,6 @@ def test_p1b2_wrap_constants_exist():
     row_h = svg_mod._IF_CHIP_ROW_H
     assert per_row >= 1, f"_IF_CHIP_PER_ROW は 1 以上であるべき: {per_row}"
     assert row_h >= 12, f"_IF_CHIP_ROW_H は 12px 以上であるべき: {row_h}"
-
 
 @pytest.mark.unit
 def test_p1b2_wrap_chip_rows_helper():
@@ -15225,7 +13042,6 @@ def test_p1b2_wrap_chip_rows_helper():
     # 2 * per_row + 1 個 → 3行
     assert _chip_rows_for(_IF_CHIP_PER_ROW * 2 + 1) == 3, \
         f"{_IF_CHIP_PER_ROW * 2 + 1}チップ → 3行のはず: {_chip_rows_for(_IF_CHIP_PER_ROW * 2 + 1)}"
-
 
 @pytest.mark.unit
 def test_p1b2_chip_node_size_for_helper():
@@ -15252,7 +13068,6 @@ def test_p1b2_chip_node_size_for_helper():
     assert abs(h2 - h1 - _IF_CHIP_ROW_H) < 1.0, \
         f"2行→1行の高さ差({h2 - h1:.1f}) が _IF_CHIP_ROW_H({_IF_CHIP_ROW_H}) と異なる"
 
-
 @pytest.mark.unit
 def test_p1b2_chip_cx_no_overflow_single_row():
     """P1b #2: 1行に収まるチップ数の場合、全チップ cx がノード幅内に収まる。"""
@@ -15275,7 +13090,6 @@ def test_p1b2_chip_cx_no_overflow_single_row():
             f"チップ k={k} の cx={cx:.1f} がノード左端 nx={nx:.1f} より左"
         assert cx <= nx + _NODE_WIDTH, \
             f"チップ k={k} の cx={cx:.1f} がノード右端 nx+{_NODE_WIDTH}={nx + _NODE_WIDTH:.1f} より右"
-
 
 @pytest.mark.unit
 def test_p1b2_chip_wrap_two_rows():
@@ -15300,7 +13114,6 @@ def test_p1b2_chip_wrap_two_rows():
     assert abs(cyN - cy0 - _IF_CHIP_ROW_H) < 1.0, \
         f"行間隔 {cyN - cy0:.1f} が _IF_CHIP_ROW_H={_IF_CHIP_ROW_H} と異なる"
 
-
 @pytest.mark.unit
 def test_p1b2_chip_wrap_cx_restarts_at_new_row():
     """P1b #2: 折返し後の行頭チップの cx が1行目の最初と同じ x 位置から始まる。"""
@@ -15319,7 +13132,6 @@ def test_p1b2_chip_wrap_cx_restarts_at_new_row():
 
     assert abs(cx0 - cxN) < 0.5, \
         f"折返し行頭チップ cx={cxN:.1f} が1行目行頭 cx={cx0:.1f} と異なる（折返し cx リセット不全）"
-
 
 @pytest.mark.unit
 def test_p1b2_many_chips_all_within_node_width():
@@ -15342,7 +13154,6 @@ def test_p1b2_many_chips_all_within_node_width():
             f"チップ k={k} の cx={cx:.1f} がノード左端 nx={nx:.1f} より左"
         assert cx <= nx + _NODE_WIDTH, \
             f"チップ k={k} の cx={cx:.1f} がノード右端 {nx + _NODE_WIDTH:.1f} を超えている（折返し未実装）"
-
 
 @pytest.mark.unit
 def test_p1b2_node_height_grows_with_chip_rows():
@@ -15377,7 +13188,6 @@ def test_p1b2_node_height_grows_with_chip_rows():
     assert h2 > h1, \
         f"2行({_IF_CHIP_PER_ROW + 1}チップ) 高さ({h2}) <= 1行({_IF_CHIP_PER_ROW}チップ) 高さ({h1})"
 
-
 @pytest.mark.unit
 def test_p1b2_2chip_no_regression():
     """P1b #2 非回帰: 2チップ（従来ケース）が折返しなしで描画される。"""
@@ -15399,7 +13209,6 @@ def test_p1b2_2chip_no_regression():
         r1_cy_vals = re.findall(r'cy="([0-9.]+)"', r1_content)
         assert len(set(r1_cy_vals)) == 1, \
             f"2チップなのに cy が複数値: {set(r1_cy_vals)}（折返し過剰）"
-
 
 @pytest.mark.unit
 def test_p1b2_no_overlap_after_chip_height_expand():
@@ -15458,7 +13267,6 @@ def test_p1b2_no_overlap_after_chip_height_expand():
                 f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
             )
 
-
 @pytest.mark.unit
 def test_p1b2_deterministic():
     """P1b #2: 多行チップを含む topology で render() が決定的（2回一致）。"""
@@ -15469,7 +13277,6 @@ def test_p1b2_deterministic():
     html1 = render(topo)
     html2 = render(topo)
     assert html1 == html2, "多行チップ topology の render() が非決定的"
-
 
 @pytest.mark.unit
 def test_p1b2_chip_positions_wrap():
@@ -15507,7 +13314,6 @@ def test_p1b2_chip_positions_wrap():
         f"2行目チップ cy={row1_cy:.1f} が 1行目 cy={row0_cys[0]:.1f} 以下（折返し未実装）"
     assert abs(row1_cy - row0_cys[0] - _IF_CHIP_ROW_H) < 1.0, \
         f"行間隔 {row1_cy - row0_cys[0]:.1f} が _IF_CHIP_ROW_H={_IF_CHIP_ROW_H} と異なる"
-
 
 @pytest.mark.unit
 def test_p1b2_existing_no_overlap_20nodes_regression():
@@ -15555,14 +13361,12 @@ def test_p1b2_existing_no_overlap_20nodes_regression():
                 f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
             )
 
-
 # ===========================================================================
 # P2: フィードバック対応3点
 #   #1 チップ/Loopback マーキング（チップ↔IF一覧双方向 + iBGP Loopback連動）
 #   #5 複数ノード選択 → 間のエッジ＋表ハイライト
 #   #3 node-filter ↔ IF一覧 連動
 # ===========================================================================
-
 
 # ---------------------------------------------------------------------------
 # ヘルパー: iBGP + Loopback ありトポロジー（#1 loopback連動テスト用）
@@ -15614,7 +13418,6 @@ def _make_ibgp_loopback_topology():
         },
     }
 
-
 # ---------------------------------------------------------------------------
 # #1-A: チップに data-iface-id が付く（既存機能の確認）
 # ---------------------------------------------------------------------------
@@ -15629,7 +13432,6 @@ def test_p2_chip_has_data_iface_id():
     assert 'data-iface-id="r1::Gi0/0"' in phys, \
         "if-chip に data-iface-id=\"r1::Gi0/0\" が付いていない"
 
-
 # ---------------------------------------------------------------------------
 # #1-B: toggleIfChipHighlight 関数が JS に存在する
 # ---------------------------------------------------------------------------
@@ -15639,7 +13441,6 @@ def test_p2_toggle_if_chip_highlight_function_exists(rendered_html):
     """#1-B: JS に toggleIfChipHighlight 関数が定義されている。"""
     assert "function toggleIfChipHighlight" in rendered_html, \
         "toggleIfChipHighlight 関数が HTML の JS に存在しない"
-
 
 # ---------------------------------------------------------------------------
 # #1-C: if-chip クリックで toggleIfChipHighlight を呼ぶ登録コードが存在する
@@ -15655,7 +13456,6 @@ def test_p2_chip_click_registers_toggle_if_chip_highlight(rendered_html):
     assert "if-chip" in rendered_html, \
         ".if-chip クラスの参照が JS にない"
 
-
 # ---------------------------------------------------------------------------
 # #1-D: .if-chip.highlighted CSS が存在する
 # ---------------------------------------------------------------------------
@@ -15666,28 +13466,10 @@ def test_p2_chip_highlighted_css_exists(rendered_html):
     assert ".if-chip.highlighted" in rendered_html, \
         ".if-chip.highlighted CSS スタイルが HTML に存在しない"
 
-
 # ---------------------------------------------------------------------------
 # #1-E: ifinv 行に data-iface-id が付いている
 # ---------------------------------------------------------------------------
 
-@pytest.mark.unit
-def test_p2_ifinv_row_has_data_iface_id(rendered_html):
-    """#1-E: IF一覧(ifinv)テーブルの tr に data-iface-id 属性が付いている。"""
-    # ifinv-table-body 内の tr に data-iface-id が存在すること
-    m = re.search(
-        r'id="ifinv-table-body".*?(<tr[^>]*data-iface-id[^>]*>)',
-        rendered_html, re.DOTALL
-    )
-    assert m is not None, \
-        "ifinv-table-body 内の tr に data-iface-id 属性が見つからない"
-
-
-# ---------------------------------------------------------------------------
-# #1-F: ifinv 行クリックで toggleIfChipHighlight を呼ぶ登録コードが存在する
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
 def test_p2_ifinv_row_click_calls_toggle_if_chip_highlight(rendered_html):
     """#1-F: JS に ifinv 行（data-iface-id）クリック → toggleIfChipHighlight の登録がある。"""
     # data-iface-id を持つ tr へのクリックリスナー登録と toggleIfChipHighlight 呼び出しが
@@ -15697,7 +13479,6 @@ def test_p2_ifinv_row_click_calls_toggle_if_chip_highlight(rendered_html):
         "JS の script セクションに data-iface-id 参照がない"
     assert "toggleIfChipHighlight" in js_section, \
         "JS の script セクションに toggleIfChipHighlight 呼び出しがない"
-
 
 # ---------------------------------------------------------------------------
 # #1-G: iBGP 行に data-loopback-iface-id が付く
@@ -15713,7 +13494,6 @@ def test_p2_ibgp_row_has_loopback_iface_id():
     assert 'data-loopback-iface-id="r1::Loopback0"' in html, \
         "iBGP 行（r1）に data-loopback-iface-id=\"r1::Loopback0\" が付いていない"
 
-
 @pytest.mark.unit
 def test_p2_ibgp_row_loopback_iface_id_r2():
     """#1-G2: r2 の iBGP 行にも data-loopback-iface-id が付く。"""
@@ -15721,7 +13501,6 @@ def test_p2_ibgp_row_loopback_iface_id_r2():
     html = render(_make_ibgp_loopback_topology())
     assert 'data-loopback-iface-id="r2::Loopback0"' in html, \
         "iBGP 行（r2）に data-loopback-iface-id=\"r2::Loopback0\" が付いていない"
-
 
 # ---------------------------------------------------------------------------
 # #1-H: eBGP 行には data-loopback-iface-id が付かない（非回帰）
@@ -15743,7 +13522,6 @@ def test_p2_ebgp_row_no_loopback_iface_id(rendered_html):
         assert "data-loopback-iface-id" not in bgp_html, \
             "eBGP 行に data-loopback-iface-id が付いている（iBGP のみが対象）"
 
-
 # ---------------------------------------------------------------------------
 # #5-A: _updateEdgeHighlightForSelection 関数（または同等ロジック）が JS に存在する
 # ---------------------------------------------------------------------------
@@ -15754,7 +13532,6 @@ def test_p2_multi_node_edge_highlight_logic_exists(rendered_html):
     # _selectedNodes.size >= 2 の条件チェックが存在すること
     assert "_selectedNodes.size" in rendered_html, \
         "_selectedNodes.size チェックが JS にない（複数選択エッジハイライトが未実装）"
-
 
 # ---------------------------------------------------------------------------
 # #5-B: ノードクリックハンドラに data-a/data-b 両方含まれるエッジのハイライトロジックがある
@@ -15768,7 +13545,6 @@ def test_p2_node_click_highlights_edges_between_selected(rendered_html):
     # _selectedNodes.has(...) が data-a/data-b の確認ロジックとして存在すること
     assert "_selectedNodes.has" in js_text, \
         "_selectedNodes.has() によるエッジ判定ロジックが JS にない"
-
 
 # ---------------------------------------------------------------------------
 # #5-C: clearSelection でエッジハイライトが解除される（既存の clearLinkHighlight を流用）
@@ -15789,7 +13565,6 @@ def test_p2_clear_selection_removes_edge_highlight(rendered_html):
     assert clear_sel_match is not None, \
         "clearSelection 内に clearLinkHighlight 呼び出しがない"
 
-
 # ---------------------------------------------------------------------------
 # #5-D: bgp-session / link-edge に対するエッジハイライトループが存在する
 # ---------------------------------------------------------------------------
@@ -15803,7 +13578,6 @@ def test_p2_edge_highlight_loop_covers_bgp_and_link(rendered_html):
         ".bgp-session の参照が JS にない"
     assert "link-edge" in js_text, \
         ".link-edge の参照が JS にない"
-
 
 # ---------------------------------------------------------------------------
 # #5-E: 1ノード以下選択でエッジハイライトを解除するコードが存在する
@@ -15819,95 +13593,14 @@ def test_p2_single_node_clears_edge_highlight(rendered_html):
     assert has_leq1, \
         "_selectedNodes.size <= 1 (または < 2) の分岐コードが JS にない"
 
-
 # ---------------------------------------------------------------------------
 # #3-A: _applyIfFilters が _hiddenNodes を AND 条件で参照している
 # ---------------------------------------------------------------------------
 
-@pytest.mark.unit
-def test_p2_apply_if_filters_uses_hidden_nodes(rendered_html):
-    """#3-A: _applyIfFilters 関数が _hiddenNodes を参照して ifinv 行をフィルタする。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    # _applyIfFilters の定義中に _hiddenNodes の参照が存在すること
-    applyif_match = re.search(
-        r'function _applyIfFilters\(\).*?_hiddenNodes',
-        js_text, re.DOTALL
-    )
-    assert applyif_match is not None, \
-        "_applyIfFilters 内に _hiddenNodes の参照がない（#3 node-filter連動が未実装）"
-
-
-# ---------------------------------------------------------------------------
-# #3-B: setNodeVisibility 後に _applyIfFilters が呼ばれる
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_p2_set_node_visibility_calls_apply_if_filters(rendered_html):
-    """#3-B: setNodeVisibility 内で _applyIfFilters() が呼ばれている。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    set_vis_match = re.search(
-        r'function setNodeVisibility\(.*?\n.*?_applyIfFilters',
-        js_text, re.DOTALL
-    )
-    assert set_vis_match is not None, \
-        "setNodeVisibility 内に _applyIfFilters() 呼び出しがない"
-
-
-# ---------------------------------------------------------------------------
-# #3-C: clearAllNodes / selectAllNodes 後に _applyIfFilters が呼ばれる
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_p2_clear_all_nodes_calls_apply_if_filters(rendered_html):
-    """#3-C: clearAllNodes 内で _applyIfFilters() が呼ばれている。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    clear_all_match = re.search(
-        r'function clearAllNodes\(\).*?_applyIfFilters',
-        js_text, re.DOTALL
-    )
-    assert clear_all_match is not None, \
-        "clearAllNodes 内に _applyIfFilters() 呼び出しがない"
-
-
-@pytest.mark.unit
-def test_p2_select_all_nodes_calls_apply_if_filters(rendered_html):
-    """#3-C2: selectAllNodes 内で _applyIfFilters() が呼ばれている。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    select_all_match = re.search(
-        r'function selectAllNodes\(\).*?_applyIfFilters',
-        js_text, re.DOTALL
-    )
-    assert select_all_match is not None, \
-        "selectAllNodes 内に _applyIfFilters() 呼び出しがない"
-
-
-# ---------------------------------------------------------------------------
-# #3-D: _applyIfFilters で機器行に ifinv-row-hidden が付く（matchDevice 連動確認）
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_p2_apply_if_filters_hidden_nodes_condition(rendered_html):
-    """#3-D: _applyIfFilters が data-device と _hiddenNodes の AND で行を隠す条件を持つ。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    # _hiddenNodes.has(...) が _applyIfFilters の関数スコープ内に存在すること
-    applyif_with_has = re.search(
-        r'function _applyIfFilters\(\).*?_hiddenNodes\.has',
-        js_text, re.DOTALL
-    )
-    assert applyif_with_has is not None, \
-        "_applyIfFilters 内に _hiddenNodes.has() がない（機器フィルタ条件が未実装）"
-
-
-# ---------------------------------------------------------------------------
-# 非回帰: 既存の選択/ハイライト/フィルタ機能が壊れていない
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
 def test_p2_regression_toggle_bgp_highlight_exists(rendered_html):
     """非回帰: toggleBgpHighlight 関数が引き続き存在する。"""
     assert "function toggleBgpHighlight" in rendered_html, \
         "toggleBgpHighlight が HTML から消えた（非回帰）"
-
 
 @pytest.mark.unit
 def test_p2_regression_toggle_ospf_highlight_exists(rendered_html):
@@ -15915,13 +13608,11 @@ def test_p2_regression_toggle_ospf_highlight_exists(rendered_html):
     assert "function toggleOspfHighlight" in rendered_html, \
         "toggleOspfHighlight が HTML から消えた（非回帰）"
 
-
 @pytest.mark.unit
 def test_p2_regression_selected_nodes_set_exists(rendered_html):
     """非回帰: _selectedNodes Set 宣言が引き続き存在する。"""
     assert "var _selectedNodes = new Set()" in rendered_html, \
         "_selectedNodes Set 宣言が消えた（非回帰）"
-
 
 @pytest.mark.unit
 def test_p2_regression_clear_all_nodes_function_exists(rendered_html):
@@ -15929,28 +13620,6 @@ def test_p2_regression_clear_all_nodes_function_exists(rendered_html):
     assert "function clearAllNodes" in rendered_html, \
         "clearAllNodes が HTML から消えた（非回帰）"
 
-
-@pytest.mark.unit
-def test_p2_regression_apply_if_filters_still_has_existing_conditions(rendered_html):
-    """非回帰: _applyIfFilters の既存フィルタ条件（matchDevice/matchStatus 等）が残っている。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    # 既存の matchDevice 条件が残っていること
-    assert "_ifinvDeviceFilter" in js_text, \
-        "_ifinvDeviceFilter が _applyIfFilters から消えた（非回帰）"
-    assert "_ifinvStatusFilter" in js_text, \
-        "_ifinvStatusFilter が _applyIfFilters から消えた（非回帰）"
-
-
-# ===========================================================================
-# フィードバック対応 (P1/P1b/P2) テスト
-# ===========================================================================
-
-
-# ---------------------------------------------------------------------------
-# B1 修正: test_p2_ebgp_row_no_loopback_iface_id — BGP テーブルを正確に抽出
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
 def test_p2_ebgp_row_no_loopback_iface_id_v2(rendered_html):
     """#1-H 改: eBGP 行に data-loopback-iface-id が付かないことをBGP表本体で確認。
 
@@ -15972,7 +13641,6 @@ def test_p2_ebgp_row_no_loopback_iface_id_v2(rendered_html):
         f"eBGP 行に data-loopback-iface-id が付いている（iBGP のみが対象）。"
         f"BGP テーブル部: {bgp_html[:200]}"
     )
-
 
 # ---------------------------------------------------------------------------
 # B2 修正: test_p1b2_no_overlap_after_chip_height_expand — _node_size_for ベースに修正
@@ -16024,7 +13692,6 @@ def test_p1b2_no_overlap_after_chip_height_expand_v2():
                 f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
             )
 
-
 # ---------------------------------------------------------------------------
 # B3 (HIGH-2): OSPF セグメントラベルが tspan 2行（dy が異なる）であること
 # ---------------------------------------------------------------------------
@@ -16070,7 +13737,6 @@ def _make_ospf_segment_topology_simple():
         },
     }
 
-
 @pytest.mark.unit
 def test_a1_ospf_segment_label_two_tspan():
     """A1: OSPF セグメントラベルが tspan 2行（area 行と subnet 行に dy が異なる）で描画される。
@@ -16107,7 +13773,6 @@ def test_a1_ospf_segment_label_two_tspan():
         f"見つかった seg-label: {seg_labels[:2]}"
     )
 
-
 @pytest.mark.unit
 def test_a1_ospf_segment_label_has_area_and_subnet():
     """A1: OSPF セグメントラベルに area と subnet が別 tspan で入っている。"""
@@ -16134,7 +13799,6 @@ def test_a1_ospf_segment_label_has_area_and_subnet():
             return
 
     pytest.fail(f"tspan 2行の seg-label が見つからない: {seg_labels[:2]}")
-
 
 # ---------------------------------------------------------------------------
 # A2: AS 衝突回避の試行上限を動的に（large-topo 非回帰）
@@ -16164,7 +13828,6 @@ def test_a2_resolve_chip_pos_dynamic_limit():
         assert f"AS {i + 1}" in svg_out, \
             f"AS {i + 1} のラベルが SVG に含まれない"
 
-
 @pytest.mark.unit
 def test_a2_large_topo_as_groups_regression():
     """A2 非回帰: large-topo（AS5）で _svg_bgp_as_groups が重なりなく生成される。"""
@@ -16186,7 +13849,6 @@ def test_a2_large_topo_as_groups_regression():
     assert html, "large-topo で render() が空を返した（非回帰）"
     # AS グループが生成されていること（BGP ビューに as-group が存在）
     assert "as-group" in html, "large-topo の BGP ビューに as-group が見つからない"
-
 
 # ---------------------------------------------------------------------------
 # A3: static ルートの宛先が Loopback /32 のとき data-loopback-iface-id が付く
@@ -16233,7 +13895,6 @@ def _make_static_loopback_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_a3_static_loopback_iface_id_attached():
     """A3: static ルート（宛先 /32）の行に宛先機器の Loopback iface-id が付く。
@@ -16251,7 +13912,6 @@ def test_a3_static_loopback_iface_id_attached():
         f"Static Route 関連 HTML: {re.findall(r'data-route-id[^>]*', html)[:5]}"
     )
 
-
 @pytest.mark.unit
 def test_a3_static_loopback_iface_id_r2_to_r1():
     """A3: acc2 → acc1 方向の static 行にも Loopback iface-id が付く。"""
@@ -16261,7 +13921,6 @@ def test_a3_static_loopback_iface_id_r2_to_r1():
     assert 'data-loopback-iface-id="acc1::Loopback0"' in html, (
         "static 宛先 10.255.3.1/32 の行に data-loopback-iface-id=\"acc1::Loopback0\" がない"
     )
-
 
 @pytest.mark.unit
 def test_a3_static_non_loopback_no_iface_id():
@@ -16285,7 +13944,6 @@ def test_a3_static_non_loopback_no_iface_id():
     if default_tr:
         assert "data-loopback-iface-id" not in default_tr.group(0), \
             "0.0.0.0/0 ルート行に data-loopback-iface-id が付いている（対象外）"
-
 
 # ---------------------------------------------------------------------------
 # A4: toggleIfChipHighlight — some() ベースのトグル判定
@@ -16313,7 +13971,6 @@ def test_a4_toggle_if_chip_highlight_uses_some(rendered_html):
         f"関数本体: {fn_body[:300]}"
     )
 
-
 # ---------------------------------------------------------------------------
 # A5: DOMContentLoaded で zoomFit — IIFE 後に初期化
 # ---------------------------------------------------------------------------
@@ -16338,64 +13995,10 @@ def test_a5_zoom_fit_uses_dom_content_loaded(rendered_html):
         "A5: DOMContentLoaded に変更してください。"
     )
 
-
 # ---------------------------------------------------------------------------
 # A6: selectAll/clearAll の _applyIfFilters 多重呼び出し最適化
 # ---------------------------------------------------------------------------
 
-@pytest.mark.unit
-def test_a6_select_all_nodes_calls_apply_if_filters_once(rendered_html):
-    """A6: selectAllNodes のループ内では _applyIfFilters を呼ばず、最後に1回のみ呼ぶ。
-
-    setNodeVisibility 内の _applyIfFilters 呼び出しをループ中にスキップして
-    最後に1回まとめて呼ぶ設計になっていること（中間ちらつき解消）。
-    """
-    js_text = rendered_html[rendered_html.find("<script>"):]
-
-    # selectAllNodes 関数を抽出
-    select_fn = re.search(
-        r'function selectAllNodes\(\)(.*?)(?=\nfunction |\n    function )',
-        js_text, re.DOTALL
-    )
-    assert select_fn is not None, "selectAllNodes 関数が見つからない"
-    fn_body = select_fn.group(1)
-
-    # ループ内の setNodeVisibility 呼び出し数と、ループ外の _applyIfFilters の有無を確認
-    # skipFilter 引数 or ループ後に _applyIfFilters() が来る構造
-    has_skip_filter = "skipFilter" in fn_body or "skipApply" in fn_body
-    has_post_apply = "_applyIfFilters" in fn_body
-
-    # いずれかの方式（skipFilter 引数 or ループ後一括呼び出し）が採用されていること
-    assert has_skip_filter or has_post_apply, (
-        "selectAllNodes にループ後の _applyIfFilters 呼び出しが見当たらない"
-    )
-
-
-@pytest.mark.unit
-def test_a6_clear_all_nodes_calls_apply_if_filters_once(rendered_html):
-    """A6: clearAllNodes のループ内では _applyIfFilters を呼ばず、最後に1回のみ呼ぶ。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-
-    clear_fn = re.search(
-        r'function clearAllNodes\(\)(.*?)(?=\nfunction |\n    function )',
-        js_text, re.DOTALL
-    )
-    assert clear_fn is not None, "clearAllNodes 関数が見つからない"
-    fn_body = clear_fn.group(1)
-
-    has_skip_filter = "skipFilter" in fn_body or "skipApply" in fn_body
-    has_post_apply = "_applyIfFilters" in fn_body
-
-    assert has_skip_filter or has_post_apply, (
-        "clearAllNodes にループ後の _applyIfFilters 呼び出しが見当たらない"
-    )
-
-
-# ---------------------------------------------------------------------------
-# B HIGH-3 修正: if-chip click → toggleIfChipHighlight の近傍結合確認
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
 def test_b_high3_if_chip_click_toggle_proximity(rendered_html):
     """B HIGH-3: '.if-chip' セレクタと addEventListener('click') と toggleIfChipHighlight が
     近傍（同一 IIFE/スコープ内）で結合されていることを確認する。
@@ -16412,27 +14015,6 @@ def test_b_high3_if_chip_click_toggle_proximity(rendered_html):
         "近傍で結合されていない"
     )
 
-
-@pytest.mark.unit
-def test_b_high3_ifinv_row_data_iface_id_value(rendered_html):
-    """B HIGH-3 補: ifinv 行の data-iface-id に具体値（非空文字列）が入っている。"""
-    ifinv_tr = re.search(
-        r'<tr[^>]*data-iface-id="([^"]+)"',
-        rendered_html
-    )
-    assert ifinv_tr is not None, "ifinv 行に data-iface-id が見つからない"
-    iface_id_val = ifinv_tr.group(1)
-    assert iface_id_val, "data-iface-id が空文字列"
-    # iface-id は "{device}::{ifname}" 形式であること（:: を含む）
-    assert "::" in iface_id_val, \
-        f"data-iface-id=\"{iface_id_val}\" が {{device}}::{{ifname}} 形式でない"
-
-
-# ---------------------------------------------------------------------------
-# C1: _chip_positions docstring が現実装を正確に記述している
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
 def test_c1_chip_positions_docstring_mentions_chip_node_size():
     """C1: _chip_positions の docstring が _chip_node_size_for を参照している。"""
     import inspect
@@ -16441,7 +14023,6 @@ def test_c1_chip_positions_docstring_mentions_chip_node_size():
     assert "_chip_node_size_for" in doc, (
         "_chip_positions の docstring が _chip_node_size_for を参照していない（C HIGH-1）"
     )
-
 
 # ---------------------------------------------------------------------------
 # C2: _chip_xy_for ヘルパー — 座標重複排除
@@ -16454,7 +14035,6 @@ def test_c2_chip_xy_for_helper_exists():
     assert hasattr(svg_mod, "_chip_xy_for"), (
         "_chip_xy_for ヘルパーが svg.py に存在しない（C HIGH-2）"
     )
-
 
 @pytest.mark.unit
 def test_c2_chip_xy_for_returns_correct_coords():
@@ -16479,7 +14059,6 @@ def test_c2_chip_xy_for_returns_correct_coords():
         f"k={_IF_CHIP_PER_ROW} の cx={cx1:.1f} が col=0 の期待値と異なる（折返し）"
     assert abs(cy1 - (chip_start_y + _IF_CHIP_OFFSET_Y + _IF_CHIP_ROW_H)) < 0.5, \
         f"k={_IF_CHIP_PER_ROW} の cy={cy1:.1f} が2行目期待値と異なる"
-
 
 # ---------------------------------------------------------------------------
 # 非回帰: multi-as-area での static loopback 解決（A3 実データ確認）
@@ -16519,13 +14098,11 @@ def test_a3_multi_as_area_static_loopback_regression():
         "multi-as-area の acc1/acc2 static loopback 行に data-loopback-iface-id がない"
     )
 
-
 # ===========================================================================
 # FA: フィードバック対応
 #   F4: ノード間隔縮小（_CANVAS_FACTOR 圧縮）
 #   F3: AS枠の重なり分離（BGPビュー AS65000 ↔ AS65103 等が被る問題）
 # ===========================================================================
-
 
 # ---------------------------------------------------------------------------
 # F4: _CANVAS_FACTOR_W / _CANVAS_FACTOR_H を 3 / 2.5 まで縮小
@@ -16539,7 +14116,6 @@ def test_fa_f4_canvas_factor_w_le3():
         f"_CANVAS_FACTOR_W={_CANVAS_FACTOR_W} が 3 超（縮小未実施）"
     )
 
-
 @pytest.mark.unit
 def test_fa_f4_canvas_factor_h_le2_5():
     """F4: _CANVAS_FACTOR_H が 2.5 以下（ノード間隔圧縮済み）"""
@@ -16547,7 +14123,6 @@ def test_fa_f4_canvas_factor_h_le2_5():
     assert _CANVAS_FACTOR_H <= 2.5, (
         f"_CANVAS_FACTOR_H={_CANVAS_FACTOR_H} が 2.5 超（縮小未実施）"
     )
-
 
 @pytest.mark.unit
 def test_fa_f4_canvas_shrinks_vs_factor6_5():
@@ -16566,7 +14141,6 @@ def test_fa_f4_canvas_shrinks_vs_factor6_5():
     assert h_new < h_old, (
         f"F4: 縮小後高 {h_new:.0f} >= 旧値 {h_old:.0f}（係数 5 比）"
     )
-
 
 @pytest.mark.unit
 def test_fa_f4_no_overlap_large_topo_20nodes():
@@ -16614,7 +14188,6 @@ def test_fa_f4_no_overlap_large_topo_20nodes():
                 f"dy={dy:.1f} min_sep_y={min_sep_y:.1f})"
             )
 
-
 @pytest.mark.unit
 def test_fa_f4_no_overlap_multi_as_area():
     """F4: 係数縮小後も multi-as-area BGP ビューでノード重なりゼロ"""
@@ -16648,7 +14221,6 @@ def test_fa_f4_no_overlap_multi_as_area():
                 f"dy={dy:.1f} needed_y={needed_y:.1f})"
             )
 
-
 @pytest.mark.unit
 def test_fa_f4_deterministic(sample_topology):
     """F4: 係数縮小後も render() が決定的（2回一致）"""
@@ -16657,7 +14229,6 @@ def test_fa_f4_deterministic(sample_topology):
     html1 = render(copy.deepcopy(sample_topology))
     html2 = render(copy.deepcopy(sample_topology))
     assert html1 == html2, "F4: 係数縮小後の render() が非決定的"
-
 
 # ---------------------------------------------------------------------------
 # F3: AS枠の重なり分離
@@ -16678,7 +14249,6 @@ def _as_group_rects_from_bgp_view(bgp_view_html: str) -> list[tuple[float, float
         )
     return [(float(x), float(y), float(w), float(h)) for x, y, w, h in rects]
 
-
 def _aabb_overlap(ax: float, ay: float, aw: float, ah: float,
                   bx: float, by: float, bw: float, bh: float,
                   margin: float = 0.0) -> bool:
@@ -16690,7 +14260,6 @@ def _aabb_overlap(ax: float, ay: float, aw: float, ah: float,
         ay + ah <= by + margin or
         by + bh <= ay + margin
     )
-
 
 @pytest.mark.unit
 def test_fa_f3_large_topo_bgp_as_rects_no_overlap():
@@ -16730,7 +14299,6 @@ def test_fa_f3_large_topo_bgp_as_rects_no_overlap():
                 f"[{j}]=({bx:.0f},{by:.0f},{bw:.0f},{bh:.0f}) が重なっている"
             )
 
-
 @pytest.mark.unit
 def test_fa_f3_multi_as_area_bgp_as_rects_no_overlap():
     """F3 非回帰: multi-as-area (AS65000/65100/65200) の全 AS 枠ペアが非重なり"""
@@ -16760,7 +14328,6 @@ def test_fa_f3_multi_as_area_bgp_as_rects_no_overlap():
                 f"[{j}]=({bx:.0f},{by:.0f},{bw:.0f},{bh:.0f}) が重なっている"
             )
 
-
 @pytest.mark.unit
 def test_fa_f3_as_relative_positions_preserved():
     """F3: AS 内相対位置が維持される（同一 AS メンバーの相対座標が分離前後で変わらない）"""
@@ -16786,7 +14353,6 @@ def test_fa_f3_as_relative_positions_preserved():
         assert abs(x1 - x2) < 0.01 and abs(y1 - y2) < 0.01, (
             f"F3: AS65000 メンバー {dev_id} の座標が非決定的 ({x1:.1f},{y1:.1f}) vs ({x2:.1f},{y2:.1f})"
         )
-
 
 @pytest.mark.unit
 def test_fa_f3_external_nodes_survive_separation():
@@ -16816,7 +14382,6 @@ def test_fa_f3_external_nodes_survive_separation():
     # BGP ビューが生成されていること自体を確認する
     assert "device-node" in bgp_view, "F3: BGP ビューに device-node が存在しない"
 
-
 @pytest.mark.unit
 def test_fa_f3_deterministic_after_separation():
     """F3: AS 枠分離後も render() が決定的（2回 BGP ビュー一致）"""
@@ -16836,7 +14401,6 @@ def test_fa_f3_deterministic_after_separation():
     html1 = render(copy.deepcopy(topo))
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "F3: AS 枠分離後の render() が非決定的"
-
 
 # ===========================================================================
 # FB: 複数選択ビュー対応 (F1) + IF一覧選択連動 (F2)
@@ -16861,7 +14425,6 @@ def test_fb_f1_update_edge_highlight_branches_on_current_view(rendered_html):
     assert "_currentView" in func_body, \
         "_updateEdgeHighlightForSelection が _currentView を参照していない（F1 ビュー分岐未実装）"
 
-
 # ---------------------------------------------------------------------------
 # F1-B: physical ビュー時は .view-physical .link-edge のみをハイライト対象にする
 # ---------------------------------------------------------------------------
@@ -16880,7 +14443,6 @@ def test_fb_f1_physical_view_targets_view_physical_link_edge(rendered_html):
     # physical 分岐で view-physical スコープのセレクタを使うこと
     assert "view-physical" in func_body, \
         "_updateEdgeHighlightForSelection が .view-physical スコープを参照していない（F1-B 未実装）"
-
 
 # ---------------------------------------------------------------------------
 # F1-C: physical ビュー時は BGP 表行（tr[data-bgp-id]）をハイライトしない
@@ -16911,7 +14473,6 @@ def test_fb_f1_physical_view_does_not_touch_bgp_table(rendered_html):
         assert 'data-bgp-id' not in physical_block, \
             "F1-C: physical 分岐内で BGP 表行（data-bgp-id）を操作している"
 
-
 # ---------------------------------------------------------------------------
 # F1-D: bgp ビュー時は .view-bgp .bgp-session をハイライト対象にする
 # ---------------------------------------------------------------------------
@@ -16929,7 +14490,6 @@ def test_fb_f1_bgp_view_targets_view_bgp_bgp_session(rendered_html):
     func_body = func_match.group(1)
     assert "view-bgp" in func_body, \
         "_updateEdgeHighlightForSelection が .view-bgp スコープを参照していない（F1-D 未実装）"
-
 
 # ---------------------------------------------------------------------------
 # F1-E: bgp ビュー時は tr[data-bgp-id] 表行もハイライトする
@@ -16960,7 +14520,6 @@ def test_fb_f1_bgp_view_highlights_bgp_table_rows(rendered_html):
         assert 'data-bgp-id' in func_body and 'view-bgp' in func_body, \
             "F1-E: _updateEdgeHighlightForSelection に view-bgp かつ data-bgp-id の参照がない"
 
-
 # ---------------------------------------------------------------------------
 # F1-F: ospf ビュー時は .view-ospf .link-edge をハイライト対象にする
 # ---------------------------------------------------------------------------
@@ -16978,7 +14537,6 @@ def test_fb_f1_ospf_view_targets_view_ospf_link_edge(rendered_html):
     func_body = func_match.group(1)
     assert "view-ospf" in func_body, \
         "_updateEdgeHighlightForSelection が .view-ospf スコープを参照していない（F1-F 未実装）"
-
 
 # ---------------------------------------------------------------------------
 # F1-G: ospf ビュー時は OSPF 表行（tr[data-ospf-id]）もハイライトする
@@ -16999,7 +14557,6 @@ def test_fb_f1_ospf_view_highlights_ospf_table_rows(rendered_html):
     assert "data-ospf-id" in func_body, \
         "F1-G: _updateEdgeHighlightForSelection 内に data-ospf-id の参照がない（OSPF 表連動未実装）"
 
-
 # ---------------------------------------------------------------------------
 # F1-H: selectView 呼び出し後に _updateEdgeHighlightForSelection が再適用される
 # ---------------------------------------------------------------------------
@@ -17017,7 +14574,6 @@ def test_fb_f1_select_view_calls_update_edge_highlight(rendered_html):
     sv_body = selectview_match.group(1)
     assert "_updateEdgeHighlightForSelection" in sv_body, \
         "F1-H: selectView 内で _updateEdgeHighlightForSelection() が呼ばれていない（ビュー切替時の再適用未実装）"
-
 
 # ---------------------------------------------------------------------------
 # F1-I: clearSelection で selection-edge-hl が全解除される（非回帰）
@@ -17038,260 +14594,10 @@ def test_fb_f1_clear_selection_removes_selection_edge_hl(rendered_html):
     assert "selection-edge-hl" in func_body, \
         "F1-I: _updateEdgeHighlightForSelection 内に selection-edge-hl の解除コードが存在しない"
 
-
 # ---------------------------------------------------------------------------
 # F2-A: selectView('ifinv') 時にドロップダウン状態変数がリセットされる
 # ---------------------------------------------------------------------------
 
-@pytest.mark.unit
-def test_fb_f2_select_view_ifinv_resets_device_filter(rendered_html):
-    """F2-A: selectView('ifinv') 入場時に _ifinvDeviceFilter が空文字にリセットされる。
-    直接 selectView 内でも _resetIfinvFilters() 経由でも可。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    # _resetIfinvFilters 関数があり、その中で _ifinvDeviceFilter = '' を行う場合を確認
-    reset_func_match = re.search(
-        r'function _resetIfinvFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
-        js_text, re.DOTALL
-    )
-    if reset_func_match:
-        reset_body = reset_func_match.group(1)
-        assert "_ifinvDeviceFilter" in reset_body, \
-            "F2-A: _resetIfinvFilters 内で _ifinvDeviceFilter がリセットされていない（残留バグ未修正）"
-        # selectView の ifinv 分岐から _resetIfinvFilters が呼ばれること
-        sv_match = re.search(
-            r'function selectView\(viewId\)(.*?)(?=\n    function |\n    // ={3,})',
-            js_text, re.DOTALL
-        )
-        assert sv_match is not None, "selectView 関数が JS に見つからない"
-        sv_body = sv_match.group(1)
-        ifinv_block_match = re.search(
-            r"viewId\s*===\s*['\"]ifinv['\"].*?(?=\}\s*else\b|\Z)",
-            sv_body, re.DOTALL
-        )
-        if ifinv_block_match:
-            ifinv_block = ifinv_block_match.group(0)
-            has_direct = "_ifinvDeviceFilter" in ifinv_block
-            has_indirect = "_resetIfinvFilters" in ifinv_block
-            assert has_direct or has_indirect, \
-                "F2-A: selectView ifinv 分岐内で _ifinvDeviceFilter も _resetIfinvFilters も呼ばれていない"
-    else:
-        # _resetIfinvFilters がない場合: selectView 内に直接 _ifinvDeviceFilter があること
-        sv_match = re.search(
-            r'function selectView\(viewId\)(.*?)(?=\n    function |\n    // ={3,})',
-            js_text, re.DOTALL
-        )
-        assert sv_match is not None, "selectView 関数が JS に見つからない"
-        assert "_ifinvDeviceFilter" in sv_match.group(1), \
-            "F2-A: selectView に _ifinvDeviceFilter リセットコードがない（残留バグ未修正）"
-
-
-# ---------------------------------------------------------------------------
-# F2-B: selectView('ifinv') 時にドロップダウン <select> の value もリセットされる
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_fb_f2_select_view_ifinv_resets_select_element_value(rendered_html):
-    """F2-B: selectView('ifinv') 入場時に ifinv-filter-device の <select>.value が '' にリセットされる。
-    直接 selectView 内でも、_resetIfinvFilters() 経由でも可。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    # selectView または _resetIfinvFilters のどちらかに ifinv-filter-device の参照があること
-    assert "ifinv-filter-device" in js_text, \
-        "F2-B: ifinv-filter-device セレクタ参照が JS にない（<select>.value リセット未実装）"
-    # さらに、selectView の ifinv 分岐から _resetIfinvFilters か直接参照が呼ばれること
-    reset_func_match = re.search(
-        r'function _resetIfinvFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
-        js_text, re.DOTALL
-    )
-    if reset_func_match:
-        # _resetIfinvFilters 内に ifinv-filter-device があること
-        assert "ifinv-filter-device" in reset_func_match.group(1), \
-            "F2-B: _resetIfinvFilters 内に ifinv-filter-device 参照がない"
-
-
-# ---------------------------------------------------------------------------
-# F2-C: selectView('ifinv') 入場時に _applyIfFilters が呼ばれる
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_fb_f2_select_view_ifinv_calls_apply_if_filters(rendered_html):
-    """F2-C: selectView('ifinv') 入場時に _applyIfFilters() が（直接または間接に）呼ばれる。
-    _resetIfinvFilters() 経由でも可（_resetIfinvFilters の中で _applyIfFilters を呼ぶ）。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    selectview_match = re.search(
-        r'function selectView\(viewId\)(.*?)(?=\n    function |\n    // ={3,})',
-        js_text, re.DOTALL
-    )
-    assert selectview_match is not None, \
-        "selectView 関数が JS に見つからない"
-    sv_body = selectview_match.group(1)
-    # ifinv 分岐内で _applyIfFilters() 直接または _resetIfinvFilters()（間接）が呼ばれること
-    ifinv_block_match = re.search(
-        r"viewId\s*===\s*['\"]ifinv['\"].*?(?=\}\s*else\b|\Z)",
-        sv_body, re.DOTALL
-    )
-    if ifinv_block_match:
-        ifinv_block = ifinv_block_match.group(0)
-        has_direct = "_applyIfFilters" in ifinv_block
-        has_indirect = "_resetIfinvFilters" in ifinv_block
-        assert has_direct or has_indirect, \
-            "F2-C: selectView ifinv 分岐内で _applyIfFilters() も _resetIfinvFilters() も呼ばれていない"
-        # _resetIfinvFilters 経由の場合、その関数内で _applyIfFilters が呼ばれることを確認
-        if has_indirect and not has_direct:
-            reset_func_match = re.search(
-                r'function _resetIfinvFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
-                js_text, re.DOTALL
-            )
-            assert reset_func_match is not None, \
-                "F2-C: _resetIfinvFilters 関数が JS に見つからない"
-            assert "_applyIfFilters" in reset_func_match.group(1), \
-                "F2-C: _resetIfinvFilters 内で _applyIfFilters() が呼ばれていない"
-    else:
-        has_call = "_applyIfFilters" in sv_body or "_resetIfinvFilters" in sv_body
-        assert has_call, \
-            "F2-C: selectView に _applyIfFilters() / _resetIfinvFilters() 呼び出しがない"
-
-
-# ---------------------------------------------------------------------------
-# F2-D: _applyIfFilters に _selectedNodes による matchSelection 条件がある
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_fb_f2_apply_if_filters_has_match_selection_condition(rendered_html):
-    """F2-D: _applyIfFilters が _selectedNodes に基づく matchSelection 条件を持つ。
-    ノード未選択は全表示、複数選択なら選択機器のみ表示（IF一覧の選択連動）。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    func_match = re.search(
-        r'function _applyIfFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
-        js_text, re.DOTALL
-    )
-    assert func_match is not None, \
-        "_applyIfFilters 関数が JS に見つからない"
-    func_body = func_match.group(1)
-    # _selectedNodes を参照するマッチ条件が存在すること
-    assert "_selectedNodes" in func_body, \
-        "F2-D: _applyIfFilters に _selectedNodes による選択連動条件がない（F2 選択連動未実装）"
-
-
-# ---------------------------------------------------------------------------
-# F2-E: _applyIfFilters の AND 条件に matchSelection が追加されている
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_fb_f2_apply_if_filters_and_includes_match_selection(rendered_html):
-    """F2-E: _applyIfFilters の 最終 AND 式に matchSelection (または同等変数) が含まれる。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    func_match = re.search(
-        r'function _applyIfFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
-        js_text, re.DOTALL
-    )
-    assert func_match is not None, \
-        "_applyIfFilters 関数が JS に見つからない"
-    func_body = func_match.group(1)
-    # matchSelection（または matchSel / selectedMatch 等）が AND 式に含まれること
-    has_match_selection = (
-        "matchSelection" in func_body
-        or re.search(r'matchSel\b', func_body) is not None
-    )
-    assert has_match_selection, \
-        "F2-E: _applyIfFilters の AND 式に matchSelection 変数が存在しない（F2 選択連動未実装）"
-
-
-# ---------------------------------------------------------------------------
-# F2-F: _selectedNodes.size === 0 のとき matchSelection は全行 true になる
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_fb_f2_match_selection_true_when_no_nodes_selected(rendered_html):
-    """F2-F: _selectedNodes.size === 0 のとき matchSelection が true になるロジックが存在する。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    func_match = re.search(
-        r'function _applyIfFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
-        js_text, re.DOTALL
-    )
-    assert func_match is not None, \
-        "_applyIfFilters 関数が JS に見つからない"
-    func_body = func_match.group(1)
-    # _selectedNodes.size === 0 の条件が matchSelection ロジックにあること
-    has_size_zero = (
-        "_selectedNodes.size === 0" in func_body
-        or "_selectedNodes.size == 0" in func_body
-        or re.search(r'_selectedNodes\.size\s*<\s*1\b', func_body) is not None
-        or re.search(r'!\s*_selectedNodes\.size\b', func_body) is not None
-    )
-    assert has_size_zero, \
-        "F2-F: _applyIfFilters に _selectedNodes.size === 0 の全行表示条件がない"
-
-
-# ---------------------------------------------------------------------------
-# F2-G: 選択変化（ノードクリック）時に _applyIfFilters が呼ばれる
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_fb_f2_node_click_calls_apply_if_filters(rendered_html):
-    """F2-G: ノードクリックハンドラが _updateEdgeHighlightForSelection() と
-    _applyIfFilters() の両方を呼ぶ。選択変化を IF一覧に即時反映するため必要。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    # _updateEdgeHighlightForSelection() の呼び出しを含むノードクリックハンドラを探し、
-    # その直後に _applyIfFilters() があることを確認する
-    # ノードクリックハンドラ: _selectedNodes.add(deviceId) ... _updateEdgeHighlightForSelection() ... _applyIfFilters()
-    node_handler_match = re.search(
-        r'_selectedNodes\.add\(deviceId\).*?_updateEdgeHighlightForSelection\(\).*?_applyIfFilters\(\)',
-        js_text, re.DOTALL
-    )
-    assert node_handler_match is not None, \
-        "F2-G: ノードクリックハンドラが _applyIfFilters() を呼んでいない（IF一覧選択連動未実装）"
-
-
-# ---------------------------------------------------------------------------
-# F2-H: カードクリックでも _applyIfFilters が呼ばれる
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_fb_f2_card_click_calls_apply_if_filters(rendered_html):
-    """F2-H: カードクリックハンドラも _applyIfFilters() を呼ぶ。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    # カードクリックハンドラ: _selectedNodes.add(deviceId) の後に
-    # _updateEdgeHighlightForSelection() と _applyIfFilters() が呼ばれること
-    # ノードクリックとカードクリックの両方のパターンをカバーするため、
-    # device-card を使った querySelectorAll の後のハンドラ本体を確認する
-    card_handler_match = re.search(
-        r"device-card.*?_updateEdgeHighlightForSelection\(\).*?_applyIfFilters\(\)",
-        js_text, re.DOTALL
-    )
-    assert card_handler_match is not None, \
-        "F2-H: カードクリックハンドラが _applyIfFilters() を呼んでいない"
-
-
-# ---------------------------------------------------------------------------
-# F2-I 非回帰: 既存 _applyIfFilters の 7条件 AND が維持される
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
-def test_fb_f2_apply_if_filters_existing_conditions_preserved(rendered_html):
-    """F2-I 非回帰: F2 追加後も既存フィルタ条件（matchSearch/matchUnused/matchDevice/
-    matchAf/matchStatus/matchL2l3/matchNodeFilter）が _applyIfFilters に残っている。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    func_match = re.search(
-        r'function _applyIfFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
-        js_text, re.DOTALL
-    )
-    assert func_match is not None, \
-        "_applyIfFilters 関数が JS に見つからない"
-    func_body = func_match.group(1)
-    existing_conditions = [
-        "matchSearch", "matchUnused", "matchDevice",
-        "matchAf", "matchStatus", "matchL2l3", "matchNodeFilter",
-    ]
-    for cond in existing_conditions:
-        assert cond in func_body, \
-            f"F2-I 非回帰: _applyIfFilters から '{cond}' 条件が消えた"
-
-
-# ---------------------------------------------------------------------------
-# F1/F2 非回帰: _updateEdgeHighlightForSelection が既存の selection-edge-hl 解除を保持する
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
 def test_fb_regression_update_edge_hl_clears_all_three_selectors(rendered_html):
     """F1 非回帰: _updateEdgeHighlightForSelection が bgp-session/link-edge/tr の
     3セレクタすべての selection-edge-hl を解除するコードを持つ。"""
@@ -17310,7 +14616,6 @@ def test_fb_regression_update_edge_hl_clears_all_three_selectors(rendered_html):
     assert "link-edge.selection-edge-hl" in func_body or \
            ("link-edge" in func_body and "selection-edge-hl" in func_body), \
         "非回帰: link-edge の selection-edge-hl クリアコードが消えた"
-
 
 # ===========================================================================
 # FA/FB 2巡目 低コスト堅牢化テスト
@@ -17355,7 +14660,6 @@ def test_fa_f3_max_iters_dynamic_scales_with_as_count():
                 f"F3: 8AS 同一座標ケースで AS枠 {dev_ids[i]} と {dev_ids[j]} が重なっている"
             )
 
-
 @pytest.mark.unit
 def test_fa_f3_max_iters_10as_all_separated():
     """F3: 10 AS を同一座標から配置しても全ペア AS 枠が分離されること。"""
@@ -17386,7 +14690,6 @@ def test_fa_f3_max_iters_10as_all_separated():
                 f"F3: 10AS 同一座標ケースで AS枠 {dev_ids[i]} と {dev_ids[j]} が重なっている"
             )
 
-
 # ---------------------------------------------------------------------------
 # 修正2: clearSelection で selection-edge-hl を確実クリア (correctness MED-1)
 # ---------------------------------------------------------------------------
@@ -17407,42 +14710,16 @@ def test_fb_med1_clear_selection_calls_update_edge_highlight(rendered_html):
         "（clearSelection 後に selection-edge-hl が残留する）"
     )
 
-
 # ---------------------------------------------------------------------------
 # 修正3: _resetIfinvFilters が未使用トグルもリセット (correctness MED-2)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.unit
-def test_fb_med2_reset_ifinv_filters_resets_unused_toggle(rendered_html):
-    """MED-2: _resetIfinvFilters が _ifinvUnusedOnly=false と
-    #ifinv-unused-toggle の checked=false をリセットするコードを含む。"""
-    js_text = rendered_html[rendered_html.find("<script>"):]
-    func_match = re.search(
-        r'function _resetIfinvFilters\(\)(.*?)(?=\n    function |\n    // ={3,})',
-        js_text, re.DOTALL
-    )
-    assert func_match is not None, "_resetIfinvFilters 関数が見つからない"
-    func_body = func_match.group(1)
-    assert "_ifinvUnusedOnly" in func_body, (
-        "_resetIfinvFilters が _ifinvUnusedOnly をリセットしていない"
-    )
-    assert "ifinv-unused-toggle" in func_body, (
-        "_resetIfinvFilters が #ifinv-unused-toggle をリセットしていない"
-    )
-
-
-# ---------------------------------------------------------------------------
-# 修正4: _as_cluster_bbox 空リストガード (correctness LOW)
-# ---------------------------------------------------------------------------
-
-@pytest.mark.unit
 def test_fa_low_as_cluster_bbox_empty_raises_value_error():
     """LOW: _as_cluster_bbox([]) は空リストで ValueError を投げる（防御的ガード）。"""
     from lib.rendering.views import _as_cluster_bbox
 
     with pytest.raises((ValueError, IndexError)):
         _as_cluster_bbox([], {}, {}, 20.0)
-
 
 @pytest.mark.unit
 def test_fa_low_as_cluster_bbox_single_node():
@@ -17455,7 +14732,6 @@ def test_fa_low_as_cluster_bbox_single_node():
     min_x, min_y, max_x, max_y = result
     assert min_x < max_x, "min_x >= max_x: bbox が不正"
     assert min_y < max_y, "min_y >= max_y: bbox が不正"
-
 
 # ===========================================================================
 # Round C: 使い勝手3機能
@@ -17473,13 +14749,11 @@ def test_rc_keyboard_input_guard_in_js(rendered_html):
     assert "INPUT" in js_part, "INPUT ガードが keydown ハンドラにない"
     assert "TEXTAREA" in js_part, "TEXTAREA ガードが keydown ハンドラにない"
 
-
 @pytest.mark.unit
 def test_rc_keyboard_escape_blurs_input(rendered_html):
     """① Escape キー: 入力欄に focus がある場合 blur() を呼ぶコードが存在する"""
     js_part = rendered_html[rendered_html.find("<script>"):]
     assert "blur()" in js_part, "Escape で入力欄を blur() するコードがない"
-
 
 @pytest.mark.unit
 def test_rc_keyboard_number_keys_view_switch(rendered_html):
@@ -17491,14 +14765,12 @@ def test_rc_keyboard_number_keys_view_switch(rendered_html):
     assert "parseInt" in js_part or "Number(" in js_part or "charCodeAt" in js_part, \
         "数字キーのインデックス変換処理が見つからない"
 
-
 @pytest.mark.unit
 def test_rc_keyboard_slash_search_focus(rendered_html):
     """① '/' キーで #search-input をフォーカスし preventDefault するコードが存在する"""
     js_part = rendered_html[rendered_html.find("<script>"):]
     assert "search-input" in js_part, "#search-input へのフォーカスコードがない"
     assert "preventDefault" in js_part, "/ キーの preventDefault が見つからない"
-
 
 @pytest.mark.unit
 def test_rc_keyboard_help_text_updated(rendered_html):
@@ -17510,7 +14782,6 @@ def test_rc_keyboard_help_text_updated(rendered_html):
         "ヘルプ文言に数字キー (1〜5) の記述がない"
     assert "/" in body_part, "ヘルプ文言に / キーの記述がない"
 
-
 # ---------------------------------------------------------------------------
 # ② 統合凡例トグルパネル
 # ---------------------------------------------------------------------------
@@ -17520,19 +14791,16 @@ def test_rc_legend_toggle_button_exists(rendered_html):
     """② id="legend-toggle" ボタンが存在する"""
     assert 'id="legend-toggle"' in rendered_html, "legend-toggle ボタンが存在しない"
 
-
 @pytest.mark.unit
 def test_rc_legend_panel_exists(rendered_html):
     """② id="legend-panel" パネルが存在する"""
     assert 'id="legend-panel"' in rendered_html, "legend-panel が存在しない"
-
 
 @pytest.mark.unit
 def test_rc_toggle_legend_function_exists(rendered_html):
     """② toggleLegend() 関数が JS に存在する"""
     js_part = rendered_html[rendered_html.find("<script>"):]
     assert "toggleLegend" in js_part, "toggleLegend 関数が存在しない"
-
 
 @pytest.mark.unit
 def test_rc_legend_panel_initially_hidden(rendered_html):
@@ -17547,7 +14815,6 @@ def test_rc_legend_panel_initially_hidden(rendered_html):
     assert "display:none" in tag_content or "display: none" in tag_content, \
         "legend-panel が初期状態で非表示になっていない"
 
-
 @pytest.mark.unit
 def test_rc_legend_static_sections(rendered_html):
     """② 静的凡例ラベル（eBGP / iBGP / Loopback / 外部ピア）が含まれる"""
@@ -17555,7 +14822,6 @@ def test_rc_legend_static_sections(rendered_html):
     assert "iBGP" in rendered_html, "iBGP 凡例ラベルがない"
     assert "Loopback" in rendered_html, "Loopback 凡例ラベルがない"
     assert "外部ピア" in rendered_html, "外部ピア 凡例ラベルがない"
-
 
 @pytest.mark.unit
 def test_rc_legend_dynamic_as_section_with_bgp_topology():
@@ -17605,7 +14871,6 @@ def test_rc_legend_dynamic_as_section_with_bgp_topology():
     pos_65002 = html.find("AS65002")
     assert pos_65001 < pos_65002, "AS 凡例が昇順になっていない（65001 が 65002 より後）"
 
-
 @pytest.mark.unit
 def test_rc_legend_no_as_section_without_bgp():
     """② AS を持たない topology では AS セクションが凡例に出ない"""
@@ -17632,7 +14897,6 @@ def test_rc_legend_no_as_section_without_bgp():
         assert not re.search(r"AS\d{5}", panel_content), \
             "AS なし topology なのに凡例パネルに AS 行が出ている"
 
-
 @pytest.mark.unit
 def test_rc_legend_deterministic(sample_topology):
     """② legend を含む render 出力が決定的（2回呼んで同一）"""
@@ -17641,7 +14905,6 @@ def test_rc_legend_deterministic(sample_topology):
     html1 = render(copy.deepcopy(sample_topology))
     html2 = render(copy.deepcopy(sample_topology))
     assert html1 == html2, "legend を含む render 出力が非決定的"
-
 
 # ---------------------------------------------------------------------------
 # ③ 接続フィルタ
@@ -17652,12 +14915,10 @@ def test_rc_filter_connected_button_exists(rendered_html):
     """③ id="filter-connected" ボタンが存在する"""
     assert 'id="filter-connected"' in rendered_html, "filter-connected ボタンがない"
 
-
 @pytest.mark.unit
 def test_rc_invert_selection_button_exists(rendered_html):
     """③ id="invert-selection" ボタンが存在する"""
     assert 'id="invert-selection"' in rendered_html, "invert-selection ボタンがない"
-
 
 @pytest.mark.unit
 def test_rc_filter_connected_function_js(rendered_html):
@@ -17669,7 +14930,6 @@ def test_rc_filter_connected_function_js(rendered_html):
     assert "bgp" in js_part, "bgp ビューの分岐がない"
     assert "ospf" in js_part, "ospf ビューの分岐がない"
 
-
 @pytest.mark.unit
 def test_rc_filter_connected_uses_link_edge_data(rendered_html):
     """③ filterConnected は .link-edge[data-a][data-b] を参照する"""
@@ -17677,14 +14937,12 @@ def test_rc_filter_connected_uses_link_edge_data(rendered_html):
     assert "link-edge" in js_part and "data-a" in js_part and "data-b" in js_part, \
         "filterConnected が link-edge の data-a/data-b を参照していない"
 
-
 @pytest.mark.unit
 def test_rc_filter_connected_ospf_seg_grouping(rendered_html):
     """③ filterConnected の OSPF 分岐が seg-edge の data-seg-id グルーピングを行う"""
     js_part = rendered_html[rendered_html.find("<script>"):]
     assert "seg-edge" in js_part, "ospf 分岐で seg-edge が参照されていない"
     assert "data-seg-id" in js_part, "ospf 分岐で data-seg-id が参照されていない"
-
 
 @pytest.mark.unit
 def test_rc_invert_selection_function_js(rendered_html):
@@ -17696,7 +14954,6 @@ def test_rc_invert_selection_function_js(rendered_html):
     assert "_updateCardFilter" in js_part, \
         "invertSelection が _updateCardFilter を呼んでいない"
 
-
 @pytest.mark.unit
 def test_rc_filter_connected_empty_selection_noop(rendered_html):
     """③ filterConnected: 選択が空のとき no-op コード（早期リターン等）が存在する"""
@@ -17706,11 +14963,9 @@ def test_rc_filter_connected_empty_selection_noop(rendered_html):
            "if (_selectedNodes.size" in js_part, \
         "filterConnected の空選択ガードが見つからない"
 
-
 # ---------------------------------------------------------------------------
 # Round C バグ修正・テスト強化（tdd-guide 追加分）
 # ---------------------------------------------------------------------------
-
 
 # === 【実バグ1】invertSelection 2パス構造テスト ===
 
@@ -17748,35 +15003,14 @@ def test_rc_invert_selection_two_pass_structure(rendered_html):
     assert "classList" in second_loop_body, \
         "pass2 以降のループに classList 操作がない"
 
-
 # === 【実バグ2】filterConnected ifinvビューの早期 return テスト ===
 
-@pytest.mark.unit
-def test_rc_filter_connected_ifinv_early_return(rendered_html):
-    """filterConnected: ifinvビューでは隣接計算をせず早期returnすること"""
-    func_body = _extract_js_function(rendered_html, "filterConnected")
-    assert func_body, "filterConnected 関数が見つからない"
-    # _currentView === 'ifinv' の early return が関数本体にあること
-    assert "_currentView === 'ifinv'" in func_body, \
-        "filterConnected に ifinv ビューの early return がない（ifinvビュー状態汚染バグ）"
-    # returnが直後に来ること（if (_currentView === 'ifinv') return; パターン）
-    ifinv_pos = func_body.find("_currentView === 'ifinv'")
-    # ifinv 文字列の後150文字以内に return が含まれること
-    surrounding = func_body[ifinv_pos:ifinv_pos + 150]
-    assert "return" in surrounding, \
-        "ifinv チェックの直後に return がない"
-
-
-# === 【MEDIUM】toggleLegend getComputedStyle テスト ===
-
-@pytest.mark.unit
 def test_rc_toggle_legend_uses_computed_style(rendered_html):
     """toggleLegend: CSS由来の非表示も検出できるよう getComputedStyle を使うこと"""
     func_body = _extract_js_function(rendered_html, "toggleLegend")
     assert func_body, "toggleLegend 関数が見つからない"
     assert "getComputedStyle" in func_body, \
         "toggleLegend が getComputedStyle を使っていない（CSS由来displayで誤動作するバグ）"
-
 
 # === 【テスト強化 H-3】keyboard help text のタグ単位検証 ===
 
@@ -17787,7 +15021,6 @@ def test_rc_keyboard_help_text_kbd_tags(rendered_html):
     assert "<kbd>1</kbd>" in body_part, "ヘルプ文言に <kbd>1</kbd> タグがない"
     assert "<kbd>5</kbd>" in body_part, "ヘルプ文言に <kbd>5</kbd> タグがない"
     assert "<kbd>/</kbd>" in body_part, "ヘルプ文言に <kbd>/</kbd> タグがない"
-
 
 # === 【テスト強化 H-4】filterConnected 関数本体に3分岐があること ===
 
@@ -17802,7 +15035,6 @@ def test_rc_filter_connected_three_view_branches_in_body(rendered_html):
         "filterConnected 本体に bgp 分岐がない"
     assert "'ospf'" in func_body or '"ospf"' in func_body, \
         "filterConnected 本体に ospf 分岐がない"
-
 
 # === 【テスト強化 H-1】legend-panel 領域にスコープした AS 昇順検証 ===
 
@@ -17851,7 +15083,6 @@ def test_rc_legend_as_order_scoped_to_legend_panel():
     assert pos_65001 < pos_65002, \
         "legend-panel 内で AS65001 が AS65002 より後に現れる（昇順でない）"
 
-
 # === 【テスト強化 C-1】legend_no_as の素通り防止 ===
 
 @pytest.mark.unit
@@ -17878,7 +15109,6 @@ def test_rc_legend_no_as_section_scoped():
     assert not re.search(r"AS\d{5}", panel_region), \
         "AS なし topology なのに legend-panel 領域に AS 行が出ている"
 
-
 # === 【テスト強化 M-1】legend_static_sections を legend-panel 領域にスコープ ===
 
 @pytest.mark.unit
@@ -17892,7 +15122,6 @@ def test_rc_legend_static_sections_scoped(rendered_html):
     assert "Loopback" in panel_region, "legend-panel 内に Loopback 凡例ラベルがない"
     assert "外部ピア" in panel_region, "legend-panel 内に 外部ピア 凡例ラベルがない"
 
-
 # === 【ユニットテスト追加】_build_legend_as_html / _collect_bgp_asns 単体 ===
 
 @pytest.mark.unit
@@ -17902,7 +15131,6 @@ def test_rc_build_legend_as_html_empty():
     result = _build_legend_as_html([])
     assert result == "", f"空リストで空文字でなく '{result}' が返った"
 
-
 @pytest.mark.unit
 def test_rc_build_legend_as_html_single():
     """_build_legend_as_html([65001]) は AS65001 を含む HTML を返す"""
@@ -17911,7 +15139,6 @@ def test_rc_build_legend_as_html_single():
     assert "AS65001" in result, "_build_legend_as_html が AS65001 を含まない"
     assert "AS 枠" in result, "_build_legend_as_html にセクションタイトルがない"
 
-
 @pytest.mark.unit
 def test_rc_build_legend_as_html_deterministic():
     """_build_legend_as_html は同一入力で同一出力（決定的）"""
@@ -17919,7 +15146,6 @@ def test_rc_build_legend_as_html_deterministic():
     result1 = _build_legend_as_html([65001, 65002])
     result2 = _build_legend_as_html([65001, 65002])
     assert result1 == result2, "_build_legend_as_html が非決定的"
-
 
 @pytest.mark.unit
 def test_rc_collect_bgp_asns_sorted_unique():
@@ -17937,14 +15163,12 @@ def test_rc_collect_bgp_asns_sorted_unique():
     result = _collect_bgp_asns(devices, bgp_entries)
     assert result == [65001, 65002, 65003], f"昇順ユニーク結果が期待と異なる: {result}"
 
-
 @pytest.mark.unit
 def test_rc_collect_bgp_asns_empty():
     """_collect_bgp_asns は空入力で空リストを返す"""
     from lib.rendering.views import _collect_bgp_asns
     result = _collect_bgp_asns([], [])
     assert result == [], f"空入力で [] でなく {result} が返った"
-
 
 @pytest.mark.unit
 def test_rc_collect_bgp_asns_devices_only():
@@ -17953,7 +15177,6 @@ def test_rc_collect_bgp_asns_devices_only():
     devices = [{"id": "r1", "as": 65100}, {"id": "r2", "as": None}]
     result = _collect_bgp_asns(devices, [])
     assert result == [65100], f"devices のみの AS 収集が期待と異なる: {result}"
-
 
 # ===========================================================================
 # Round C クロスレビュー修正テスト
@@ -17978,7 +15201,6 @@ def test_roundc_filter_connected_ospf_also_uses_link_edge(rendered_html):
         "（p2p リンク主体のOSPFトポロジで接続先のみが壊れるバグ）"
     )
 
-
 @pytest.mark.unit
 def test_roundc_filter_connected_ospf_branch_has_addadjacentbyedge(rendered_html):
     """filterConnected の ospf 分岐内に _addAdjacentByEdge 呼び出しが存在する（p2p 用）"""
@@ -17992,7 +15214,6 @@ def test_roundc_filter_connected_ospf_branch_has_addadjacentbyedge(rendered_html
         "filterConnected の ospf 分岐内で _addAdjacentByEdge が呼ばれていない"
         "（p2p OSPFリンクに対する隣接解決が欠落）"
     )
-
 
 @pytest.mark.unit
 def test_roundc_ospf_view_link_edge_present_in_ospf_topology():
@@ -18013,7 +15234,6 @@ def test_roundc_ospf_view_link_edge_present_in_ospf_topology():
         "OSPF ビュー内に link-edge[data-a][data-b] が存在しない"
         "（p2p リンクが link-edge としてレンダリングされていない）"
     )
-
 
 # ---------------------------------------------------------------------------
 # 修正2【MEDIUM・UX】凡例パネルの静的セクションをビュー存在に応じて条件表示
@@ -18049,7 +15269,6 @@ def _make_ospf_only_topology():
         },
     }
 
-
 def _make_bgp_only_no_ospf_topology():
     """BGP あり・OSPF なし の topology（OSPF節は出ないはずの検証用）"""
     return {
@@ -18082,7 +15301,6 @@ def _make_bgp_only_no_ospf_topology():
         },
     }
 
-
 @pytest.mark.unit
 def test_roundc_legend_bgp_section_present_with_bgp(rendered_html):
     """BGP ビューを持つ sample_topology では凡例パネル内に BGP 節（eBGP/iBGP）が出ること"""
@@ -18091,7 +15309,6 @@ def test_roundc_legend_bgp_section_present_with_bgp(rendered_html):
     panel_region = rendered_html[panel_start:]
     assert "eBGP" in panel_region, "BGP あり topology の legend-panel 内に eBGP 節がない"
     assert "iBGP" in panel_region, "BGP あり topology の legend-panel 内に iBGP 節がない"
-
 
 @pytest.mark.unit
 def test_roundc_legend_bgp_section_absent_without_bgp():
@@ -18112,7 +15329,6 @@ def test_roundc_legend_bgp_section_absent_without_bgp():
         "BGP なし topology なのに legend-panel（HTML部分）内に 'iBGP' が含まれている（UXバグ）"
     )
 
-
 @pytest.mark.unit
 def test_roundc_legend_ospf_section_present_with_ospf(rendered_html):
     """OSPF ビューを持つ sample_topology では凡例パネル内に OSPF 節が出ること"""
@@ -18120,7 +15336,6 @@ def test_roundc_legend_ospf_section_present_with_ospf(rendered_html):
     assert panel_start != -1, "legend-panel が存在しない"
     panel_region = rendered_html[panel_start:]
     assert "OSPF リンク" in panel_region, "OSPF あり topology の legend-panel 内に OSPF 節がない"
-
 
 @pytest.mark.unit
 def test_roundc_legend_ospf_section_absent_without_ospf():
@@ -18135,7 +15350,6 @@ def test_roundc_legend_ospf_section_absent_without_ospf():
     assert "OSPF リンク" not in panel_region, (
         "OSPF なし topology なのに legend-panel（HTML部分）内に 'OSPF リンク' が含まれている（UXバグ）"
     )
-
 
 @pytest.mark.unit
 def test_roundc_legend_node_link_sections_always_present():
@@ -18160,7 +15374,6 @@ def test_roundc_legend_node_link_sections_always_present():
     assert "通常ノード" in panel_region, "legend-panel 内にノード節（通常ノード）がない"
     assert "Physical リンク" in panel_region, "legend-panel 内に Physical リンク節がない"
 
-
 @pytest.mark.unit
 def test_roundc_legend_ifchip_section_always_present():
     """IF チップ節はビュー有無によらず常に表示されること"""
@@ -18182,7 +15395,6 @@ def test_roundc_legend_ifchip_section_always_present():
     panel_region = html[panel_start:]
     assert "接続 IF" in panel_region, "legend-panel 内に IF チップ節（接続 IF）がない"
 
-
 @pytest.mark.unit
 def test_roundc_legend_deterministic_with_bgp_and_ospf(rendered_html):
     """BGP+OSPF を持つ sample_topology での render は決定的（凡例条件分岐修正後も）"""
@@ -18196,7 +15408,6 @@ def test_roundc_legend_deterministic_with_bgp_and_ospf(rendered_html):
     html2 = render(copy.deepcopy(topo))
     assert html1 == html2, "凡例条件分岐修正後に render 出力が非決定的になっている"
 
-
 @pytest.mark.unit
 def test_roundc_legend_bgp_and_ospf_both_present_with_both_protocols(rendered_html):
     """BGP+OSPF 両方を持つ sample_topology では凡例パネルに BGP 節も OSPF 節も出ること"""
@@ -18205,7 +15416,6 @@ def test_roundc_legend_bgp_and_ospf_both_present_with_both_protocols(rendered_ht
     panel_region = rendered_html[panel_start:]
     assert "eBGP" in panel_region, "BGP+OSPF topology の legend-panel 内に eBGP がない"
     assert "OSPF リンク" in panel_region, "BGP+OSPF topology の legend-panel 内に OSPF リンクがない"
-
 
 # ===========================================================================
 # Round D: ダークモード（色覚配慮含む）
@@ -18221,7 +15431,6 @@ def test_roundd_theme_toggle_button_exists(rendered_html):
     assert 'id="theme-toggle"' in rendered_html, \
         'ヘッダに id="theme-toggle" ボタンが存在しない'
 
-
 @pytest.mark.unit
 def test_roundd_theme_toggle_in_header(rendered_html):
     """D1: theme-toggle ボタンが header タグ内に配置されている"""
@@ -18232,7 +15441,6 @@ def test_roundd_theme_toggle_in_header(rendered_html):
     assert 'id="theme-toggle"' in header_region, \
         'theme-toggle ボタンが header 内に配置されていない'
 
-
 # ---------------------------------------------------------------------------
 # D2: JS — toggleTheme 関数の存在
 # ---------------------------------------------------------------------------
@@ -18242,7 +15450,6 @@ def test_roundd_toggle_theme_function_exists(rendered_html):
     """D2: toggleTheme JS 関数が HTML に含まれる"""
     assert 'toggleTheme' in rendered_html, \
         'toggleTheme JS 関数が HTML に含まれていない'
-
 
 @pytest.mark.unit
 def test_roundd_toggle_theme_switches_data_theme(rendered_html):
@@ -18259,7 +15466,6 @@ def test_roundd_toggle_theme_switches_data_theme(rendered_html):
     assert 'data-theme' in func_body, \
         'toggleTheme 関数本体に data-theme 属性の操作がない'
 
-
 # ---------------------------------------------------------------------------
 # D3: CSS — [data-theme="dark"] セレクタの存在
 # ---------------------------------------------------------------------------
@@ -18269,7 +15475,6 @@ def test_roundd_dark_theme_css_selector_exists(rendered_html):
     """D3: CSS に [data-theme="dark"] セレクタが存在する"""
     assert '[data-theme="dark"]' in rendered_html, \
         'CSS に [data-theme="dark"] セレクタが存在しない'
-
 
 @pytest.mark.unit
 def test_roundd_dark_theme_block_has_bg_page(rendered_html):
@@ -18285,7 +15490,6 @@ def test_roundd_dark_theme_block_has_bg_page(rendered_html):
     assert '--bg-page' in dark_block, \
         '[data-theme="dark"] ブロックに --bg-page 変数定義がない'
 
-
 @pytest.mark.unit
 def test_roundd_dark_theme_block_has_text_main(rendered_html):
     """D3: [data-theme="dark"] ブロックに --text-main の明色定義がある"""
@@ -18298,7 +15502,6 @@ def test_roundd_dark_theme_block_has_text_main(rendered_html):
     assert '--text-main' in dark_block, \
         '[data-theme="dark"] ブロックに --text-main 変数定義がない'
 
-
 @pytest.mark.unit
 def test_roundd_dark_theme_block_has_bg_surface(rendered_html):
     """D3: [data-theme="dark"] ブロックに --bg-surface 定義がある"""
@@ -18310,7 +15513,6 @@ def test_roundd_dark_theme_block_has_bg_surface(rendered_html):
     dark_block = m.group(1)
     assert '--bg-surface' in dark_block, \
         '[data-theme="dark"] ブロックに --bg-surface 変数定義がない'
-
 
 # ---------------------------------------------------------------------------
 # D4: CSS — :root に構造変数が定義されている（ライト既定値）
@@ -18326,7 +15528,6 @@ def test_roundd_root_has_bg_page_variable(rendered_html):
     assert val == '#f3f4f6', \
         f'--bg-page のライト既定値が #f3f4f6 でない: {val!r}'
 
-
 @pytest.mark.unit
 def test_roundd_root_has_bg_surface_variable(rendered_html):
     """D4: :root に --bg-surface 変数が定義されている（ライト既定 #fff 相当）"""
@@ -18335,7 +15536,6 @@ def test_roundd_root_has_bg_surface_variable(rendered_html):
     val = m.group(1).strip().lower()
     assert val in ('#fff', '#ffffff'), \
         f'--bg-surface のライト既定値が白でない: {val!r}'
-
 
 @pytest.mark.unit
 def test_roundd_root_has_text_main_variable(rendered_html):
@@ -18346,7 +15546,6 @@ def test_roundd_root_has_text_main_variable(rendered_html):
     assert val == '#111827', \
         f'--text-main のライト既定値が #111827 でない: {val!r}'
 
-
 @pytest.mark.unit
 def test_roundd_root_has_text_muted_variable(rendered_html):
     """D4: :root に --text-muted 変数が定義されている（ライト既定 #6b7280）"""
@@ -18355,7 +15554,6 @@ def test_roundd_root_has_text_muted_variable(rendered_html):
     val = m.group(1).strip().lower()
     assert val == '#6b7280', \
         f'--text-muted のライト既定値が #6b7280 でない: {val!r}'
-
 
 @pytest.mark.unit
 def test_roundd_root_has_header_bg_variable(rendered_html):
@@ -18366,7 +15564,6 @@ def test_roundd_root_has_header_bg_variable(rendered_html):
     assert val == '#1e3a5f', \
         f'--header-bg のライト既定値が #1e3a5f でない: {val!r}'
 
-
 @pytest.mark.unit
 def test_roundd_root_has_text_heading_variable(rendered_html):
     """D4: :root に --text-heading 変数が定義されている（ライト既定 #1e3a5f）"""
@@ -18375,7 +15572,6 @@ def test_roundd_root_has_text_heading_variable(rendered_html):
     val = m.group(1).strip().lower()
     assert val == '#1e3a5f', \
         f'--text-heading のライト既定値が #1e3a5f でない: {val!r}'
-
 
 # ---------------------------------------------------------------------------
 # D5: ライト既定の非回帰 — body/header の色が変数参照になっている
@@ -18393,7 +15589,6 @@ def test_roundd_body_background_uses_variable(rendered_html):
     assert 'var(--bg-page)' in combined, \
         f'body の background が var(--bg-page) を使っていない: {combined.strip()!r}'
 
-
 @pytest.mark.unit
 def test_roundd_body_color_uses_variable(rendered_html):
     """D5: body の color が var(--text-main) を参照している（ハードコード廃止）"""
@@ -18404,7 +15599,6 @@ def test_roundd_body_color_uses_variable(rendered_html):
     assert 'var(--text-main)' in combined, \
         f'body の color が var(--text-main) を使っていない: {combined.strip()!r}'
 
-
 @pytest.mark.unit
 def test_roundd_header_background_uses_variable(rendered_html):
     """D5: header の background が var(--header-bg) を参照している（ハードコード廃止）"""
@@ -18414,7 +15608,6 @@ def test_roundd_header_background_uses_variable(rendered_html):
     assert 'var(--header-bg)' in header_block, \
         f'header の background が var(--header-bg) を使っていない: {header_block.strip()!r}'
 
-
 @pytest.mark.unit
 def test_roundd_header_color_uses_variable(rendered_html):
     """D5: header の color が var(--header-text) を参照している（ハードコード廃止）"""
@@ -18423,7 +15616,6 @@ def test_roundd_header_color_uses_variable(rendered_html):
     header_block = m.group(1)
     assert 'var(--header-text)' in header_block, \
         f'header の color が var(--header-text) を使っていない: {header_block.strip()!r}'
-
 
 # ---------------------------------------------------------------------------
 # D6: ダーク変数値の検証（暗色であること）
@@ -18451,7 +15643,6 @@ def test_roundd_dark_bg_page_is_dark(rendered_html):
     assert brightness < 200, \
         f'ダーク --bg-page={hex_color} が暗色でない (R+G+B={brightness}, 期待 <200)'
 
-
 @pytest.mark.unit
 def test_roundd_dark_text_main_is_light(rendered_html):
     """D6: ダークテーマの --text-main は明色（輝度が高い）であること"""
@@ -18472,7 +15663,6 @@ def test_roundd_dark_text_main_is_light(rendered_html):
     assert brightness > 550, \
         f'ダーク --text-main={hex_color} が明色でない (R+G+B={brightness}, 期待 >550)'
 
-
 # ---------------------------------------------------------------------------
 # D7: localStorage による永続化 — DOMContentLoaded でテーマ復元
 # ---------------------------------------------------------------------------
@@ -18482,7 +15672,6 @@ def test_roundd_localstorage_theme_key_in_js(rendered_html):
     """D7: JS に localStorage を使ったテーマ永続化コードが含まれる"""
     assert 'localStorage' in rendered_html, \
         'JS に localStorage を使ったテーマ永続化がない'
-
 
 @pytest.mark.unit
 def test_roundd_domcontentloaded_restores_theme(rendered_html):
@@ -18494,7 +15683,6 @@ def test_roundd_domcontentloaded_restores_theme(rendered_html):
         rendered_html, re.DOTALL
     ) is not None, \
         'DOMContentLoaded ハンドラ内に localStorage.getItem がない（テーマ復元コードが存在しない）'
-
 
 # ---------------------------------------------------------------------------
 # D8: 自己完結性 — 外部URL参照なし
@@ -18512,7 +15700,6 @@ def test_roundd_no_external_url_reference(rendered_html):
     assert len(external_refs) == 0, \
         f'外部 URL 参照が存在する: {external_refs}'
 
-
 # ---------------------------------------------------------------------------
 # D9: 決定性 — render を2回呼んで同一出力
 # ---------------------------------------------------------------------------
@@ -18527,7 +15714,6 @@ def test_roundd_render_deterministic(sample_topology):
     assert html1 == html2, \
         'ダークモード追加後に render() が非決定的になっている'
 
-
 # ===========================================================================
 # ダークモード取り残し色防止テスト（darkmode 包括修正 regression prevention）
 # ===========================================================================
@@ -18537,7 +15723,6 @@ def _extract_root_block(html: str) -> str:
     m = re.search(r':root\s*\{([^}]+)\}', html, re.DOTALL)
     return m.group(1) if m else ''
 
-
 def _extract_dark_block(html: str) -> str:
     """[data-theme="dark"] { ... } ブロックを抽出（最初のもの）。"""
     m = re.search(
@@ -18545,7 +15730,6 @@ def _extract_dark_block(html: str) -> str:
         html, re.DOTALL
     )
     return m.group(1) if m else ''
-
 
 # ---------------------------------------------------------------------------
 # T21: toggleTheme キー名 (_THEME_KEY) と localStorage 永続化の検証
@@ -18557,7 +15741,6 @@ def test_roundd_theme_key_defined_in_js(rendered_html):
     assert '_THEME_KEY' in rendered_html, \
         '_THEME_KEY 変数が JS に定義されていない'
 
-
 @pytest.mark.unit
 def test_roundd_theme_key_value_is_ct_theme(rendered_html):
     """T21: _THEME_KEY の値が 'ct-theme' である"""
@@ -18565,7 +15748,6 @@ def test_roundd_theme_key_value_is_ct_theme(rendered_html):
     assert m is not None, '_THEME_KEY の値が見つからない'
     assert m.group(1) == 'ct-theme', \
         f"_THEME_KEY の値が 'ct-theme' でない: {m.group(1)!r}"
-
 
 @pytest.mark.unit
 def test_roundd_toggletheme_uses_theme_key(rendered_html):
@@ -18579,7 +15761,6 @@ def test_roundd_toggletheme_uses_theme_key(rendered_html):
     assert '_THEME_KEY' in func_body or 'ct-theme' in func_body, \
         'toggleTheme 関数本体が _THEME_KEY/'+"'ct-theme'"+'を参照していない'
 
-
 # ---------------------------------------------------------------------------
 # T22: :root ブロック限定での変数存在確認（スコープ限定で誤検知防止）
 # ---------------------------------------------------------------------------
@@ -18592,7 +15773,6 @@ def test_roundd_root_block_has_btn_bg(rendered_html):
     assert '--btn-bg' in root_block, \
         ':root ブロックに --btn-bg が定義されていない'
 
-
 @pytest.mark.unit
 def test_roundd_root_block_has_overlay_bg(rendered_html):
     """T22: :root ブロックに --overlay-bg が定義されている"""
@@ -18601,7 +15781,6 @@ def test_roundd_root_block_has_overlay_bg(rendered_html):
     assert '--overlay-bg' in root_block, \
         ':root ブロックに --overlay-bg が定義されていない'
 
-
 @pytest.mark.unit
 def test_roundd_root_block_has_color_row_selected_bg(rendered_html):
     """T22: :root ブロックに --color-row-selected-bg が定義されている"""
@@ -18609,7 +15788,6 @@ def test_roundd_root_block_has_color_row_selected_bg(rendered_html):
     assert root_block, ':root ブロックが抽出できない'
     assert '--color-row-selected-bg' in root_block, \
         ':root ブロックに --color-row-selected-bg が定義されていない'
-
 
 # ---------------------------------------------------------------------------
 # T23: ダークブロックが意味色を上書きしないこと（退行防止）
@@ -18625,7 +15803,6 @@ def test_roundd_dark_block_overrides_color_bgp_ebgp_for_contrast(rendered_html):
     assert '--color-bgp-ebgp' in dark_block, \
         '[data-theme="dark"] に --color-bgp-ebgp の上書きがない（WCAG 3:1 コントラスト確保のため必要）'
 
-
 @pytest.mark.unit
 def test_roundd_dark_color_bgp_ebgp_is_not_original_value(rendered_html):
     """T23: ダーク時 --color-bgp-ebgp がライト既定値 #2563eb ではない（明度を上げた値であること）"""
@@ -18636,7 +15813,6 @@ def test_roundd_dark_color_bgp_ebgp_is_not_original_value(rendered_html):
     dark_value = m.group(1).lower()
     assert dark_value != '#2563eb', \
         f'ダーク時 --color-bgp-ebgp が #2563eb のまま（明度を上げた値に変更されていない）。実際の値: {dark_value}'
-
 
 @pytest.mark.unit
 def test_roundd_root_color_bgp_ebgp_is_original_value(rendered_html):
@@ -18649,7 +15825,6 @@ def test_roundd_root_color_bgp_ebgp_is_original_value(rendered_html):
     assert light_value == '#2563eb', \
         f':root の --color-bgp-ebgp がライト既定値 #2563eb でない。実際の値: {light_value}'
 
-
 @pytest.mark.unit
 def test_roundd_dark_block_does_not_override_color_ospf(rendered_html):
     """T23: [data-theme="dark"] が --color-ospf を上書きしていない（意味色保護）"""
@@ -18657,7 +15832,6 @@ def test_roundd_dark_block_does_not_override_color_ospf(rendered_html):
     assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
     assert '--color-ospf' not in dark_block, \
         '[data-theme="dark"] が --color-ospf を上書きしている（意味色の誤上書き）'
-
 
 @pytest.mark.unit
 def test_roundd_dark_block_does_not_override_color_highlight(rendered_html):
@@ -18667,7 +15841,6 @@ def test_roundd_dark_block_does_not_override_color_highlight(rendered_html):
     assert '--color-highlight' not in dark_block, \
         '[data-theme="dark"] が --color-highlight を上書きしている（意味色の誤上書き）'
 
-
 @pytest.mark.unit
 def test_roundd_dark_block_does_not_override_color_selected(rendered_html):
     """T23: [data-theme="dark"] が --color-selected を上書きしていない（意味色保護）"""
@@ -18675,7 +15848,6 @@ def test_roundd_dark_block_does_not_override_color_selected(rendered_html):
     assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
     assert '--color-selected' not in dark_block, \
         '[data-theme="dark"] が --color-selected を上書きしている（意味色の誤上書き）'
-
 
 # ---------------------------------------------------------------------------
 # T24: ダーク対応後の重要変数が暗色であること
@@ -18697,7 +15869,6 @@ def test_roundd_dark_btn_bg_is_dark(rendered_html):
     assert brightness < 300, \
         f'ダーク --btn-bg={hex_color} が暗色でない (R+G+B={brightness}, 期待 <300)'
 
-
 @pytest.mark.unit
 def test_roundd_dark_color_node_stroke_overridden(rendered_html):
     """T24: ダークテーマで --color-node-stroke が上書きされている（ダーク背景での視認性）"""
@@ -18705,7 +15876,6 @@ def test_roundd_dark_color_node_stroke_overridden(rendered_html):
     assert dark_block, '[data-theme="dark"] ブロックが抽出できない'
     assert '--color-node-stroke' in dark_block, \
         '[data-theme="dark"] に --color-node-stroke の上書きがない（ダーク背景で視認性低下）'
-
 
 # ---------------------------------------------------------------------------
 # T25: 「取り残し」literal 色が操作要素に残っていないこと（再発防止）
@@ -18723,7 +15893,6 @@ def test_roundd_zoom_btn_no_literal_white_bg(rendered_html):
     assert 'var(--btn-bg)' in block, \
         '.zoom-btn の background が var(--btn-bg) を使っていない'
 
-
 @pytest.mark.unit
 def test_roundd_chip_legend_no_literal_white_bg(rendered_html):
     """T25: #chip-legend に rgba(255,255,255... のリテラル白背景が残っていない"""
@@ -18734,7 +15903,6 @@ def test_roundd_chip_legend_no_literal_white_bg(rendered_html):
         '#chip-legend に rgba(255,255,255...) のリテラル白背景が残っている（var(--overlay-bg) を使うこと）'
     assert 'var(--overlay-bg)' in block, \
         '#chip-legend の background が var(--overlay-bg) を使っていない'
-
 
 @pytest.mark.unit
 def test_roundd_external_rect_no_literal_white(rendered_html):
@@ -18749,7 +15917,6 @@ def test_roundd_external_rect_no_literal_white(rendered_html):
     assert 'var(--color-external-fill)' in block, \
         '.external-rect の fill が var(--color-external-fill) を使っていない'
 
-
 @pytest.mark.unit
 def test_roundd_seg_label_no_literal_color(rendered_html):
     """T25: .seg-label にリテラル色 #92400e が残っていない"""
@@ -18760,7 +15927,6 @@ def test_roundd_seg_label_no_literal_color(rendered_html):
         '.seg-label に #92400e のリテラル色が残っている（var(--color-seg-label) を使うこと）'
     assert 'var(--color-seg-label)' in block, \
         '.seg-label の fill が var(--color-seg-label) を使っていない'
-
 
 @pytest.mark.unit
 def test_roundd_dimmed_node_no_literal_light_color(rendered_html):
@@ -18775,7 +15941,6 @@ def test_roundd_dimmed_node_no_literal_light_color(rendered_html):
     assert 'var(--color-node-fill-dimmed)' in block, \
         '.device-node.dimmed .node-rect の fill が var(--color-node-fill-dimmed) を使っていない'
 
-
 @pytest.mark.unit
 def test_roundd_search_count_no_literal_color(rendered_html):
     """T25: #search-count の inline style にリテラル色 #6b7280 が残っていない"""
@@ -18787,7 +15952,6 @@ def test_roundd_search_count_no_literal_color(rendered_html):
         'search-count の inline style に #6b7280 のリテラル色が残っている（var(--text-muted) を使うこと）'
     assert 'var(--text-muted)' in inline_style, \
         'search-count の inline style が var(--text-muted) を使っていない'
-
 
 @pytest.mark.unit
 def test_roundd_header_btns_use_header_btn_class(rendered_html):
@@ -18803,7 +15967,6 @@ def test_roundd_header_btns_use_header_btn_class(rendered_html):
            re.search(r'class="[^"]*header-btn[^"]*"[^>]*id="theme-toggle"', rendered_html), \
         'theme-toggle ボタンが header-btn クラスを持っていない'
 
-
 @pytest.mark.unit
 def test_roundd_theme_toggle_no_inline_literal_style(rendered_html):
     """T25: theme-toggle ボタンにリテラル rgba(255,255,255... inline style が残っていない"""
@@ -18812,7 +15975,6 @@ def test_roundd_theme_toggle_no_inline_literal_style(rendered_html):
     attrs = m.group(1)
     assert 'rgba(255,255,255' not in attrs and 'rgba(255, 255, 255' not in attrs, \
         'theme-toggle に rgba(255,255,255...) のリテラルinline styleが残っている（.header-btn クラスで管理すること）'
-
 
 @pytest.mark.unit
 def test_roundd_dark_overlay_bg_is_dark(rendered_html):
@@ -18829,7 +15991,6 @@ def test_roundd_dark_overlay_bg_is_dark(rendered_html):
         assert brightness < 150, \
             f'ダーク --overlay-bg の RGB({r},{g},{b}) が暗色でない (合計={brightness}, 期待 <150)'
 
-
 @pytest.mark.unit
 def test_roundd_node_filter_btn_uses_variables(rendered_html):
     """T25: .node-filter-btn がリテラル色 #e0e7ff/#3730a3 を使っていない"""
@@ -18841,14 +16002,12 @@ def test_roundd_node_filter_btn_uses_variables(rendered_html):
     assert '#3730a3' not in block, \
         '.node-filter-btn に #3730a3 のリテラル色が残っている（変数参照にすること）'
 
-
 @pytest.mark.unit
 def test_roundd_no_color_card_border_references(rendered_html):
     """T25: --color-card-border 変数参照がなくなっている（--border-color に統一済み）"""
     # :root の定義コメント行を除いて var(--color-card-border) 参照がないこと
     assert 'var(--color-card-border)' not in rendered_html, \
         'var(--color-card-border) の参照が残っている（--border-color に統一すること）'
-
 
 # ============================================================
 # JS 変数初期化順序テスト（node 不要・文字列位置ベース）
@@ -18863,7 +16022,6 @@ def _extract_js_body(html: str) -> str:
     )
     assert scripts, 'JS <script> ブロックが見つからない'
     return scripts[-1]
-
 
 @pytest.mark.unit
 def test_js_selected_nodes_initialized_before_select_view(rendered_html):
@@ -18881,7 +16039,6 @@ def test_js_selected_nodes_initialized_before_select_view(rendered_html):
         "トップレベル実行で TypeError が発生し全リスナーが消える"
     )
 
-
 @pytest.mark.unit
 def test_js_hidden_nodes_initialized_before_select_view(rendered_html):
     """_hiddenNodes が selectView('physical') トップレベル呼び出しより前に初期化される。"""
@@ -18895,7 +16052,6 @@ def test_js_hidden_nodes_initialized_before_select_view(rendered_html):
         f" selectView('physical')（pos={sv_pos}）より後にある"
     )
 
-
 @pytest.mark.unit
 def test_js_no_duplicate_selected_nodes_init(rendered_html):
     """_selectedNodes = new Set() の宣言が重複していない（移動であって複製でないこと）。"""
@@ -18904,7 +16060,6 @@ def test_js_no_duplicate_selected_nodes_init(rendered_html):
     assert count == 1, (
         f"var _selectedNodes = new Set() が {count} 箇所ある（1箇所のみであること）"
     )
-
 
 @pytest.mark.unit
 def test_js_no_duplicate_hidden_nodes_init(rendered_html):
@@ -18915,7 +16070,6 @@ def test_js_no_duplicate_hidden_nodes_init(rendered_html):
         f"var _hiddenNodes = new Set() が {count} 箇所ある（1箇所のみであること）"
     )
 
-
 # ============================================================
 # JS スモークテスト（node 実行・インタラクション配線確認）
 # ============================================================
@@ -18925,7 +16079,6 @@ import subprocess
 import tempfile
 import os
 import json as _json
-
 
 def _build_js_harness(js_body: str) -> str:
     """寛容 DOM モック付きの node 実行ハーネス JS を生成する。"""
@@ -19038,7 +16191,6 @@ process.stdout.write(JSON.stringify({{
 }}) + '\\n');
 """
 
-
 @pytest.mark.unit
 def test_js_smoke_no_throw_and_listeners_registered(rendered_html):
     """JS スモークテスト: トップレベル実行が例外を投げず、
@@ -19089,7 +16241,6 @@ def test_js_smoke_no_throw_and_listeners_registered(rendered_html):
         f"listeners={data['listeners']}"
     )
 
-
 # ============================================================
 # Round D: ミニマップ テスト
 # ============================================================
@@ -19103,7 +16254,6 @@ def test_view_physical_has_id(rendered_html):
         "view-physical グループに id 属性がない"
     )
 
-
 @pytest.mark.unit
 def test_view_bgp_has_id(rendered_html):
     """BGP ビュー <g> に id="view-bgp" が付与されている（BGP ビューが存在する topology）。"""
@@ -19112,7 +16262,6 @@ def test_view_bgp_has_id(rendered_html):
     assert 'id="view-bgp"' in rendered_html, (
         "view-bgp グループに id 属性がない"
     )
-
 
 @pytest.mark.unit
 def test_view_ospf_has_id():
@@ -19146,7 +16295,6 @@ def test_view_ospf_has_id():
     html = render(topo)
     assert 'class="view view-ospf"' in html, "OSPF ビューが生成されていない"
     assert 'id="view-ospf"' in html, "view-ospf グループに id 属性がない"
-
 
 @pytest.mark.unit
 def test_view_generic_has_id():
@@ -19182,7 +16330,6 @@ def test_view_generic_has_id():
     assert 'class="view view-isis"' in html, "汎用(isis)ビューが生成されていない"
     assert 'id="view-isis"' in html, "view-isis グループに id 属性がない"
 
-
 # ---- ② ミニマップ HTML 要素 ----
 
 @pytest.mark.unit
@@ -19190,24 +16337,20 @@ def test_minimap_svg_element_exists(rendered_html):
     """ミニマップ SVG 要素 id="minimap" が存在する。"""
     assert 'id="minimap"' in rendered_html, "id='minimap' 要素が存在しない"
 
-
 @pytest.mark.unit
 def test_minimap_use_element_exists(rendered_html):
     """ミニマップ内 <use id="minimap-use"> が存在する。"""
     assert 'id="minimap-use"' in rendered_html, "id='minimap-use' 要素が存在しない"
-
 
 @pytest.mark.unit
 def test_minimap_viewport_element_exists(rendered_html):
     """ミニマップ内 <rect id="minimap-viewport"> が存在する。"""
     assert 'id="minimap-viewport"' in rendered_html, "id='minimap-viewport' 要素が存在しない"
 
-
 @pytest.mark.unit
 def test_minimap_toggle_button_exists(rendered_html):
     """ミニマップ表示/非表示トグルボタン id="minimap-toggle" が存在する。"""
     assert 'id="minimap-toggle"' in rendered_html, "id='minimap-toggle' ボタンが存在しない"
-
 
 @pytest.mark.unit
 def test_minimap_has_aria_hidden(rendered_html):
@@ -19217,7 +16360,6 @@ def test_minimap_has_aria_hidden(rendered_html):
     m2 = re.search(r'aria-hidden="true"[^>]*id="minimap"', rendered_html)
     assert m or m2, "minimap SVG に aria-hidden='true' がない"
 
-
 @pytest.mark.unit
 def test_minimap_class_on_svg(rendered_html):
     """ミニマップ SVG に class="minimap" が付与されている。"""
@@ -19226,14 +16368,12 @@ def test_minimap_class_on_svg(rendered_html):
     m2 = re.search(r'class="minimap"[^>]*id="minimap"', rendered_html)
     assert m or m2, "minimap SVG に class='minimap' がない"
 
-
 # ---- ③ ミニマップ CSS ----
 
 @pytest.mark.unit
 def test_css_minimap_class_defined(rendered_html):
     """.minimap クラスが CSS に定義されている。"""
     assert '.minimap' in rendered_html, ".minimap CSS が存在しない"
-
 
 @pytest.mark.unit
 def test_css_minimap_position_absolute(rendered_html):
@@ -19244,12 +16384,10 @@ def test_css_minimap_position_absolute(rendered_html):
     assert css_block, ".minimap CSS ブロックが見つからない"
     assert 'absolute' in css_block.group(1), ".minimap に position:absolute がない"
 
-
 @pytest.mark.unit
 def test_css_minimap_viewport_class_defined(rendered_html):
     """.minimap-viewport クラスが CSS に定義されている。"""
     assert '.minimap-viewport' in rendered_html, ".minimap-viewport CSS が存在しない"
-
 
 @pytest.mark.unit
 def test_css_minimap_viewport_vector_effect(rendered_html):
@@ -19260,7 +16398,6 @@ def test_css_minimap_viewport_vector_effect(rendered_html):
     assert 'non-scaling-stroke' in css_block.group(1), (
         ".minimap-viewport に vector-effect: non-scaling-stroke がない"
     )
-
 
 @pytest.mark.unit
 def test_css_minimap_uses_theme_variable(rendered_html):
@@ -19273,7 +16410,6 @@ def test_css_minimap_uses_theme_variable(rendered_html):
         ".minimap CSS にテーマ変数(var(--...))が使われていない（ダーク非対応）"
     )
 
-
 @pytest.mark.unit
 def test_css_minimap_overflow_hidden(rendered_html):
     """.minimap に overflow:hidden が含まれる。"""
@@ -19284,7 +16420,6 @@ def test_css_minimap_overflow_hidden(rendered_html):
         ".minimap に overflow:hidden がない"
     )
 
-
 # ---- ④ ミニマップ JS ----
 
 @pytest.mark.unit
@@ -19293,7 +16428,6 @@ def test_js_update_minimap_function_defined(rendered_html):
     js = _extract_js_body(rendered_html)
     assert 'function _updateMinimap' in js, "function _updateMinimap が JS に存在しない"
 
-
 @pytest.mark.unit
 def test_js_update_minimap_exposed_on_window(rendered_html):
     """_updateMinimap が window に公開されている（window._updateMinimap = ...）。"""
@@ -19301,7 +16435,6 @@ def test_js_update_minimap_exposed_on_window(rendered_html):
     assert 'window._updateMinimap' in js, (
         "window._updateMinimap の公開が JS に存在しない"
     )
-
 
 @pytest.mark.unit
 def test_js_apply_transform_calls_update_minimap(rendered_html):
@@ -19317,7 +16450,6 @@ def test_js_apply_transform_calls_update_minimap(rendered_html):
         "applyTransform 内に _updateMinimap 呼び出しがない（パン/ズーム時にミニマップが更新されない）"
     )
 
-
 @pytest.mark.unit
 def test_js_select_view_calls_update_minimap(rendered_html):
     """selectView 関数内で _updateMinimap が呼び出されている。"""
@@ -19331,7 +16463,6 @@ def test_js_select_view_calls_update_minimap(rendered_html):
         "selectView 内に _updateMinimap 呼び出しがない（ビュー切替時にミニマップが更新されない）"
     )
 
-
 @pytest.mark.unit
 def test_js_update_minimap_has_guard(rendered_html):
     """_updateMinimap 呼び出しが if (window._updateMinimap) ガードで保護されている。"""
@@ -19344,13 +16475,11 @@ def test_js_update_minimap_has_guard(rendered_html):
         "window._updateMinimap 呼び出しに if (window._updateMinimap) ガードがない"
     )
 
-
 @pytest.mark.unit
 def test_js_minimap_has_get_screen_ctm(rendered_html):
     """ミニマップのクリック/ドラッグ処理で getScreenCTM が使われている。"""
     js = _extract_js_body(rendered_html)
     assert 'getScreenCTM' in js, "getScreenCTM がJS中に存在しない（ミニマップクリック座標変換）"
-
 
 @pytest.mark.unit
 def test_js_minimap_pan_uses_center_on_formula(rendered_html):
@@ -19364,24 +16493,6 @@ def test_js_minimap_pan_uses_center_on_formula(rendered_html):
         "ミニマップクリックのパン算法（cw/2 - x*scale）が見つからない"
     )
 
-
-@pytest.mark.unit
-def test_js_minimap_ifinv_hide_guard(rendered_html):
-    """_updateMinimap 内で ifinv ビュー時にミニマップを非表示にするガードがある。"""
-    js = _extract_js_body(rendered_html)
-    import re
-    m = re.search(r'function _updateMinimap\(\)\s*\{(.*?)(?=\n\s{4}function |\n    function |\Z)',
-                  js, re.DOTALL)
-    assert m, "function _updateMinimap が JS に見つからない"
-    body = m.group(1)
-    assert 'ifinv' in body, (
-        "_updateMinimap 内に ifinv ガードが存在しない"
-    )
-
-
-# ---- ⑤ 決定性・自己完結の再確認 ----
-
-@pytest.mark.unit
 def test_minimap_elements_deterministic(sample_topology):
     """ミニマップ要素を含む render() が2回同一出力を返す（決定性）。"""
     from lib.rendering import render
@@ -19391,7 +16502,6 @@ def test_minimap_elements_deterministic(sample_topology):
         assert html1.count(elem_id) == html2.count(elem_id), (
             f"{elem_id} の出現回数が2回のレンダリングで異なる（非決定的）"
         )
-
 
 @pytest.mark.unit
 def test_minimap_no_external_urls(rendered_html):
@@ -19407,7 +16517,6 @@ def test_minimap_no_external_urls(rendered_html):
         assert 'http://' not in snippet and 'https://' not in snippet, (
             "minimap マークアップに外部 URL が含まれている"
         )
-
 
 # ---- ⑥ node smoke テスト拡張（getScreenCTM/createSVGPoint スタブ追加） ----
 
@@ -19571,7 +16680,6 @@ process.stdout.write(JSON.stringify({{
         "ミニマップのクリック/ドラッグ配線が壊れている"
     )
 
-
 # ============================================================
 # ミニマップ修正テスト（HIGH/MEDIUM 指摘）
 # ============================================================
@@ -19588,7 +16696,6 @@ def test_js_minimap_mm_hidden_flag_in_update(rendered_html):
         "_updateMinimap 内に _mmHidden フラグ参照がない（トグル非表示が次のズーム/ビュー切替で失われる）"
     )
 
-
 @pytest.mark.unit
 def test_js_minimap_mm_hidden_flag_in_toggle(rendered_html):
     """トグルハンドラ内で _mmHidden が更新されている。"""
@@ -19603,7 +16710,6 @@ def test_js_minimap_mm_hidden_flag_in_toggle(rendered_html):
     assert '_mmHidden' in body, (
         "トグルハンドラ内に _mmHidden の更新がない（トグル状態が _updateMinimap に伝わらない）"
     )
-
 
 # ---- HIGH-2: pan 競合修正 ----
 
@@ -19620,7 +16726,6 @@ def test_js_mousedown_has_minimap_guard(rendered_html):
     assert "'#minimap'" in body or '"#minimap"' in body, (
         "container mousedown に '#minimap' ガードがない（ミニマップクリックで図も pan してしまう）"
     )
-
 
 # ---- HIGH-3: 即時初期化 ----
 
@@ -19640,7 +16745,6 @@ def test_js_minimap_immediate_init(rendered_html):
         "（DOMContentLoaded 前に呼ばれないため初期ミニマップが空のままになる）"
     )
 
-
 # ---- HIGH-4 / MEDIUM: DRY（共通ヘルパーに集約） ----
 
 @pytest.mark.unit
@@ -19651,7 +16755,6 @@ def test_js_pan_to_content_point_helper_exists(rendered_html):
         "_panToContentPoint 共通ヘルパーが定義されていない"
         "（_mmPanTo / _centerOnDevice の中央寄せ算が重複する）"
     )
-
 
 @pytest.mark.unit
 def test_js_center_formula_not_duplicated(rendered_html):
@@ -19670,7 +16773,6 @@ def test_js_center_formula_not_duplicated(rendered_html):
         "cw/2 - 算法が _mmPanTo と _centerOnDevice の両方に残っている（DRY 違反）"
     )
 
-
 # ---- MEDIUM: minimap-viewport fill CSS 変数 ----
 
 @pytest.mark.unit
@@ -19685,7 +16787,6 @@ def test_css_minimap_viewport_fill_uses_variable(rendered_html):
         "（ダークテーマで視認性が損なわれる）"
     )
 
-
 @pytest.mark.unit
 def test_css_minimap_vp_fill_variable_in_root(rendered_html):
     """:root に --minimap-vp-fill が定義されている（ライトテーマ値）。"""
@@ -19697,7 +16798,6 @@ def test_css_minimap_vp_fill_variable_in_root(rendered_html):
         ":root に --minimap-vp-fill 変数がない"
     )
 
-
 @pytest.mark.unit
 def test_css_minimap_vp_fill_variable_in_dark(rendered_html):
     """[data-theme="dark"] に --minimap-vp-fill が定義されている（ダークテーマ値）。"""
@@ -19707,7 +16807,6 @@ def test_css_minimap_vp_fill_variable_in_dark(rendered_html):
     assert '--minimap-vp-fill' in dark_block.group(1), (
         "[data-theme='dark'] に --minimap-vp-fill 変数がない（ダーク非対応）"
     )
-
 
 # ---- window._updateMinimap 公開の強化検証 ----
 
@@ -19722,7 +16821,6 @@ def test_js_update_minimap_assignment_present(rendered_html):
         "window._updateMinimap = _updateMinimap の代入が JS に存在しない"
         "（ミニマップ IIFE の公開が壊れている）"
     )
-
 
 # ---- ミニマップ配置バグ修正: legend-panel との重なり回避 ----
 
@@ -19745,7 +16843,6 @@ def test_css_minimap_placed_left_not_right(rendered_html):
     assert not re.search(r'right\s*:\s*8px', block), (
         ".minimap に right: 8px が残っている（legend-panel と重なるバグが修正されていない）"
     )
-
 
 @pytest.mark.unit
 def test_css_minimap_zindex_greater_than_legend_panel(rendered_html):

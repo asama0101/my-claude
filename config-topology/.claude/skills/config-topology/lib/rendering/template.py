@@ -68,10 +68,6 @@ _CSS = """\
       --badge-vendor-fg: #3730a3;
       --badge-as-bg: #d1fae5;
       --badge-as-fg: #065f46;
-      --ifinv-badge-up-bg: #d1fae5;
-      --ifinv-badge-up-fg: #065f46;
-      --ifinv-badge-down-bg: #fee2e2;
-      --ifinv-badge-down-fg: #991b1b;
       /* --- external ピアノード（BGPビュー）--- */
       --color-external-fill: #f9fafb;        /* BGP 外部ピアノード塗りつぶし（ライト）*/
       --color-external-fill-hover: #f3f4f6;  /* BGP 外部ピアノードホバー（ライト）*/
@@ -134,10 +130,6 @@ _CSS = """\
       --badge-vendor-fg: #bfdbfe;
       --badge-as-bg: #064e3b;
       --badge-as-fg: #a7f3d0;
-      --ifinv-badge-up-bg: #064e3b;
-      --ifinv-badge-up-fg: #a7f3d0;
-      --ifinv-badge-down-bg: #7f1d1d;
-      --ifinv-badge-down-fg: #fca5a5;
       /* --- external ピアノード (ダーク) --- */
       --color-external-fill: #1e293b;        /* ダーク: BGP外部ピア塗りつぶし（暗系）*/
       --color-external-fill-hover: #334155;  /* ダーク: BGP外部ピアホバー */
@@ -621,12 +613,12 @@ _CSS = """\
 
     /* #7: Loopback かつ shutdown の複合状態（緑系薄表示） */
     .if-chip-loopback.if-chip-shutdown circle {
-      fill: var(--ifinv-badge-up-bg);
+      fill: #d1fae5;
       stroke: var(--text-muted);
       opacity: 0.5;
     }
 
-    /* P2 #1: IF チップ／IF一覧行 双方向ハイライト（クリックで .highlighted トグル） */
+    /* P2 #1: IF チップ強調（クリックで .highlighted トグル） */
     .if-chip.highlighted circle {
       fill: var(--color-node-fill-selected);
       stroke: var(--color-highlight);
@@ -786,101 +778,6 @@ _CSS = """\
       display: none;
     }
 
-    /* ============================================================
-     * Phase2E: IF 一覧/棚卸しビュー
-     * ============================================================ */
-
-    /* IF一覧コンテナ（#svg-container と同じ上ペイン内に存在） */
-    .ifinv-container {
-      overflow: auto;
-      flex: 1;
-      min-height: 120px;
-      background: var(--bg-surface);
-      padding: 12px 20px;
-      box-sizing: border-box;
-    }
-
-    /* status 集計バー */
-    .ifinv-summary {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 10px;
-      flex-wrap: wrap;
-    }
-
-    .ifinv-badge {
-      font-size: 0.8rem;
-      font-weight: 600;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-family: var(--font-mono);
-    }
-
-    .ifinv-badge-up { background: var(--ifinv-badge-up-bg); color: var(--ifinv-badge-up-fg); }
-    .ifinv-badge-down { background: var(--ifinv-badge-down-bg); color: var(--ifinv-badge-down-fg); }
-    .ifinv-badge-admindown { background: var(--stripe-bg); color: var(--text-muted); border: 1px solid var(--border-color); }
-
-    /* ツールバー（検索・フィルタ） */
-    .ifinv-toolbar {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      margin-bottom: 8px;
-      flex-wrap: wrap;
-    }
-
-    #ifinv-search {
-      padding: 4px 10px;
-      font-size: 0.85rem;
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      min-width: 260px;
-    }
-
-    .ifinv-filter-label {
-      font-size: 0.83rem;
-      cursor: pointer;
-    }
-
-    /* IF 一覧テーブル */
-    .ifinv-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8rem;
-    }
-
-    .ifinv-th {
-      text-align: left;
-      padding: 4px 8px;
-      background: var(--stripe-bg);
-      color: var(--text-muted);
-      font-weight: 600;
-      white-space: nowrap;
-      user-select: none;
-    }
-
-    .ifinv-th:hover { background: var(--bg-elevated); }
-
-    .ifinv-table td {
-      padding: 3px 8px;
-      border-bottom: 1px solid var(--stripe-bg);
-      font-family: var(--font-mono);
-      word-break: break-all;
-    }
-
-    .ifinv-table tr:last-child td { border-bottom: none; }
-
-    /* 未使用候補行のハイライト */
-    .ifinv-table tr[data-unused="1"] td {
-      background: var(--color-row-unused-bg);
-      color: var(--color-row-unused-fg);
-    }
-
-    /* 検索/フィルタ非表示（_applyIfFilters により ifinv-row-hidden に一本化） */
-    .ifinv-row-hidden {
-      display: none !important;
-    }
-
     /* B-pass1b: グローバル検索フォーカスノード（「次へ」で巡回中の対象） */
     .device-node.search-focus .node-rect {
       stroke: #dc2626;
@@ -888,7 +785,7 @@ _CSS = """\
       filter: drop-shadow(0 0 6px rgba(220,38,38,0.6));
     }
 
-    /* B-pass1b: ifinv ヒット行強調（グローバル検索マッチ） */
+    /* グローバル検索マッチ行強調 */
     tr.search-match td {
       background: var(--color-row-search-bg);
     }
@@ -970,8 +867,6 @@ _JS = """\
     function filterConnected() {
       // 選択ノードが空なら no-op
       if (_selectedNodes.size === 0) return;
-      // ifinv ビューでは隣接計算を行わない（SVG エッジが存在しないため状態汚染を防ぐ）
-      if (_currentView === 'ifinv') return;
 
       // 表示中の全デバイスノードを収集
       var allDeviceIds = new Set();
@@ -1028,11 +923,10 @@ _JS = """\
       // 表示集合 = adjacent、それ以外を隠す
       allDeviceIds.forEach(function(devId) {
         var visible = adjacent.has(devId);
-        setNodeVisibility(devId, visible, true);
+        setNodeVisibility(devId, visible);
         var cb = cbMap.get(devId);
         if (cb) cb.checked = visible;
       });
-      _applyIfFilters();
     }
 
     function invertSelection() {
@@ -1090,52 +984,29 @@ _JS = """\
     function selectView(viewId) {
       _currentView = viewId;
 
-      var ifinvTable = document.getElementById('view-ifinv-table');
-      var svgContainer = document.getElementById('svg-container');
-      var zoomControls = document.getElementById('zoom-controls');
-      var chipLegend = document.getElementById('chip-legend');
-
-      if (viewId === 'ifinv') {
-        // ifinv ビュー: SVG コンテナを隠し、IF 一覧テーブルを表示
-        // 図系 UI（ズームボタン・チップ凡例）は ifinv に無関係なので非表示
-        // 非SVGビュー追加時はここに同様の分岐を追加するか、
-        // 各ビューコンテナに data-view-type="table" 等を付与してデータ駆動化する
-        if (svgContainer) svgContainer.style.display = 'none';
-        if (zoomControls) zoomControls.style.display = 'none';
-        if (chipLegend) chipLegend.style.display = 'none';
-        if (ifinvTable) ifinvTable.style.display = '';
-        // F2: ドロップダウン残留リセット → IF一覧即時更新
-        _resetIfinvFilters();
-      } else {
-        // SVG ビュー（physical/bgp/ospf 等）: IF 一覧テーブルを隠し、SVG コンテナを表示
-        if (ifinvTable) ifinvTable.style.display = 'none';
-        if (svgContainer) svgContainer.style.display = '';
-        if (zoomControls) zoomControls.style.display = '';
-        if (chipLegend) chipLegend.style.display = '';
-
-        // ビュー <g> の表示切替
-        var views = document.querySelectorAll('.view');
-        views.forEach(function(v) {
-          if (v.classList.contains('view-' + viewId)) {
-            v.style.display = '';
-          } else {
-            v.style.display = 'none';
-          }
-        });
-
-        // viewBox を選択ビューの data-bbox にセット（SVG はコンテナ 100% 固定）
-        var activeView = document.querySelector('.view-' + viewId);
-        if (activeView) {
-          var bbox = activeView.getAttribute('data-bbox');
-          if (bbox) {
-            var svg = document.getElementById('topology-svg');
-            svg.setAttribute('viewBox', bbox);
-          }
+      // SVG ビュー（physical/bgp/ospf 等）
+      // ビュー <g> の表示切替
+      var views = document.querySelectorAll('.view');
+      views.forEach(function(v) {
+        if (v.classList.contains('view-' + viewId)) {
+          v.style.display = '';
+        } else {
+          v.style.display = 'none';
         }
+      });
 
-        // ビュー切替時に自動 fit（そのビューの bbox に合わせる）
-        if (window._zoomFit) { window._zoomFit(); }
+      // viewBox を選択ビューの data-bbox にセット（SVG はコンテナ 100% 固定）
+      var activeView = document.querySelector('.view-' + viewId);
+      if (activeView) {
+        var bbox = activeView.getAttribute('data-bbox');
+        if (bbox) {
+          var svg = document.getElementById('topology-svg');
+          svg.setAttribute('viewBox', bbox);
+        }
       }
+
+      // ビュー切替時に自動 fit（そのビューの bbox に合わせる）
+      if (window._zoomFit) { window._zoomFit(); }
 
       // タブのアクティブ状態更新
       var tabs = document.querySelectorAll('.view-tab');
@@ -1147,12 +1018,10 @@ _JS = """\
         }
       });
 
-      // 検索状態をリセット（SVG ビューのみ）
-      if (viewId !== 'ifinv') {
-        var searchInput = document.getElementById('search-input');
-        if (searchInput && searchInput.value) {
-          filterNodes(searchInput.value);
-        }
+      // 検索状態をリセット
+      var searchInput = document.getElementById('search-input');
+      if (searchInput && searchInput.value) {
+        filterNodes(searchInput.value);
       }
 
       // F1: ビュー切替時に複数選択エッジハイライトを現ビューに合わせて再適用
@@ -1289,7 +1158,7 @@ _JS = """\
     }
 
     // 共通ヘルパー: ips 配列（空白区切り文字列 or 配列）が cidrQuery に内包される IP を持つか
-    // _nodeMatchesCidr / _applyIfFilters 両方から再利用する（v4/v6 ループを DRY 化）。
+    // _nodeMatchesCidr から再利用する（v4/v6 ループを DRY 化）。
     function _ipsMatchCidr(ipsAttr, cidrQuery) {
       var ipsStr = (ipsAttr || '').trim();
       if (!ipsStr) return false;
@@ -1375,21 +1244,6 @@ _JS = """\
         });
       });
 
-      // ifinv 行もグローバルクエリで駆動（CIDR 内包 or テキスト部分一致）
-      _ifinvSearchQuery = q;
-      _applyIfFilters();
-
-      // ifinv マッチ行の機器も matchedDevices に追加（件数カウントに含む）
-      if (q) {
-        var ifinvRows = document.querySelectorAll('#ifinv-table-body tr');
-        ifinvRows.forEach(function(row) {
-          if (!row.classList.contains('ifinv-row-hidden')) {
-            var devId = row.getAttribute('data-device');
-            if (devId) matchedDevices.add(devId);
-          }
-        });
-      }
-
       // マッチ機器リストを id 昇順の決定的リストに変換（ナビゲーション用）
       _searchMatches = Array.from(matchedDevices).sort();
       // _isNavigating 中（navigateSearchNext から selectView 経由で再呼び出しの場合）は
@@ -1442,18 +1296,16 @@ _JS = """\
       _searchFocusIndex = (_searchFocusIndex + 1) % _searchMatches.length;
       var targetDevId = _searchMatches[_searchFocusIndex];
 
-      // 対象ノードをグラフビューに表示（現ビューがグラフビューかつノードを含むならそのまま）
+      // 対象ノードが現ビューに存在するか確認（なければ Physical タブへ自動切替）
       var targetInCurrentView = false;
-      if (_currentView !== 'ifinv') {
-        var currentViewEl = document.querySelector('.view-' + _currentView);
-        if (currentViewEl) {
-          var nodeInCurrent = currentViewEl.querySelector(
-            '.device-node[data-device="' + CSS.escape(targetDevId) + '"]'
-          );
-          if (nodeInCurrent) targetInCurrentView = true;
-        }
+      var currentViewEl = document.querySelector('.view-' + _currentView);
+      if (currentViewEl) {
+        var nodeInCurrent = currentViewEl.querySelector(
+          '.device-node[data-device="' + CSS.escape(targetDevId) + '"]'
+        );
+        if (nodeInCurrent) targetInCurrentView = true;
       }
-      // 現ビューにない or ifinv ビュー → Physical タブへ自動切替
+      // 現ビューにない → Physical タブへ自動切替
       // _isNavigating フラグで filterNodes 内の _searchFocusIndex リセットを抑止する
       if (!targetInCurrentView) {
         _isNavigating = true;
@@ -1839,8 +1691,6 @@ _JS = """\
           _updateCardFilter();
           // P2 #5: 複数ノード選択時にノード間エッジをハイライト
           _updateEdgeHighlightForSelection();
-          // F2: 選択変化を IF 一覧に即時反映（選択連動）
-          _applyIfFilters();
         });
       });
 
@@ -2039,8 +1889,6 @@ _JS = """\
           _updateCardFilter();
           // P2 #5: カードクリック時も複数選択エッジハイライトを更新
           _updateEdgeHighlightForSelection();
-          // F2: 選択変化を IF 一覧に即時反映（選択連動）
-          _applyIfFilters();
         });
       });
     })();
@@ -2100,7 +1948,7 @@ _JS = """\
     // ============================================================
     // （_hiddenNodes は先頭で初期化済み）
 
-    function setNodeVisibility(deviceId, visible, skipFilter) {
+    function setNodeVisibility(deviceId, visible) {
       // 非表示デバイス集合を更新
       if (visible) {
         _hiddenNodes.delete(deviceId);
@@ -2153,31 +2001,20 @@ _JS = """\
         card.classList.toggle('node-filtered', !visible);
       }
 
-      // A6: skipFilter が true の場合は _applyIfFilters を呼ばない（一括呼び出し側で担う）
-      // P2 #3: node-filter 変更後に IF一覧フィルタを再評価
-      if (!skipFilter) {
-        _applyIfFilters();
-      }
     }
 
     function selectAllNodes() {
-      // A6: ループ中は skipFilter=true にして _applyIfFilters の多重呼び出しを抑制
       document.querySelectorAll('.node-filter-cb').forEach(function(cb) {
         cb.checked = true;
-        setNodeVisibility(cb.dataset.nodeFilter, true, true);
+        setNodeVisibility(cb.dataset.nodeFilter, true);
       });
-      // P2 #3: 全選択後に IF一覧を再評価（最後に1回のみ）
-      _applyIfFilters();
     }
 
     function clearAllNodes() {
-      // A6: ループ中は skipFilter=true にして _applyIfFilters の多重呼び出しを抑制
       document.querySelectorAll('.node-filter-cb').forEach(function(cb) {
         cb.checked = false;
-        setNodeVisibility(cb.dataset.nodeFilter, false, true);
+        setNodeVisibility(cb.dataset.nodeFilter, false);
       });
-      // P2 #3: 全解除後に IF一覧を再評価（最後に1回のみ）
-      _applyIfFilters();
     }
 
     // ノードフィルタ checkbox のイベントリスナー登録（DC5: onchange インライン不使用）
@@ -2502,199 +2339,12 @@ _JS = """\
       }
     })();
 
-    // ============================================================
-    // Phase2E: IF 一覧/棚卸しビュー — 検索・ソート・未使用トグル
-    // ============================================================
-
-    // 検索クエリ状態と未使用トグル状態（単一の真実源）
-    var _ifinvSearchQuery = '';
-    var _ifinvUnusedOnly = false;
-    // B3: ドロップダウンフィルタ状態変数（空文字列 = フィルタしない）
-    var _ifinvDeviceFilter = '';
-    var _ifinvAfFilter = '';
-    var _ifinvStatusFilter = '';
-    var _ifinvL2l3Filter = '';
-
-    // _resetIfinvFilters: ifinv ドロップダウン状態変数と <select>.value を一括リセットし
-    // _applyIfFilters() を即時呼び出す。selectView('ifinv') 入場時に使用する（F2）。
-    // MED-2: 未使用トグル（_ifinvUnusedOnly/#ifinv-unused-toggle）もリセットして全フィルタ統一。
-    function _resetIfinvFilters() {
-      _ifinvUnusedOnly = false;
-      var unusedToggleEl = document.getElementById('ifinv-unused-toggle');
-      if (unusedToggleEl) unusedToggleEl.checked = false;
-      _ifinvDeviceFilter = '';
-      _ifinvAfFilter = '';
-      _ifinvStatusFilter = '';
-      _ifinvL2l3Filter = '';
-      var selDev = document.getElementById('ifinv-filter-device');
-      if (selDev) selDev.value = '';
-      var selAf = document.getElementById('ifinv-filter-af');
-      if (selAf) selAf.value = '';
-      var selSt = document.getElementById('ifinv-filter-status');
-      if (selSt) selSt.value = '';
-      var selL2 = document.getElementById('ifinv-filter-l2l3');
-      if (selL2) selL2.value = '';
-      _applyIfFilters();
-    }
-
-    // _applyIfFilters: 全フィルタ条件（検索 × 未使用トグル × device × af × status × l2l3）
-    // を AND で評価して全行の表示/非表示を一括再評価する。
-    // グローバル検索から _ifinvSearchQuery が更新される（#ifinv-search は撤去済み）。
-    // CIDR クエリの場合は data-ips も参照してマッチ判定する（_ipsMatchCidr を使用）。
-    function _applyIfFilters() {
-      var q = _ifinvSearchQuery.toLowerCase().trim();
-      var isCidrMode = q.indexOf('/') !== -1 && (_isV4Cidr(q) || _isV6Cidr(q));
-      var rows = document.querySelectorAll('#ifinv-table-body tr');
-      rows.forEach(function(row) {
-        var matchSearch;
-        if (!q) {
-          matchSearch = true;
-        } else if (isCidrMode) {
-          // CIDR 内包: data-ips（行に付与された全アドレス）で判定（_ipsMatchCidr を再利用）
-          var ipsAttr = row.getAttribute('data-ips') || '';
-          matchSearch = _ipsMatchCidr(ipsAttr, q);
-        } else {
-          var searchVal = (row.getAttribute('data-search') || '').toLowerCase();
-          matchSearch = searchVal.indexOf(q) !== -1;
-        }
-        var matchUnused = !_ifinvUnusedOnly || row.getAttribute('data-unused') === '1';
-        // B3: ドロップダウン AND フィルタ
-        var matchDevice = !_ifinvDeviceFilter || row.getAttribute('data-device') === _ifinvDeviceFilter;
-        var matchAf = !_ifinvAfFilter || row.getAttribute('data-af') === _ifinvAfFilter;
-        var matchStatus = !_ifinvStatusFilter || row.getAttribute('data-status') === _ifinvStatusFilter;
-        var matchL2l3 = !_ifinvL2l3Filter || row.getAttribute('data-l2l3') === _ifinvL2l3Filter;
-        // P2 #3: node-filter 非表示機器の行を隠す（_hiddenNodes との AND）
-        var rowDevice = row.getAttribute('data-device') || '';
-        var matchNodeFilter = !rowDevice || !_hiddenNodes.has(rowDevice);
-        // F2: 選択連動 — ノード複数選択中は選択機器のIFのみ表示、未選択は全表示
-        var matchSelection = (_selectedNodes.size === 0) || !rowDevice || _selectedNodes.has(rowDevice);
-        // 全条件を AND で評価して表示/非表示を決定（クラスは ifinv-row-hidden に一本化）
-        if (matchSearch && matchUnused && matchDevice && matchAf && matchStatus && matchL2l3 && matchNodeFilter && matchSelection) {
-          row.classList.remove('ifinv-row-hidden');
-          // マッチ行に search-match クラスを付与（強調表示）
-          if (q) {
-            row.classList.add('search-match');
-          } else {
-            row.classList.remove('search-match');
-          }
-        } else {
-          row.classList.add('ifinv-row-hidden');
-          row.classList.remove('search-match');
-        }
-      });
-    }
-
-    // filterIfRows: 検索クエリ更新 → _applyIfFilters() 呼び出し
-    function filterIfRows(query) {
-      _ifinvSearchQuery = query || '';
-      _applyIfFilters();
-    }
-
-    // toggleUnused: 未使用トグル状態更新 → _applyIfFilters() 呼び出し
-    function toggleUnused(checked) {
-      _ifinvUnusedOnly = checked;
-      _applyIfFilters();
-    }
-
-    // ifinv-unused-toggle とドロップダウン select のイベント登録（DC5: addEventListener）
-    // #ifinv-search は撤去済み（グローバル検索 #search-input に統合）のためリスナーなし
-    // B3: ifinv-filter-device / -af / -status / -l2l3 の change を登録
-    (function() {
-      var unusedToggle = document.getElementById('ifinv-unused-toggle');
-      if (unusedToggle) {
-        unusedToggle.addEventListener('change', function() {
-          toggleUnused(unusedToggle.checked);
-        });
-      }
-      var selDevice = document.getElementById('ifinv-filter-device');
-      if (selDevice) {
-        selDevice.addEventListener('change', function() {
-          _ifinvDeviceFilter = selDevice.value;
-          _applyIfFilters();
-        });
-      }
-      var selAf = document.getElementById('ifinv-filter-af');
-      if (selAf) {
-        selAf.addEventListener('change', function() {
-          _ifinvAfFilter = selAf.value;
-          _applyIfFilters();
-        });
-      }
-      var selStatus = document.getElementById('ifinv-filter-status');
-      if (selStatus) {
-        selStatus.addEventListener('change', function() {
-          _ifinvStatusFilter = selStatus.value;
-          _applyIfFilters();
-        });
-      }
-      var selL2l3 = document.getElementById('ifinv-filter-l2l3');
-      if (selL2l3) {
-        selL2l3.addEventListener('change', function() {
-          _ifinvL2l3Filter = selL2l3.value;
-          _applyIfFilters();
-        });
-      }
-    })();
-
-    // _ifinvSortState: {col: string, asc: boolean} — ソート状態
-    var _ifinvSortState = { col: null, asc: true };
-
-    // sortIfTable: IF 一覧テーブルをクリック列でソート（昇順/降順トグル）
-    // 列インデックスは DOM の data-col から取得（colOrder ハードコードを廃止）。
-    // 将来 th に子要素が入っても壊れないよう data-label で元ラベルを保持し
-    // th.textContent を label + 記号で書き換える。
-    // MTU/VLAN 列（data-num 属性が存在）は数値ソート、他は文字列ソート。
-    function sortIfTable(col) {
-      var tbody = document.getElementById('ifinv-table-body');
-      if (!tbody) return;
-      var asc = (_ifinvSortState.col === col) ? !_ifinvSortState.asc : true;
-      _ifinvSortState = { col: col, asc: asc };
-
-      // ヘッダの昇降指示記号を更新（data-label で元ラベルを取得してから書き換え）
-      var colIdx = -1;
-      var colHeaders = document.querySelectorAll('.ifinv-th');
-      colHeaders.forEach(function(th, idx) {
-        var colKey = th.getAttribute('data-col');
-        var label = th.getAttribute('data-label') || th.textContent.replace(/[ \t]*[▲▼]$/, '');
-        if (colKey === col) {
-          th.textContent = label + (asc ? ' ▲' : ' ▼');
-          colIdx = idx;
-        } else {
-          th.textContent = label;
-        }
-      });
-      if (colIdx === -1) return;
-
-      var rows = Array.from(tbody.querySelectorAll('tr'));
-      rows.sort(function(a, b) {
-        var cellA = a.querySelectorAll('td')[colIdx];
-        var cellB = b.querySelectorAll('td')[colIdx];
-        if (!cellA || !cellB) return 0;
-        // 数値列（mtu/vlan）は data-num 属性で判定
-        var numA = cellA.getAttribute('data-num');
-        var numB = cellB.getAttribute('data-num');
-        var valA, valB;
-        if (numA !== null && numB !== null) {
-          // 数値ソート（空は末尾）
-          valA = numA === '' ? Infinity : parseFloat(numA);
-          valB = numB === '' ? Infinity : parseFloat(numB);
-          return asc ? valA - valB : valB - valA;
-        } else {
-          valA = (cellA.textContent || '').toLowerCase();
-          valB = (cellB.textContent || '').toLowerCase();
-          return asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        }
-      });
-
-      rows.forEach(function(row) { tbody.appendChild(row); });
-    }
 
     // ============================================================
-    // P2 #1: IF チップ ↔ IF一覧 双方向ハイライト（toggleIfChipHighlight）
+    // P2 #1: IF チップ強調（toggleIfChipHighlight）
     // ============================================================
-    // toggleIfChipHighlight(ifaceId): 全ビューの if-chip[data-iface-id] と
-    // ifinv の tr[data-iface-id] を .highlighted でトグルする。
-    // iBGP/static 行の data-loopback-iface-id 連動も本関数が担う。
+    // toggleIfChipHighlight(ifaceId): 全ビューの if-chip[data-iface-id] を
+    // .highlighted でトグルする。iBGP/static 行の data-loopback-iface-id 連動も本関数が担う。
     function toggleIfChipHighlight(ifaceId) {
       if (!ifaceId) return;
       var escaped = CSS.escape(ifaceId);
@@ -2710,14 +2360,6 @@ _JS = """\
           el.classList.add('highlighted');
         }
       });
-      // ifinv 行（tr[data-iface-id]）も同期
-      document.querySelectorAll('tr[data-iface-id="' + escaped + '"]').forEach(function(row) {
-        if (isHighlighted) {
-          row.classList.remove('highlighted');
-        } else {
-          row.classList.add('highlighted');
-        }
-      });
     }
 
     // IF チップ（SVG <g class="if-chip">）クリック登録
@@ -2729,22 +2371,6 @@ _JS = """\
         chip.addEventListener('click', function(e) {
           e.stopPropagation();
           toggleIfChipHighlight(ifaceId);
-        });
-      });
-
-      // ifinv 行クリック → toggleIfChipHighlight（data-iface-id を持つ行）
-      document.querySelectorAll('tr[data-iface-id]').forEach(function(row) {
-        var ifaceId = row.getAttribute('data-iface-id');
-        if (!ifaceId) return;
-        row.style.cursor = 'pointer';
-        row.addEventListener('click', function(e) {
-          e.stopPropagation();
-          toggleIfChipHighlight(ifaceId);
-          // data-loopback-iface-id がある行（iBGP/static）は Loopback チップも連動
-          var loopbackIfaceId = row.getAttribute('data-loopback-iface-id');
-          if (loopbackIfaceId) {
-            toggleIfChipHighlight(loopbackIfaceId);
-          }
         });
       });
 
@@ -2776,18 +2402,11 @@ _JS = """\
       // _updateMinimap: ミニマップの viewBox / <use> href / ビューポート矩形を最新状態に更新する。
       // 呼出タイミング: applyTransform()（ズーム/パン時）, selectView()（ビュー切替時）,
       //                 ページロード直後（window._updateMinimap = ... の直後）。
-      // ifinv ガード: ifinv ビューは SVG エッジが存在しないためミニマップを強制非表示にする（_mmHidden 無関係）。
       // ミニマップ IIFE は zoom IIFE より後に評価されるため、applyTransform/selectView から
       // window._updateMinimap を存在チェックして呼ぶ（if (window._updateMinimap)）。
       function _updateMinimap() {
         try {
           if (!minimap || !minimapUse || !minimapVp) return;
-
-          // ifinv ビュー（SVG ビューなし）はミニマップ強制非表示（_mmHidden に関わらず）
-          if (_currentView === 'ifinv') {
-            minimap.style.display = 'none';
-            return;
-          }
 
           var viewEl = document.querySelector('.view-' + _currentView);
           if (!viewEl) {
@@ -2974,7 +2593,6 @@ def build_html(
     all_views_svg: str,
     cards_html: str,
     topology_json_safe: str,
-    ifinv_table_html: str = "",
     legend_panel_inner: str = "",
 ) -> str:
     """HTML シェルを組み立てて返す。
@@ -3066,9 +2684,6 @@ def build_html(
 {legend_panel_inner}
       </div>
     </div>
-
-    <!-- Phase2E: IF 一覧/棚卸しビュー（ifinv 選択時のみ表示・初期非表示） -->
-    {ifinv_table_html}
 
     <!-- 境界ディバイダ（ドラッグで上下ペイン高を可変） -->
     <div id="split-divider"></div>
