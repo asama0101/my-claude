@@ -15996,14 +15996,15 @@ def test_roundd_search_count_no_literal_color(rendered_html):
 
 @pytest.mark.unit
 def test_roundd_header_btns_use_header_btn_class(rendered_html):
-    """T25: legend-toggle と theme-toggle が共通 .header-btn クラスを使っている（DRY）"""
+    """T25: theme-toggle が .header-btn クラスを使っている。legend-toggle は #zoom-controls へ移動済みのため zoom-btn を使う（DRY）"""
     # header-btn CSS クラスが存在すること
     assert '.header-btn' in rendered_html, \
         '.header-btn CSS クラスが定義されていない'
-    # 両ボタンが class="header-btn" を持つこと
-    assert re.search(r'id="legend-toggle"[^>]*class="[^"]*header-btn', rendered_html) or \
-           re.search(r'class="[^"]*header-btn[^"]*"[^>]*id="legend-toggle"', rendered_html), \
-        'legend-toggle ボタンが header-btn クラスを持っていない'
+    # legend-toggle は zoom-btn クラスを持つ（#zoom-controls へ移動済み）
+    assert re.search(r'id="legend-toggle"[^>]*class="[^"]*zoom-btn', rendered_html) or \
+           re.search(r'class="[^"]*zoom-btn[^"]*"[^>]*id="legend-toggle"', rendered_html), \
+        'legend-toggle ボタンが zoom-btn クラスを持っていない（#zoom-controls へ移動済みのため zoom-btn が正しい）'
+    # theme-toggle は引き続き header-btn クラスを持つ
     assert re.search(r'id="theme-toggle"[^>]*class="[^"]*header-btn', rendered_html) or \
            re.search(r'class="[^"]*header-btn[^"]*"[^>]*id="theme-toggle"', rendered_html), \
         'theme-toggle ボタンが header-btn クラスを持っていない'
@@ -19042,3 +19043,76 @@ def test_edge_label_bg_render_deterministic():
     h1 = render(topo1)
     h2 = render(topo2)
     assert h1 == h2, "同一 topology の render 結果が2回で異なる（決定性違反）"
+
+
+# ---------------------------------------------------------------------------
+# legend-toggle ボタン移動: ヘッダ→#zoom-controls（feat/legend-in-zoom-controls）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_legend_toggle_has_zoom_btn_class(rendered_html):
+    """#legend-toggle が class='zoom-btn' を持つ（header-btn ではない）。"""
+    assert re.search(
+        r'id="legend-toggle"[^>]*class="[^"]*zoom-btn',
+        rendered_html,
+    ) or re.search(
+        r'class="[^"]*zoom-btn[^"]*"[^>]*id="legend-toggle"',
+        rendered_html,
+    ), "#legend-toggle が zoom-btn クラスを持っていない"
+    assert not (
+        re.search(r'id="legend-toggle"[^>]*class="[^"]*header-btn', rendered_html)
+        or re.search(r'class="[^"]*header-btn[^"]*"[^>]*id="legend-toggle"', rendered_html)
+    ), "#legend-toggle が header-btn クラスをまだ持っている（移動前のまま）"
+
+
+@pytest.mark.unit
+def test_legend_toggle_inside_zoom_controls(rendered_html):
+    """#legend-toggle が #zoom-controls div 内に存在し、minimap-toggle の後ろにある。"""
+    # zoom-controls div の内容を抽出
+    m = re.search(r'<div id="zoom-controls">(.*?)</div>', rendered_html, re.DOTALL)
+    assert m, "#zoom-controls div が見つからない"
+    zoom_inner = m.group(1)
+    assert 'id="legend-toggle"' in zoom_inner, \
+        "#legend-toggle が #zoom-controls の内側に存在しない"
+    # minimap-toggle の後ろにある
+    pos_minimap = zoom_inner.find('id="minimap-toggle"')
+    pos_legend = zoom_inner.find('id="legend-toggle"')
+    assert pos_minimap != -1, "#zoom-controls に minimap-toggle が見つからない"
+    assert pos_legend > pos_minimap, \
+        "#legend-toggle が #minimap-toggle より後ろにない"
+
+
+@pytest.mark.unit
+def test_legend_toggle_not_in_header(rendered_html):
+    """ヘッダ (<header>〜</header>) 内に id='legend-toggle' が存在しない（移動の担保）。"""
+    m = re.search(r'<header>(.*?)</header>', rendered_html, re.DOTALL)
+    assert m, "<header> タグが見つからない"
+    header_inner = m.group(1)
+    assert 'id="legend-toggle"' not in header_inner, \
+        "ヘッダ内にまだ legend-toggle が残っている（未移動）"
+
+
+@pytest.mark.unit
+def test_legend_toggle_onclick_preserved(rendered_html):
+    """#legend-toggle の onclick='toggleLegend()' が保持されている。"""
+    assert re.search(
+        r'id="legend-toggle"[^>]*onclick="toggleLegend\(\)"',
+        rendered_html,
+    ) or re.search(
+        r'onclick="toggleLegend\(\)"[^>]*id="legend-toggle"',
+        rendered_html,
+    ), "#legend-toggle の onclick='toggleLegend()' が失われている"
+
+
+@pytest.mark.unit
+def test_legend_toggle_move_deterministic(rendered_html):
+    """legend-toggle 移動後も render が2回実行で同一結果（決定性）。"""
+    from lib.rendering import render
+    from lib.topology_io import load_topology
+    import os
+    examples_dir = os.path.join(os.path.dirname(__file__), "..", "examples")
+    topo1 = load_topology(os.path.join(examples_dir, "topology"))
+    topo2 = load_topology(os.path.join(examples_dir, "topology"))
+    h1 = render(topo1)
+    h2 = render(topo2)
+    assert h1 == h2, "legend-toggle 移動後の render 結果が2回で異なる（決定性違反）"

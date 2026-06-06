@@ -2761,7 +2761,6 @@ def build_html(
     <span style="font-size:0.75rem;opacity:0.7;">
       <kbd>F</kbd> 全体表示　<kbd>Esc</kbd> リセット　<kbd>1</kbd>〜<kbd>5</kbd> ビュー切替　<kbd>/</kbd> 検索　ホイール=ズーム　ドラッグ=パン　クリック=ノード選択
     </span>
-    <button id="legend-toggle" class="header-btn" onclick="toggleLegend()" title="凡例を表示/非表示">凡例</button>
     <button id="theme-toggle" class="header-btn" onclick="toggleTheme()" title="ダーク/ライトテーマ切替">🌙</button>
   </header>
 
@@ -2807,6 +2806,7 @@ def build_html(
         <button id="zoom-out" class="zoom-btn" title="縮小">−</button>
         <button id="zoom-reset" class="zoom-btn" title="等倍リセット">1:1</button>
         <button id="minimap-toggle" class="zoom-btn" title="ミニマップ表示/非表示">⊞</button>
+        <button id="legend-toggle" class="zoom-btn" onclick="toggleLegend()" title="凡例を表示/非表示">凡例</button>
       </div>
       <!-- Round D: ミニマップ（右下オーバーレイ） -->
       <svg id="minimap" class="minimap" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
