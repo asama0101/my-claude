@@ -20420,6 +20420,43 @@ def test_el1_toggle_selection_calls_sync_edge_labels(rendered_html):
 
 
 # ---------------------------------------------------------------------------
+# EL1-21: toggleOspfHighlight が末尾で _syncEdgeLabels を呼ぶ（OSPF経路ラベル同期修正）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_toggle_ospf_highlight_calls_sync_edge_labels(rendered_html):
+    """EL1-21: toggleOspfHighlight が末尾で window._syncEdgeLabels を呼ぶ配線がある。
+    修正: OSPF Networks 行クリック / OSPF link-edge クリック時に link-label が
+    label-shown にならないバグ（_toggleSelection を経由しないため _syncEdgeLabels が
+    呼ばれなかった）の修正を検証する。
+    """
+    func_body = _extract_js_function(rendered_html, "toggleOspfHighlight")
+    assert func_body, "toggleOspfHighlight 関数が見つからない"
+    assert "_syncEdgeLabels" in func_body, (
+        "toggleOspfHighlight が _syncEdgeLabels を呼んでいない — "
+        "OSPF エッジクリック/OSPF Networks 行クリックでラベルが出ないバグ（修正3）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# EL1-22: toggleSegHighlight が末尾で _syncEdgeLabels を呼ぶ（全クリック経路の対称性）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_toggle_seg_highlight_calls_sync_edge_labels(rendered_html):
+    """EL1-22: toggleSegHighlight が window._syncEdgeLabels を呼ぶ配線がある。
+    対称性確保: IF行/BGP行/OSPF行・エッジ/segment の全クリック選択経路で
+    _syncEdgeLabels が呼ばれることを保証する。
+    """
+    func_body = _extract_js_function(rendered_html, "toggleSegHighlight")
+    assert func_body, "toggleSegHighlight 関数が見つからない"
+    assert "_syncEdgeLabels" in func_body, (
+        "toggleSegHighlight が _syncEdgeLabels を呼んでいない — "
+        "全クリック経路での _syncEdgeLabels 対称性が確保されていない（修正3）"
+    )
+
+
+# ---------------------------------------------------------------------------
 # EL1-20: clearHighlight が link-edge の selection-edge-hl を保護する（修正1）
 # ---------------------------------------------------------------------------
 

@@ -2605,6 +2605,7 @@ _JS = """\
           el.classList.add('highlighted');
         });
       }
+      if (typeof window._syncEdgeLabels === 'function') { window._syncEdgeLabels(); }
     }
 
     // セグメントノード / seg-edge クリックイベント登録
@@ -2727,6 +2728,7 @@ _JS = """\
           _ospfHighlightToken(t, true);
         });
       }
+      if (typeof window._syncEdgeLabels === 'function') { window._syncEdgeLabels(); }
     }
 
     // OSPF リンク・セグメント・OSPF Networks 行 クリックイベント登録
