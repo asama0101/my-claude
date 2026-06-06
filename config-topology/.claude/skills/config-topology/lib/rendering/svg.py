@@ -546,6 +546,9 @@ def _svg_nodes(
         nx = x - _NODE_WIDTH / 2
         ny = y - node_h / 2
 
+        # data-as 属性: AS を持つ device のみ付与（JS の全メンバー非表示判定用）
+        data_as_attr = f' data-as="{as_num}"' if dev.get("as") is not None else ""
+
         if use_chips:
             # ----- チップ型ノード（iteration-3 #2 / iteration-4 #6）-----
             label_y = ny + 14
@@ -560,7 +563,8 @@ def _svg_nodes(
             parts.append(
                 f'<g class="device-node" data-device="{dev_id}" '
                 f'data-search="{search_val}" '
-                f'data-ips="{ips_val}" '
+                f'data-ips="{ips_val}"'
+                f'{data_as_attr} '
                 f'transform="translate(0,0)">'
                 f'<rect x="{nx:.1f}" y="{ny:.1f}" width="{_NODE_WIDTH}" height="{node_h:.1f}" '
                 f'rx="6" ry="6" class="node-rect"/>'
@@ -576,7 +580,8 @@ def _svg_nodes(
             parts.append(
                 f'<g class="device-node" data-device="{dev_id}" '
                 f'data-search="{search_val}" '
-                f'data-ips="{ips_val}" '
+                f'data-ips="{ips_val}"'
+                f'{data_as_attr} '
                 f'transform="translate(0,0)">'
                 f'<rect x="{nx:.1f}" y="{ny:.1f}" width="{_NODE_WIDTH}" height="{_NODE_HEIGHT}" '
                 f'rx="6" ry="6" class="node-rect"/>'
@@ -1371,7 +1376,7 @@ def _svg_bgp_as_groups_split(
             f'</g>'
         )
         label_parts.append(
-            f'<g data-as="{_esc(asn)}">'
+            f'<g class="as-group-label-group" data-as="{_esc(asn)}">'
             f'<rect x="{chip_x:.1f}" y="{chip_y:.1f}" '
             f'width="{chip_w:.1f}" height="{chip_h:.1f}" '
             f'rx="4" ry="4" class="as-group-label-bg" '

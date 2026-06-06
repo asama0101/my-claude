@@ -2144,6 +2144,38 @@ _JS = """\
         card.classList.toggle('node-filtered', !visible);
       }
 
+      // ④ AS枠: AS の全メンバー device が非表示なら as-group-container と AS番号ラベルを隠す
+      var asToDevs = {};
+      document.querySelectorAll('.device-node[data-as]').forEach(function(n) {
+        var as = n.dataset.as; var dev = n.dataset.device;
+        if (!as || !dev) return;
+        if (!asToDevs[as]) asToDevs[as] = new Set();
+        asToDevs[as].add(dev);
+      });
+      Object.keys(asToDevs).forEach(function(as) {
+        var allHidden = Array.from(asToDevs[as]).every(function(d) { return _hiddenNodes.has(d); });
+        var esc = CSS.escape(as);
+        document.querySelectorAll('.as-group-container[data-as="' + esc + '"], .as-group-label-group[data-as="' + esc + '"]').forEach(function(g) {
+          g.classList.toggle('node-filtered', allHidden);
+        });
+      });
+
+      // ⑤ Shared Network: セグメントの全メンバー device が非表示なら segment-node を隠す
+      var segToDevs2 = {};
+      document.querySelectorAll('.seg-edge[data-seg-id][data-device]').forEach(function(e) {
+        var seg = e.dataset.segId; var dev = e.dataset.device;
+        if (!seg || !dev) return;
+        if (!segToDevs2[seg]) segToDevs2[seg] = new Set();
+        segToDevs2[seg].add(dev);
+      });
+      Object.keys(segToDevs2).forEach(function(seg) {
+        var allHidden = Array.from(segToDevs2[seg]).every(function(d) { return _hiddenNodes.has(d); });
+        var esc = CSS.escape(seg);
+        document.querySelectorAll('.segment-node[data-seg-id="' + esc + '"]').forEach(function(sn) {
+          sn.classList.toggle('node-filtered', allHidden);
+        });
+      });
+
     }
 
     function selectAllNodes() {

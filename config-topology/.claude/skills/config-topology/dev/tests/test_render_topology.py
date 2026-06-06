@@ -19389,3 +19389,308 @@ def test_bgp_badge_group_data_a_b_match_bgp_session_nonempty_guard():
                 f"bgp-badge-group の data-a/data-b が bgp-session と不一致: "
                 f"bgp_id={bgp_id!r}, badge={badge_ab}, session={session_ab}"
             )
+
+
+# ===========================================================================
+# ④⑤ グループの全メンバー非表示 → グループ要素も隠す TDD テスト
+# ===========================================================================
+# ---- (A) svg.py: device-node に data-as 付与 ----
+
+@pytest.mark.unit
+def test_device_node_has_data_as_when_device_has_as():
+    """device-node <g> に data-as 属性が付与される（AS を持つ device）。
+
+    BGP デバイスは AS 番号を保持するため、device-node 生成時に
+    data-as="{asn}" を付与して JS からグループ判定できるようにする。
+    """
+    from lib.rendering import render
+    topo = _make_bgp_with_real_neighbors_topology()
+    html = render(topo)
+    # device-node <g> の開きタグに data-as が含まれること
+    device_node_tags = re.findall(r'<g class="device-node"[^>]*>', html)
+    assert device_node_tags, "device-node が1つも見つからない"
+    # r1(AS65001) と r2(AS65002) それぞれの device-node に data-as が付くこと
+    has_as65001 = any('data-as="65001"' in t for t in device_node_tags)
+    has_as65002 = any('data-as="65002"' in t for t in device_node_tags)
+    assert has_as65001, (
+        f"r1(AS65001) の device-node に data-as が付いていない。\n"
+        f"device-node タグ一覧: {device_node_tags}"
+    )
+    assert has_as65002, (
+        f"r2(AS65002) の device-node に data-as が付いていない。\n"
+        f"device-node タグ一覧: {device_node_tags}"
+    )
+
+
+@pytest.mark.unit
+def test_device_node_no_data_as_when_device_has_no_as():
+    """AS を持たない device の device-node に data-as が付かない。
+
+    AS が None の device には data-as 属性を付与しない。
+    （属性なし or 空文字の場合、JS の dataset.as は undefined or '' → フィルタ対象外）
+    """
+    from lib.rendering import render
+    # AS なし device のみの topology
+    topo = {
+        "title": "No AS Test",
+        "generated_from": [],
+        "devices": [
+            {"id": "sw1", "hostname": "SW1", "vendor": "cisco_ios", "as": None, "sections": []},
+        ],
+        "interfaces": [],
+        "links": [],
+        "segments": [],
+        "routing": {"bgp": [], "ospf": [], "static": []},
+    }
+    html = render(topo)
+    # device-node の <g> に data-as が含まれないこと
+    # （data-as が他の要素（AS枠ラベルなど）に付く場合は許容するが、
+    #   device-node の直後の文脈に data-as="..." が来ないこと）
+    import re
+    device_node_matches = re.findall(r'<g class="device-node"[^>]*>', html)
+    for m in device_node_matches:
+        assert 'data-as=' not in m, (
+            f"AS なし device の device-node に data-as が付いている: {m!r}"
+        )
+
+
+# ---- (A) svg.py: AS番号ラベル <g> に class="as-group-label-group" 付与 ----
+
+@pytest.mark.unit
+def test_as_group_label_group_class_present():
+    """AS番号ラベルの <g> 要素に class="as-group-label-group" が付与される。
+
+    JS が .as-group-label-group[data-as=...] でラベルを確実に取得できるようにする。
+    """
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+    bgp_view = _extract_bgp_view_from(html)
+    assert bgp_view, "BGP ビューが生成されない"
+    assert 'class="as-group-label-group"' in bgp_view, (
+        "as-group-label-group クラスの <g> が BGP ビューに存在しない"
+    )
+
+
+@pytest.mark.unit
+def test_as_group_label_group_has_data_as():
+    """as-group-label-group <g> が data-as 属性を持つ。"""
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+    bgp_view = _extract_bgp_view_from(html)
+    # as-group-label-group が data-as を持つパターン
+    import re
+    label_groups = re.findall(r'<g[^>]+class="as-group-label-group"[^>]*>', bgp_view)
+    assert label_groups, "as-group-label-group が見つからない"
+    for g in label_groups:
+        assert 'data-as=' in g, (
+            f"as-group-label-group に data-as がない: {g!r}"
+        )
+
+
+# ---- (B) template.py: setNodeVisibility に AS枠制御が含まれる ----
+
+@pytest.mark.unit
+def test_set_node_visibility_has_as_group_control(rendered_html):
+    """setNodeVisibility 関数内に AS枠（as-group-container/as-group-label-group）制御が含まれる。
+
+    AS の全メンバー device が非表示なら as-group-container と as-group-label-group に
+    node-filtered を付与するロジックが存在すること。
+    """
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "asToDevs" in func_body, (
+        "setNodeVisibility に asToDevs（AS→デバイス集合）の構築がない"
+    )
+    assert "as-group-container" in func_body, (
+        "setNodeVisibility が as-group-container を制御していない"
+    )
+    assert "as-group-label-group" in func_body, (
+        "setNodeVisibility が as-group-label-group を制御していない"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_as_group_uses_every(rendered_html):
+    """AS枠の表示制御が every() による全メンバー非表示判定を使う。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    # every で全メンバーが _hiddenNodes にいるか判定すること
+    assert "every" in func_body, (
+        "setNodeVisibility に every() による全メンバー判定がない（部分非表示でも枠が消える）"
+    )
+    assert "_hiddenNodes" in func_body, (
+        "setNodeVisibility が _hiddenNodes 集合を参照していない"
+    )
+
+
+# ---- (B) template.py: setNodeVisibility に segment-node 制御が含まれる ----
+
+@pytest.mark.unit
+def test_set_node_visibility_has_segment_node_control(rendered_html):
+    """setNodeVisibility 関数内に segment-node 制御（segToDevs2）が含まれる。
+
+    セグメントの全メンバー device が非表示なら segment-node に node-filtered を付与するロジック。
+    """
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "segToDevs2" in func_body, (
+        "setNodeVisibility に segToDevs2（seg→デバイス集合）の構築がない"
+    )
+    assert "segment-node" in func_body, (
+        "setNodeVisibility が segment-node を制御していない"
+    )
+
+
+@pytest.mark.unit
+def test_set_node_visibility_segment_node_uses_data_seg_id(rendered_html):
+    """segment-node の制御に data-seg-id セレクタが使われている。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert 'data-seg-id' in func_body, (
+        "setNodeVisibility が .segment-node[data-seg-id=...] を参照していない"
+    )
+
+
+# ---- 回帰テスト: 既存 setNodeVisibility の要素が壊れていない ----
+
+@pytest.mark.unit
+def test_set_node_visibility_regression_device_node(rendered_html):
+    """既存: setNodeVisibility が device-node を制御する（非回帰）。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "device-node" in func_body, "device-node 制御が消えた（回帰）"
+
+
+@pytest.mark.unit
+def test_set_node_visibility_regression_link_edge(rendered_html):
+    """既存: setNodeVisibility が link-edge を制御する（非回帰）。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "link-edge" in func_body, "link-edge 制御が消えた（回帰）"
+
+
+@pytest.mark.unit
+def test_set_node_visibility_regression_bgp_session(rendered_html):
+    """既存: setNodeVisibility が bgp-session を制御する（非回帰）。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "bgp-session" in func_body, "bgp-session 制御が消えた（回帰）"
+
+
+@pytest.mark.unit
+def test_set_node_visibility_regression_seg_edge(rendered_html):
+    """既存: setNodeVisibility が seg-edge を制御する（非回帰）。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "seg-edge" in func_body, "seg-edge 制御が消えた（回帰）"
+
+
+@pytest.mark.unit
+def test_set_node_visibility_regression_device_card(rendered_html):
+    """既存: setNodeVisibility が device-card を制御する（非回帰）。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "device-card" in func_body, "device-card 制御が消えた（回帰）"
+
+
+@pytest.mark.unit
+def test_set_node_visibility_regression_css_escape(rendered_html):
+    """既存: setNodeVisibility が CSS.escape を使用する（回帰）。"""
+    func_body = _extract_js_function(rendered_html, "setNodeVisibility")
+    assert func_body, "setNodeVisibility 関数が見つからない"
+    assert "CSS.escape" in func_body, "CSS.escape が消えた（セレクタインジェクション脆弱性・回帰）"
+
+
+# ---- 決定性 ----
+
+@pytest.mark.unit
+def test_render_with_bgp_as_deterministic():
+    """BGP AS付き topology の render が決定的（2回同一）。"""
+    from lib.rendering import render
+    import copy
+    topo = _make_multi_as_area_topology()
+    html1 = render(copy.deepcopy(topo))
+    html2 = render(copy.deepcopy(topo))
+    assert html1 == html2, "BGP AS付き topology の render が非決定的"
+
+
+# ---- node smoke: BGP AS付き topology でも JS が throw しない ----
+
+@pytest.mark.unit
+def test_js_smoke_bgp_as_group_filter_topology():
+    """BGP AS付き topology の JS を node 実行して AS枠制御コードが throw しない。
+
+    node が無い環境では skip する。
+    """
+    import shutil, subprocess, tempfile, os, json as _json_local
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()
+    html = render(topo)
+    js = _extract_js_body(html)
+    harness = _build_js_harness(js)
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_as_group_filter_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"BGP AS付き topology JS で例外（AS枠制御コードに問題）:\n{result.stderr[:1000]}"
+    )
+    data = _json_local.loads(result.stdout.strip())
+    assert data['wheel'] >= 1, f"wheel リスナーが登録されていない: {data['listeners']}"
+    assert data['mousedown'] >= 1, f"mousedown リスナーが登録されていない: {data['listeners']}"
+    assert data['click'] >= 1, f"click リスナーが登録されていない: {data['listeners']}"
+
+
+# ---- node smoke: セグメント付き topology でも JS が throw しない ----
+
+@pytest.mark.unit
+def test_js_smoke_segment_filter_topology():
+    """セグメント付き topology の JS を node 実行して segment-node 制御コードが throw しない。
+
+    node が無い環境では skip する。
+    """
+    import shutil, subprocess, tempfile, os, json as _json_local
+    if shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    from lib.rendering import render
+    topo = _make_multi_as_area_topology()  # セグメント含む
+    html = render(topo)
+    js = _extract_js_body(html)
+    harness = _build_js_harness(js)
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_seg_filter_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"セグメント付き topology JS で例外（segment-node 制御コードに問題）:\n{result.stderr[:1000]}"
+    )
+    data = _json_local.loads(result.stdout.strip())
+    assert data['wheel'] >= 1, f"wheel リスナーが登録されていない: {data['listeners']}"
+    assert data['mousedown'] >= 1, f"mousedown リスナーが登録されていない: {data['listeners']}"
+    assert data['click'] >= 1, f"click リスナーが登録されていない: {data['listeners']}"
