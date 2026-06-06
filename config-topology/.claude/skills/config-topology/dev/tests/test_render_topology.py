@@ -19907,3 +19907,356 @@ def test_hv1_js_smoke_ospf_segment_topology_no_throw():
     assert result.returncode == 0, (
         f"OSPF セグメント topology JS で例外（highlight 拡張コードに問題）:\n{result.stderr[:1000]}"
     )
+
+# ===========================================================================
+# EL1: エッジラベル既定非表示 + ハイライト連動表示
+# ---------------------------------------------------------------------------
+# EL1-1: CSS に .bgp-badge-group / .link-label-group の display:none が存在する
+# EL1-2: CSS に .label-shown { display: inline } が存在する
+# EL1-3: link-label-group に data-link-id が付与される（a_if/b_if あり OSPF リンク）
+# EL1-4: _syncEdgeLabels 関数が定義されている
+# EL1-5: _syncEdgeLabels に .bgp-session.highlighted → bgp-badge-group[data-bgp-id] の連動がある
+# EL1-6: _syncEdgeLabels に .link-edge.highlighted → link-label-group[data-link-id] の連動がある
+# EL1-7: highlight() の末尾で _syncEdgeLabels() が呼ばれる
+# EL1-8: clearHighlight() の末尾で _syncEdgeLabels() が呼ばれる
+# EL1-9: _updateEdgeHighlightForSelection() から _syncEdgeLabels() が呼ばれる
+# EL1-10: node-filtered は label-shown より優先（CSS !important 確認）
+# EL1-11: マーキング属性 data-bgp-id/data-a/data-b 非回帰（bgp-badge-group）
+# EL1-12: マーキング属性 data-a/data-b/data-subnet 非回帰（link-label-group）
+# EL1-13: node smoke — _syncEdgeLabels 追加後も JS が throw しない（BGP topology）
+# EL1-14: node smoke — _syncEdgeLabels 追加後も JS が throw しない（OSPF P2P topology）
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# EL1-1: CSS に .bgp-badge-group / .link-label-group { display: none } が存在する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_css_edge_label_groups_default_hidden(rendered_html):
+    """EL1-1: CSS に .bgp-badge-group, .link-label-group の display:none ルールがある（既定非表示）"""
+    assert ".bgp-badge-group" in rendered_html, ".bgp-badge-group CSS セレクタが見つからない"
+    assert ".link-label-group" in rendered_html, ".link-label-group CSS セレクタが見つからない"
+    # .bgp-badge-group と .link-label-group を同一ルールブロックで display:none にする
+    import re
+    # セレクタ群 + display:none の組み合わせを確認
+    pattern = r'\.bgp-badge-group[^{]*\{[^}]*display\s*:\s*none'
+    assert re.search(pattern, rendered_html, re.DOTALL), (
+        ".bgp-badge-group に display: none が設定されていない（EL1-1: 既定非表示 CSS が必要）"
+    )
+    pattern2 = r'\.link-label-group[^{]*\{[^}]*display\s*:\s*none'
+    assert re.search(pattern2, rendered_html, re.DOTALL), (
+        ".link-label-group に display: none が設定されていない（EL1-1: 既定非表示 CSS が必要）"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-2: CSS に .label-shown { display: inline } が存在する
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_css_label_shown_display_inline(rendered_html):
+    """EL1-2: CSS に .label-shown { display: inline } が存在する（ハイライト時表示ルール）"""
+    import re
+    pattern = r'\.label-shown[^{]*\{[^}]*display\s*:\s*inline'
+    assert re.search(pattern, rendered_html, re.DOTALL), (
+        ".label-shown に display: inline が設定されていない（EL1-2: ハイライト時表示 CSS が必要）"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-3: link-label-group に data-link-id が付与される（a_if/b_if あり OSPF リンク）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_link_label_group_has_data_link_id():
+    """EL1-3: a_if/b_if が存在する OSPF リンクの link-label-group に data-link-id が付与される"""
+    from lib.rendering import render
+    topo = _make_ospf_two_devices_topology()
+    html = render(topo)
+    import re
+    # link-label-group で data-link-id を持つものがあること
+    matches = re.findall(r'<g class="link-label-group"[^>]*data-link-id="([^"]+)"', html)
+    assert len(matches) >= 1, (
+        "OSPF P2P リンク（a_if/b_if あり）の link-label-group に data-link-id が付与されていない"
+        "（EL1-3: _build_view_ospf で link_id_attr を link-label-group に付与すること）"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-4: _syncEdgeLabels 関数が定義されている
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_sync_edge_labels_function_defined(rendered_html):
+    """EL1-4: _syncEdgeLabels 関数が JS 内に定義されている"""
+    assert "_syncEdgeLabels" in rendered_html, (
+        "_syncEdgeLabels 関数が HTML/JS 内に見つからない（EL1-4: 関数定義が必要）"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-5: _syncEdgeLabels に bgp-session.highlighted → bgp-badge-group の連動がある
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_sync_edge_labels_bgp_session_to_badge_group(rendered_html):
+    """EL1-5: _syncEdgeLabels が .bgp-session.highlighted を検索して bgp-badge-group に label-shown を付与する"""
+    js = _extract_js_body(rendered_html)
+    func_body = _extract_js_function(rendered_html, "_syncEdgeLabels")
+    assert func_body, "_syncEdgeLabels 関数が見つからない"
+    assert "bgp-session" in func_body and "highlighted" in func_body, (
+        "_syncEdgeLabels に .bgp-session.highlighted の参照がない"
+    )
+    assert "bgp-badge-group" in func_body, (
+        "_syncEdgeLabels に bgp-badge-group への参照がない"
+    )
+    assert "label-shown" in func_body, (
+        "_syncEdgeLabels が label-shown クラスを操作していない"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-6: _syncEdgeLabels に link-edge.highlighted → link-label-group の連動がある
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_sync_edge_labels_link_edge_to_label_group(rendered_html):
+    """EL1-6: _syncEdgeLabels が .link-edge.highlighted を検索して link-label-group に label-shown を付与する"""
+    func_body = _extract_js_function(rendered_html, "_syncEdgeLabels")
+    assert func_body, "_syncEdgeLabels 関数が見つからない"
+    assert "link-edge" in func_body and "highlighted" in func_body, (
+        "_syncEdgeLabels に .link-edge.highlighted の参照がない"
+    )
+    assert "link-label-group" in func_body, (
+        "_syncEdgeLabels に link-label-group への参照がない"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-7: highlight() の末尾で _syncEdgeLabels() が呼ばれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_highlight_calls_sync_edge_labels(rendered_html):
+    """EL1-7: highlight() 関数内で _syncEdgeLabels() が呼ばれている"""
+    func_body = _extract_js_function(rendered_html, "highlight")
+    assert func_body, "highlight 関数が見つからない"
+    assert "_syncEdgeLabels" in func_body, (
+        "highlight() が _syncEdgeLabels() を呼んでいない（EL1-7）"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-8: clearHighlight() の末尾で _syncEdgeLabels() が呼ばれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_clear_highlight_calls_sync_edge_labels(rendered_html):
+    """EL1-8: clearHighlight() 関数内で _syncEdgeLabels() が呼ばれている"""
+    func_body = _extract_js_function(rendered_html, "clearHighlight")
+    assert func_body, "clearHighlight 関数が見つからない"
+    assert "_syncEdgeLabels" in func_body, (
+        "clearHighlight() が _syncEdgeLabels() を呼んでいない（EL1-8）"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-9: _updateEdgeHighlightForSelection() から _syncEdgeLabels() が呼ばれる
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_update_edge_highlight_calls_sync_edge_labels(rendered_html):
+    """EL1-9: _updateEdgeHighlightForSelection() から _syncEdgeLabels() が呼ばれている"""
+    func_body = _extract_js_function(rendered_html, "_updateEdgeHighlightForSelection", max_len=8000)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    assert "_syncEdgeLabels" in func_body, (
+        "_updateEdgeHighlightForSelection() が _syncEdgeLabels() を呼んでいない（EL1-9）"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-10: .node-filtered が label-shown より優先（!important で CSS 確認）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_node_filtered_wins_over_label_shown(rendered_html):
+    """EL1-10: .node-filtered { display: none !important } が label-shown より優先される"""
+    import re
+    pattern = r'\.node-filtered\s*\{[^}]*display\s*:\s*none\s*!important'
+    assert re.search(pattern, rendered_html, re.DOTALL), (
+        ".node-filtered の display:none !important が見つからない（ノード非表示時にラベルが出てはならない）"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-11: bgp-badge-group の data-bgp-id/data-a/data-b 非回帰
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_bgp_badge_group_attrs_regression():
+    """EL1-11: bgp-badge-group に data-bgp-id・data-a・data-b が保持される（既存属性非回帰）"""
+    from lib.rendering import render
+    topo = _make_bidirectional_bgp_topology()
+    html = render(topo)
+    import re
+    badges = re.findall(r'<g class="bgp-badge-group"([^>]*)>', html)
+    assert badges, "bgp-badge-group 要素が見つからない"
+    for attrs in badges:
+        assert 'data-bgp-id=' in attrs, f"bgp-badge-group に data-bgp-id がない: {attrs}"
+        assert 'data-a=' in attrs, f"bgp-badge-group に data-a がない: {attrs}"
+        assert 'data-b=' in attrs, f"bgp-badge-group に data-b がない: {attrs}"
+
+# ---------------------------------------------------------------------------
+# EL1-12: link-label-group の data-a/data-b/data-subnet 非回帰
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_link_label_group_attrs_regression():
+    """EL1-12: link-label-group に data-a・data-b・data-subnet が保持される（既存属性非回帰）"""
+    from lib.rendering import render
+    topo = _make_ospf_two_devices_topology()
+    html = render(topo)
+    import re
+    groups = re.findall(r'<g class="link-label-group"([^>]*)>', html)
+    assert groups, "link-label-group 要素が見つからない"
+    for attrs in groups:
+        assert 'data-a=' in attrs, f"link-label-group に data-a がない: {attrs}"
+        assert 'data-b=' in attrs, f"link-label-group に data-b がない: {attrs}"
+        assert 'data-subnet=' in attrs, f"link-label-group に data-subnet がない: {attrs}"
+
+# ---------------------------------------------------------------------------
+# EL1-13: node smoke — _syncEdgeLabels 追加後も BGP topology の JS が throw しない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_js_smoke_bgp_topology_with_sync_edge_labels():
+    """EL1-13: _syncEdgeLabels 追加後、BGP topology の JS が node で throw しない。
+    node が無い環境では skip する。
+    """
+    import shutil as _shutil, subprocess as _subprocess, tempfile as _tempfile
+    import os as _os
+    if _shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    from lib.rendering import render
+    topo = _make_bidirectional_bgp_topology()
+    html = render(topo)
+    js = _extract_js_body(html)
+    harness = _build_js_harness(js)
+
+    tmp = _tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_el1_bgp_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = _subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        _os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"EL1-13: BGP topology JS (_syncEdgeLabels 追加後) で例外:\n{result.stderr[:1000]}"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-14: node smoke — _syncEdgeLabels 追加後も OSPF P2P topology の JS が throw しない
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_js_smoke_ospf_p2p_topology_with_sync_edge_labels():
+    """EL1-14: _syncEdgeLabels 追加後、OSPF P2P topology の JS が node で throw しない。
+    node が無い環境では skip する。
+    """
+    import shutil as _shutil, subprocess as _subprocess, tempfile as _tempfile
+    import os as _os
+    if _shutil.which('node') is None:
+        pytest.skip('node not available')
+
+    from lib.rendering import render
+    topo = _make_ospf_two_devices_topology()
+    html = render(topo)
+    js = _extract_js_body(html)
+    harness = _build_js_harness(js)
+
+    tmp = _tempfile.NamedTemporaryFile(
+        mode='w', suffix='.js', delete=False, prefix='/tmp/ct_el1_ospf_p2p_'
+    )
+    try:
+        tmp.write(harness)
+        tmp.close()
+        result = _subprocess.run(
+            ['node', tmp.name],
+            capture_output=True, text=True, timeout=20
+        )
+    finally:
+        _os.unlink(tmp.name)
+
+    assert result.returncode == 0, (
+        f"EL1-14: OSPF P2P topology JS (_syncEdgeLabels 追加後) で例外:\n{result.stderr[:1000]}"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-15: _syncEdgeLabels 内に JSON.stringify が使われていない（二重エスケープ禁止）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_sync_edge_labels_no_json_stringify(rendered_html):
+    """EL1-15: _syncEdgeLabels 内で JSON.stringify を使っていない。
+    JSON.stringify(CSS.escape(id)) は二重エスケープになり実属性値とマッチしない。
+    CSS.escape の戻り値を引用符なし属性セレクタ値として直接連結する正しい形式のみ許可する。
+    """
+    func_body = _extract_js_function(rendered_html, "_syncEdgeLabels")
+    assert func_body, "_syncEdgeLabels 関数が見つからない"
+    assert "JSON.stringify" not in func_body, (
+        "_syncEdgeLabels 内で JSON.stringify が使われている。\n"
+        "これは二重エスケープバグ: JSON.stringify(CSS.escape(id)) では\n"
+        "セレクタ値にバックスラッシュが倍化し実属性値(例: 'r1|r2')とマッチしない。\n"
+        "CSS.escape(id) を引用符なしで '[data-bgp-id=' + CSS.escape(id) + ']' と連結すること。"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-16: _syncEdgeLabels の bgp-id セレクタが CSS.escape(id) を引用符なし連結する正しい形式
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_sync_edge_labels_bgp_id_selector_unquoted_css_escape(rendered_html):
+    """EL1-16: _syncEdgeLabels の bgp-badge-group セレクタが
+    'data-bgp-id=' + CSS.escape(id) + ']' 形式（引用符なし）であること。
+    JSON.stringify(CSS.escape(id)) ではなく CSS.escape(id) を直接連結すること。
+    bgp-id = 'r1|r2' のような '|' 含む値で正しくマッチするために必要。
+    """
+    func_body = _extract_js_function(rendered_html, "_syncEdgeLabels")
+    assert func_body, "_syncEdgeLabels 関数が見つからない"
+    # 正しい形式: [data-bgp-id= の直後に CSS.escape(id) を引用符なし連結
+    # ソース上は "data-bgp-id=' + CSS.escape(id)" または "data-bgp-id=\' + CSS.escape(id)"
+    import re
+    # パターン: data-bgp-id= に続いて（空白なしで）クォート + 空白* + ] が来ず、
+    # CSS.escape(id) が直後に連結されている
+    correct_pattern = r"data-bgp-id='\s*\+\s*CSS\.escape\(id\)"
+    assert re.search(correct_pattern, func_body), (
+        "_syncEdgeLabels の bgp-badge-group セレクタが CSS.escape(id) 引用符なし連結形式でない。\n"
+        "期待: 'data-bgp-id=' + CSS.escape(id) + ']'\n"
+        "実際: " + func_body[func_body.find('data-bgp-id'):func_body.find('data-bgp-id')+80]
+        if 'data-bgp-id' in func_body else "data-bgp-id が見つからない"
+    )
+
+# ---------------------------------------------------------------------------
+# EL1-17: _syncEdgeLabels の link-id / data-a/data-b セレクタも引用符なし CSS.escape 形式
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_el1_sync_edge_labels_link_id_selector_unquoted_css_escape(rendered_html):
+    """EL1-17: _syncEdgeLabels の link-label-group セレクタ（data-link-id / data-a/data-b）が
+    CSS.escape を引用符なしで直接連結する形式であること。
+    link-id は 'r1::eth0|r2::eth0' のように ':' と '|' を含むため、
+    JSON.stringify での二重エスケープは確実にマッチ失敗する。
+    """
+    func_body = _extract_js_function(rendered_html, "_syncEdgeLabels")
+    assert func_body, "_syncEdgeLabels 関数が見つからない"
+    import re
+    # link-id: "data-link-id=' + CSS.escape(lid)" 形式
+    lid_pattern = r"data-link-id='\s*\+\s*CSS\.escape\(lid\)"
+    assert re.search(lid_pattern, func_body), (
+        "_syncEdgeLabels の link-label-group セレクタが CSS.escape(lid) 引用符なし連結形式でない。\n"
+        "期待: 'data-link-id=' + CSS.escape(lid) + ']'\n"
+        "link-id は ':' や '|' を含むため JSON.stringify との二重エスケープでマッチしない。"
+    )
+    # data-a フォールバック: "data-a=' + CSS.escape(a)" 形式
+    a_pattern = r"data-a='\s*\+\s*CSS\.escape\(a\)"
+    assert re.search(a_pattern, func_body), (
+        "_syncEdgeLabels の data-a フォールバックが CSS.escape(a) 引用符なし連結形式でない。\n"
+        "期待: 'data-a=' + CSS.escape(a) + ']'"
+    )

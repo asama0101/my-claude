@@ -430,6 +430,10 @@ _CSS = """\
       font-family: var(--font-mono);
     }
 
+    /* エッジラベルは既定非表示。対応エッジが highlighted の時だけ表示（重なり回避） */
+    .bgp-badge-group, .link-label-group { display: none; }
+    .bgp-badge-group.label-shown, .link-label-group.label-shown { display: inline; }
+
     /* カード */
     #cards-section {
       padding: 20px;
@@ -1707,6 +1711,7 @@ _JS = """\
             sn.classList.add('highlighted');
           }
         });
+        _syncEdgeLabels();
       }
 
       function clearHighlight() {
@@ -1736,6 +1741,7 @@ _JS = """\
             sn.classList.remove('highlighted');
           }
         });
+        _syncEdgeLabels();
       }
 
       // ノードホバー
@@ -1798,6 +1804,38 @@ _JS = """\
       document.getElementById('topology-svg').addEventListener('click', function() {
         clearSelection();
       });
+
+      // _syncEdgeLabels: エッジラベル(bgp-badge/link-label)を、対応エッジが highlighted の
+      // 時だけ label-shown で表示する（既定は CSS で非表示）。highlight/clear/選択 変化の末尾で呼ぶ。
+      function _syncEdgeLabels() {
+        document.querySelectorAll('.bgp-badge-group.label-shown, .link-label-group.label-shown')
+          .forEach(function(g){ g.classList.remove('label-shown'); });
+        document.querySelectorAll('.bgp-session.highlighted').forEach(function(e){
+          var id = e.getAttribute('data-bgp-id');
+          if (!id) return;
+          var sel = '.bgp-badge-group[data-bgp-id=' + CSS.escape(id) + ']';
+          document.querySelectorAll(sel)
+            .forEach(function(g){ g.classList.add('label-shown'); });
+        });
+        document.querySelectorAll('.link-edge.highlighted').forEach(function(e){
+          var lid = e.getAttribute('data-link-id');
+          if (lid) {
+            var sel = '.link-label-group[data-link-id=' + CSS.escape(lid) + ']';
+            document.querySelectorAll(sel)
+              .forEach(function(g){ g.classList.add('label-shown'); });
+          } else {
+            // data-link-id 無いエッジは data-a+data-b でフォールバック照合
+            var a = e.getAttribute('data-a'); var b = e.getAttribute('data-b');
+            if (a && b) {
+              var sel2 = '.link-label-group[data-a=' + CSS.escape(a) + '][data-b=' + CSS.escape(b) + ']';
+              document.querySelectorAll(sel2)
+                .forEach(function(g){ g.classList.add('label-shown'); });
+            }
+          }
+        });
+      }
+      // window に公開（_updateEdgeHighlightForSelection 等 IIFE 外からも呼べるように）
+      window._syncEdgeLabels = _syncEdgeLabels;
     })();
 
     // ============================================================
@@ -1912,7 +1950,10 @@ _JS = """\
         el.classList.remove('selection-edge-hl');
       });
 
-      if (_selectedNodes.size <= 1) return;
+      if (_selectedNodes.size <= 1) {
+        if (typeof window._syncEdgeLabels === 'function') { window._syncEdgeLabels(); }
+        return;
+      }
 
       // (2b) 共有ネットワーク（multi-access セグメント）: 選択ノードが2つ以上属する
       // セグメントの seg-edge / segment-node / 関連表行を点灯する。
@@ -2032,6 +2073,8 @@ _JS = """\
         // (2d) 共有セグメント点灯（ospf）
         _highlightSharedSegments('.view-ospf');
       }
+      // エッジラベル表示を highlighted 状態に同期する
+      if (typeof window._syncEdgeLabels === 'function') { window._syncEdgeLabels(); }
     }
 
     // カード→ノード選択（カードクリックで対応ノードを selected 強調・累積トグル）

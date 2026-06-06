@@ -1226,7 +1226,8 @@ def _build_view_ospf(
         # 軽微であり、主に整合性のため除去する。data-ospf-id は線側 link-edge にのみ保持。
         label_parts.append(
             f'<g class="link-label-group" data-subnet="{primary_subnet}" '
-            f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}">'
+            f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
+            f'{link_id_attr}>'
             f'{label_elem}'
             f'</g>'
         )
