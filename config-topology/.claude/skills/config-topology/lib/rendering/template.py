@@ -2256,6 +2256,22 @@ _JS = """\
                 row.classList.add('selection-edge-hl');
               });
             }
+            // ⑬: 端点 IF チップ（if-chip）を点灯（data-a-iface / data-b-iface）。
+            // physical 分岐と同型。クリアは冒頭の .if-chip.selection-edge-hl 解除で対応。
+            var aIface = el.getAttribute('data-a-iface');
+            var bIface = el.getAttribute('data-b-iface');
+            if (aIface) {
+              document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(aIface) + '"]').forEach(function(chip) {
+                chip.classList.add('highlighted');
+                chip.classList.add('selection-edge-hl');
+              });
+            }
+            if (bIface) {
+              document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(bIface) + '"]').forEach(function(chip) {
+                chip.classList.add('highlighted');
+                chip.classList.add('selection-edge-hl');
+              });
+            }
           }
         });
         // (2d) 共有セグメント点灯（ospf）

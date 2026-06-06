@@ -1122,6 +1122,10 @@ def _build_view_ospf(
         b_pos = positions_ospf.get(lk["b_device"], (0.0, 0.0))
         a_if = lk.get("a_if") or ""
         b_if = lk.get("b_if") or ""
+        # ⑬: 端点 IF チップ点灯用に iface_id を保持（Physical _svg_links と同型）。
+        # チップは all_chip_positions がある時のみ描画されるため、その場合のみ解決する。
+        a_iface_id: str | None = None
+        b_iface_id: str | None = None
         if all_chip_positions:
             a_iface_id = name_to_iface_id.get((lk["a_device"], a_if))
             b_iface_id = name_to_iface_id.get((lk["b_device"], b_if))
@@ -1214,10 +1218,16 @@ def _build_view_ospf(
         ospf_area_attr = f' data-ospf-area="{_esc(str(ospf_area))}"' if ospf_area is not None else ""
         area_color = _ospf_area_color(ospf_area)
         link_line_style = f' style="--area-stroke:{area_color}"' if area_color else ""
+        # ⑬: IF チップ端点属性（iface_id が判明した端点のみ付与。Physical _svg_links と同型）
+        iface_attrs = ""
+        if a_iface_id:
+            iface_attrs += f' data-a-iface="{_esc(a_iface_id)}"'
+        if b_iface_id:
+            iface_attrs += f' data-b-iface="{_esc(b_iface_id)}"'
         parts.append(
             f'<g class="link-edge" data-subnet="{primary_subnet}" '
             f'data-a="{_esc(lk["a_device"])}" data-b="{_esc(lk["b_device"])}"'
-            f'{ospf_id_attr}{link_id_attr}{ospf_area_attr}>'
+            f'{ospf_id_attr}{link_id_attr}{ospf_area_attr}{iface_attrs}>'
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
             f'class="link-line layer-ospf"{link_line_style}/>'
             f'</g>'

@@ -20503,6 +20503,19 @@ def _extract_update_edge_highlight_body(html: str) -> str:
     return func_match.group(1)
 
 
+def _extract_ospf_branch_body(html: str) -> str:
+    """_updateEdgeHighlightForSelection の ospf 分岐以降を取り出す。
+
+    physical/bgp 分岐（先行）を除外して ospf 分岐だけを検査するため、
+    "_currentView === 'ospf'" 以降の本体を返す。
+    """
+    body = _extract_update_edge_highlight_body(html)
+    idx = body.find("_currentView === 'ospf'")
+    if idx == -1:
+        return ""
+    return body[idx:]
+
+
 # ---------------------------------------------------------------------------
 # IF1-A: physical link-edge <g> に data-a-iface / data-b-iface が付く
 # ---------------------------------------------------------------------------
@@ -20804,19 +20817,19 @@ def test_if1_e_bgp_branch_does_not_touch_if_chip(rendered_html):
 
 
 @pytest.mark.unit
-def test_if1_e_ospf_branch_does_not_touch_if_chip(rendered_html):
-    """IF1-E: _updateEdgeHighlightForSelection の ospf 分岐には .if-chip への操作がない。"""
+def test_if1_e_ospf_branch_does_touch_if_chip(rendered_html):
+    """⑬: _updateEdgeHighlightForSelection の ospf 分岐は .if-chip 点灯を行う。
+
+    項目② で physical 分岐に実装した端点 IF チップ点灯を OSPF ビューにも展開した。
+    （旧 IF1-E では「ospf 分岐は if-chip 操作なし」を期待していたが、⑬ で仕様変更）
+    """
     func_body = _extract_update_edge_highlight_body(rendered_html)
     assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
-    ospf_block_match = re.search(
-        r"=== ['\"]ospf['\"].*?(?=\s*\}\s*// end|\s*\}\s*\n\s*//|\Z)",
-        func_body, re.DOTALL
+    ospf_block = _extract_ospf_branch_body(rendered_html)
+    assert ospf_block, "ospf 分岐ブロックが抽出できない"
+    assert "if-chip" in ospf_block, (
+        "ospf 分岐に .if-chip への操作がない。⑬ で physical と同型のチップ点灯が必要。"
     )
-    if ospf_block_match:
-        ospf_block = ospf_block_match.group(0)
-        assert "if-chip" not in ospf_block, (
-            "ospf 分岐に .if-chip への操作がある。bgp/ospf 分岐は変更対象外。"
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -20867,6 +20880,118 @@ def test_if1_g_render_with_iface_attrs_is_deterministic(sample_topology):
     assert html1 == html2, (
         "render() が非決定的（data-a-iface/data-b-iface 付与後に順序が変わる可能性）"
     )
+
+
+# ===========================================================================
+# ⑬: OSPF ビューで2ノード選択時に端点 IF チップを点灯（項目②の OSPF 展開）
+# ===========================================================================
+# OSPF ビューでも physical と同様、p2p link-edge の <g> に data-a-iface/data-b-iface を
+# 付与し、_updateEdgeHighlightForSelection の ospf 分岐で端点 IF チップを点灯する。
+# ---------------------------------------------------------------------------
+
+def _extract_view_ospf_block(html: str) -> str:
+    """OSPF ビュー（<g id="view-ospf" ...> ... </g>）の SVG ブロックを抽出する。"""
+    start = html.find('id="view-ospf"')
+    if start == -1:
+        return ""
+    # view-ospf の <g 開始位置まで巻き戻す
+    gstart = html.rfind("<g", 0, start)
+    # 対応する閉じは厳密でなくてよい（次ビュー or script まで）。physical/bgp が後続する
+    # 可能性があるため、次の id="view- か <script で打ち切る。
+    nxt_view = html.find('id="view-', start + 1)
+    nxt_script = html.find("<script", start)
+    candidates = [p for p in (nxt_view, nxt_script) if p != -1]
+    end = min(candidates) if candidates else len(html)
+    return html[gstart:end]
+
+
+@pytest.mark.unit
+def test_o13_ospf_link_edge_has_data_a_iface():
+    """⑬: OSPF ビューの p2p link-edge <g> に data-a-iface 属性が付いている。"""
+    from lib.rendering import render
+    html = render(_make_p3_ospf_topology())
+    ospf_block = _extract_view_ospf_block(html)
+    assert ospf_block, "OSPF ビューブロックが抽出できない"
+    assert 'data-a-iface="r1::eth0"' in ospf_block or "data-a-iface='r1::eth0'" in ospf_block, (
+        "OSPF link-edge に data-a-iface='r1::eth0' がない。\n"
+        "views.py _build_view_ospf の link-edge <g> に iface_id を付与すること。"
+    )
+
+
+@pytest.mark.unit
+def test_o13_ospf_link_edge_has_data_b_iface():
+    """⑬: OSPF ビューの p2p link-edge <g> に data-b-iface 属性が付いている。"""
+    from lib.rendering import render
+    html = render(_make_p3_ospf_topology())
+    ospf_block = _extract_view_ospf_block(html)
+    assert ospf_block, "OSPF ビューブロックが抽出できない"
+    assert 'data-b-iface="r2::eth0"' in ospf_block or "data-b-iface='r2::eth0'" in ospf_block, (
+        "OSPF link-edge に data-b-iface='r2::eth0' がない。"
+    )
+
+
+@pytest.mark.unit
+def test_o13_ospf_link_edge_iface_attrs_on_same_g():
+    """⑬: data-a-iface と data-b-iface が同一 <g class="link-edge"> 要素に付いている。"""
+    from lib.rendering import render
+    html = render(_make_p3_ospf_topology())
+    ospf_block = _extract_view_ospf_block(html)
+    pattern = r'<g\s[^>]*data-a-iface=[^>]*data-b-iface=[^>]*>'
+    alt = r'<g\s[^>]*data-b-iface=[^>]*data-a-iface=[^>]*>'
+    assert re.search(pattern, ospf_block) or re.search(alt, ospf_block), (
+        "OSPF link-edge の data-a-iface / data-b-iface が同一 <g> に付いていない。"
+    )
+
+
+@pytest.mark.unit
+def test_o13_ospf_branch_reads_data_a_iface(rendered_html):
+    """⑬: ospf 分岐が data-a-iface / data-b-iface を読み取る。"""
+    ospf_block = _extract_ospf_branch_body(rendered_html)
+    assert ospf_block, "ospf 分岐ブロックが抽出できない"
+    assert "data-a-iface" in ospf_block and "data-b-iface" in ospf_block, (
+        "ospf 分岐が data-a-iface/data-b-iface を読んでいない（チップ点灯の配線が必要）"
+    )
+
+
+@pytest.mark.unit
+def test_o13_ospf_branch_lights_if_chip_with_selection_edge_hl(rendered_html):
+    """⑬: ospf 分岐が .if-chip[data-iface-id] に highlighted+selection-edge-hl を付ける。
+
+    selection-edge-hl が無いと冒頭クリア処理で解除されないため必須（physical と対称）。
+    """
+    ospf_block = _extract_ospf_branch_body(rendered_html)
+    assert ospf_block, "ospf 分岐ブロックが抽出できない"
+    # if-chip 操作の近傍に selection-edge-hl の付与があること
+    found = False
+    for m in re.finditer(r'if-chip', ospf_block):
+        context = ospf_block[max(0, m.start() - 50):m.end() + 200]
+        if "selection-edge-hl" in context and "highlighted" in context:
+            found = True
+            break
+    assert found, (
+        "ospf 分岐の if-chip 点灯箇所に highlighted+selection-edge-hl の付与がない。"
+    )
+
+
+@pytest.mark.unit
+def test_o13_physical_branch_still_lights_if_chip(rendered_html):
+    """⑬ 非回帰: physical 分岐の IF チップ点灯（項目②）が壊れていない。"""
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    # physical 分岐（ospf 分岐より前）に if-chip 操作が残っていること
+    ospf_idx = func_body.find("_currentView === 'ospf'")
+    phys_part = func_body[:ospf_idx] if ospf_idx != -1 else func_body
+    assert "if-chip" in phys_part and "data-a-iface" in phys_part, (
+        "physical 分岐の IF チップ点灯（項目②）が失われている（非回帰失敗）"
+    )
+
+
+@pytest.mark.unit
+def test_o13_ospf_iface_attrs_deterministic():
+    """⑬: OSPF link-edge の iface 属性付与後も render が決定的（2回同一）。"""
+    from lib.rendering import render
+    html1 = render(_make_p3_ospf_topology())
+    html2 = render(_make_p3_ospf_topology())
+    assert html1 == html2, "OSPF iface 属性付与後に render が非決定的"
 
 
 # ===========================================================================
