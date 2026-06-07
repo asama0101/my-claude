@@ -1873,6 +1873,19 @@ _JS = """\
       var _hoverChipHl = [];
 
       function highlight(deviceId) {
+        // G2: ホバー中ノードに接続する IF チップを一時点灯する共通ヘルパー。
+        // すでに点灯済み（クリック固定 or 選択ピン）のチップには hover-chip-hl を付けず触らない
+        // ＝clearHighlight でホバー由来のみ安全に消える（固定/ピンを保護）。
+        function _hoverLitChip(ifaceId) {
+          if (!ifaceId) return;
+          document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(ifaceId) + '"]').forEach(function(chip) {
+            if (!chip.classList.contains('highlighted')) {
+              chip.classList.add('highlighted');
+              chip.classList.add('hover-chip-hl');
+              _hoverChipHl.push(chip);  // perf: clearHighlight でこの配列のみ走査
+            }
+          });
+        }
         allNodes.forEach(function(n) {
           if (n.dataset.device === deviceId) {
             n.classList.add('highlighted');
@@ -1882,12 +1895,18 @@ _JS = """\
           if (l.dataset.a === deviceId || l.dataset.b === deviceId) {
             l.classList.add('highlighted');
           }
+          // G2: link-edge 端点 IF チップもホバー点灯する（Physical/OSPF p2p 統一）
+          if (l.dataset.a === deviceId) { _hoverLitChip(l.getAttribute('data-a-iface')); }
+          if (l.dataset.b === deviceId) { _hoverLitChip(l.getAttribute('data-b-iface')); }
         });
         // BGP セッション: 両端ノードいずれかが deviceId に一致するセッションを点灯
         allBgpSessions.forEach(function(s) {
           if (s.dataset.a === deviceId || s.dataset.b === deviceId) {
             s.classList.add('highlighted');
           }
+          // G2: bgp-session 端点 IF チップもホバー点灯する（BGP ビュー統一）
+          if (s.dataset.a === deviceId) { _hoverLitChip(s.getAttribute('data-a-iface')); }
+          if (s.dataset.b === deviceId) { _hoverLitChip(s.getAttribute('data-b-iface')); }
         });
         // 共有 NW (seg-edge / segment-node): deviceId が接続する seg-edge を点灯し、
         // そのセグメントノードも一緒に点灯する
@@ -1896,19 +1915,8 @@ _JS = """\
           if (s.dataset.device === deviceId) {
             s.classList.add('highlighted');
             if (s.dataset.segId) { litSegIds.push(s.dataset.segId); }
-            // ⑮: ホバー時、seg-edge のメンバー IF チップも一時点灯する。
-            // すでに点灯済み（クリック固定 or 選択ピン）のチップには hover-chip-hl を付けず
-            // 触らない＝clearHighlight でホバー由来のみを安全に消す（固定/ピンを保護）。
-            var memberIface = s.getAttribute('data-member-iface');
-            if (memberIface) {
-              document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(memberIface) + '"]').forEach(function(chip) {
-                if (!chip.classList.contains('highlighted')) {
-                  chip.classList.add('highlighted');
-                  chip.classList.add('hover-chip-hl');
-                  _hoverChipHl.push(chip);  // perf: clearHighlight でこの配列のみ走査
-                }
-              });
-            }
+            // ⑮: ホバー時、seg-edge のメンバー IF チップも一時点灯する（G2: ヘルパー統一）。
+            _hoverLitChip(s.getAttribute('data-member-iface'));
           }
         });
         allSegmentNodes.forEach(function(sn) {

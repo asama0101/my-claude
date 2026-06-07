@@ -21526,8 +21526,10 @@ def test_f2_shared_segment_chip_limited_to_selected(rendered_html):
 def test_s15_hover_highlight_lights_member_chip(rendered_html):
     """⑮: highlight()（ホバー経路）が seg-edge の data-member-iface を読み、
     メンバー IF チップを hover-chip-hl 付きで一時点灯する（selection-edge-hl は付けない）。
+    G2 DRY 化後: 点灯ロジックは _hoverLitChip ヘルパーに集約。
+    data-member-iface 呼び出しと _hoverLitChip の組み合わせ＋ヘルパー内の if-chip/hover-chip-hl で検証する。
     """
-    body = _extract_js_function(rendered_html, "highlight")
+    body = _extract_js_function(rendered_html, "highlight", max_len=6000)
     assert body, "highlight() 関数が見つからない"
     assert "data-member-iface" in body, (
         "highlight()（ホバー）が seg-edge の data-member-iface を読んでいない"
@@ -21535,20 +21537,21 @@ def test_s15_hover_highlight_lights_member_chip(rendered_html):
     assert "hover-chip-hl" in body, (
         "highlight() がホバー由来チップを hover-chip-hl で識別していない"
     )
-    # ホバー経路のメンバーチップ点灯ブロックに if-chip と hover-chip-hl があり、
-    # かつ selection-edge-hl は付けない（一時点灯＝クリアで消えるべき）こと。
-    found = False
-    no_selection_hl = True
-    for m in re.finditer(r'data-member-iface', body):
-        ctx = body[m.start(): m.end() + 500]
-        if "if-chip" in ctx and "hover-chip-hl" in ctx:
-            found = True
-            if "selection-edge-hl" in ctx:
-                no_selection_hl = False
-            break
-    assert found, "highlight() のメンバーチップ点灯に hover-chip-hl が付いていない"
-    assert no_selection_hl, (
-        "highlight()（ホバー）がメンバーチップに selection-edge-hl を付けている"
+    # G2 DRY 化後: _hoverLitChip ヘルパー定義内に if-chip と hover-chip-hl があること。
+    # ヘルパー呼び出しは data-member-iface 経路（seg-edge）から行われているため、
+    # 「ヘルパー内に if-chip + hover-chip-hl」かつ「ヘルパー呼び出しが data-member-iface 読み取り後に存在」で検証する。
+    helper_idx = body.find("_hoverLitChip")
+    assert helper_idx != -1, "highlight() に _hoverLitChip ヘルパーがない"
+    helper_block = body[helper_idx: helper_idx + 500]
+    assert "if-chip" in helper_block, (
+        "_hoverLitChip ヘルパーに if-chip セレクタがない（チップ点灯が実装されていない）"
+    )
+    assert "hover-chip-hl" in helper_block, (
+        "_hoverLitChip ヘルパーに hover-chip-hl がない（一時点灯マーカーが付与されていない）"
+    )
+    # ホバー経路（_hoverLitChip）は selection-edge-hl を付けない
+    assert "selection-edge-hl" not in helper_block, (
+        "highlight()（ホバー）の _hoverLitChip ヘルパーが selection-edge-hl を付けている"
         "（ホバーは一時点灯であり selection-edge-hl は選択経路専用にすべき）"
     )
 
@@ -21557,19 +21560,20 @@ def test_s15_hover_highlight_lights_member_chip(rendered_html):
 def test_s15_hover_highlight_guards_already_highlighted(rendered_html):
     """⑮: highlight() はすでに点灯済みのチップに hover-chip-hl を付けない
     （クリック固定/選択ピンを保護するため !contains('highlighted') ガードがある）。
+    G2 DRY 化後: ガードは _hoverLitChip ヘルパー内に集約されているため、
+    ヘルパー定義ブロック内を検索して検証する。
     """
-    body = _extract_js_function(rendered_html, "highlight")
+    body = _extract_js_function(rendered_html, "highlight", max_len=6000)
     assert body, "highlight() 関数が見つからない"
-    # メンバーチップ点灯ブロック（data-member-iface 読み取り以降）に
-    # !contains('highlighted') ガードと hover-chip-hl 付与の両方があること。
-    idx = body.find("data-member-iface")
-    assert idx != -1, "highlight() に data-member-iface 読み取りがない"
+    # G2 DRY 化後: ガードは _hoverLitChip ヘルパー内に集約。ヘルパー定義先頭から検索する。
+    idx = body.find("_hoverLitChip")
+    assert idx != -1, "highlight() に _hoverLitChip ヘルパーがない（G2 DRY 化が必要）"
     block = body[idx: idx + 600]
     # 否定ガード（!...contains('highlighted')）であることを正規表現で厳密に検証する。
     # 単なる contains('highlighted') 存在では否定が消えても通過してしまうため。
     has_negated_guard = re.search(r'!\s*\w[\w.]*\.contains\(\s*[\'"]highlighted[\'"]', block) is not None
     assert has_negated_guard and "hover-chip-hl" in block, (
-        "highlight() のメンバーチップ点灯に !chip.classList.contains('highlighted') の"
+        "highlight() の _hoverLitChip ヘルパーに !chip.classList.contains('highlighted') の"
         "否定ガードがない（クリック固定/選択ピンチップを上書きしてしまう）"
     )
 
@@ -21697,6 +21701,130 @@ def test_s15_seg_member_chip_deterministic():
     html1 = render(_make_ospf_segment_topology())
     html2 = render(_make_ospf_segment_topology())
     assert html1 == html2, "data-member-iface 付与後に render が非決定的"
+
+
+# ===========================================================================
+# G2: ホバー時 IF チップ点灯を全ビュー統一
+#     Physical/OSPF の link-edge 端点チップ・BGP セッション端点チップも
+#     ノードホバーで hover-chip-hl 付きで一時点灯する
+# ===========================================================================
+
+@pytest.mark.unit
+def test_g2_hover_highlight_helper_exists(rendered_html):
+    """G2: highlight() スコープ内に _hoverLitChip 共有ヘルパーが定義されている。
+    data-a-iface/data-b-iface チップ点灯の3箇所から呼ばれる DRY 実装。
+    """
+    body = _extract_js_function(rendered_html, "highlight", max_len=6000)
+    assert body, "highlight() 関数が見つからない"
+    assert "_hoverLitChip" in body, (
+        "highlight() スコープに _hoverLitChip ヘルパーが存在しない"
+        "（G2: link-edge/bgp-session 端点チップ点灯を DRY 化するヘルパーが必要）"
+    )
+
+
+@pytest.mark.unit
+def test_g2_hover_helper_guards_already_highlighted(rendered_html):
+    """G2: _hoverLitChip ヘルパーが !contains('highlighted') ガードを持ち、
+    点灯済みチップ（クリック固定/選択ピン）を上書きしない。
+    """
+    body = _extract_js_function(rendered_html, "highlight", max_len=6000)
+    assert body, "highlight() 関数が見つからない"
+    # _hoverLitChip 定義ブロックを取り出す
+    idx = body.find("_hoverLitChip")
+    assert idx != -1, "highlight() スコープに _hoverLitChip が存在しない"
+    block = body[idx: idx + 600]
+    has_negated_guard = re.search(
+        r'!\s*\w[\w.]*\.contains\(\s*[\'"]highlighted[\'"]', block
+    ) is not None
+    assert has_negated_guard, (
+        "_hoverLitChip ヘルパーに !contains('highlighted') 否定ガードがない"
+        "（クリック固定/選択ピンチップを上書きしてしまう）"
+    )
+
+
+@pytest.mark.unit
+def test_g2_hover_helper_adds_hover_chip_hl(rendered_html):
+    """G2: _hoverLitChip ヘルパーが hover-chip-hl クラスを付与し
+    _hoverChipHl に push する（clearHighlight のホバー限定解除に乗る）。
+    """
+    body = _extract_js_function(rendered_html, "highlight", max_len=6000)
+    assert body, "highlight() 関数が見つからない"
+    idx = body.find("_hoverLitChip")
+    assert idx != -1, "highlight() スコープに _hoverLitChip が存在しない"
+    block = body[idx: idx + 600]
+    assert "hover-chip-hl" in block, (
+        "_hoverLitChip が hover-chip-hl を付与していない"
+        "（clearHighlight のホバー限定解除に乗れない）"
+    )
+    assert "_hoverChipHl.push" in block, (
+        "_hoverLitChip が _hoverChipHl に push していない"
+        "（perf: clearHighlight は追跡配列のみ走査）"
+    )
+
+
+@pytest.mark.unit
+def test_g2_link_edge_endpoint_chip_lit_on_hover(rendered_html):
+    """G2: highlight() が link-edge の data-a-iface / data-b-iface を読み取り
+    端点 IF チップを _hoverLitChip でホバー点灯する。
+    """
+    body = _extract_js_function(rendered_html, "highlight", max_len=6000)
+    assert body, "highlight() 関数が見つからない"
+    # allLinks.forEach ブロック内に data-a-iface / data-b-iface の読み取りと
+    # _hoverLitChip 呼び出しがあること
+    idx = body.find("allLinks.forEach")
+    assert idx != -1, "highlight() に allLinks.forEach が存在しない"
+    block = body[idx: idx + 400]
+    assert "data-a-iface" in block or "getAttribute('data-a-iface')" in block or \
+           'getAttribute("data-a-iface")' in block, (
+        "allLinks.forEach ブロックに data-a-iface の読み取りがない"
+        "（G2: link-edge 端点チップのホバー点灯が未実装）"
+    )
+    assert "_hoverLitChip" in block, (
+        "allLinks.forEach ブロックに _hoverLitChip 呼び出しがない"
+        "（G2: link-edge 端点チップのホバー点灯が未実装）"
+    )
+
+
+@pytest.mark.unit
+def test_g2_bgp_session_endpoint_chip_lit_on_hover(rendered_html):
+    """G2: highlight() が bgp-session の data-a-iface / data-b-iface を読み取り
+    端点 IF チップを _hoverLitChip でホバー点灯する。
+    """
+    body = _extract_js_function(rendered_html, "highlight", max_len=6000)
+    assert body, "highlight() 関数が見つからない"
+    idx = body.find("allBgpSessions.forEach")
+    assert idx != -1, "highlight() に allBgpSessions.forEach が存在しない"
+    block = body[idx: idx + 400]
+    assert "data-a-iface" in block or "getAttribute('data-a-iface')" in block or \
+           'getAttribute("data-a-iface")' in block, (
+        "allBgpSessions.forEach ブロックに data-a-iface の読み取りがない"
+        "（G2: bgp-session 端点チップのホバー点灯が未実装）"
+    )
+    assert "_hoverLitChip" in block, (
+        "allBgpSessions.forEach ブロックに _hoverLitChip 呼び出しがない"
+        "（G2: bgp-session 端点チップのホバー点灯が未実装）"
+    )
+
+
+@pytest.mark.unit
+def test_g2_seg_edge_member_chip_still_uses_helper(rendered_html):
+    """G2 非回帰: seg-edge メンバーチップ点灯も _hoverLitChip を経由し
+    hover-chip-hl 付き一時点灯が維持されている（DRY 化後も挙動不変）。
+    """
+    body = _extract_js_function(rendered_html, "highlight", max_len=6000)
+    assert body, "highlight() 関数が見つからない"
+    idx = body.find("allSegEdges.forEach")
+    assert idx != -1, "highlight() に allSegEdges.forEach が存在しない"
+    block = body[idx: idx + 600]
+    # data-member-iface を読んで _hoverLitChip を呼んでいること
+    assert "data-member-iface" in block, (
+        "allSegEdges.forEach ブロックに data-member-iface の読み取りがない"
+        "（G2 DRY 化後も seg-edge メンバーチップ点灯が必要）"
+    )
+    assert "_hoverLitChip" in block, (
+        "allSegEdges.forEach ブロックに _hoverLitChip 呼び出しがない"
+        "（G2: seg-edge もヘルパーに統一すること）"
+    )
 
 
 # ===========================================================================
