@@ -21617,6 +21617,80 @@ def test_s15_clear_highlight_does_not_blanket_clear_chips(rendered_html):
 
 
 @pytest.mark.unit
+def test_g1_clear_highlight_protects_selection_pinned_chip(rendered_html):
+    """G1: clearHighlight() がホバー追跡配列 _hoverChipHl を走査する際、
+    selection-edge-hl（クリック選択でピン留め）を持つチップの highlighted を除去しない。
+    ホバー解除で選択ピンチップの点灯が消える off-by-one を防止する。"""
+    body = _extract_js_function(rendered_html, "clearHighlight")
+    assert body, "clearHighlight() 関数が見つからない"
+    # _hoverChipHl.forEach ブロックだけを取り出して検証する。
+    # 本体全体から検索すると allLinks 等の selection-edge-hl ガードにヒットして
+    # 偽陽性になるため、ブロック限定で確認する。
+    idx = body.find("_hoverChipHl.forEach")
+    assert idx != -1, (
+        "clearHighlight() に _hoverChipHl.forEach 走査がない "
+        "（ホバーチップ解除がホバー追跡配列に限定されていない）"
+    )
+    # forEach の対応閉じ括弧まで（概ね 400 文字以内）を走査対象とする
+    hover_block = body[idx: idx + 400]
+    # _hoverChipHl.forEach ブロック内に selection-edge-hl ガードがあること。
+    # !chip.classList.contains('selection-edge-hl') の否定チェックと
+    # chip.classList.remove('highlighted') が同一 if ブロック内に存在することを検証する。
+    has_guard = re.search(
+        r'!\s*\w[\w.]*\.contains\(\s*[\'"]selection-edge-hl[\'"]\s*\)',
+        hover_block
+    ) is not None
+    assert has_guard, (
+        "clearHighlight() の _hoverChipHl 走査内に "
+        "!chip.classList.contains('selection-edge-hl') ガードがない "
+        "（ホバー解除で選択ピンチップの highlighted が消える G1 off-by-one が発生）"
+    )
+    # ガードと remove('highlighted') が同一スコープ内にあること（ガードが空振りでないこと）
+    guard_match = re.search(
+        r'!\s*\w[\w.]*\.contains\(\s*[\'"]selection-edge-hl[\'"]\s*\)(.*?)remove\([\'"]highlighted[\'"]\)',
+        hover_block,
+        re.DOTALL
+    )
+    assert guard_match is not None, (
+        "clearHighlight() の _hoverChipHl 走査内で selection-edge-hl ガード後に "
+        "remove('highlighted') が続いていない（ガードが機能していない）"
+    )
+
+
+@pytest.mark.unit
+def test_g1_clear_highlight_always_removes_hover_chip_hl_marker(rendered_html):
+    """G1 非回帰: clearHighlight() は selection-edge-hl の有無に関わらず
+    hover-chip-hl マーカーを常に除去する（ガード外に remove('hover-chip-hl') があること）。"""
+    body = _extract_js_function(rendered_html, "clearHighlight")
+    assert body, "clearHighlight() 関数が見つからない"
+    # _hoverChipHl.forEach ブロックだけを取り出して検証する
+    idx = body.find("_hoverChipHl.forEach")
+    assert idx != -1, "clearHighlight() に _hoverChipHl.forEach 走査がない"
+    hover_block = body[idx: idx + 400]
+    # hover-chip-hl 除去が存在すること
+    has_remove_marker = (
+        "remove('hover-chip-hl')" in hover_block or 'remove("hover-chip-hl")' in hover_block
+    )
+    assert has_remove_marker, (
+        "clearHighlight() の _hoverChipHl 走査内で hover-chip-hl クラスを除去していない "
+        "（ホバー終了後もマーカーが残る）"
+    )
+    # remove('hover-chip-hl') が selection-edge-hl ガードの if ブロック外にあること。
+    # 正規表現: selection-edge-hl ガードの if ブロック終端 "}" の後ろに
+    # remove('hover-chip-hl') が現れること。
+    pattern = re.compile(
+        r'!\s*\w[\w.]*\.contains\(\s*[\'"]selection-edge-hl[\'"]\s*\)'  # ガード
+        r'.*?\}'                                                           # ガード if 閉じ
+        r'.*?remove\([\'"]hover-chip-hl[\'"]\)',                          # ガード外の除去
+        re.DOTALL
+    )
+    assert pattern.search(hover_block) is not None, (
+        "clearHighlight() の remove('hover-chip-hl') が selection-edge-hl ガードの "
+        "if ブロック内にある（selection-edge-hl チップでもマーカー除去が必要）"
+    )
+
+
+@pytest.mark.unit
 def test_s15_seg_member_chip_deterministic():
     """⑮: data-member-iface 付与後も render が決定的（2回同一）。"""
     from lib.rendering import render

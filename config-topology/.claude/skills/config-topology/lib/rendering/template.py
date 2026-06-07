@@ -1953,7 +1953,11 @@ _JS = """\
         // perf: 追跡配列 _hoverChipHl のみ走査（全 .if-chip の DOM スキャンを回避）。
         if (_hoverChipHl.length) {
           _hoverChipHl.forEach(function(chip) {
-            chip.classList.remove('highlighted');
+            // G1: クリック選択でピン留め（selection-edge-hl）されたチップは highlighted を保護。
+            // hover-chip-hl マーカーのみ除去する（ホバー解除で選択ピンが誤って消える off-by-one を防止）。
+            if (!chip.classList.contains('selection-edge-hl')) {
+              chip.classList.remove('highlighted');
+            }
             chip.classList.remove('hover-chip-hl');
           });
           _hoverChipHl = [];
