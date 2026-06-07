@@ -657,16 +657,23 @@ _EXT_NODE_SPACING = _NODE_HEIGHT + 40.0  # 外部ノード縦間隔（_NODE_HEIG
 
 
 def _bgp_has_resolved_edges(bgp_entries: list[dict], interfaces: list[dict]) -> bool:
-    """BGP エントリに解決可能な neighbor（= 同トポロジー内の device）が存在するか
+    """内部に描画可能な BGP エッジ（= 双方向に相互設定された内部ピア）が存在するか
 
     Phase 3G: v6 BGP ネイバーに対応するため _build_ip_to_device を共用する。
-    （旧実装の ip フィールドのみの逆引きを addresses 対応に拡張）
+    F4: BGP ピアは双方向設定が必須のため、片方向（A→B のみ）の内部ピアはエッジを
+    描かない（_svg_bgp_edges_split と同じ判定）。ここでも双方向（A→B かつ B→A）の
+    内部ペアが1つ以上ある場合のみ True を返し、片方向のみの topology で空の BGP ビューが
+    生成されるのを防ぐ。外部ピアは _bgp_has_external_peers が別途ゲートする。
     """
     ip_to_device = _build_ip_to_device(interfaces)
+    directed: set[tuple[str, str]] = set()
     for entry in bgp_entries:
         dev_id = entry.get("device", "")
         nbr = ip_to_device.get(entry.get("neighbor_ip", ""))
-        if nbr and nbr != dev_id:
+        if dev_id and nbr and nbr != dev_id:
+            directed.add((dev_id, nbr))
+    for a, b in directed:
+        if (b, a) in directed:
             return True
     return False
 

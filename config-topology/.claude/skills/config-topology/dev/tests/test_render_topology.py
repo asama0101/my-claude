@@ -1109,6 +1109,8 @@ def test_stage2_protocol_view_dynamic_bgp_only():
             "bgp": [
                 {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
                  "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+                {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+                 "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
             ],
         },
     }
@@ -1523,6 +1525,59 @@ def test_gating_bgp_with_real_neighbors_generates_view():
     html = render(_make_bgp_with_real_neighbors_topology())
     assert 'class="view view-bgp"' in html, "BGP ビューが生成されていない"
     assert 'data-view="bgp"' in html, "BGP タブが生成されていない"
+
+@pytest.mark.unit
+def test_f4_bgp_has_resolved_edges_requires_bidirectional():
+    """F4: _bgp_has_resolved_edges は双方向に相互設定された内部ピアでのみ True。"""
+    from lib.rendering.views import _bgp_has_resolved_edges
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    one_way = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+    ]
+    two_way = one_way + [
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+    ]
+    assert _bgp_has_resolved_edges(one_way, interfaces) is False, \
+        "片方向内部BGPで True を返している（双方向のみ描画のはず・F4）"
+    assert _bgp_has_resolved_edges(two_way, interfaces) is True, \
+        "双方向内部BGPで True を返していない"
+
+@pytest.mark.unit
+def test_f4_gating_one_directional_internal_only_no_bgp_view():
+    """F4: 片方向の内部BGPのみ（外部ピア無し）の topology は BGP ビューを生成しない。"""
+    from lib.rendering import render
+    topo = {
+        "title": "One-way iBGP only",
+        "generated_from": [],
+        "devices": [
+            {"id": "r1", "hostname": "R1", "vendor": "cisco_ios", "as": 65000, "sections": []},
+            {"id": "r2", "hostname": "R2", "vendor": "cisco_ios", "as": 65000, "sections": []},
+        ],
+        "interfaces": [
+            {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32",
+             "vlan": None, "description": None, "shutdown": False},
+            {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32",
+             "vlan": None, "description": None, "shutdown": False},
+        ],
+        "links": [],
+        "segments": [],
+        "routing": {
+            # r2 のみが neighbor 設定（片方向）。外部ピアは無し。
+            "bgp": [
+                {"device": "r2", "local_as": 65000, "local_ip": None,
+                 "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
+            ],
+        },
+    }
+    html = render(topo)
+    assert 'class="view view-bgp"' not in html, (
+        "片方向内部BGPのみ（外部無し）で BGP ビューが生成された（F4: 双方向のみ）"
+    )
 
 @pytest.mark.unit
 def test_gating_ospf_two_devices_generates_view():
@@ -5548,9 +5603,12 @@ def test_i3b5_bgp_edge_title_has_ips():
         {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
         {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
     ]
+    # 双方向（F4: 片方向はエッジ非描画のため両機が相互設定）
     bgp_entries = [
         {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
          "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
     svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
@@ -5566,9 +5624,12 @@ def test_i3b5_bgp_edge_null_local_ip_title_no_crash():
         {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
         {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
     ]
+    # 双方向 iBGP（両側 local_ip=null）。F4: 片方向はエッジ非描画のため両機が相互設定。
     bgp_entries = [
         {"device": "r1", "local_as": 65001, "local_ip": None,
          "neighbor_ip": "10.255.0.2", "peer_as": 65001, "type": "ibgp"},
+        {"device": "r2", "local_as": 65001, "local_ip": None,
+         "neighbor_ip": "10.255.0.1", "peer_as": 65001, "type": "ibgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
     try:
@@ -5585,9 +5646,12 @@ def test_i3b5_ebgp_edge_ip_display_format():
         {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
         {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
     ]
+    # 双方向（F4: 片方向はエッジ非描画）
     bgp_entries = [
         {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
          "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
     svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
@@ -5598,8 +5662,13 @@ def test_i3b5_ebgp_edge_ip_display_format():
     assert has_arrow, "IP ↔ IP 形式の表示が存在しない"
 
 @pytest.mark.unit
-def test_i3b5_ibgp_loopback_null_local_ip_shows_neighbor_only():
-    """#5: local_ip=null の iBGP エッジは neighbor_ip のみを表示（欠損側は省略）"""
+def test_i3b5_ibgp_loopback_null_local_ip_no_none_in_badge():
+    """#5/F4: local_ip=null の双方向 iBGP loopback で両 neighbor が表示され、
+    バッジに 'None' 文字列が混入しない（local_ip=None の欠損を空文字扱い）。
+
+    (旧 test_i3b5_ibgp_loopback_null_local_ip_shows_neighbor_only。F4 で片方向は
+    エッジ非描画になったため双方向 fixture へ更新。両側 local_ip=null は iBGP の典型。)
+    """
     from lib.rendering.svg import _svg_bgp_edges
     interfaces = [
         {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
@@ -5608,13 +5677,14 @@ def test_i3b5_ibgp_loopback_null_local_ip_shows_neighbor_only():
     bgp_entries = [
         {"device": "r1", "local_as": 65001, "local_ip": None,
          "neighbor_ip": "10.255.0.2", "peer_as": 65001, "type": "ibgp"},
+        {"device": "r2", "local_as": 65001, "local_ip": None,
+         "neighbor_ip": "10.255.0.1", "peer_as": 65001, "type": "ibgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
     svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
-    # neighbor_ip が表示されること
-    assert "10.255.0.2" in svg, "neighbor_ip が表示されていない"
-    # "None" という文字列が本文（badge 表示）に出ないこと
-    # title 内は許容、badge テキストには出ないこと
+    # 両 neighbor（両 Loopback）が表示されること
+    assert "10.255.0.1" in svg and "10.255.0.2" in svg, "両 Loopback が表示されていない"
+    # "None" という文字列が badge 表示に出ないこと
     badge_texts = re.findall(r'class="bgp-badge[^"]*"[^>]*>([^<]+)', svg)
     for badge_text in badge_texts:
         assert "None" not in badge_text, \
@@ -5638,59 +5708,70 @@ def test_i3b5_ebgp_edge_deterministic():
     assert svg1 == svg2, "BGP エッジ IP 表示が非決定的"
 
 # ===========================================================================
-# ⑭: BGP バッジを両端アドレス表示（両方向セッション集約・IP決定的ソート）
+# ⑭/F4: BGP バッジ両端アドレス表示（双方向集約）＋ 片方向はエッジ非描画
 # ===========================================================================
-# 旧実装は canonical_dev（両端をソートした先頭）のセッションだけを見ていたため、
-# 非対称 iBGP（canonical でない側だけが neighbor 文を持つ）でアドレスが消えていた。
-# ⑭ では両方向セッションの endpoint アドレス（local_ip 自端 + neighbor_ip 相手端）を
-# af 別に集約し、IP として数値ソートして A↔B 表示する。
+# ⑭ では双方向セッションの endpoint アドレス（local_ip 自端 + neighbor_ip 相手端）を
+# af 別に集約し IP 数値ソートで A↔B 表示する。
+# F4: 片方向（topology 内に両機器が居るが片側しか neighbor 設定が無い）内部 BGP ピアは
+# 確立しないため**エッジを描かない**（iBGP/eBGP 共通）。両端アドレス集約は双方向 pair に適用。
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-def test_b14_asymmetric_ibgp_shows_both_addrs():
-    """⑭: 非対称 iBGP（canonical でない側 r2 だけが neighbor 文を持つ）でも
-    両端アドレスが A↔B 表示される（旧 canonical_dev フィルタの取りこぼし修正）。
-    """
+def test_f4_asymmetric_ibgp_no_edge():
+    """F4: 非対称 iBGP（r2 のみ neighbor 設定）はピア未確立＝エッジ（bgp-session/バッジ）を描かない。"""
     from lib.rendering.svg import _svg_bgp_edges
     interfaces = [
         {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
         {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
     ]
-    # canonical = sorted([r1, r2])[0] = r1 だが、セッションを持つのは r2 のみ（非対称）
+    # セッションを持つのは r2 のみ（片方向）。r1 は neighbor 設定なし。
     bgp_entries = [
         {"device": "r2", "local_as": 65000, "local_ip": "10.255.0.2",
          "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
     svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
-    assert "10.255.0.1↔10.255.0.2" in svg, (
-        "非対称 iBGP の両端アドレスが A↔B 表示されていない（旧 canonical フィルタのバグ）。\n"
-        f"svg={svg[:600]}"
+    assert 'class="bgp-session"' not in svg, (
+        f"片方向 iBGP でエッジ(bgp-session)が描画された（描かないのが正・F4）: svg={svg[:400]}"
+    )
+    assert "bgp-badge" not in svg, "片方向 iBGP でバッジが描画された（F4）"
+
+
+@pytest.mark.unit
+def test_f4_asymmetric_ebgp_no_edge():
+    """F4: 非対称 eBGP（片側のみ neighbor 設定）もエッジを描かない（iBGP/eBGP共通）。"""
+    from lib.rendering.svg import _svg_bgp_edges
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
+    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert 'class="bgp-session"' not in svg, (
+        f"片方向 eBGP でエッジが描画された（描かないのが正・F4）: svg={svg[:400]}"
     )
 
 
 @pytest.mark.unit
-def test_b14_asymmetric_ibgp_neighbor_addr_not_lost():
-    """⑭: 非対称 iBGP で相手端アドレス（local_ip=null 側でも neighbor_ip）が消えない。"""
+def test_f4_asymmetric_ibgp_deterministic():
+    """F4: 片方向 iBGP（エッジ無し）でも render が決定的。"""
     from lib.rendering.svg import _svg_bgp_edges
     interfaces = [
         {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
         {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
     ]
-    # r2 のみがセッション、local_ip=null（update-source loopback で null になりがち）
     bgp_entries = [
-        {"device": "r2", "local_as": 65000, "local_ip": None,
+        {"device": "r2", "local_as": 65000, "local_ip": "10.255.0.2",
          "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
-    svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
-    # neighbor_ip（相手 loopback）が必ず表示される。
-    # local_ip=null の片方向のため単一アドレス（"↔" なし）。バッジテキスト内に出ること。
-    assert "10.255.0.1" in svg, (
-        f"非対称 iBGP の相手アドレス(10.255.0.1)が消えている: svg={svg[:600]}"
-    )
-    # AS のみ（アドレス無し）に退行していないことの明示確認
-    assert "ibgp" in svg, "iBGP バッジ自体が描画されていない"
+    svg1 = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    svg2 = _svg_bgp_edges(bgp_entries, interfaces, positions)
+    assert svg1 == svg2, "片方向 iBGP の描画が非決定的"
 
 
 @pytest.mark.unit
@@ -5744,9 +5825,12 @@ def test_b14_ip_sort_is_numeric_not_lexicographic():
         {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.2.0.1/16"},
         {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.10.0.1/16"},
     ]
+    # 双方向（F4: 片方向はエッジ非描画のため両機が相互設定）
     bgp_entries = [
         {"device": "r1", "local_as": 65001, "local_ip": "10.2.0.1",
          "neighbor_ip": "10.10.0.1", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.10.0.1",
+         "neighbor_ip": "10.2.0.1", "peer_as": 65001, "type": "ebgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
     svg = _svg_bgp_edges(bgp_entries, interfaces, positions)
@@ -5797,23 +5881,6 @@ def test_b14_addr_sort_key_numeric_and_fallback():
     assert result == ["10.0.0.1", "10.0.0.2", "not-an-ip"], \
         f"パース不能アドレスの決定的フォールバックが崩れている: {result}"
 
-
-@pytest.mark.unit
-def test_b14_asymmetric_ibgp_deterministic():
-    """⑭: 両端アドレス集約後も render が決定的（2回同一）。"""
-    from lib.rendering.svg import _svg_bgp_edges
-    interfaces = [
-        {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32"},
-        {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32"},
-    ]
-    bgp_entries = [
-        {"device": "r2", "local_as": 65000, "local_ip": "10.255.0.2",
-         "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
-    ]
-    positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
-    svg1 = _svg_bgp_edges(bgp_entries, interfaces, positions)
-    svg2 = _svg_bgp_edges(bgp_entries, interfaces, positions)
-    assert svg1 == svg2, "両端アドレス集約後に BGP バッジが非決定的"
 
 # ===========================================================================
 # iteration-3 Batch3 #6: Static Routes 行の経路ハイライト
@@ -6415,9 +6482,12 @@ def test_tc1_ebgp_edge_ip_display_format_strict():
         {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
         {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
     ]
+    # 双方向（F4: 片方向はエッジ非描画）
     bgp_entries = [
         {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
          "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
     svg = _svg_bgp_edges(bgp_entries, ifaces_data, positions)
@@ -7231,18 +7301,19 @@ def test_p2_5_bgp_id_is_deterministic():
         {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (400.0, 300.0)}
-    # 片方向だけを渡した場合（重複除去前）でも ID は同一
-    bgp_fwd = [{"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
-                "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"}]
-    bgp_rev = [{"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
-                "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"}]
-    svg_fwd = _svg_bgp_edges(bgp_fwd, ifaces, positions)
-    svg_rev = _svg_bgp_edges(bgp_rev, ifaces, positions)
+    # F4: 片方向はエッジ非描画のため双方向で検証。エントリのリスト順が違っても
+    # data-bgp-id は sorted([dev,neighbor]) で同一（方向・順序非依存）。
+    e_r1 = {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+            "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"}
+    e_r2 = {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+            "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"}
+    svg_fwd = _svg_bgp_edges([e_r1, e_r2], ifaces, positions)
+    svg_rev = _svg_bgp_edges([e_r2, e_r1], ifaces, positions)
     ids_fwd = re.findall(r'data-bgp-id="([^"]+)"', svg_fwd)
     ids_rev = re.findall(r'data-bgp-id="([^"]+)"', svg_rev)
     assert ids_fwd and ids_rev, "data-bgp-id が一方または両方で取れない"
-    assert ids_fwd[0] == ids_rev[0], \
-        f"data-bgp-id が方向依存: fwd={ids_fwd[0]!r} vs rev={ids_rev[0]!r}"
+    assert ids_fwd[0] == ids_rev[0] == "r1|r2", \
+        f"data-bgp-id が方向/順序依存: fwd={ids_fwd[0]!r} vs rev={ids_rev[0]!r}"
 
 @pytest.mark.unit
 def test_p2_5_bgp_session_map_built_in_core():
@@ -8210,9 +8281,12 @@ def test_p3_bgp_session_edge_anchors_to_chip():
         {"id": "r2::eth0", "device": "r2", "name": "eth0",
          "ip": "10.0.12.2/30", "shutdown": False, "description": None},
     ]
+    # 双方向（F4: 片方向はエッジ非描画）
     bgp_entries = [
         {"device": "r1", "local_as": 65001, "peer_as": 65002,
          "local_ip": "10.0.12.1", "neighbor_ip": "10.0.12.2", "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "peer_as": 65001,
+         "local_ip": "10.0.12.2", "neighbor_ip": "10.0.12.1", "type": "ebgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
 
@@ -8262,9 +8336,13 @@ def test_p3_bgp_edge_fallback_to_node_center_when_no_local_ip():
         {"id": "r2::eth0", "device": "r2", "name": "eth0",
          "ip": "10.0.12.2/30", "shutdown": False, "description": None},
     ]
+    # 双方向（F4: 片方向はエッジ非描画）。A側(r1)は local_ip=None でフォールバック検証。
+    # r2 の neighbor は r1 の lo0(10.255.1.1) を指して双方向ピアを成立させる。
     bgp_entries = [
         {"device": "r1", "local_as": 65001, "peer_as": 65002,
          "local_ip": None, "neighbor_ip": "10.0.12.2", "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "peer_as": 65001,
+         "local_ip": "10.0.12.2", "neighbor_ip": "10.255.1.1", "type": "ebgp"},
     ]
     positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
 
@@ -9681,9 +9759,14 @@ def test_i4cr_bgp_ibgp_session_endpoint_uses_loopback_chip():
     interfaces = topo["interfaces"]
     bgp_entries = topo["routing"]["bgp"]
 
-    # edge1 と core1 のみでテスト（iBGP セッション）
-    edge1_entries = [e for e in bgp_entries if e["device"] == "edge1" and e["type"] == "ibgp"]
-    assert edge1_entries, "edge1 iBGP エントリが見つからない"
+    # edge1 ↔ core1 の双方向 iBGP（F4: 片方向はエッジ非描画のため両側を明示）。
+    # edge1 lo=10.255.0.3 / core1 lo=10.255.0.1（fixture 準拠）。両側 local_ip=null。
+    edge1_entries = [
+        {"device": "edge1", "local_as": 65000, "local_ip": None,
+         "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
+        {"device": "core1", "local_as": 65000, "local_ip": None,
+         "neighbor_ip": "10.255.0.3", "peer_as": 65000, "type": "ibgp"},
+    ]
 
     positions = {
         "edge1": (200.0, 300.0),
@@ -9707,20 +9790,24 @@ def test_i4cr_bgp_ibgp_session_endpoint_uses_loopback_chip():
 
     svg = _svg_bgp_edges(edge1_entries, interfaces, positions, chip_positions=all_chips)
 
-    # edge1 iBGP のパスを探す
-    m = re.search(r'<path[^>]+d="M([\d.]+),([\d.]+)', svg)
+    # iBGP セッション線（M{sx},{sy} Q.. {ex},{ey}）の両端点を取得
+    m = re.search(r'<path[^>]+d="M([\d.]+),([\d.]+) Q[\d.]+,[\d.]+ ([\d.]+),([\d.]+)"', svg)
     assert m is not None, \
-        "edge1 iBGP セッション線が描画されない（positions に core1/edge1 両方あり、エッジは必ず生成される）"
+        f"iBGP セッション線（双方向 edge1↔core1）が描画されない: {svg[:300]}"
+    sx, sy, ex, ey = (float(g) for g in m.groups())
 
-    # path_x1 が edge1::Loopback0 チップ座標に一致することを確認
-    path_x1 = float(m.group(1))
-    path_y1 = float(m.group(2))
-    exp_x, exp_y = edge1_chips["edge1::Loopback0"]
+    # 両端 local_ip=null のため、各端点は自機の Loopback チップにアンカーされる（順序非依存で検証）
+    e_x, e_y = edge1_chips["edge1::Loopback0"]
+    c_x, c_y = core1_chips["core1::Loopback0"]
+    endpoints = [(sx, sy), (ex, ey)]
 
-    assert abs(path_x1 - exp_x) < 1.0, \
-        f"iBGP local_ip=null 端の x={path_x1} が Loopback チップ cx={exp_x} に一致しない（ノード中心フォールバックのまま）"
-    assert abs(path_y1 - exp_y) < 1.0, \
-        f"iBGP local_ip=null 端の y={path_y1} が Loopback チップ cy={exp_y} に一致しない"
+    def _close(px, py, qx, qy):
+        return abs(px - qx) < 1.0 and abs(py - qy) < 1.0
+
+    assert any(_close(px, py, e_x, e_y) for px, py in endpoints), \
+        f"iBGP local_ip=null の edge1 端が Loopback チップ({e_x},{e_y})にアンカーされない: {endpoints}"
+    assert any(_close(px, py, c_x, c_y) for px, py in endpoints), \
+        f"iBGP local_ip=null の core1 端が Loopback チップ({c_x},{c_y})にアンカーされない: {endpoints}"
 
 # ---------------------------------------------------------------------------
 # バグ3: Physicalビューのセグメントエッジがノード中心に接続（チップアンカー未実装）

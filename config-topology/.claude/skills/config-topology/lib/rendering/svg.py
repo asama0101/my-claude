@@ -1538,6 +1538,13 @@ def _svg_bgp_edges_split(
         if not sessions:
             continue
 
+        # F4: 片方向（topology 内に両機器が居るが片側しか neighbor 設定が無い）内部 BGP は
+        # ピアが確立しないためエッジを描かない。双方向（両機器が相互に neighbor 設定し合う）
+        # の pair のみ描画する。iBGP/eBGP 共通。外部ピアは _svg_bgp_external_edges が別途扱う。
+        cfg_devs = {s_dev for s_dev, _, _ in sessions}
+        if len(cfg_devs) < 2:
+            continue
+
         dev_id, neighbor_dev, repr_entry = sessions[0]
         bgp_type = repr_entry.get("type", "unknown")
         peer_as = _esc(repr_entry.get("peer_as", ""))
