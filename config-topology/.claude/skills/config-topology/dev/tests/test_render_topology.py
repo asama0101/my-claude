@@ -23208,3 +23208,77 @@ class TestRouterIdCssStyles:
         rule = m.group(1)
         assert "var(--badge-vendor-bg)" in rule, \
             f".badge-vendor の background が変わっている: {rule.strip()!r}"
+
+
+# ---------------------------------------------------------------------------
+# G3: ノード選択で図がパンする問題の修正 — 比率ベース flex レイアウト
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_g3_svg_container_flex_ratio_basis_zero(rendered_html):
+    """G3: #svg-container の flex-grow が 2、flex-basis が 0（内容サイズ非依存）であること。
+
+    根拠:
+    ノード選択時に .device-card.selected の border が 1px→2px、
+    tr.highlighted の font-weight が変化すると、cards-section の内容高さが増減する。
+    #svg-container が flex: 1（flex-basis: auto）の場合、内容サイズに基づいて
+    利用可能スペースが再配分され svg-container の clientHeight が変化する。
+    ResizeObserver はこの高さ変化を検知して「倍率・中心保持」再計算を実行するため
+    図がパン（ずれ）する。
+
+    flex-basis を 0 にすると利用可能スペースは内容サイズではなく flex-grow 比率
+    のみで分配される。これにより cards-section 内容の高さ変化が svg-container の
+    clientHeight に影響しなくなり、ResizeObserver が不要な再計算を行わなくなる。
+
+    期待値: `flex: 2 1 0` （flex-grow:2, flex-shrink:1, flex-basis:0）
+    """
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined_style = "\n".join(style_blocks)
+
+    # #svg-container ルールブロックを取得
+    block_m = re.search(r'#svg-container\s*\{([^}]*)\}', combined_style, re.DOTALL)
+    assert block_m is not None, "#svg-container CSS ルールブロックが見つからない"
+    block = block_m.group(1)
+
+    # flex-grow が 2 以上かつ flex-basis が 0 であること（スペース揺れに強い正規表現）
+    # `flex: 2 1 0` / `flex: 2 1 0px` どちらも許容
+    has_ratio_flex = bool(
+        re.search(r'flex\s*:\s*2\s+1\s+0', block)
+    )
+    assert has_ratio_flex, (
+        f"#svg-container の flex が比率ベース（flex: 2 1 0）になっていない。"
+        f"ノード選択時に cards-section の高さ変化が svg-container に伝播し図がパンする。"
+        f"\n実際の CSS ブロック: {block.strip()!r}"
+    )
+
+
+@pytest.mark.unit
+def test_g3_cards_section_flex_basis_zero(rendered_html):
+    """G3: #cards-section の flex-basis が 0（内容サイズ非依存）であること。
+
+    根拠:
+    #svg-container を flex: 2 1 0 にするだけでは、#cards-section が内容サイズで
+    スペースを確保すると svg-container が圧迫される場合がある。
+    #cards-section も flex: 1 1 0 にすることで svg:cards = 2:1 の比率固定となり、
+    カード内容が増減しても overflow:auto でスクロール吸収され
+    svg-container の clientHeight は変化しない。
+
+    期待値: `flex: 1 1 0` （flex-grow:1, flex-shrink:1, flex-basis:0）
+    """
+    style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
+    combined_style = "\n".join(style_blocks)
+
+    # #cards-section 単体のルールブロック（.cards-collapsed との複合セレクタは除外）
+    block_m = re.search(r'(?<!collapsed\s)(?<!collapsed-)#cards-section\s*\{([^}]*)\}', combined_style, re.DOTALL)
+    assert block_m is not None, "#cards-section CSS ルールブロックが見つからない"
+    block = block_m.group(1)
+
+    # flex-basis が 0 で flex-grow が 1 であること
+    has_ratio_flex = bool(
+        re.search(r'flex\s*:\s*1\s+1\s+0', block)
+    )
+    assert has_ratio_flex, (
+        f"#cards-section の flex が比率ベース（flex: 1 1 0）になっていない。"
+        f"内容サイズに基づいてスペース確保されると svg-container が圧迫される。"
+        f"\n実際の CSS ブロック: {block.strip()!r}"
+    )

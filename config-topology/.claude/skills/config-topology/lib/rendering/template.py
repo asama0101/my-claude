@@ -270,9 +270,12 @@ _CSS = """\
 
     #svg-container {
       /* transform モデル: SVG は width=100% でコンテナを覆うため溢れない。
-         overflow:hidden でスクロールバーの誤表示を防ぐ（overflow:auto は scroll(px)モデルの遺産）。 */
+         overflow:hidden でスクロールバーの誤表示を防ぐ（overflow:auto は scroll(px)モデルの遺産）。
+         flex: 2 1 0（flex-basis:0）で内容サイズ非依存の比率配分にする。
+         cards-section 内容の高さ変化が svg-container の clientHeight に波及しなくなり
+         ResizeObserver が不要な再計算（図のパン）を起こさなくなる。[G3修正] */
       overflow: hidden;
-      flex: 1;
+      flex: 2 1 0;
       min-height: 120px;
       background: var(--bg-surface);
       cursor: grab;
@@ -451,6 +454,10 @@ _CSS = """\
 
     /* カード */
     #cards-section {
+      /* flex: 1 1 0（flex-basis:0）で内容サイズ非依存の比率配分にする。
+         svg-container:cards-section = 2:1 の比率固定となり、カード内容の増減は
+         overflow:auto でスクロール吸収されるため svg-container の高さは不変。[G3修正] */
+      flex: 1 1 0;
       padding: 0 20px 20px;
       overflow: auto;
       min-height: 80px;
