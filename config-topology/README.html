@@ -134,6 +134,8 @@ python3 scripts/build_topology.py &lt;configs...&gt; -o topology/
 # render: 層別YAMLディレクトリ → 自己完結HTML（参照整合を検証して dict 復元）
 python3 scripts/render_topology.py topology/ -o topology.html</code></pre>
   <p>生成 HTML：ビュー切替タブ・検索ボックス・ホイールズーム・ドラッグパン・<code>F</code>=全体表示・<code>Esc</code>=リセット。</p>
+  <p>ノードにホバー／選択すると、接続するリンク・BGP/OSPF セッションと<strong>端点の IF チップ</strong>が
+  Physical / OSPF / BGP いずれのビューでも点灯します（選択はクリックで累積、再クリックで解除）。</p>
 
   <h2>実行環境（依存）</h2>
   <p>Claude の実行環境に Python 3 と <strong>PyYAML</strong> が必要です（Claude は <code>python3</code> でスクリプトを実行）。
