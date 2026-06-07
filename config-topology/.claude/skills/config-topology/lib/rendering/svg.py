@@ -1546,6 +1546,10 @@ def _svg_bgp_edges_split(
         x1, y1 = positions[dev_id]
         x2, y2 = positions[neighbor_dev]
 
+        # F1: 端点 IF チップ点灯用に、線端点がアンカーされた実 iface_id を保持する。
+        # （physical/ospf と同型に data-a-iface/data-b-iface として出力するため）
+        a_iface_id_final: str | None = None
+        b_iface_id_final: str | None = None
         if chip_positions is not None:
             sorted_sessions = sorted(
                 sessions,
@@ -1565,6 +1569,7 @@ def _svg_bgp_edges_split(
                     a_iface_id = ip_to_iface_id.get(local_ip_raw)
                     if a_iface_id and a_iface_id in chip_positions:
                         x1, y1 = chip_positions[a_iface_id]
+                        a_iface_id_final = a_iface_id
                         a_anchored = True
                         break
             if not a_anchored:
@@ -1579,12 +1584,14 @@ def _svg_bgp_edges_split(
                     )
                     if lb_candidates:
                         x1, y1 = chip_positions[lb_candidates[0]]
+                        a_iface_id_final = lb_candidates[0]
             for _, _, sess_b in b_side:
                 neighbor_ip_raw = sess_b.get("local_ip") or ""
                 if neighbor_ip_raw:
                     b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
                     if b_iface_id and b_iface_id in chip_positions:
                         x2, y2 = chip_positions[b_iface_id]
+                        b_iface_id_final = b_iface_id
                         break
             if (x2, y2) == tuple(positions[neighbor_dev]):
                 for _, _, sess_a in a_side:
@@ -1593,6 +1600,7 @@ def _svg_bgp_edges_split(
                         b_iface_id = ip_to_iface_id.get(neighbor_ip_raw)
                         if b_iface_id and b_iface_id in chip_positions:
                             x2, y2 = chip_positions[b_iface_id]
+                            b_iface_id_final = b_iface_id
                             break
 
         css_class = f"bgp-edge bgp-{_esc(bgp_type)} layer-bgp"
@@ -1670,10 +1678,17 @@ def _svg_bgp_edges_split(
 
         bgp_id = "|".join(sorted([dev_id, neighbor_dev]))
 
+        # F1: 端点 IF チップ点灯用属性（線端点がアンカーされた iface のみ・physical _svg_links と同型）
+        iface_attrs = ""
+        if a_iface_id_final:
+            iface_attrs += f' data-a-iface="{_esc(a_iface_id_final)}"'
+        if b_iface_id_final:
+            iface_attrs += f' data-b-iface="{_esc(b_iface_id_final)}"'
+
         line_parts.append(
             f'<g class="bgp-session" data-type="{_esc(bgp_type)}" '
             f'data-a="{_esc(dev_id)}" data-b="{_esc(neighbor_dev)}" '
-            f'data-bgp-id="{_esc(bgp_id)}">'
+            f'data-bgp-id="{_esc(bgp_id)}"{iface_attrs}>'
             f'<path d="M{x1:.1f},{y1:.1f} Q{mx:.1f},{my:.1f} {x2:.1f},{y2:.1f}" '
             f'class="{css_class}" fill="none"/>'
             f'<title>{title_text}</title>'

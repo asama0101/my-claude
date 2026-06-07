@@ -18651,7 +18651,7 @@ def test_update_edge_highlight_contains_highlight_shared_segments(rendered_html)
     # _updateEdgeHighlightForSelection 関数本体を取得（関数全体をカバーする十分な長さ）
     fn_start = js.find("function _updateEdgeHighlightForSelection()")
     assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
-    fn_body = js[fn_start:fn_start + 10000]
+    fn_body = js[fn_start:fn_start + 13000]
     assert "function _highlightSharedSegments" in fn_body, \
         "_updateEdgeHighlightForSelection 内に _highlightSharedSegments の定義がない"
 
@@ -18661,7 +18661,7 @@ def test_physical_branch_calls_highlight_shared_segments(rendered_html):
     js = _extract_js_body(rendered_html)
     fn_start = js.find("function _updateEdgeHighlightForSelection()")
     assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
-    fn_body = js[fn_start:fn_start + 10000]
+    fn_body = js[fn_start:fn_start + 13000]
     assert "_highlightSharedSegments('.view-physical')" in fn_body, \
         "physical 分岐が _highlightSharedSegments('.view-physical') を呼んでいない"
 
@@ -18671,7 +18671,7 @@ def test_ospf_branch_calls_highlight_shared_segments(rendered_html):
     js = _extract_js_body(rendered_html)
     fn_start = js.find("function _updateEdgeHighlightForSelection()")
     assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
-    fn_body = js[fn_start:fn_start + 10000]
+    fn_body = js[fn_start:fn_start + 13000]
     assert "_highlightSharedSegments('.view-ospf')" in fn_body, \
         "ospf 分岐が _highlightSharedSegments('.view-ospf') を呼んでいない"
 
@@ -18702,7 +18702,7 @@ def test_clear_includes_seg_edge_selection_edge_hl(rendered_html):
     js = _extract_js_body(rendered_html)
     fn_start = js.find("function _updateEdgeHighlightForSelection()")
     assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
-    fn_body = js[fn_start:fn_start + 10000]
+    fn_body = js[fn_start:fn_start + 13000]
     assert ".seg-edge.selection-edge-hl" in fn_body, \
         ".seg-edge.selection-edge-hl のクリア処理がない"
 
@@ -18712,7 +18712,7 @@ def test_clear_includes_segment_node_selection_edge_hl(rendered_html):
     js = _extract_js_body(rendered_html)
     fn_start = js.find("function _updateEdgeHighlightForSelection()")
     assert fn_start != -1, "_updateEdgeHighlightForSelection が見つからない"
-    fn_body = js[fn_start:fn_start + 10000]
+    fn_body = js[fn_start:fn_start + 13000]
     assert ".segment-node.selection-edge-hl" in fn_body, \
         ".segment-node.selection-edge-hl のクリア処理がない"
 
@@ -18771,7 +18771,7 @@ def test_physical_link_edge_highlight_still_wired(rendered_html):
     js = _extract_js_body(rendered_html)
     fn_start = js.find("function _updateEdgeHighlightForSelection()")
     assert fn_start != -1
-    fn_body = js[fn_start:fn_start + 10000]
+    fn_body = js[fn_start:fn_start + 13000]
     assert ".view-physical .link-edge[data-a][data-b]" in fn_body, \
         "physical 分岐の link-edge[data-a][data-b] 走査が消えている"
     assert "data-link-id" in fn_body, \
@@ -18783,7 +18783,7 @@ def test_bgp_session_highlight_still_wired(rendered_html):
     js = _extract_js_body(rendered_html)
     fn_start = js.find("function _updateEdgeHighlightForSelection()")
     assert fn_start != -1
-    fn_body = js[fn_start:fn_start + 10000]
+    fn_body = js[fn_start:fn_start + 13000]
     assert ".view-bgp .bgp-session[data-a][data-b]" in fn_body, \
         "bgp 分岐の bgp-session[data-a][data-b] 走査が消えている"
     assert "data-bgp-id" in fn_body, \
@@ -18795,7 +18795,7 @@ def test_ospf_link_edge_highlight_still_wired(rendered_html):
     js = _extract_js_body(rendered_html)
     fn_start = js.find("function _updateEdgeHighlightForSelection()")
     assert fn_start != -1
-    fn_body = js[fn_start:fn_start + 10000]
+    fn_body = js[fn_start:fn_start + 13000]
     assert ".view-ospf .link-edge[data-a][data-b]" in fn_body, \
         "ospf 分岐の link-edge[data-a][data-b] 走査が消えている"
 
@@ -21037,23 +21037,41 @@ def test_if1_d_svg_links_no_iface_attr_for_partial_miss():
 # IF1-E: bgp/ospf 分岐は if-chip 操作なし（非回帰）
 # ---------------------------------------------------------------------------
 
-@pytest.mark.unit
-def test_if1_e_bgp_branch_does_not_touch_if_chip(rendered_html):
-    """IF1-E: _updateEdgeHighlightForSelection の bgp 分岐には .if-chip への操作がない。
-    bgp/ospf 分岐は変更対象外。
+def _extract_bgp_branch_body(html: str) -> str:
+    """_updateEdgeHighlightForSelection の bgp 分岐だけを取り出す。
+
+    "_currentView === 'bgp'" 〜 次の "_currentView === 'ospf'" 手前。
     """
-    func_body = _extract_update_edge_highlight_body(rendered_html)
-    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
-    # bgp 分岐のブロックを取り出す
-    bgp_block_match = re.search(
-        r"=== ['\"]bgp['\"].*?(?=\s*\}\s*else\s*if|\s*\}\s*// end|\Z)",
-        func_body, re.DOTALL
+    body = _extract_update_edge_highlight_body(html)
+    start = body.find("_currentView === 'bgp'")
+    if start == -1:
+        return ""
+    end = body.find("_currentView === 'ospf'", start)
+    return body[start:end] if end != -1 else body[start:]
+
+
+@pytest.mark.unit
+def test_f1_bgp_branch_does_touch_if_chip(rendered_html):
+    """F1: _updateEdgeHighlightForSelection の bgp 分岐は .if-chip 点灯を行う。
+
+    ⑬(ospf)・②(physical) と同型で、BGPセッション線の両端 IF チップを点灯する。
+    （旧 IF1-E では「bgp 分岐は if-chip 操作なし」を期待していたが F1 で仕様変更）
+    """
+    bgp_block = _extract_bgp_branch_body(rendered_html)
+    assert bgp_block, "bgp 分岐ブロックが抽出できない"
+    assert "data-a-iface" in bgp_block and "data-b-iface" in bgp_block, (
+        "bgp 分岐が data-a-iface/data-b-iface を読んでいない（F1: チップ点灯の配線が必要）"
     )
-    if bgp_block_match:
-        bgp_block = bgp_block_match.group(0)
-        assert "if-chip" not in bgp_block, (
-            "bgp 分岐に .if-chip への操作がある。bgp/ospf 分岐は変更対象外。"
-        )
+    # if-chip 点灯の近傍に highlighted+selection-edge-hl があること
+    found = False
+    for m in re.finditer(r'if-chip', bgp_block):
+        ctx = bgp_block[max(0, m.start() - 50): m.end() + 200]
+        if "selection-edge-hl" in ctx and "highlighted" in ctx:
+            found = True
+            break
+    assert found, (
+        "bgp 分岐の if-chip 点灯に highlighted+selection-edge-hl の付与がない（F1）"
+    )
 
 
 @pytest.mark.unit
@@ -21069,6 +21087,88 @@ def test_if1_e_ospf_branch_does_touch_if_chip(rendered_html):
     assert ospf_block, "ospf 分岐ブロックが抽出できない"
     assert "if-chip" in ospf_block, (
         "ospf 分岐に .if-chip への操作がない。⑬ で physical と同型のチップ点灯が必要。"
+    )
+
+
+@pytest.mark.unit
+def test_f1_bgp_session_has_iface_attrs_ebgp():
+    """F1: eBGP p2p（chip_positions あり・双方向）で bgp-session <g> に
+    data-a-iface/data-b-iface（物理IFの iface_id）が付く。"""
+    from lib.rendering.svg import _svg_bgp_edges_split, _chip_positions
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30",
+         "shutdown": False, "description": None},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30",
+         "shutdown": False, "description": None},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+    r1_chips = _chip_positions({"id": "r1", "hostname": "R1"}, {"r1::eth0"}, [interfaces[0]], 200.0, 300.0)
+    r2_chips = _chip_positions({"id": "r2", "hostname": "R2"}, {"r2::eth0"}, [interfaces[1]], 500.0, 300.0)
+    chip_pos = {**r1_chips, **r2_chips}
+    lines, _badges = _svg_bgp_edges_split(bgp_entries, interfaces, positions, chip_positions=chip_pos)
+    assert 'data-a-iface="r1::eth0"' in lines or 'data-b-iface="r1::eth0"' in lines, (
+        f"bgp-session に r1::eth0 の iface 属性がない: {lines[:400]}"
+    )
+    assert 'data-a-iface="r2::eth0"' in lines or 'data-b-iface="r2::eth0"' in lines, (
+        f"bgp-session に r2::eth0 の iface 属性がない: {lines[:400]}"
+    )
+    # 同一 bgp-session <g> 内に両 iface 属性
+    assert re.search(r'<g class="bgp-session"[^>]*data-[ab]-iface=[^>]*data-[ab]-iface=', lines), (
+        "data-a-iface/data-b-iface が同一 bgp-session <g> に付いていない"
+    )
+
+
+@pytest.mark.unit
+def test_f1_bgp_session_iface_attr_is_loopback_for_ibgp():
+    """F1: iBGP loopback ピア（双方向・local_ip=null）で bgp-session に Loopback の
+    iface_id が data-a-iface/data-b-iface として付く（チップ＝セッション源 Loopback）。"""
+    from lib.rendering.svg import _svg_bgp_edges_split, _chip_positions
+    interfaces = [
+        {"id": "r1::lo0", "device": "r1", "name": "Loopback0", "ip": "10.255.0.1/32",
+         "shutdown": False, "description": None},
+        {"id": "r2::lo0", "device": "r2", "name": "Loopback0", "ip": "10.255.0.2/32",
+         "shutdown": False, "description": None},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65000, "local_ip": None,
+         "neighbor_ip": "10.255.0.2", "peer_as": 65000, "type": "ibgp"},
+        {"device": "r2", "local_as": 65000, "local_ip": None,
+         "neighbor_ip": "10.255.0.1", "peer_as": 65000, "type": "ibgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+    r1_chips = _chip_positions({"id": "r1", "hostname": "R1"}, {"r1::lo0"}, [interfaces[0]], 200.0, 300.0)
+    r2_chips = _chip_positions({"id": "r2", "hostname": "R2"}, {"r2::lo0"}, [interfaces[1]], 500.0, 300.0)
+    chip_pos = {**r1_chips, **r2_chips}
+    lines, _badges = _svg_bgp_edges_split(bgp_entries, interfaces, positions, chip_positions=chip_pos)
+    assert "r1::lo0" in lines and "r2::lo0" in lines, (
+        f"iBGP の bgp-session に両 Loopback iface_id が付いていない: {lines[:400]}"
+    )
+
+
+@pytest.mark.unit
+def test_f1_bgp_session_no_iface_attr_without_chips():
+    """F1: chip_positions なし（チップ非描画）では iface 属性を付けない（後方互換）。"""
+    from lib.rendering.svg import _svg_bgp_edges_split
+    interfaces = [
+        {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
+        {"id": "r2::eth0", "device": "r2", "name": "eth0", "ip": "10.0.0.2/30"},
+    ]
+    bgp_entries = [
+        {"device": "r1", "local_as": 65001, "local_ip": "10.0.0.1",
+         "neighbor_ip": "10.0.0.2", "peer_as": 65002, "type": "ebgp"},
+        {"device": "r2", "local_as": 65002, "local_ip": "10.0.0.2",
+         "neighbor_ip": "10.0.0.1", "peer_as": 65001, "type": "ebgp"},
+    ]
+    positions = {"r1": (200.0, 300.0), "r2": (500.0, 300.0)}
+    lines, _badges = _svg_bgp_edges_split(bgp_entries, interfaces, positions)
+    assert "data-a-iface" not in lines and "data-b-iface" not in lines, (
+        "chip_positions 無しなのに iface 属性が付いている"
     )
 
 

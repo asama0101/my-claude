@@ -2270,6 +2270,22 @@ _JS = """\
                 row.classList.add('selection-edge-hl');
               });
             }
+            // F1: セッション線端点の IF チップ（if-chip）を点灯（data-a-iface / data-b-iface）。
+            // physical/ospf 分岐と同型。クリアは冒頭の .if-chip.selection-edge-hl 解除で対応。
+            var aIface = el.getAttribute('data-a-iface');
+            var bIface = el.getAttribute('data-b-iface');
+            if (aIface) {
+              document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(aIface) + '"]').forEach(function(chip) {
+                chip.classList.add('highlighted');
+                chip.classList.add('selection-edge-hl');
+              });
+            }
+            if (bIface) {
+              document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(bIface) + '"]').forEach(function(chip) {
+                chip.classList.add('highlighted');
+                chip.classList.add('selection-edge-hl');
+              });
+            }
           }
         });
 
