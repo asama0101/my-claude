@@ -21297,13 +21297,35 @@ def test_s15_highlight_shared_segments_lights_member_chip(rendered_html):
     # data-member-iface 読み取り近傍に if-chip 点灯 + selection-edge-hl がある
     found = False
     for m in re.finditer(r'data-member-iface', func_body):
-        ctx = func_body[m.start(): m.end() + 300]
+        ctx = func_body[m.start(): m.end() + 500]
         if "if-chip" in ctx and "selection-edge-hl" in ctx:
             found = True
             break
     assert found, (
         "_highlightSharedSegments の data-member-iface 読み取り箇所に "
         ".if-chip 点灯（selection-edge-hl 付与）がない。"
+    )
+
+
+@pytest.mark.unit
+def test_f2_shared_segment_chip_limited_to_selected(rendered_html):
+    """F2: 共有NWのメンバーIFチップ点灯は「選択ノード(data-device∈_selectedNodes)」に限定される。
+
+    非選択メンバーのチップが点く誤動作の修正。data-member-iface 読み取り箇所の近傍に
+    data-device 取得と _selectedNodes.has(...) ガードがあることを検証する。
+    """
+    func_body = _extract_update_edge_highlight_body(rendered_html)
+    assert func_body, "_updateEdgeHighlightForSelection 関数が見つからない"
+    # data-member-iface 読み取りブロックに data-device と _selectedNodes.has ガードがある
+    found_guard = False
+    for m in re.finditer(r'data-member-iface', func_body):
+        block = func_body[m.start(): m.end() + 320]
+        if "data-device" in block and "_selectedNodes.has" in block and "if-chip" in block:
+            found_guard = True
+            break
+    assert found_guard, (
+        "_highlightSharedSegments のチップ点灯が選択ノード限定になっていない"
+        "（data-device を _selectedNodes.has で確認するガードが必要・F2）"
     )
 
 

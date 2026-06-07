@@ -2182,10 +2182,13 @@ _JS = """\
           matched.forEach(function(el) {
             el.classList.add('highlighted');
             el.classList.add('selection-edge-hl');
-            // ⑮: seg-edge のメンバー IF チップも点灯（segment-node は data-member-iface を持たない）。
-            // 選択経路なので selection-edge-hl を付け、冒頭の .if-chip.selection-edge-hl 解除で消す。
+            // ⑮/F2: seg-edge のメンバー IF チップ点灯は「選択ノードのメンバー」のみに限定する。
+            // セグメント線/ノードは共有NW構造として全メンバー点灯のままだが、チップは
+            // 選択した機器(data-device ∈ _selectedNodes)の IF だけ点灯する（非選択メンバーの
+            // チップが点く誤動作の解消）。segment-node は data-member-iface を持たない。
             var memberIface = el.getAttribute('data-member-iface');
-            if (memberIface) {
+            var memberDev = el.getAttribute('data-device');
+            if (memberIface && memberDev && _selectedNodes.has(memberDev)) {
               document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(memberIface) + '"]').forEach(function(chip) {
                 chip.classList.add('highlighted');
                 chip.classList.add('selection-edge-hl');
