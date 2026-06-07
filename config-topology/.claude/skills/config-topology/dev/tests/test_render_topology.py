@@ -22321,6 +22321,34 @@ def test_resize_observer_minimap_update_called(rendered_html):
 
 
 @pytest.mark.unit
+def test_f5_divider_mouseup_raf_minimap_reconcile(rendered_html):
+    """F5: 境界ディバイダのドラッグ確定(mouseup)後、rAF でミニマップを最終同期する。
+
+    ResizeObserver に加え、確定寸法での最終 _updateMinimap 同期を念押しする
+    （リサイズ後のミニマップ精度ズレ対策）。
+    """
+    js = _extract_js_body(rendered_html)
+    # divider mouseup ハンドラ（mousemove も同じガード文を持つため mouseup 登録から探す）
+    mu = js.find("addEventListener('mouseup', function() {\n        if (!isDraggingDivider) return")
+    assert mu != -1, "divider mouseup ハンドラが見つからない"
+    region = js[mu: mu + 600]
+    assert "requestAnimationFrame" in region and "_updateMinimap" in region, (
+        "divider 確定後の rAF ミニマップ最終同期が無い（F5）"
+    )
+
+
+@pytest.mark.unit
+def test_f5_toggle_cards_pane_raf_minimap_reconcile(rendered_html):
+    """F5: 表ペイン最小化トグル後、reflow 完了後（rAF）にミニマップを同期する。"""
+    js = _extract_js_body(rendered_html)
+    fn = _extract_js_function(rendered_html, "toggleCardsPane")
+    assert fn, "toggleCardsPane 関数が見つからない"
+    assert "requestAnimationFrame" in fn and "_updateMinimap" in fn, (
+        "toggleCardsPane に rAF ミニマップ同期が無い（reflow 前同期は clientHeight 旧値で不正確・F5）"
+    )
+
+
+@pytest.mark.unit
 def test_resize_observer_no_throw_in_node_smoke(rendered_html):
     """node smoke: ResizeObserver スタブ有り環境で JS が throw しない。"""
     if shutil.which('node') is None:

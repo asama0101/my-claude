@@ -947,7 +947,16 @@ _JS = """\
         _cardsCollapsedSavedFlex = null;
         if (btn) btn.classList.remove('active');
       }
-      if (window._updateMinimap) { window._updateMinimap(); }
+      // F5: 表ペイン最小化トグルはレイアウトを変える。reflow 完了後（rAF）に
+      // ミニマップを同期する（同期呼び出しは reflow 前で clientHeight が旧値のため不正確）。
+      // ResizeObserver もサイズ変化で発火するが、確定寸法での最終同期を念押しする。
+      if (window.requestAnimationFrame) {
+        window.requestAnimationFrame(function() {
+          if (window._updateMinimap) { window._updateMinimap(); }
+        });
+      } else if (window._updateMinimap) {
+        window._updateMinimap();
+      }
     }
 
     // ============================================================
@@ -1833,7 +1842,18 @@ _JS = """\
       });
 
       document.addEventListener('mouseup', function() {
+        if (!isDraggingDivider) return;
         isDraggingDivider = false;
+        // F5: ペイン高さ確定後、レイアウト reflow 完了後（rAF）にミニマップを最終同期する。
+        // ResizeObserver はドラッグ中に発火するが、確定時の最終寸法（clientWidth/Height）で
+        // ビューポート矩形を確実に再計算し、リサイズ後のミニマップ精度ズレを防ぐ。
+        if (window.requestAnimationFrame) {
+          window.requestAnimationFrame(function() {
+            if (window._updateMinimap) { window._updateMinimap(); }
+          });
+        } else if (window._updateMinimap) {
+          window._updateMinimap();
+        }
       });
     })();
 
