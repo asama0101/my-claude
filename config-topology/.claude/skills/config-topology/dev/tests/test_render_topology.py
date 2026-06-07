@@ -1528,7 +1528,11 @@ def test_gating_bgp_with_real_neighbors_generates_view():
 
 @pytest.mark.unit
 def test_f4_bgp_has_resolved_edges_requires_bidirectional():
-    """F4: _bgp_has_resolved_edges は双方向に相互設定された内部ピアでのみ True。"""
+    """F4: _bgp_has_resolved_edges は双方向に相互設定された内部ピアでのみ True。
+
+    判定は IP 解決ベースで type(ebgp/ibgp)に依存しない（eBGP/iBGP 問わず双方向設定が必須）。
+    ここでは eBGP fixture で「片方向→False / 双方向→True」を検証する。
+    """
     from lib.rendering.views import _bgp_has_resolved_edges
     interfaces = [
         {"id": "r1::eth0", "device": "r1", "name": "eth0", "ip": "10.0.0.1/30"},
@@ -7490,14 +7494,18 @@ def test_f6_empty_area_deselect_uses_dblclick(rendered_html):
 
 @pytest.mark.unit
 def test_f6_empty_dblclick_calls_clear_selection(rendered_html):
-    """F6: 余白 dblclick リスナーが clearSelection を呼ぶ。"""
+    """F6: 余白 dblclick リスナーが clearSelection を呼び、ノード/エッジ等の上では解除しない。"""
     m = re.search(
-        r"getElementById\('topology-svg'\)\.addEventListener\('dblclick',\s*function\(\)\s*\{(.*?)\}\)",
+        r"getElementById\('topology-svg'\)\.addEventListener\('dblclick',\s*function\(e?\)\s*\{(.*?)\}\)",
         rendered_html, re.DOTALL
     )
     assert m, "topology-svg の dblclick リスナーが見つからない"
-    assert "clearSelection" in m.group(1), \
-        "余白 dblclick が clearSelection() を呼んでいない"
+    body = m.group(1)
+    assert "clearSelection" in body, "余白 dblclick が clearSelection() を呼んでいない"
+    # ノード/エッジ/チップ上の dblclick はバブリングしても解除しないガードがある
+    assert "closest('.device-node" in body and "return" in body, (
+        "dblclick 解除に device-node 等のガードが無い（ノード dblclick で誤解除する）"
+    )
 
 
 @pytest.mark.unit
@@ -8356,16 +8364,14 @@ def test_p3_bgp_edge_fallback_to_node_center_when_no_local_ip():
         chip_positions=chip_positions,
     )
 
-    # A 側（r1）は local_ip なしのためノード中心 (200.0, 300.0) が始点になる
-    m = re.search(r'<path[^>]+d="M([\d.]+),([\d.]+)', svg)
+    # r1 は local_ip なし＋r1 Loopback チップ未設定のためノード中心 (200,300) にフォールバック。
+    # 双方向のため dev_id がどちらになっても良いよう、両端点のいずれかが (200,300) であることを検証。
+    m = re.search(r'<path[^>]+d="M([\d.]+),([\d.]+) Q[\d.]+,[\d.]+ ([\d.]+),([\d.]+)"', svg)
     assert m is not None, f"BGP path が見つからない: {svg[:300]}"
-    path_x1 = float(m.group(1))
-    path_y1 = float(m.group(2))
-
-    assert abs(path_x1 - 200.0) < 1.0, \
-        f"local_ip=None 時 A 側始点 x={path_x1} がノード中心 200.0 にフォールバックしない"
-    assert abs(path_y1 - 300.0) < 1.0, \
-        f"local_ip=None 時 A 側始点 y={path_y1} がノード中心 300.0 にフォールバックしない"
+    sx, sy, ex, ey = (float(g) for g in m.groups())
+    endpoints = [(sx, sy), (ex, ey)]
+    assert any(abs(px - 200.0) < 1.0 and abs(py - 300.0) < 1.0 for px, py in endpoints), \
+        f"local_ip=None 時 r1 端がノード中心 (200,300) にフォールバックしない: {endpoints}"
 
 # ---------------------------------------------------------------------------
 # #6-D: ビュー別チップ集合（OSPF ビュー）

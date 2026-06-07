@@ -2022,7 +2022,10 @@ _JS = """\
 
       // F6: 図の余白の選択解除はダブルクリックで行う。単クリック/ドラッグは
       // パン（container mousedown ドラッグ）に専有させ、誤解除を防ぐ。
-      document.getElementById('topology-svg').addEventListener('dblclick', function() {
+      // ノード/エッジ/チップ等の上の dblclick はバブリングで到達しても解除しない
+      // （ノードの click は stopPropagation 済みだが dblclick は伝播するため明示ガード）。
+      document.getElementById('topology-svg').addEventListener('dblclick', function(e) {
+        if (e.target.closest('.device-node, .if-chip, .bgp-session, .link-edge, .seg-edge, .segment-node')) return;
         clearSelection();
       });
 
