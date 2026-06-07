@@ -7392,12 +7392,69 @@ def test_p2_nb_focus_dimmed_no_css_block(rendered_html):
 
 @pytest.mark.unit
 def test_p2_nb_dblclick_handler_removed(rendered_html):
-    """#6 撤去後: device-node への dblclick イベントハンドラが削除されている。
-    (旧テスト test_p2_nb_dblclick_handler_exists を撤去後の否定条件に更新)
-    正式版: test_p1a6_dblclick_handler_removed（p1a6 テスト群に移行済み）
+    """#6 撤去後: device-node の隣接フォーカス（dblクリック）機能が削除されている。
+
+    F6 で図の余白(#topology-svg)の選択解除に dblclick を使うため、'dblclick' の全体不在ではなく
+    隣接フォーカス機能の痕跡（applyFocusMode/_clickTimer/focus-dimmed）と device-node への
+    dblclick ハンドラ不在で検証する。
     """
-    assert "dblclick" not in rendered_html, \
-        "dblclick ハンドラが残存している（フォーカスモード撤去済みのはず）"
+    assert "applyFocusMode" not in rendered_html and "_clickTimer" not in rendered_html \
+        and "focus-dimmed" not in rendered_html, \
+        "隣接フォーカス（dblクリック）機能の痕跡が残存している（撤去済みのはず）"
+    assert "node.addEventListener('dblclick'" not in rendered_html and \
+           'node.addEventListener("dblclick"' not in rendered_html, \
+        "device-node に dblclick ハンドラが残存している（隣接フォーカス撤去済みのはず）"
+
+@pytest.mark.unit
+def test_f6_empty_area_deselect_uses_dblclick(rendered_html):
+    """F6: 図の余白(#topology-svg)の選択解除は click ではなく dblclick で行う。
+
+    空白の単クリック/ドラッグはパン用に空け、選択解除は dblclick のみとする。
+    """
+    assert "getElementById('topology-svg').addEventListener('dblclick'" in rendered_html, \
+        "図の余白の選択解除が dblclick で登録されていない（F6）"
+    assert "getElementById('topology-svg').addEventListener('click'" not in rendered_html, \
+        "図の余白の選択解除が click のまま残っている（dblclick へ変更が必要・F6）"
+
+
+@pytest.mark.unit
+def test_f6_empty_dblclick_calls_clear_selection(rendered_html):
+    """F6: 余白 dblclick リスナーが clearSelection を呼ぶ。"""
+    m = re.search(
+        r"getElementById\('topology-svg'\)\.addEventListener\('dblclick',\s*function\(\)\s*\{(.*?)\}\)",
+        rendered_html, re.DOTALL
+    )
+    assert m, "topology-svg の dblclick リスナーが見つからない"
+    assert "clearSelection" in m.group(1), \
+        "余白 dblclick が clearSelection() を呼んでいない"
+
+
+@pytest.mark.unit
+def test_f6_pan_handler_unchanged(rendered_html):
+    """F6 非回帰: 空白ドラッグのパン（container mousedown）は維持される。"""
+    assert "container.addEventListener('mousedown'" in rendered_html, \
+        "パン用 container mousedown ハンドラが失われている"
+
+
+@pytest.mark.unit
+def test_f3_node_click_no_card_scroll_into_view(rendered_html):
+    """F3: ノードクリック選択時に card.scrollIntoView を呼ばない（図がパンしない）。
+
+    card.scrollIntoView はノード選択ブランチ固有（表行の row.scrollIntoView は別物で残す）。
+    """
+    assert "card.scrollIntoView" not in rendered_html, \
+        "ノード選択で card.scrollIntoView が残っている（図がスクロール/パンする原因・F3）"
+
+
+@pytest.mark.unit
+def test_f3_node_click_still_selects(rendered_html):
+    """F3 非回帰: ノードクリックの選択ロジック（_selectedNodes・連動更新）は維持。"""
+    # ノードクリックハンドラ近傍に _selectedNodes 操作と _updateEdgeHighlightForSelection 呼出
+    assert "_selectedNodes.add" in rendered_html and "_selectedNodes.delete" in rendered_html, \
+        "ノード選択の _selectedNodes 操作が失われている"
+    assert "_updateEdgeHighlightForSelection()" in rendered_html, \
+        "ノード選択時の _updateEdgeHighlightForSelection 呼出が失われている"
+
 
 @pytest.mark.unit
 def test_p2_nb_focus_uses_data_a_data_b(rendered_html):
@@ -9913,10 +9970,15 @@ def test_p1a6_focus_device_var_removed(rendered_html):
 @pytest.mark.unit
 def test_p1a6_dblclick_handler_removed(rendered_html):
     """\
-    #6: device-node の dblclick イベントハンドラが削除されている。
+    #6: device-node の隣接フォーカス（dblクリック）機能が削除されている。
+    F6 で図の余白(#topology-svg)の選択解除に dblclick を使うため、device-node への
+    dblclick ハンドラと隣接フォーカス機能痕跡の不在で検証する。
     """
-    assert "dblclick" not in rendered_html, \
-        "dblclick ハンドラが残存している（フォーカスモード撤去済みのはず）"
+    assert "applyFocusMode" not in rendered_html and "focus-dimmed" not in rendered_html, \
+        "隣接フォーカス（dblクリック）機能の痕跡が残存している（撤去済みのはず）"
+    assert "node.addEventListener('dblclick'" not in rendered_html and \
+           'node.addEventListener("dblclick"' not in rendered_html, \
+        "device-node に dblclick ハンドラが残存している（隣接フォーカス撤去済みのはず）"
 
 @pytest.mark.unit
 def test_p1a6_help_text_no_double_click_hint(rendered_html):

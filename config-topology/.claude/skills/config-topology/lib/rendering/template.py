@@ -1988,7 +1988,9 @@ _JS = """\
             var card = document.querySelector('.device-card[data-device="' + CSS.escape(deviceId) + '"]');
             if (card) {
               card.classList.add('selected');
-              card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              // F3: ノード選択でカードへ scrollIntoView しない（ページ/ペインのスクロールが
+              // ResizeObserver 経由で図をパンさせ「選択すると図が動く」原因になっていた）。
+              // 選択カードは _updateCardFilter() の絞り込みで表示されるため scroll は不要。
             }
             _selectedNodes.add(deviceId);
           }
@@ -1998,7 +2000,9 @@ _JS = """\
         });
       });
 
-      document.getElementById('topology-svg').addEventListener('click', function() {
+      // F6: 図の余白の選択解除はダブルクリックで行う。単クリック/ドラッグは
+      // パン（container mousedown ドラッグ）に専有させ、誤解除を防ぐ。
+      document.getElementById('topology-svg').addEventListener('dblclick', function() {
         clearSelection();
       });
 
