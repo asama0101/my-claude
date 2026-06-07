@@ -1883,6 +1883,8 @@ _JS = """\
         // G2: ホバー中ノードに接続する IF チップを一時点灯する共通ヘルパー。
         // すでに点灯済み（クリック固定 or 選択ピン）のチップには hover-chip-hl を付けず触らない
         // ＝clearHighlight でホバー由来のみ安全に消える（固定/ピンを保護）。
+        // IIFE スコープの _hoverChipHl をクロージャ参照するため highlight 内に定義している
+        // （highlight の外に出すと _hoverChipHl を参照できない）。
         function _hoverLitChip(ifaceId) {
           if (!ifaceId) return;
           document.querySelectorAll('.if-chip[data-iface-id="' + CSS.escape(ifaceId) + '"]').forEach(function(chip) {
@@ -1899,21 +1901,25 @@ _JS = """\
           }
         });
         allLinks.forEach(function(l) {
-          if (l.dataset.a === deviceId || l.dataset.b === deviceId) {
+          var aMatch = l.dataset.a === deviceId;
+          var bMatch = l.dataset.b === deviceId;
+          if (aMatch || bMatch) {
             l.classList.add('highlighted');
+            // G2: link-edge 端点 IF チップもホバー点灯する（Physical/OSPF p2p 統一）
+            if (aMatch) { _hoverLitChip(l.getAttribute('data-a-iface')); }
+            if (bMatch) { _hoverLitChip(l.getAttribute('data-b-iface')); }
           }
-          // G2: link-edge 端点 IF チップもホバー点灯する（Physical/OSPF p2p 統一）
-          if (l.dataset.a === deviceId) { _hoverLitChip(l.getAttribute('data-a-iface')); }
-          if (l.dataset.b === deviceId) { _hoverLitChip(l.getAttribute('data-b-iface')); }
         });
         // BGP セッション: 両端ノードいずれかが deviceId に一致するセッションを点灯
         allBgpSessions.forEach(function(s) {
-          if (s.dataset.a === deviceId || s.dataset.b === deviceId) {
+          var aMatch = s.dataset.a === deviceId;
+          var bMatch = s.dataset.b === deviceId;
+          if (aMatch || bMatch) {
             s.classList.add('highlighted');
+            // G2: bgp-session 端点 IF チップもホバー点灯する（BGP ビュー統一）
+            if (aMatch) { _hoverLitChip(s.getAttribute('data-a-iface')); }
+            if (bMatch) { _hoverLitChip(s.getAttribute('data-b-iface')); }
           }
-          // G2: bgp-session 端点 IF チップもホバー点灯する（BGP ビュー統一）
-          if (s.dataset.a === deviceId) { _hoverLitChip(s.getAttribute('data-a-iface')); }
-          if (s.dataset.b === deviceId) { _hoverLitChip(s.getAttribute('data-b-iface')); }
         });
         // 共有 NW (seg-edge / segment-node): deviceId が接続する seg-edge を点灯し、
         // そのセグメントノードも一緒に点灯する
@@ -2275,6 +2281,8 @@ _JS = """\
                 row.classList.add('selection-edge-hl');
               });
             }
+            // 選択由来チップは selection-edge-hl を付与し _hoverChipHl には積まない（ホバー経路 _hoverLitChip とは
+            // 付与クラス・解除機構が異なるため分離）。ホバー側のみ _hoverLitChip に集約済み。
             // 端点 IF チップ（if-chip）を点灯（data-a-iface / data-b-iface）
             var aIface = el.getAttribute('data-a-iface');
             var bIface = el.getAttribute('data-b-iface');

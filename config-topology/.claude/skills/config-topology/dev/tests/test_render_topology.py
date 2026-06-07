@@ -21649,15 +21649,20 @@ def test_g1_clear_highlight_protects_selection_pinned_chip(rendered_html):
         "!chip.classList.contains('selection-edge-hl') ガードがない "
         "（ホバー解除で選択ピンチップの highlighted が消える G1 off-by-one が発生）"
     )
-    # ガードと remove('highlighted') が同一スコープ内にあること（ガードが空振りでないこと）
+    # ガードと remove('highlighted') が同一ブロック内にあること（ガードが空振りでないこと）。
+    # if (!...contains('selection-edge-hl')) { ... remove('highlighted') ... } の形を要求する。
+    # lazy (.*?) + DOTALL では } の外に remove('highlighted') があっても通過してしまうため、
+    # [^{]*\{ で { まで進み [^}]*? を使って閉じ } が来る前に remove('highlighted') が
+    # あることを検証する（ガード外に出ていれば None になる）。
     guard_match = re.search(
-        r'!\s*\w[\w.]*\.contains\(\s*[\'"]selection-edge-hl[\'"]\s*\)(.*?)remove\([\'"]highlighted[\'"]\)',
+        r"!\s*\w[\w.]*\.contains\(\s*['\"]selection-edge-hl['\"]\s*\)[^{]*\{"
+        r"[^}]*?remove\(['\"]highlighted['\"]\)",
         hover_block,
         re.DOTALL
     )
     assert guard_match is not None, (
-        "clearHighlight() の _hoverChipHl 走査内で selection-edge-hl ガード後に "
-        "remove('highlighted') が続いていない（ガードが機能していない）"
+        "clearHighlight() の _hoverChipHl 走査内で selection-edge-hl ガードブロック { } の"
+        "内側に remove('highlighted') がない（ガードが機能していない/ガード外に出ている）"
     )
 
 
@@ -21712,13 +21717,22 @@ def test_s15_seg_member_chip_deterministic():
 @pytest.mark.unit
 def test_g2_hover_highlight_helper_exists(rendered_html):
     """G2: highlight() スコープ内に _hoverLitChip 共有ヘルパーが定義されている。
-    data-a-iface/data-b-iface チップ点灯の3箇所から呼ばれる DRY 実装。
+    link-edge/bgp-session/seg-edge の3種類のエッジから呼ばれる DRY 実装。
     """
     body = _extract_js_function(rendered_html, "highlight", max_len=6000)
     assert body, "highlight() 関数が見つからない"
     assert "_hoverLitChip" in body, (
         "highlight() スコープに _hoverLitChip ヘルパーが存在しない"
         "（G2: link-edge/bgp-session 端点チップ点灯を DRY 化するヘルパーが必要）"
+    )
+    # null ガード: _hoverLitChip 定義内に空/未設定 ifaceId を弾くガードがあること
+    idx = body.find("function _hoverLitChip")
+    assert idx != -1, "highlight() スコープに _hoverLitChip 関数定義がない"
+    helper_block = body[idx: idx + 400]
+    has_null_guard = re.search(r'if\s*\(\s*!\s*ifaceId\s*\)', helper_block) is not None
+    assert has_null_guard, (
+        "_hoverLitChip ヘルパーに !ifaceId null ガードがない"
+        "（data-a-iface が未設定の場合に querySelector が空文字で全件マッチする）"
     )
 
 
@@ -23235,13 +23249,14 @@ def test_g3_svg_container_flex_ratio_basis_zero(rendered_html):
     style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', rendered_html, re.DOTALL | re.IGNORECASE)
     combined_style = "\n".join(style_blocks)
 
-    # #svg-container ルールブロックを取得
-    block_m = re.search(r'#svg-container\s*\{([^}]*)\}', combined_style, re.DOTALL)
+    # #svg-container ルールブロックを取得。
+    # ^\s*#svg-container（行頭マッチ + MULTILINE）で
+    # .cards-collapsed #svg-container ルールへの誤マッチを防ぐ。
+    block_m = re.search(r'^\s*#svg-container\s*\{([^}]*)\}', combined_style, re.DOTALL | re.MULTILINE)
     assert block_m is not None, "#svg-container CSS ルールブロックが見つからない"
     block = block_m.group(1)
 
     # flex-grow が 2 以上かつ flex-basis が 0 であること（スペース揺れに強い正規表現）
-    # `flex: 2 1 0` / `flex: 2 1 0px` どちらも許容
     has_ratio_flex = bool(
         re.search(r'flex\s*:\s*2\s+1\s+0', block)
     )
