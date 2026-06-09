@@ -76,9 +76,14 @@ if [ "$DRY_RUN" -eq 1 ]; then
     exit 0
 fi
 
-# --- 上書き確認（TTY かつ --force/--yes でない場合）---
-if [ "$FORCE" -eq 0 ] && [ "$ASSUME_YES" -eq 0 ] && [ -d "$DEST" ] && [ -t 0 ]; then
-    echo "既存の $DEST に対象項目を上書きします（差分があれば $BACKUP_DIR へ退避）。続行しますか? [y/N]"
+# --- 展開先確認（TTY かつ --force/--yes でない場合）---
+# DEST の存在有無にかかわらず展開先パスを明示確認する（CLAUDE_HOME 指定ミスによる誤展開を防ぐ）。
+if [ "$FORCE" -eq 0 ] && [ "$ASSUME_YES" -eq 0 ] && [ -t 0 ]; then
+    if [ -d "$DEST" ]; then
+        echo "既存の $DEST に展開します（差分があれば $BACKUP_DIR へ退避）。続行しますか? [y/N]"
+    else
+        echo "新規ディレクトリ $DEST を作成して展開します。続行しますか? [y/N]"
+    fi
     read -r ans
     case "$ans" in y|Y|yes) ;; *) echo "中止しました。"; exit 0 ;; esac
 fi

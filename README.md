@@ -19,6 +19,7 @@ git clone <repo-url> ~/my-claude
 bash ~/my-claude/scripts/install.sh            # claude/ → ~/.claude/ へ展開
 ```
 
+- 実行時に展開先パスを表示して確認する（新規作成・既存いずれの場合も `[y/N]` プロンプトが出る）。`CLAUDE_HOME` の指定ミスによる誤展開を防ぐためで、`--force` / `--yes` / 非対話（非TTY）実行では確認を省略する
 - `--dry-run` で実際の変更なしに差分を確認できる：`bash scripts/install.sh --dry-run`
 - 展開先を変えたい場合は `CLAUDE_HOME` を指定：`CLAUDE_HOME=/path/to/dest bash scripts/install.sh`
 - 既存の `~/.claude/` の対象ファイルは `~/.claude/backups/install-<timestamp>/` へ退避してから上書きされる
