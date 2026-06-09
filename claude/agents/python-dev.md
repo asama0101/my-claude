@@ -136,7 +136,7 @@ ruff check .
 
 ### 参考
 
-スキル: `python-patterns` で包括的なPythonイディオムとパターンを参照。
+参照: `~/.claude/agents/references/python-patterns.md` で包括的な Python イディオムとパターンを Read。
 
 ---
 
@@ -222,7 +222,7 @@ def read_large_file(path: str):
 
 ### 参考
 
-スキル: `python-patterns` でデコレーター・並行処理・パッケージ構成を含む包括的なパターンを参照。
+参照: `~/.claude/agents/references/python-patterns.md` でデコレーター・並行処理・パッケージ構成を含む包括的なパターンを Read。
 
 ---
 
@@ -288,7 +288,7 @@ async def get_user(
 - テスト後に `app.dependency_overrides` をクリアする。
 - 非同期アプリケーションには非同期テストクライアントを優先する。
 
-スキル: `fastapi-patterns` を参照。
+参照: `~/.claude/agents/references/fastapi-patterns.md` を Read。
 
 ---
 

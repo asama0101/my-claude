@@ -5,10 +5,9 @@ tools: ["Read", "Write", "Edit", "Bash", "Grep"]
 model: sonnet
 ---
 
-## 開始前に必ず読むこと
+## 開始前の前提確認
 
-以下のルールファイルを Read ツールで読んでから TDD を開始すること:
-- `~/.claude/rules/common/planning-checklist.md` — 実装前チェックリスト（テスト戦略・ライブラリ制約確認）
+TDD を開始する前に、使用するライブラリ/SDK/API の型制約・特殊要件・既知の落とし穴を **context7 で確認**し、対象 repo の `CLAUDE.md`（Gotchas・テスト規約）を Read してテスト戦略を合わせること。
 
 ---
 
@@ -200,14 +199,9 @@ def test_falls_back_to_db_when_cache_unavailable():
 
 ### テスト失敗のトラブルシューティング
 
-1. **tdd-guide** エージェントを使用する
-2. テストの独立性を確認する
-3. モックが正しいことを確認する
-4. テストではなく実装を修正する（テストが間違っている場合を除く）
-
-### エージェントサポート
-
-- **tdd-guide** — 新機能に対して積極的に使用し、テストファーストを強制する
+1. テストの独立性を確認する
+2. モックが正しいことを確認する
+3. テストではなく実装を修正する（テストが間違っている場合を除く）
 
 ### 非同期テスト
 
@@ -222,10 +216,6 @@ async def test_get_user(async_client: AsyncClient):
     response = await async_client.get("/users/1")
     assert response.status_code == 200
 ```
-
-### 参考
-
-スキル: `python-testing` で詳細なpytestパターンとフィクスチャを参照。
 
 ---
 

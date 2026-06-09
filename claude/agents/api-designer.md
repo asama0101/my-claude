@@ -22,15 +22,6 @@ model: sonnet
 
 一貫性があり、開発者に優しい REST API を設計するための規約とベストプラクティス。
 
-### 使用場面
-
-- 新規 API エンドポイントを設計するとき
-- 既存の API 契約をレビューするとき
-- ページネーション、フィルタリング、ソートを追加するとき
-- API のエラーハンドリングを実装するとき
-- API バージョニング戦略を計画するとき
-- 公開 API やパートナー向け API を構築するとき
-
 ### リソース設計
 
 #### URL 構造
@@ -427,7 +418,7 @@ Accept: application/vnd.myapp.v2+json
 - [ ] 既存エンドポイントと一貫した命名（camelCase か snake_case か）
 - [ ] ドキュメント化されている（OpenAPI/Swagger spec を更新済み）
 
-### 関連スキル
+### 関連参照
 
-- Skill: `fastapi-patterns`（Python/FastAPI での実装パターン）
-- Skill: `python-testing`（API エンドポイントのテスト）
+- `python-dev` エージェント — Python/FastAPI での実装（`~/.claude/agents/references/fastapi-patterns.md` に詳細パターン）
+- `tdd-guide` エージェント — API エンドポイントのテスト（`~/.claude/agents/references/pytest-patterns.md` に詳細パターン）

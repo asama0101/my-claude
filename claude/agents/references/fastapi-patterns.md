@@ -346,8 +346,8 @@ app.dependency_overrides[get_settings] = lambda: Settings(database_url="sqlite:/
 - 圧縮はペイロードサイズと CPU トレードオフを確認してから追加する。
 - 安定した高コストな読み取りは、明示的な無効化を伴うキャッシュで賄う。
 
-### 関連スキル
+### 関連参照
 
-- Skill: `python-patterns`
-- Skill: `python-testing`
-- Skill: `api-design`
+- `~/.claude/agents/references/python-patterns.md`（汎用 Python パターン）
+- `~/.claude/agents/references/pytest-patterns.md`（テストパターン）
+- `api-designer` エージェント（REST API 設計）

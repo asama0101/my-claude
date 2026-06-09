@@ -42,10 +42,11 @@
 | architect | システム設計・アーキテクチャ（全体設計・トレードオフ・ADR） | 設計判断・スケーラビリティ検討時 |
 | tdd-guide | テスト駆動開発 | **新機能・バグ修正時は必須**（テストファースト）。汎用 `claude` エージェントで代替しない |
 | reviewer-correctness | 正確性レビュー（バグ・冪等性・エラーハンドリング） | コード変更後に **必ず** 使用 |
-| reviewer-performance | 性能レビュー（メモリ・DB最適化・polars・並列処理） | コード変更後に **必ず** 使用 |
+| reviewer-performance | 性能レビュー（メモリ・DB/I/O最適化・並列処理） | コード変更後に **必ず** 使用 |
 | reviewer-security | セキュリティレビュー（SQL injection・認証・機密情報） | コード変更後に **必ず** 使用 |
-| reviewer-test | テスト品質・要件適合レビュー（カバレッジ・フィクスチャ・信頼性＋spec.html要件・SLA・スキーマ・ETLフロー） | コード変更後に **必ず** 使用 |
-| reviewer-maintainability | 保守性・ドキュメント整合性レビュー（命名・構造・DRY・YAGNI＋docstring・CLAUDE.md・spec.html整合性） | コード変更後に **必ず** 使用 |
+| reviewer-test | テスト品質・要件適合レビュー（カバレッジ・フィクスチャ・信頼性＋仕様書要件・スキーマ適合・冪等性） | コード変更後に **必ず** 使用 |
+| reviewer-maintainability | 保守性・ドキュメント整合性レビュー（命名・構造・DRY・YAGNI＋docstring・CLAUDE.md・仕様書整合性） | コード変更後に **必ず** 使用 |
+| business-acceptance | 業務受け入れ検査（業務フローが過不足なく回るか・受け入れ可否判定） | 新システムの受け入れ判定・設計妥当性確認時 |
 | python-dev | Python/FastAPI実装 | Python/FastAPI コードを書くとき |
 | api-designer | REST API設計 | エンドポイント・スキーマ設計時 |
 | e2e-runner | Playwright E2E テスト | 重要ユーザーフローの動作確認時 |

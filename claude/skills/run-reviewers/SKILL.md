@@ -18,9 +18,9 @@ description: |
 |-------------|---------|
 | reviewer-correctness | バグ・論理エラー・冪等性・エラーハンドリング・境界値 |
 | reviewer-security | SQL injection・認証・機密情報・パストラバーサル |
-| reviewer-performance | メモリ効率・DB 最適化・polars・並列処理 |
-| reviewer-maintainability | 命名・構造・複雑さ・DRY・YAGNI ＋ docstring・CLAUDE.md・spec.html 整合性 |
-| reviewer-test | カバレッジ・フィクスチャ・エッジケース ＋ spec.html 要件・SLA・スキーマ・ETLフロー・cron |
+| reviewer-performance | メモリ効率・DB / I/O 最適化・並列処理 |
+| reviewer-maintainability | 命名・構造・複雑さ・DRY・YAGNI ＋ docstring・CLAUDE.md・仕様書 整合性 |
+| reviewer-test | カバレッジ・フィクスチャ・エッジケース ＋ 仕様書要件・スキーマ適合・冪等性 |
 
 ## 実行手順
 

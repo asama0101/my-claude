@@ -11,53 +11,45 @@ model: sonnet
 メモリ使用量・DB I/O 効率・polars 最適化・並列処理の観点のみに集中してください。
 バグ・セキュリティ・命名規則は担当外（他の reviewer が担当）。
 
-## プロジェクト性能コンテキスト
-
-- **ピークメモリ**: ~22GB（K=10 バッチ後処理方式。RAM 24GB サーバー = 余裕 2GB）
-- **SLA**: MINI 300s / FINAL 600s / SUBPORT 300s
-- **性能実績**: mini max 179s avg 172s / final 303s / SUBPORT 8s
-- **ProcessPoolExecutor**: 1 ワーカー = 1 ホスト（CPU bound）。Arrow IPC で pickle コストゼロ
-- **ThreadPoolExecutor**: SUBPORT 処理（I/O bound・軽量）
-- **DROP INDEX → DELETE → INSERT SELECT → CREATE INDEX**: 大量 INSERT 高速化パターン
-
 ## レビュープロセス
 
 1. `git diff --staged && git diff` で変更差分を取得
 2. 変更ファイル全体を Read して周辺コードを把握
-3. 以下のチェックリストを適用
+3. 対象 repo の `CLAUDE.md` / 仕様書を Read し、性能要件（SLA・メモリ上限・データ規模）を把握
+4. 以下のチェックリストを適用
 
 ## チェックリスト
 
-### CRITICAL: SLA 違反リスク
+> 対象プロジェクトの性能要件（SLA・メモリ上限・データ規模・使用ライブラリ）は、リポジトリの `CLAUDE.md` / 仕様書を Read して把握し、それに照らして検査すること。以下は汎用観点。
 
-- **全ファイルをメモリに保持** — ProcessPoolExecutor が完了した IPC bytes を逐次解放せずに全台分蓄積していないか（K=10 バッチ後処理が維持されているか）
-- **COPY の代わりに INSERT ON CONFLICT** — 大量書き込みに `INSERT ON CONFLICT` を使っていないか（6M 行で約 8 分かかり SLA アウト）
-- **インデックス付きテーブルへの大量 COPY** — `flow_stats` への大量 INSERT 前に DROP INDEX していないか
+### CRITICAL: スケール時の破綻
+
+- **全件メモリ保持** — 大量データを一括ロードしていないか。ストリーミング／逐次処理／バッチ解放にできないか
+- **N+1 / ループ内 I/O** — ループの中で DB クエリ・API 呼び出し・ファイル I/O を繰り返していないか
+- **大量書き込みの非効率** — 1 行ずつの INSERT/書き込みになっていないか（バルク・COPY・一括化できないか）
 
 ### HIGH: メモリ効率
 
-- **K=10 バッチ維持** — `as_completed` ループ内で IPC bytes を逐次 COPY して解放しているか（全ワーカー完了待ちに変更していないか）
-- **polars LazyFrame の未使用** — 大量データの集計に `collect()` を早期に呼んでいないか（LazyFrame のまま連鎖できないか）
-- **不要な pl.concat** — 中間 DataFrame を都度 concat せず、最後にまとめて concat しているか
+- **不要な中間コピー** — 都度 concat/コピー/マテリアライズせず、遅延評価のまま連鎖できないか
+- **早すぎる materialize** — 遅延評価（LazyFrame / iterator / generator）を早期に確定していないか
+- **大きなオブジェクトの保持** — 不要になった参照を解放しているか（蓄積してリークしないか）
 
-### HIGH: DB I/O 最適化
+### HIGH: DB / I/O 最適化
 
-- **flow_stats DROP INDEX パターン維持** — `run_flow_final` が `ix_flow_stats_subport_bucket` / `ix_flow_stats_service_id_bucket` を DROP してから INSERT しているか
-- **flow_staging UNLOGGED 維持** — `flow_staging` を LOGGED テーブルに変更していないか（WAL 書き込みで大幅減速）
-- **COPY vs execute_values** — 大量行（1000行超）に `execute_values` を使っていないか（COPY が正）
-- **無駄な SELECT** — 書き込み前に不要な SELECT を追加していないか
+- **索引の活用** — フィルタ・結合・ソート対象に適切なインデックスがあるか。大量 INSERT 前後の索引運用（必要なら DROP→一括 INSERT→再作成）
+- **不要なクエリ/読み取り** — 書き込み前の不要な SELECT、重複取得をしていないか
+- **適切な一括化** — ページング・チャンク・プリフェッチが妥当か。1000 行超の書き込みは一括 API（COPY 等）を使っているか
 
 ### MEDIUM: 並列処理効率
 
-- **max_workers の適切性** — `max(4, os.cpu_count() // 2)` から変更されていないか（24GB サーバーで最大 8 ワーカー）
-- **ProcessPoolExecutor の不適切使用** — SUBPORT（I/O bound・軽量）に ProcessPoolExecutor を使っていないか（ThreadPoolExecutor が正）
-- **ThreadPoolExecutor の不適切使用** — FLOW（CPU bound・大量データ）に ThreadPoolExecutor を使っていないか（GIL がある）
-- **タイムアウト設定** — `future.result(timeout=...)` が設定されているか
+- **方式の適合** — CPU バウンドにスレッド（GIL 制約）、I/O バウンドに重量プロセスを使っていないか（CPU=プロセス/ネイティブ並列、I/O=スレッド/async）
+- **ワーカー数** — マシンリソース（CPU 数・メモリ）に対して過大/過小でないか
+- **タイムアウト設定** — 並列タスク・外部呼び出しに `timeout` が設定されているか
 
-### LOW: polars 固有
+### LOW: ライブラリ固有
 
-- **polars-lts-cpu の has_header** — `write_csv(has_header=False)` を使っていないか（`InvalidOperationError`。ヘッダ除去は `csv_str.split('\n', 1)[1]`）
-- **不要なデータ型変換** — Arrow IPC ラウンドトリップで型が変わっていないか
+- **使用ライブラリの既知の落とし穴** — データフレーム/ORM/ドライバ等の既知の性能アンチパターンに該当しないか（必要なら context7 で確認）
+- **不要な型変換・シリアライズ** — シリアライズ/ラウンドトリップで余計な変換が発生していないか
 
 ## 出力フォーマット
 
