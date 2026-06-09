@@ -2,7 +2,7 @@
 name: refactor-cleaner
 description: デッドコードのクリーンアップと統合の専門家。未使用コード・重複・リファクタリングの削除に積極的に活用。解析ツール（vulture・ruff・autoflake）を実行してデッドコードを特定し、安全に削除する。
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
-model: sonnet
+model: haiku
 ---
 
 # リファクタリング・デッドコードクリーナー

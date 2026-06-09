@@ -10,19 +10,17 @@ description: |
 
 # run-reviewers — 統合レビュー実行スキル
 
-コード変更後に 7 つのレビュアーエージェントを**並列実行**し、統合レビューレポートを生成する。
+コード変更後に 5 つのレビュアーエージェントを**並列実行**し、統合レビューレポートを生成する。
 
 ## 使用するレビュアー
 
 | エージェント | 検査内容 |
 |-------------|---------|
-| reviewer-requirements | spec.html 要件・ETLフロー・SLA・スキーマ・cron 設定 |
 | reviewer-correctness | バグ・論理エラー・冪等性・エラーハンドリング・境界値 |
-| reviewer-test | カバレッジ・フィクスチャ・エッジケース・テスト信頼性 |
 | reviewer-security | SQL injection・認証・機密情報・パストラバーサル |
 | reviewer-performance | メモリ効率・DB 最適化・polars・並列処理 |
-| reviewer-maintainability | 命名・構造・複雑さ・DRY・YAGNI |
-| reviewer-docs | docstring・CLAUDE.md・spec.html 整合性 |
+| reviewer-maintainability | 命名・構造・複雑さ・DRY・YAGNI ＋ docstring・CLAUDE.md・spec.html 整合性 |
+| reviewer-test | カバレッジ・フィクスチャ・エッジケース ＋ spec.html 要件・SLA・スキーマ・ETLフロー・cron |
 
 ## 実行手順
 
@@ -42,20 +40,18 @@ git show --stat HEAD       # 直近コミットの変更概要
 git show --name-only HEAD  # 直近コミットの変更ファイル
 ```
 
-### Step 2: 7 つのレビュアーを同一ターン内で並列起動
+### Step 2: 5 つのレビュアーを同一ターン内で並列起動
 
-`Agent` ツールで **同一ターン内・同時** に 7 つのサブエージェントを呼び出す（順次ではなく並列）。
+`Agent` ツールで **同一ターン内・同時** に 5 つのサブエージェントを呼び出す（順次ではなく並列）。
 各エージェントへのプロンプトには「変更されたファイル一覧と変更の概要」を含める。
 
 ```
-同一ターンで Agent ツールを 7 回同時呼び出し:
-  subagent_type: reviewer-requirements    → "以下の変更をレビューしてください: [ファイル一覧と変更概要]"
+同一ターンで Agent ツールを 5 回同時呼び出し:
   subagent_type: reviewer-correctness     → "以下の変更をレビューしてください: [ファイル一覧と変更概要]"
-  subagent_type: reviewer-test            → "以下の変更をレビューしてください: [ファイル一覧と変更概要]"
   subagent_type: reviewer-security        → "以下の変更をレビューしてください: [ファイル一覧と変更概要]"
   subagent_type: reviewer-performance     → "以下の変更をレビューしてください: [ファイル一覧と変更概要]"
   subagent_type: reviewer-maintainability → "以下の変更をレビューしてください: [ファイル一覧と変更概要]"
-  subagent_type: reviewer-docs            → "以下の変更をレビューしてください: [ファイル一覧と変更概要]"
+  subagent_type: reviewer-test            → "以下の変更をレビューしてください: [ファイル一覧と変更概要]"
 ```
 
 ### Step 3: 統合レポートの生成
@@ -69,13 +65,11 @@ git show --name-only HEAD  # 直近コミットの変更ファイル
 ### サマリーテーブル
 | レビュアー | CRITICAL | HIGH | MEDIUM | LOW | 判定 |
 |-----------|---------|------|--------|-----|------|
-| requirements    | N | N | N | N | ✅/⚠️/🚫 |
 | correctness     | N | N | N | N | ✅/⚠️/🚫 |
-| test            | N | N | N | N | ✅/⚠️/🚫 |
 | security        | N | N | N | N | ✅/⚠️/🚫 |
 | performance     | N | N | N | N | ✅/⚠️/🚫 |
-| maintainability | N | N | N | N | ✅/⚠️/🚫 |
-| docs            | N | N | N | N | ✅/⚠️/🚫 |
+| maintainability（＋docs） | N | N | N | N | ✅/⚠️/🚫 |
+| test（＋requirements）    | N | N | N | N | ✅/⚠️/🚫 |
 
 ### 全体判定
 - ✅ **承認**（全レビュアーで CRITICAL / HIGH 問題なし）
@@ -93,6 +87,6 @@ MEDIUM 以下はユーザーが確認したい場合のみ展開する。
 一部のレビュアーのみ実行したい場合はユーザーが明示する：
 - セキュリティのみ: `reviewer-security` を単独指定
 - 品質重視: `reviewer-correctness` + `reviewer-test` + `reviewer-maintainability`
-- リリース前チェック: `reviewer-requirements` + `reviewer-correctness` + `reviewer-security`
+- リリース前チェック: `reviewer-test`（要件適合を内包）+ `reviewer-correctness` + `reviewer-security`
 
-指定がなければ 7 つ全て並列実行する。
+指定がなければ 5 つ全て並列実行する。
