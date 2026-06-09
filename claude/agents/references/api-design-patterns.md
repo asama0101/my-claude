@@ -1,30 +1,19 @@
----
-name: api-designer
-description: REST API 設計の専門家。リソース命名・ステータスコード・ページネーション・エラーレスポンス・バージョニングを担当。エンドポイント・スキーマ設計時に積極的に活用。
-tools: ["Read", "Grep", "Glob"]
-model: sonnet
----
+# REST API 設計パターン
 
-## 呼び出しタイミング
+> python-dev / architect エージェント用のオンデマンド参照ファイル。REST API のエンドポイント・スキーマ・契約を設計するとき、本体エージェントから必要時に Read して参照する。
+> 一貫性があり、開発者に優しい REST API を設計するための規約とベストプラクティス。
 
-以下の場合に使用すること:
+## この reference を Read するタイミング
+
 - 新規 API エンドポイントを設計するとき
 - 既存の API 契約をレビューするとき
 - ページネーション・フィルタリング・ソートを追加するとき
 - API のエラーハンドリングを設計するとき
 - API バージョニング戦略を検討するとき
 
----
+## リソース設計
 
-## REST API 設計パターン
-
-### API 設計パターン
-
-一貫性があり、開発者に優しい REST API を設計するための規約とベストプラクティス。
-
-### リソース設計
-
-#### URL 構造
+### URL 構造
 
 ```
 ### リソースは名詞・複数形・小文字・kebab-case
@@ -45,7 +34,7 @@ POST   /api/v1/auth/login
 POST   /api/v1/auth/refresh
 ```
 
-#### 命名規則
+### 命名規則
 
 ```
 ### GOOD
@@ -60,9 +49,9 @@ POST   /api/v1/auth/refresh
 /api/v1/users/123/getOrders   # ネストリソースに動詞
 ```
 
-### HTTP メソッドとステータスコード
+## HTTP メソッドとステータスコード
 
-#### メソッドのセマンティクス
+### メソッドのセマンティクス
 
 | メソッド | 冪等性 | 安全性 | 用途 |
 |---------|--------|--------|------|
@@ -74,7 +63,7 @@ POST   /api/v1/auth/refresh
 
 *適切に実装すれば PATCH も冪等にできる
 
-#### ステータスコードリファレンス
+### ステータスコードリファレンス
 
 ```
 ### 成功
@@ -97,7 +86,7 @@ POST   /api/v1/auth/refresh
 503 Service Unavailable   — 一時的な過負荷、Retry-After を含める
 ```
 
-#### よくある間違い
+### よくある間違い
 
 ```
 ### BAD: 全てに 200 を返す
@@ -116,9 +105,9 @@ HTTP/1.1 201 Created
 Location: /api/v1/users/abc-123
 ```
 
-### レスポンス形式
+## レスポンス形式
 
-#### 成功レスポンス
+### 成功レスポンス
 
 ```json
 {
@@ -131,7 +120,7 @@ Location: /api/v1/users/abc-123
 }
 ```
 
-#### コレクションレスポンス（ページネーション付き）
+### コレクションレスポンス（ページネーション付き）
 
 ```json
 {
@@ -153,7 +142,7 @@ Location: /api/v1/users/abc-123
 }
 ```
 
-#### エラーレスポンス
+### エラーレスポンス
 
 ```json
 {
@@ -176,7 +165,7 @@ Location: /api/v1/users/abc-123
 }
 ```
 
-#### レスポンスエンベロープの選択肢
+### レスポンスエンベロープの選択肢
 
 ```typescript
 // Option A: data ラッパー付きエンベロープ（公開 API に推奨）
@@ -200,9 +189,9 @@ interface ApiError {
 // HTTP ステータスコードで区別する
 ```
 
-### ページネーション
+## ページネーション
 
-#### オフセットベース（シンプル）
+### オフセットベース（シンプル）
 
 ```
 GET /api/v1/users?page=2&per_page=20
@@ -216,7 +205,7 @@ LIMIT 20 OFFSET 20;
 **メリット:** 実装が簡単、「N ページ目へジャンプ」をサポート
 **デメリット:** 大きなオフセットで遅い（OFFSET 100000）、並行挿入で結果がずれる
 
-#### カーソルベース（スケーラブル）
+### カーソルベース（スケーラブル）
 
 ```
 GET /api/v1/users?cursor=eyJpZCI6MTIzfQ&limit=20
@@ -241,7 +230,7 @@ LIMIT 21;  -- 次ページの有無判定のため1件多く取得
 **メリット:** 位置によらず一定のパフォーマンス、並行挿入でも安定
 **デメリット:** 任意のページへジャンプ不可、カーソルが不透明
 
-#### 使い分け
+### 使い分け
 
 | ユースケース | ページネーション種別 |
 |------------|----------------|
@@ -250,9 +239,9 @@ LIMIT 21;  -- 次ページの有無判定のため1件多く取得
 | 公開 API | カーソル（デフォルト）＋オフセット（オプション） |
 | 検索結果 | オフセット（ユーザーがページ番号を期待する） |
 
-### フィルタリング・ソート・検索
+## フィルタリング・ソート・検索
 
-#### フィルタリング
+### フィルタリング
 
 ```
 ### 単純な等値
@@ -269,7 +258,7 @@ GET /api/v1/products?category=electronics,clothing
 GET /api/v1/orders?customer.country=US
 ```
 
-#### ソート
+### ソート
 
 ```
 ### 単一フィールド（- プレフィックスで降順）
@@ -279,7 +268,7 @@ GET /api/v1/products?sort=-created_at
 GET /api/v1/products?sort=-featured,price,-created_at
 ```
 
-#### 全文検索
+### 全文検索
 
 ```
 ### 検索クエリパラメーター
@@ -289,7 +278,7 @@ GET /api/v1/products?q=wireless+headphones
 GET /api/v1/users?email=alice
 ```
 
-#### スパースフィールドセット
+### スパースフィールドセット
 
 ```
 ### 指定フィールドのみ返す（ペイロード削減）
@@ -297,9 +286,9 @@ GET /api/v1/users?fields=id,name,email
 GET /api/v1/orders?fields=id,total,status&include=customer.name
 ```
 
-### 認証と認可
+## 認証と認可
 
-#### トークンベース認証
+### トークンベース認証
 
 ```
 ### Authorization ヘッダーに Bearer トークン
@@ -311,7 +300,7 @@ GET /api/v1/data
 X-API-Key: sk_live_abc123
 ```
 
-#### 認可パターン
+### 認可パターン
 
 ```typescript
 // リソースレベル: 所有権チェック
@@ -329,9 +318,9 @@ app.delete("/api/v1/users/:id", requireRole("admin"), async (req, res) => {
 });
 ```
 
-### レート制限
+## レート制限
 
-#### ヘッダー
+### ヘッダー
 
 ```
 HTTP/1.1 200 OK
@@ -350,7 +339,7 @@ Retry-After: 60
 }
 ```
 
-#### レート制限ティア
+### レート制限ティア
 
 | ティア | 制限 | ウィンドウ | ユースケース |
 |-------|------|-----------|------------|
@@ -359,9 +348,9 @@ Retry-After: 60
 | プレミアム | 1000/分 | API キーごと | 有料 API プラン |
 | 内部 | 10000/分 | サービスごと | サービス間通信 |
 
-### バージョニング
+## バージョニング
 
-#### URL パスバージョニング（推奨）
+### URL パスバージョニング（推奨）
 
 ```
 /api/v1/users
@@ -371,7 +360,7 @@ Retry-After: 60
 **メリット:** 明示的、ルーティングが簡単、キャッシュ可能
 **デメリット:** バージョン間で URL が変わる
 
-#### ヘッダーバージョニング
+### ヘッダーバージョニング
 
 ```
 GET /api/users
@@ -381,7 +370,7 @@ Accept: application/vnd.myapp.v2+json
 **メリット:** URL がクリーン
 **デメリット:** テストしにくい、忘れやすい
 
-#### バージョニング戦略
+### バージョニング戦略
 
 ```
 1. /api/v1/ から始める — 必要になるまでバージョンを切らない
@@ -401,7 +390,7 @@ Accept: application/vnd.myapp.v2+json
    - 認証方式の変更
 ```
 
-### API 設計チェックリスト
+## API 設計チェックリスト
 
 新規エンドポイントをリリースする前に確認:
 
@@ -418,7 +407,7 @@ Accept: application/vnd.myapp.v2+json
 - [ ] 既存エンドポイントと一貫した命名（camelCase か snake_case か）
 - [ ] ドキュメント化されている（OpenAPI/Swagger spec を更新済み）
 
-### 関連参照
+## 関連参照
 
-- `python-dev` エージェント — Python/FastAPI での実装（`~/.claude/agents/references/fastapi-patterns.md` に詳細パターン）
+- `python-dev` エージェント — Python での実装（`~/.claude/agents/references/fastapi-patterns.md` に FastAPI 詳細パターン）
 - `tdd-guide` エージェント — API エンドポイントのテスト（`~/.claude/agents/references/pytest-patterns.md` に詳細パターン）

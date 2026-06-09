@@ -350,4 +350,4 @@ app.dependency_overrides[get_settings] = lambda: Settings(database_url="sqlite:/
 
 - `~/.claude/agents/references/python-patterns.md`（汎用 Python パターン）
 - `~/.claude/agents/references/pytest-patterns.md`（テストパターン）
-- `api-designer` エージェント（REST API 設計）
+- `~/.claude/agents/references/api-design-patterns.md`（REST API 設計パターン）
