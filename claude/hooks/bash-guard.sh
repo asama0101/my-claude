@@ -23,7 +23,7 @@ BLOCKED_PATTERNS=(
   # ── プロセス・システム停止 ──────────────────────
   'kill\s+-9\s+-1'                 # 全プロセス強制終了
   ':\(\)\s*\{.*:\|:.*\}'           # Fork爆弾
-  'shutdown'
+  '\bshutdown(\s+(-|now|\+|halt)|$)'   # システム停止コマンド（grep/if-chip-shutdown 等の read-only 文字列は通す）
   'halt'
   'reboot'
   'poweroff'
