@@ -55,8 +55,10 @@
 
 ## スキル
 
-ローカル: `~/.claude/skills/session-close-improve`（セッション終了時の改善ワークフロー専用）。プラグイン（superpowers / context7）は `enabledPlugins` で有効化済み。  
-context7 はライブラリ・SDK・API 質問で**必ず**使用（context7 MCP の instructions が常時注入される）。`resolve-library-id` → `query-docs` の順。
+ローカル: `~/.claude/skills/session-close-improve`（セッション終了時の改善ワークフロー専用）。プラグイン（superpowers / context7 / frontend-design 等）は `enabledPlugins` で有効化済み。  
+context7 はライブラリ・SDK・API 質問で**必ず**使用（context7 MCP の instructions が常時注入される）。`resolve-library-id` → `query-docs` の順。  
+frontend-design は UI・Web ページ・HTML 成果物（レポート/構成図等）・スライド等の資料をデザイン・生成・変更するときに**必ず**使用（スキル自体の description は Web アプリ寄りで資料系に自動発火しないため、ここで明示）。  
+HTML 成果物は提出前に独立サブエージェントで**敵対的クロスレビュー → 修正 → 再レビュー**を通す（ブラウザ不可環境では `node --check` ＋ JS ロジック追跡等の静的解析で代替）。
 
 ---
 
