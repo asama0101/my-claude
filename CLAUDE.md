@@ -7,7 +7,7 @@
 ## コマンド
 
 ```bash
-bash scripts/sync.sh      # ~/.claude/ → claude/ へ同期して git push（commit まで自動実行）
+bash scripts/sync.sh      # ~/.claude/ → claude/ へ同期（commit + push 自動）
 bash scripts/install.sh   # claude/ → ~/.claude/ へ展開（別環境セットアップ用）
 ```
 
