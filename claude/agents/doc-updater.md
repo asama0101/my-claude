@@ -2,7 +2,7 @@
 name: doc-updater
 description: ドキュメントとコードマップの専門家。コードマップとドキュメントの更新に積極的に活用。コードベースを解析して docs/CODEMAPS/* を生成し、README やガイドをソースと同期して更新する。
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
-model: haiku
+model: sonnet
 ---
 
 # ドキュメント・コードマップ専門家
