@@ -1,13 +1,9 @@
 #!/bin/bash
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
+PROJECT_DIR=$(pwd)
 
 BLOCKED_PATTERNS=(
-  # ── ファイル削除（全形式ブロック・ユーザーが手動実行）──
-  '\brm\s+'                        # rm（全オプション・全対象、find -exec rm / xargs rm も含む）
-  '\brmdir\s+'                     # ディレクトリ削除
-  '\bunlink\s+'                    # unlink による削除
-
   # ── ディスク・デバイス破壊 ──────────────────────
   'dd\s+if=.*of=/dev/sd'           # ディスク上書き
   'dd\s+if=.*of=/dev/nvme'         # NVMe上書き
@@ -96,5 +92,51 @@ for pattern in "${BLOCKED_PATTERNS[@]}"; do
     exit 2
   fi
 done
+
+# ── rm/rmdir/unlink: プロジェクト配下の子要素のみ許可 ──────────────
+# 上のブロックリストを通過した後に評価する。
+# 許可は「先頭トークンが rm/rmdir/unlink の単純コマンド」かつ「全対象が
+# プロジェクト配下の子要素」の場合のみ。ルート自体・配下外・シェル展開や
+# cd を含むものは不許可。wrapper(sudo 等)/パイプ/連結/-exec 経由や末尾形の
+# rm 呼び出しは下のブロック正規表現で従来どおりブロックし手動実行に委ねる。
+RM_FIRST=$(printf '%s' "$COMMAND" | awk 'NR==1{print $1}')
+case "$RM_FIRST" in
+  rm | rmdir | unlink)
+    rm_allowed=1
+    # 安全文字集合外（~ $ ` ( ) { } " ' \ ; & | < > = 等）→ 解析不能 → 不許可
+    printf '%s' "$COMMAND" | grep -qP '[^A-Za-z0-9 \t_./*?-]' && rm_allowed=0
+    # cd を含むと cwd 変化でプロジェクト判定が崩れる → 不許可
+    printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rm_allowed=0
+    had_target=0
+    if [ "$rm_allowed" -eq 1 ]; then
+      set -f                                # グロブ展開を抑止しトークンを保全
+      for tok in $COMMAND; do
+        case "$tok" in
+          rm | rmdir | unlink) continue ;;  # コマンド名
+          -*) continue ;;                   # フラグ
+        esac
+        had_target=1
+        abs=$(realpath -m "$tok" 2>/dev/null)
+        [ -z "$abs" ] && { rm_allowed=0; break; }
+        case "$abs" in
+          "$PROJECT_DIR"/*) ;;              # 配下の子要素 → OK
+          *) rm_allowed=0; break ;;         # ルート自体・配下外 → NG
+        esac
+      done
+      set +f
+    fi
+    if [ "$rm_allowed" -eq 1 ] && [ "$had_target" -eq 1 ]; then
+      exit 0                                # プロジェクト配下の削除のみ → 許可
+    fi
+    ;;
+esac
+
+# 上で許可されなかった rm/rmdir/unlink 呼び出しはブロック（末尾形も捕捉）
+if printf '%s' "$COMMAND" | grep -qiP '\b(rm|rmdir|unlink)(\s|$)'; then
+  echo "❌ BLOCKED: $COMMAND" >&2
+  echo "   rm 等はプロジェクト配下($PROJECT_DIR)の子要素削除のみ許可されています（配下外/ルート自体/パイプ・連結・wrapper 経由は不可）。" >&2
+  echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
+  exit 2
+fi
 
 exit 0
