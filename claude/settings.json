@@ -81,6 +81,15 @@
             "command": "__CLAUDE_HOME__/hooks/context7-plan-remind.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CLAUDE_HOME__/hooks/workspace-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
