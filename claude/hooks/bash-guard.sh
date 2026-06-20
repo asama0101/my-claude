@@ -129,6 +129,35 @@ case "$RM_FIRST" in
       exit 0                                # プロジェクト配下の削除のみ → 許可
     fi
     ;;
+  git)
+    # git rm のみ: rm 同等の配下チェックを通れば許可（連結は安全文字チェックで弾く）
+    if [ "$(printf '%s' "$COMMAND" | awk 'NR==1{print $2}')" = "rm" ]; then
+      rm_allowed=1
+      printf '%s' "$COMMAND" | grep -qP '[^A-Za-z0-9 \t_./*?-]' && rm_allowed=0
+      printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rm_allowed=0
+      had_target=0
+      if [ "$rm_allowed" -eq 1 ]; then
+        set -f
+        for tok in $COMMAND; do
+          case "$tok" in
+            git | rm) continue ;;             # コマンド名・サブコマンド
+            -*) continue ;;                   # フラグ（--cached, -r, -f 等）
+          esac
+          had_target=1
+          abs=$(realpath -m "$tok" 2>/dev/null)
+          [ -z "$abs" ] && { rm_allowed=0; break; }
+          case "$abs" in
+            "$PROJECT_DIR"/*) ;;              # 配下の子要素 → OK
+            *) rm_allowed=0; break ;;         # 配下外 → NG
+          esac
+        done
+        set +f
+      fi
+      if [ "$rm_allowed" -eq 1 ] && [ "$had_target" -eq 1 ]; then
+        exit 0                                # プロジェクト配下の git rm のみ許可
+      fi
+    fi
+    ;;
 esac
 
 # 上で許可されなかった rm/rmdir/unlink 呼び出しはブロック（末尾形も捕捉）
