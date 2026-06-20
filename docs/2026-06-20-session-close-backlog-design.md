@@ -2,7 +2,7 @@
 
 - 日付: 2026-06-20
 - 対象スキル: `~/.claude/skills/session-close-improve`（グローバル定義。my-claude では `claude/skills/...` にミラー）
-- ステータス: 設計確定（実装計画はこの後 writing-plans で作成）
+- ステータス: 設計確定・修正後 SKILL.md 全文をユーザーレビュー済み（2026-06-20 承認）
 
 ## 背景と課題
 
