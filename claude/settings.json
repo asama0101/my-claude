@@ -108,11 +108,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "__CLAUDE_HOME__/hooks/session-close-remind.sh"
-          },
-          {
-            "type": "command",
-            "command": "__CLAUDE_HOME__/hooks/session-retrospective.sh"
+            "command": "__CLAUDE_HOME__/hooks/session-stop.sh"
           }
         ]
       }

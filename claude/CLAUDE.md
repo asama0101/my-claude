@@ -70,19 +70,21 @@
 
 ## スキル
 
-ローカル: `~/.claude/skills/session-close-improve`（セッション終了時の改善ワークフロー専用）。プラグイン（superpowers / context7 / frontend-design 等）は `enabledPlugins` で有効化済み。  
+ローカル: `~/.claude/skills/session-close-improve`（セッション終了時の改善ワークフロー専用）・`run-reviewers`（コード変更後の複数レビュアー並列実行）。プラグイン（superpowers / context7 / frontend-design 等）は `enabledPlugins` で有効化済み。  
 context7 はライブラリ・SDK・API 質問で**必ず**使用（context7 MCP の instructions が常時注入される）。`resolve-library-id` → `query-docs` の順。  
 frontend-design は UI・Web ページ・HTML 成果物（レポート/構成図等）・スライド等の資料をデザイン・生成・変更するときに**必ず**使用（スキル自体の description は Web アプリ寄りで資料系に自動発火しないため、ここで明示）。  
 HTML 成果物は提出前に独立サブエージェントで**敵対的クロスレビュー → 修正 → 再レビュー**を通す（ブラウザ不可環境では `node --check` ＋ JS ロジック追跡等の静的解析で代替）。
 
 ---
 
-## アクティブなHooks（主要4本）
+## アクティブなHooks
 
 | Hook | 効果 |
 |------|------|
 | bash-guard.sh | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink` はプロジェクト配下の子要素のみ許可し、配下外・ルート自体・解析不能なものはブロック。ブロック時はユーザーへ `! <コマンド>` 形式で依頼すること |
 | workspace-guard.sh | プロジェクト配下／`~/.claude` 配下以外への Write/Edit と `/tmp` への Bash リダイレクトをブロック（`exit 2`）。誤検知時は Read ツールで回避 |
 | tdd-guard.sh | `tests/` 外の Python 実装ファイル編集時に tdd-guide 使用を促す |
-| session-close-remind.sh | アクティブセッション終了時に `session-close-improve` を自動起動（decision:block）。transcript ベースでセッションごとに1回・stop_hook_active でループ防止 |
+| session-stop.sh | 統合 Stop フック。(1) 新規 feedback メモリを検出してパッシブ通知（revise→improver 案内）。(2) 最後のユーザー入力（transcript の `last-prompt`）に終了意図がある時だけ `session-close-improve` を**1セッション1回 decision:block** で促す。スキップはセッション単位（reason 内の `touch` パス）・実施済み判定は空白許容・stop_hook_active でループ防止 |
+| venv-guard.sh | venv 外への `pip install` 等をブロック。bash コマンド内に `pip install` が文字列として含まれると誤検知する場合あり（回避は Read ツール） |
+| context7-plan-remind.sh | Skill 実行前（PreToolUse→Skill）にライブラリ/SDK 質問で context7 使用を促す |
 
