@@ -1,5 +1,6 @@
 **/.ipynb_checkpoints/
 **/superpowers/
+.superpowers/
 __pycache__/
 *.pyc
 .venv/

@@ -77,7 +77,7 @@ LAST=$(jq -r 'select(.type=="last-prompt") | .lastPrompt // empty' "$TRANSCRIPT"
 # 終了意図キーワード（明確な終了合図に限定。commit/push 等の曖昧語は含めない）
 if echo "$LAST" | grep -qiE '終了|終わり|おわり|終わります|お疲れ|おつかれ|さようなら|締め(る)?|クローズ|店じまい|解散|bye|wrap ?up|that'\''?s all|we'\''?re done|good ?night|see you'; then
   touch "$REMINDED_MARK"
-  REASON="セッションを終了しようとしています。締める前に session-close-improve を起動し [1]サブエージェント/スキル使用の振り返り [2]superpowers spec/plan の done/ アーカイブ [3]最小更新とメモリ保存 を実施してください。このセッションをスキップするなら: touch $SKIP_MARK"
+  REASON="セッションを終了しようとしています。締める前に session-close-improve を起動し [1]サブエージェント/スキル使用の振り返り [2]改善バックログ取込 [3]最小更新 [4]superpowers spec/plan の done/ アーカイブ [5]メモリ保存 を実施してください。このセッションをスキップするなら: touch $SKIP_MARK"
   jq -nc --arg r "$REASON" '{decision:"block",reason:$r}'
 fi
 exit 0
