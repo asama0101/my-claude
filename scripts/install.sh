@@ -10,12 +10,13 @@ set -euo pipefail
 # - ホワイトリスト方式: claude/ にある特定の項目だけを展開する。
 #   ~/.claude/ の projects・sessions・logs・daemon・plugins・settings.local.json などの
 #   環境固有資産には一切触れない。
-# - ディレクトリは rsync -a（--delete なし）。ユーザーが追加した hook/skill/agent を消さない。
-#   （sync.sh は --delete あり = source が真実、install.sh は --delete なし = 足し込み、の非対称）
+# - ディレクトリは足し込み（--delete 相当はしない）。ユーザーが追加した hook/skill/agent を消さない。
+#   （sync.sh は --delete あり = source が真実、install.sh は足し込み、の非対称）
 # - settings.json は repo 上ではプレースホルダ __CLAUDE_HOME__ を含む。展開時に DEST の絶対パスへ
 #   実体化する（sync.sh の逆変換と対になる）。
-# - 上書き対象は rsync --backup でタイムスタンプ付きバックアップへ退避。内容が同一なら rsync は
-#   no-op となりバックアップも作られない（冪等）。
+# - 同期は rsync ではなく cp/cmp/find のみで実装（rsync 未導入の環境でも動く）。
+# - 上書き対象はタイムスタンプ付きバックアップ（$DEST/backups/install-*）へ退避。内容が同一なら
+#   cmp -s が一致を検出して no-op となり、バックアップも作られない（冪等）。
 #
 # 使い方:
 #   bash scripts/install.sh [--dry-run] [--force] [--yes]
@@ -26,6 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 SRC="$REPO_ROOT/claude"
 DEST="${CLAUDE_HOME:-$HOME/.claude}"
+DEST="${DEST%/}"   # 末尾スラッシュを正規化（パス算出・出力で // を出さない）
 
 # --- 展開対象（ホワイトリスト）---
 FILE_ITEMS=( "CLAUDE.md" "statusline-command.sh" )   # settings.json は別処理（プレースホルダ実体化）
@@ -47,8 +49,39 @@ for arg in "$@"; do
     esac
 done
 
-command -v rsync >/dev/null 2>&1 || { echo "rsync が見つかりません。インストールしてください。"; exit 1; }
 [ -d "$SRC" ] || { echo "展開元が見つかりません: $SRC"; exit 1; }
+
+# --- 同期ヘルパー（rsync 非依存・cp/cmp/find のみ）---
+# 内容が異なる時だけ上書きし、上書き前に既存を BACKUP_DIR へ退避（旧 rsync -ac --backup 相当）。
+# 内容同一なら no-op（冪等・バックアップも作らない）。BACKUP_DIR/FORCE/DEST は呼び出し時に解決される。
+deploy_file() {  # $1=src  $2=dest
+    local src=$1 dest=$2 rel
+    if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
+        return
+    fi
+    if [ -e "$dest" ] && [ "$FORCE" -eq 0 ]; then
+        rel="${dest#"$DEST"/}"
+        mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
+        cp -p "$dest" "$BACKUP_DIR/$rel"
+    fi
+    mkdir -p "$(dirname "$dest")"
+    cp -p "$src" "$dest"
+}
+# ディレクトリを再帰展開（--delete なし＝足し込み）。各ファイルを deploy_file に流す。
+# プロセス置換でループを現シェルで動かす（パイプのサブシェルを避け set -e を確実に伝播）。
+deploy_dir() {  # $1=src_dir  $2=dest_dir
+    local f rel
+    while IFS= read -r f; do
+        rel="${f#"$1"/}"
+        deploy_file "$f" "$2/$rel"
+    done < <(find "$1" -type f -print)
+}
+# 変更は一切行わず、差分があれば標準出力へ1行出すだけ（副作用なし・dry-run 用）。
+preview() {  # $1=src  $2=dest  $3=label
+    if   [ ! -e "$2" ];      then echo "  $3: 新規作成"
+    elif ! cmp -s "$1" "$2"; then echo "  $3: 更新（差分あり）"
+    fi
+}
 
 echo "展開: $SRC  →  $DEST"
 
@@ -65,12 +98,18 @@ fi
 # --- dry-run: 差分プレビューのみ ---
 if [ "$DRY_RUN" -eq 1 ]; then
     echo "(dry-run: 変更は行いません)"
-    [ -f "$SRC/settings.json" ] && rsync -acni "$TMP_SETTINGS" "$DEST/settings.json" 2>/dev/null | sed 's/^/  settings.json: /' || true
+    if [ -f "$SRC/settings.json" ]; then
+        preview "$TMP_SETTINGS" "$DEST/settings.json" "settings.json"
+    fi
     for p in "${FILE_ITEMS[@]}"; do
-        [ -e "$SRC/$p" ] && rsync -acni "$SRC/$p" "$DEST/" 2>/dev/null | sed "s|^|  $p: |" || true
+        if [ -e "$SRC/$p" ]; then preview "$SRC/$p" "$DEST/$p" "$p"; fi
     done
     for p in "${DIR_ITEMS[@]}"; do
-        [ -d "$SRC/$p" ] && rsync -acni "$SRC/$p/" "$DEST/$p/" 2>/dev/null | sed "s|^|  $p/|" || true
+        [ -d "$SRC/$p" ] || continue
+        while IFS= read -r f; do
+            rel="${f#"$SRC"/}"
+            preview "$f" "$DEST/$rel" "$rel"
+        done < <(find "$SRC/$p" -type f -print)
     done
     echo "--- settings.json は __CLAUDE_HOME__ → $DEST に実体化されます ---"
     exit 0
@@ -90,28 +129,24 @@ fi
 
 mkdir -p "$DEST"
 
-BACKUP_OPT=()
-[ "$FORCE" -eq 0 ] && BACKUP_OPT=( --backup --backup-dir="$BACKUP_DIR" )
-
-# 内容ベース比較（-c）で冪等性を担保。settings.json は毎回再生成され mtime が変わるため必須。
+# 内容ベース比較（cmp -s）で冪等性を担保。settings.json は毎回再生成され mtime が変わるため必須。
 # --- settings.json 展開（実体化済み一時ファイルから）---
 if [ -f "$SRC/settings.json" ]; then
-    rsync -ac "${BACKUP_OPT[@]}" "$TMP_SETTINGS" "$DEST/settings.json"
+    deploy_file "$TMP_SETTINGS" "$DEST/settings.json"
     echo "Done(file): settings.json (__CLAUDE_HOME__ → $DEST)"
 fi
 
 # --- その他ファイル展開 ---
 for p in "${FILE_ITEMS[@]}"; do
     [ -e "$SRC/$p" ] || { echo "Skip(file): $p が repo に存在しません。"; continue; }
-    rsync -ac "${BACKUP_OPT[@]}" "$SRC/$p" "$DEST/$p"
+    deploy_file "$SRC/$p" "$DEST/$p"
     echo "Done(file): $p"
 done
 
 # --- ディレクトリ展開（--delete なし）---
 for p in "${DIR_ITEMS[@]}"; do
     [ -d "$SRC/$p" ] || { echo "Skip(dir): $p が repo に存在しません。"; continue; }
-    mkdir -p "$DEST/$p"
-    rsync -ac "${BACKUP_OPT[@]}" "$SRC/$p/" "$DEST/$p/"
+    deploy_dir "$SRC/$p" "$DEST/$p"
     echo "Done(dir):  $p"
 done
 
