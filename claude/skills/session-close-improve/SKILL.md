@@ -24,38 +24,12 @@ description: |
 
 各種を1行で **今やる / 捨てる** に二分する:
 
-- **今やる** = 実害が起きた、または ユーザー指摘で対策が1行で言える → Step 2 へ。
-- **捨てる** = それ以外（様子見・判断保留・あれば便利程度）→ 追跡しない（バックログは持たない）。
-
-今やる種が無ければ Step 2 を飛ばして Step 3 へ。
+- **今やる** = 実害が起きた、または ユーザー指摘で対策が1行で言える → **承認を得て反映する**（反映先・解決する問題を1行で提示してから実装）。無ければそのまま次へ。
+- **捨てる** = それ以外（様子見・判断保留・あれば便利程度）→ 追跡しない（本当に重要なら次回また出る）。
 
 ---
 
-## Step 2: 最小更新（今やる種だけ）
-
-拾った種を、ユーザー承認を得てから最小限に反映する。**新しい入れ物（agent/skill 新設）は最終手段**。
-
-**反映先の決め方:**
-
-- **固有**（その repo だけ有用）→ 対象 repo の CLAUDE.md / spec。
-- **汎用**（他プロジェクトでも有用）→ 既存 agent/skill 定義 or `~/.claude/agents/references/*.md` へ1〜数行追記。足す先が無い時だけ新規 reference、それも無理な時だけ新規 agent/skill（却下理由を1行で言えること）。
-
-**実装ルール:**
-
-- **CLAUDE.md を変える時は2段**: `/claude-md-management:revise-claude-md` で取り込み → `/claude-md-management:claude-md-improver` でレビュー。（フォールバック: revise が使えない時のみ直接 Read→Edit。CLAUDE.md は直接 Edit 可＝[[hard-block-workarounds]]。）
-- agent/skill/reference 定義は 提示→承認→直接 Edit/Write（HARD BLOCK はサブエージェントのみ）。
-- Hook を足したら `settings.json` 登録 ＋ CLAUDE.md「アクティブなHooks」表に記載（両方必須）。
-- 変更案は表で提示→承認→実装:
-
-| # | 種類 | 反映先パス | 汎用/固有 | 解決する問題 |
-|---|------|----------|---------|------------|
-| 1 | agent定義更新 | ~/.claude/agents/reviewer-correctness.md | 汎用 | 古い参照 |
-
-**棚卸（今セッションで agent/skill/reference を触った時だけ）:** 触ったものに孤立 reference（被参照ゼロ）・重複・肥大が無いか軽く点検し、整理候補を承認のうえ処理（非破壊・CLAUDE.md「削除制限」に従い方法提示＋承認必須）。
-
----
-
-## Step 3: spec/plan アーカイブ（docs/superpowers/ がある時のみ）
+## Step 2: spec/plan アーカイブ（docs/superpowers/ がある時のみ）
 
 cwd に `docs/superpowers/specs/` も `plans/` も無ければ本ステップ全体をスキップ。他 STEP と独立した housekeeping。
 
@@ -68,7 +42,7 @@ cwd に `docs/superpowers/specs/` も `plans/` も無ければ本ステップ全
 
 ---
 
-## Step 4: クローズ
+## Step 3: クローズ
 
 メモリ保存: `~/.claude/projects/<project-sanitized-path>/memory/` に、次セッションで要る状態変化だけ最小限に記録する:
 
@@ -79,7 +53,6 @@ cwd に `docs/superpowers/specs/` も `plans/` も無ければ本ステップ全
 
 ## 終了宣言前チェックリスト
 
-- [ ] Step 1: 3観点（ユーザー指摘／使用漏れ／実害）で種を拾い、各々「今やる／捨てる」に二分
-- [ ] Step 2: 今やる種だけ承認のうえ反映（固有/汎用でルーティング・新設は最終手段）。**CLAUDE.md 変更は revise-claude-md→improver で実施・レビュー済み**。棚卸は今セッションでインベントリを触った時のみ
-- [ ] Step 3: docs/superpowers がある場合のみ完了分を承認のうえ done/ へ移動（無ければスキップ）
-- [ ] Step 4: メモリ保存完了
+- [ ] Step 1: 3観点（ユーザー指摘／使用漏れ／実害）で種を拾い「今やる／捨てる」に二分・今やる種は承認のうえ反映
+- [ ] Step 2: docs/superpowers がある場合のみ完了分を承認のうえ done/ へ移動（無ければスキップ）
+- [ ] Step 3: メモリ保存完了
