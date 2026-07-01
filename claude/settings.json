@@ -98,7 +98,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "__CLAUDE_HOME__/hooks/tdd-guard.sh"
+            "command": "__CLAUDE_HOME__/hooks/tdd-gates-nudge.sh"
           }
         ]
       }

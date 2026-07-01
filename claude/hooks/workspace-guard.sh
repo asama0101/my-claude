@@ -8,6 +8,8 @@
 #   1) プロジェクトルート($PROJECT_DIR=pwd)配下
 #   2) ~/.claude(=${CLAUDE_CONFIG_DIR:-$HOME/.claude})配下
 #      （plan ファイル・メモリ・設定管理ワークフローを壊さないための例外）
+#   3) ハーネスのセッション scratchpad(/tmp/claude-*/.../scratchpad)配下
+#      （ハーネスが一時領域として提供。サブエージェントのレポート受け渡し等に使う）
 #
 # 既知の限界: Bash のファイル書き込み全検出は不可能なため /tmp リダイレクトのみ検査。
 # 文字列中に "> /tmp/" 等を含むコマンド(grep 等)は誤ブロックされ得る。
@@ -26,6 +28,9 @@ is_allowed() {
   case "$abs" in
     "$PROJECT_DIR" | "$PROJECT_DIR"/*) return 0 ;;
     "$CLAUDE_HOME" | "$CLAUDE_HOME"/*) return 0 ;;
+    # ハーネスのセッション scratchpad（サンクションされた一時領域）は許可。
+    # case の '*' はスラッシュも跨ぐため uid/project/session の各セグメントに一致する。
+    /tmp/claude-*/scratchpad | /tmp/claude-*/scratchpad/*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -44,10 +49,15 @@ case "$TOOL" in
   Bash)
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
     if echo "$CMD" | grep -Eq '>>?[[:space:]]*/(var/)?tmp/'; then
-      echo "❌ BLOCKED: /tmp へのファイル作成は禁止されています: $CMD" >&2
-      echo "   一時ファイルはプロジェクト配下に作成してください。" >&2
-      echo "   ※読み取りコマンド等の誤検知の場合は Read ツールで回避してください。" >&2
-      exit 2
+      # scratchpad(/tmp/claude-*/.../scratchpad/) へのリダイレクトは許可。
+      # 該当リダイレクト先を除去してから、残る /tmp リダイレクトの有無で判定する。
+      REST=$(echo "$CMD" | sed -E 's#>>?[[:space:]]*/tmp/claude-[^[:space:]]*/scratchpad/[^[:space:]]*##g')
+      if echo "$REST" | grep -Eq '>>?[[:space:]]*/(var/)?tmp/'; then
+        echo "❌ BLOCKED: /tmp へのファイル作成は禁止されています: $CMD" >&2
+        echo "   一時ファイルはプロジェクト配下、または scratchpad(/tmp/claude-*/.../scratchpad/) に作成してください。" >&2
+        echo "   ※読み取りコマンド等の誤検知の場合は Read ツールで回避してください。" >&2
+        exit 2
+      fi
     fi
     ;;
 esac

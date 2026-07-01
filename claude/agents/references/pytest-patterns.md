@@ -1,7 +1,7 @@
 # pytest 詳細パターン（詳細リファレンス）
 
-> tdd-guide エージェント用のオンデマンド参照ファイル（エージェント定義ではない）。
-> 本体 `tdd-guide.md` から必要時に Read して参照する。
+> 汎用 Python/pytest 深さ参照（エージェント定義ではない）。オンデマンドで Read する。
+> 参照元: `tdd-gates` の `profiles/pytest.md`（ゲート用グルーが深い作法をここへ委譲）／`gate-generator` エージェント／`python-dev` の API・FastAPI パターン。
 
 ### Python テスト詳細パターン（pytest）
 
