@@ -215,7 +215,7 @@ async ハンドラーからの外部 HTTP 呼び出しには `httpx.AsyncClient`
 
 ### エラーハンドリング
 
-ドメイン例外を集約し、レスポンス形式を安定させる。
+汎用の例外設計（特定例外の捕捉・例外チェーン・カスタム例外階層）は `~/.claude/agents/references/python-patterns.md` を単一ソースとする。ここでは **HTTPException / ドメイン例外の HTTP レスポンスへの写像**のみを扱う。ドメイン例外を集約し、レスポンス形式を安定させる。
 
 ```python
 from fastapi import FastAPI, Request
@@ -262,6 +262,8 @@ def install_openapi(app: FastAPI) -> None:
 ```
 
 ### テスト
+
+汎用の pytest 作法（fixture・AAA・parametrize・非同期 httpx・モック等）は `~/.claude/agents/references/pytest-patterns.md` を単一ソースとする。ここでは **FastAPI 固有のテスト構成**（`dependency_overrides` による DI 差し替え）のみを扱う。
 
 ルートハンドラーが参照しない内部ヘルパーではなく、`Depends` が使う依存関係を直接オーバーライドする。
 
