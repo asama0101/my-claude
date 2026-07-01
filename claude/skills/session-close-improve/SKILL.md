@@ -3,7 +3,7 @@ name: session-close-improve
 description: |
   セッション終了時の改善ワークフロー。実装・作業セッションを締め括る際に使う。サブエージェント使用を振り返り、使った agent/skill 定義の改善要否（汎用は更新・固有は CLAUDE.md/project-local へ振分け）もチェックし、必要最小限の更新のみ実施し、メモリを保存する。
 
-  以下のような発言で起動すること:「終了します」「振り返りをしたい」「セッションを終える前に」「学びをまとめたい」「session ending」「wrap up」「このセッションの改善をしたい」「CLAUDE.mdを更新したい」「今回の学びを反映させたい」
+  以下のような発言で起動すること:「終了します」「振り返りをしたい」「セッションを終える前に」「学びをまとめたい」「session ending」「wrap up」「このセッションの改善をしたい」「今回の学びを反映させたい」
 
   実装後・大きな機能追加後・長い作業セッションの終わりに積極的に起動する。
 ---
@@ -21,6 +21,8 @@ description: |
 1. **ユーザーの指摘・依頼（最優先の種）**: セッション中にユーザーが訂正・要望したことを洗い出す。自己観察由来の先回りより優先（[[feedback-user-input-drives-definitions]]）。
 2. **必須エージェント・ゲートの使用漏れ**: substantial 実装で `tdd-gates`（gate-generator / gate-evaluator / reviewer-*）が回されたか、RED の実失敗ログ証拠・別コンテキスト採点が守られたか。python-dev が必要場面で使われたか。汎用 `claude` で代替した・並列化できた場面を逐次実行した、も拾う。
 3. **使った agent/skill の実害**: 今回実際に困った具体例 — 誤誘導した／古い参照・存在しないファイルを指した／期待した出力形式でなかった。
+
+> 対象は agent/skill 定義。**CLAUDE.md 本体の改訂は `claude-md-management:revise-claude-md` / `claude-md-improver` に委譲する**（本スキルは扱わない）。
 
 各種を1行で **今やる / 捨てる** に二分する:
 

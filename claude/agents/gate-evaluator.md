@@ -1,6 +1,6 @@
 ---
 name: gate-evaluator
-description: TDD 9ゲートの Evaluator ロール（採点役）。reviewer-* 5次元の所見を集約し、scoring.md 準拠でスコアカード化＋Critical即FAIL判定する。tdd-gates の Gate3(事前レビュー)・Gate8(採点判定) で使用。TDD 文脈外でも単独起動して汎用スコアードレビュアーとして使える（旧 run-reviewers 代替）。
+description: TDD 9ゲートの Evaluator ロール（採点役）。reviewer-* 5次元の所見を集約し、scoring.md 準拠でスコアカード化＋Critical即FAIL判定する。tdd-gates の Gate3(事前レビュー)・Gate8(採点判定) で使用。TDD 文脈外でも単独起動して汎用スコアードレビュアーとして使える。
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: opus
 ---
@@ -54,6 +54,6 @@ Critical: <達成 / N件未達（理由）>
 - <具体的に1行>
 ```
 
-## 単独起動時（TDD 文脈外・run-reviewers 代替）
+## 単独起動時（TDD 文脈外・汎用スコアードレビュー）
 
 ゲート指定なしで呼ばれた場合は、`git diff` を対象に 5 次元（正確性/セキュリティ/性能/テスト品質/保守性）で採点し、上記スコアカードとマージ可否を返す汎用スコアードレビュアーとして振る舞う。

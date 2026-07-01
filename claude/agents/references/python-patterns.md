@@ -370,6 +370,61 @@ p2 = Point(3, 4)
 print(p1.distance(p2))  # 5.0
 ```
 
+### 設計パターン（Repository/APIレスポンス/DTO）
+
+#### リポジトリパターン
+
+`Protocol` を使って一貫したインターフェースの後ろにデータアクセスをカプセル化する。ビジネスロジックは抽象インターフェースに依存し、ストレージの実装には依存しない — データソースの切り替えが容易になり、モックを使ったテストが簡単になる。
+
+```python
+from typing import Protocol
+
+class UserRepository(Protocol):
+    def find_by_id(self, id: str) -> dict | None: ...
+    def save(self, entity: dict) -> dict: ...
+    def find_all(self) -> list[dict]: ...
+    def delete(self, id: str) -> None: ...
+```
+
+#### APIレスポンス形式（エンベロープ）
+
+すべてのAPIレスポンスに一貫したエンベロープを使用する。
+
+```python
+from dataclasses import dataclass
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
+
+@dataclass
+class ApiResponse(Generic[T]):
+    success: bool
+    data: T | None = None
+    error: str | None = None
+
+@dataclass
+class PaginatedResponse(Generic[T]):
+    success: bool
+    data: list[T]
+    total: int
+    page: int
+    limit: int
+```
+
+#### DTOとしてのデータクラス
+
+境界をまたぐ入力・リクエストは軽量な DTO（データクラス）で表現する。
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class CreateUserRequest:
+    name: str
+    email: str
+    age: int | None = None
+```
+
 ### デコレーター
 
 #### 関数デコレーター

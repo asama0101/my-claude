@@ -51,21 +51,19 @@
 
 | Agent | Purpose | 使用タイミング |
 |-------|---------|--------------|
-| planner | 機能実装計画（実装ステップ分解・依存関係・順序） | 複雑な機能・リファクタリング着手前 |
-| architect | システム設計・アーキテクチャ（全体設計・トレードオフ・ADR） | 設計判断・スケーラビリティ検討時 |
+| planner | 機能実装計画（実装ステップ分解・依存関係・順序）＋設計判断・トレードオフ・ADR | 複雑な機能・リファクタリング着手前・設計判断/スケーラビリティ検討時 |
 | gate-generator | TDD Generator（RED→GREEN→REFACTOR・実行ログを証拠に） | **新機能・バグ修正時**、`tdd-gates` から段階起動。汎用 `claude` で代替しない |
 | gate-evaluator | TDD Evaluator（採点役・Critical即FAIL・reviewer-* を集約） | `tdd-gates` の Gate3/Gate8。単独起動で汎用スコアードレビューにも使える |
 | reviewer-correctness | 正確性レビュー（バグ・冪等性・エラーハンドリング） | コード変更後に **必ず** 使用（Gate3/8 で gate-evaluator が並列集約） |
 | reviewer-performance | 性能レビュー（メモリ・DB/I/O最適化・並列処理） | コード変更後に **必ず** 使用（同上） |
 | reviewer-security | セキュリティレビュー（SQL injection・認証・機密情報） | コード変更後に **必ず** 使用（同上） |
-| reviewer-test | テスト品質・要件適合レビュー（カバレッジ・フィクスチャ・信頼性＋仕様書要件・スキーマ適合・冪等性） | コード変更後に **必ず** 使用（同上） |
-| reviewer-maintainability | 保守性・ドキュメント整合性レビュー（命名・構造・DRY・YAGNI＋docstring・CLAUDE.md・仕様書整合性） | コード変更後に **必ず** 使用（同上） |
-| business-acceptance | 業務受け入れ検査（業務フローが過不足なく回るか・受け入れ可否判定） | 新システムの受け入れ判定・設計妥当性確認時 |
+| reviewer-test | テスト品質・要件適合レビュー（カバレッジ・フィクスチャ・信頼性＋仕様書要件・スキーマ適合・冪等性） | コード変更後、**Gate8 で必ず**使用（Gate3 はテスト未作成のため除外） |
+| reviewer-maintainability | 保守性・ドキュメント整合性レビュー（命名・構造・DRY・YAGNI＋docstring・CLAUDE.md・仕様書整合性・数値基準の単一ソース） | コード変更後に **必ず** 使用（Gate3/8 で同上） |
 | python-dev | Python実装（スタイル・設計パターン・イディオム） | Python コードを書くとき（FastAPI/REST 設計は `references/` 参照） |
-| python-refactor-cleaner | Python デッドコードのクリーンアップ | 未使用コード削除・コードメンテ時 |
 | doc-updater | ドキュメント更新 | README・ガイド・コードマップ更新時 |
 
 > **比例ルール優先**: 上表の gate-generator「必須」・reviewer-*「必ず」（＝`tdd-gates` の 9 ゲート）は **substantial 前提**。trivial は単一軽量 Agent に委任し、ゲート・reviewer 群を省略してよい。
+> **reviewer 本数**: Gate3（事前レビュー）はテスト未作成のため **4本**（correctness/security/performance/maintainability・test 除外）、Gate8（採点判定）は **5本**（test 含む）。
 
 ---
 

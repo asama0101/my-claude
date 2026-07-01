@@ -69,7 +69,7 @@ class Point(NamedTuple):
 
 多くの小さなファイル > 少ない大きなファイル:
 - 高凝集・低結合
-- 通常200〜400行、最大800行
+- ファイル/関数の行数・ネスト深さの数値基準は **reviewer-maintainability** を単一ソースとする
 - 大きなモジュールからユーティリティを抽出する
 - タイプ別ではなく機能/ドメイン別に整理する
 
@@ -127,9 +127,7 @@ ruff check .
 
 作業を完了とマークする前に:
 - [ ] コードが読みやすく適切に命名されている
-- [ ] 関数が小さい（50行未満）
-- [ ] ファイルが集中している（800行未満）
-- [ ] 深いネストがない（4レベル超）
+- [ ] 関数の長さ・ファイルの長さ・ネスト深さが妥当（数値基準は **reviewer-maintainability** を単一ソースとする）
 - [ ] 適切なエラー処理がある
 - [ ] ハードコードされた値がない（定数または設定を使用）
 - [ ] ミューテーションがない（イミュータブルパターンを使用）
@@ -154,72 +152,19 @@ ruff check .
 
 #### リポジトリパターン
 
-`Protocol` を使って一貫したインターフェースの後ろにデータアクセスをカプセル化する:
-
-```python
-from typing import Protocol
-
-class UserRepository(Protocol):
-    def find_by_id(self, id: str) -> dict | None: ...
-    def save(self, entity: dict) -> dict: ...
-    def find_all(self) -> list[dict]: ...
-    def delete(self, id: str) -> None: ...
-```
-
-ビジネスロジックは抽象インターフェースに依存し、ストレージの実装には依存しない — データソースの切り替えが容易になり、モックを使ったテストが簡単になる。
+`Protocol` を使って一貫したインターフェースの後ろにデータアクセスをカプセル化する。ビジネスロジックは抽象インターフェースに依存し、ストレージの実装には依存しない — データソースの切り替えが容易になり、モックを使ったテストが簡単になる。具体例は `references/python-patterns.md`（「設計パターン」節）を Read。
 
 #### APIレスポンス形式
 
-すべてのAPIレスポンスに一貫したエンベロープを使用する:
-
-```python
-from dataclasses import dataclass
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
-
-@dataclass
-class ApiResponse(Generic[T]):
-    success: bool
-    data: T | None = None
-    error: str | None = None
-
-@dataclass
-class PaginatedResponse(Generic[T]):
-    success: bool
-    data: list[T]
-    total: int
-    page: int
-    limit: int
-```
+すべてのAPIレスポンスに一貫したエンベロープ（`ApiResponse` / `PaginatedResponse`）を使用する。具体例は `references/python-patterns.md`（「設計パターン」節）を Read。
 
 ### DTOとしてのデータクラス
 
-```python
-from dataclasses import dataclass
-
-@dataclass
-class CreateUserRequest:
-    name: str
-    email: str
-    age: int | None = None
-```
+境界をまたぐリクエスト・入力は軽量なデータクラス DTO で表現する。具体例は `references/python-patterns.md`（「設計パターン」節）を Read。
 
 ### コンテキストマネージャーとジェネレーター
 
-リソース管理には `with` 文、遅延評価には `yield` を使用する:
-
-```python
-### コンテキストマネージャー: ファイル・DB接続など自動クリーンアップ
-with open("data.csv") as f:
-    data = f.read()
-
-### ジェネレーター: 大量データを1件ずつ処理してメモリを節約
-def read_large_file(path: str):
-    with open(path) as f:
-        for line in f:
-            yield line.strip()
-```
+リソース管理には `with` 文、遅延評価には `yield` を使用する。具体例は `references/python-patterns.md`（「コンテキストマネージャー」「内包表記とジェネレーター」節）を Read。
 
 ### 参考
 
