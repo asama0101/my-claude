@@ -30,6 +30,7 @@
 
 - **trivial**（数行・既存パターン踏襲でテスト不要、設定/ドキュメント/コメント修正、明白な誤記修正）: **単一の軽量 Agent に一括委任**。Planモード・planner・reviewer 群は省略してよい。Main は Read/Edit せず、結果の要約のみ受け取る。
 - **substantial**（新規ロジック・複数ファイル横断・公開インターフェース変更・非自明なバグ修正）: フル工程を **`tdd-gates` スキル（9品質ゲート）** で回す（Plan → Gate1-2計画 → Gate3事前レビュー → RED/GREEN/REFACTOR → Gate8採点判定 → Gate9 doc同期）。RED は実失敗ログを証拠に、採点は gate-evaluator（実装者とは別コンテキスト）で行い自己承認を排除する。
+- **単独スコアードレビュー（`gate-evaluator` 単独起動）**: tdd-gates フル工程を回すほどではないが**コードレビューだけ独立して欲しい**小〜中規模の変更・既存コードの点検・PR 前チェック等では、`gate-evaluator` を単独起動して reviewer-* を集約採点させる（Gate3/Gate8 の採点ロジックを TDD 文脈外で流用＝旧 run-reviewers 相当）。実装者とは別コンテキストで走らせ自己承認を排除する点は同じ。
 - **判断に迷う場合は substantial 扱い**（安全側に倒す）。
 - **例外（Main 直接可）**: 内容が事前確定した exact-edit・探索を伴わない機械的編集は、文脈を汚染しないため Main が直接行ってよい。
 
@@ -53,7 +54,7 @@
 |-------|---------|--------------|
 | planner | 機能実装計画（実装ステップ分解・依存関係・順序）＋設計判断・トレードオフ・ADR | 複雑な機能・リファクタリング着手前・設計判断/スケーラビリティ検討時 |
 | gate-generator | TDD Generator（RED→GREEN→REFACTOR・実行ログを証拠に） | **新機能・バグ修正時**、`tdd-gates` から段階起動。汎用 `claude` で代替しない |
-| gate-evaluator | TDD Evaluator（採点役・Critical即FAIL・reviewer-* を集約） | `tdd-gates` の Gate3/Gate8。単独起動で汎用スコアードレビューにも使える |
+| gate-evaluator | TDD Evaluator（採点役・Critical即FAIL・reviewer-* を集約） | `tdd-gates` の Gate3/Gate8 で集約採点。**tdd-gates を回さない変更のコードレビューは単独起動**（reviewer-* を1体で集約スコアリング＝旧 run-reviewers 相当。比例ルール節参照） |
 | reviewer-correctness | 正確性レビュー（バグ・冪等性・エラーハンドリング） | コード変更後に **必ず** 使用（Gate3/8 で gate-evaluator が並列集約） |
 | reviewer-performance | 性能レビュー（メモリ・DB/I/O最適化・並列処理） | コード変更後に **必ず** 使用（同上） |
 | reviewer-security | セキュリティレビュー（SQL injection・認証・機密情報） | コード変更後に **必ず** 使用（同上） |
