@@ -409,5 +409,5 @@ Accept: application/vnd.myapp.v2+json
 
 ## 関連参照
 
-- `python-dev` エージェント — Python での実装（`~/.claude/agents/references/fastapi-patterns.md` に FastAPI 詳細パターン）
-- `tdd-gates` スキル — API エンドポイントのテストを 9 品質ゲートで（`~/.claude/agents/references/pytest-patterns.md` に pytest 詳細パターン）
+- `python-dev` エージェント — Python での実装（`~/.claude/agents/references/fastapi.md` に FastAPI 詳細パターン）
+- `tdd-gates` スキル — API エンドポイントのテストを 9 品質ゲートで（`~/.claude/agents/references/pytest.md` に pytest 詳細パターン）

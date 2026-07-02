@@ -123,4 +123,4 @@ docs/CODEMAPS/
 
 詳細手順（Phase 1〜3・更新モード A/B・批判的レビュー観点・失敗パターン）は必要時に Read して参照すること:
 
-- `~/.claude/agents/references/doc-building-patterns.md`
+- `~/.claude/agents/references/doc-building.md`

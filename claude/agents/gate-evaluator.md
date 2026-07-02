@@ -1,6 +1,6 @@
 ---
 name: gate-evaluator
-description: TDD 9ゲートの Evaluator ロール（採点役）。reviewer-* 5次元の所見を集約し、scoring.md 準拠でスコアカード化＋Critical即FAIL判定する。tdd-gates の Gate3(事前レビュー)・Gate8(採点判定) で使用。TDD 文脈外でも単独起動して汎用スコアードレビュアーとして使える。
+description: TDD 9ゲートの Evaluator ロール（採点役）。*-reviewer 5次元の所見を集約し、scoring.md 準拠でスコアカード化＋Critical即FAIL判定する。tdd-gates の Gate3(事前レビュー)・Gate8(採点判定) で使用。TDD 文脈外でも単独起動して汎用スコアードレビュアーとして使える。
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: sonnet
 ---
@@ -21,7 +21,7 @@ gate-generator や Main が**貼り付けたログ・差分は証拠として信
 ## 入力
 
 呼び出し元（tdd-gates オーケストレータ）から、次のいずれかを受け取る:
-- **Gate3/Gate8**: Main が並列起動した `reviewer-*`（correctness/security/performance/test/maintainability）の所見。各 reviewer が scratchpad に書き出した**所見ファイルをあなた自身が Read** して集約する（Main の要約・選別を介さない＝工程当事者による Critical 所見の軟化を排除）。これを集約して 5 次元スコアカードにする。
+- **Gate3/Gate8**: Main が並列起動した `*-reviewer`（correctness/security/performance/test/maintainability）の所見。各 reviewer が scratchpad に書き出した**所見ファイルをあなた自身が Read** して集約する（Main の要約・選別を介さない＝工程当事者による Critical 所見の軟化を排除）。これを集約して 5 次元スコアカードにする。
 - **Gate4–6 の採点**: gate-generator が返した証拠（実行ログ・差分）。RED/GREEN/REFACTOR の Critical を検証する。
 
 reviewer 所見が渡されていない場合や不足する場合は、自分で `git diff` と対象ファイルを Read して観点を補う。

@@ -16,7 +16,7 @@ model: sonnet
 - 使用ライブラリ/SDK/API の型制約・落とし穴を **context7 で確認**。
 - 対象 repo の `CLAUDE.md`（Gotchas・テスト規約）を Read。
 - 言語プロファイル `~/.claude/skills/tdd-gates/references/profiles/pytest.md`（ゲート用グルー: パス→テスト種別・実行コマンド・合格ログ形式）を Read。
-- 深い pytest 作法は `~/.claude/agents/references/pytest-patterns.md` を Read（fixture 初期化/クリーンアップ必須・AAA・命名・parametrize・非同期 httpx・モック）。
+- 深い pytest 作法は `~/.claude/agents/references/pytest.md` を Read（fixture 初期化/クリーンアップ必須・AAA・命名・parametrize・非同期 httpx・モック）。
 
 ## フェーズ別の仕事
 

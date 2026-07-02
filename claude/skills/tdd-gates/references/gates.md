@@ -29,11 +29,11 @@
 - **証拠**: 計画書（テスト対象一覧・シナリオ表）。
 
 ### Gate 3: 事前レビュー（Evaluator）
-- **内容**: テストを書く前に、既存コード・DB・セキュリティ・設計をレビュー。**ファイル肥大は `reviewer-maintainability` の基準に従って**検出し分割を提案（数値はそちらを単一ソースとする）。
-- **手段**: オーケストレータが `reviewer-*` を**並列起動**し、`gate-evaluator` が所見を集約・採点。**Gate3 のデフォルトセットは correctness / security / performance / maintainability の4本**（テスト未作成のため `reviewer-test` は含めず、Gate8 でのみ使う）。
+- **内容**: テストを書く前に、既存コード・DB・セキュリティ・設計をレビュー。**ファイル肥大は `maintainability-reviewer` の基準に従って**検出し分割を提案（数値はそちらを単一ソースとする）。
+- **手段**: オーケストレータが `*-reviewer` を**並列起動**し、`gate-evaluator` が所見を集約・採点。**Gate3 のデフォルトセットは correctness / security / performance / maintainability の4本**（テスト未作成のため `test-reviewer` は含めず、Gate8 でのみ使う）。
 - **Critical**: 重大セキュリティ欠陥・設計破綻がない。
 - **採点項目**: 既存構造の把握 / セキュリティ観点 / DB・I/O 観点 / ファイルサイズ・責務分割。
-- **証拠**: レビュー所見（reviewer-* の出力）。
+- **証拠**: レビュー所見（*-reviewer の出力）。
 
 ### Gate 4: RED（Generator）
 - **内容**: 期待する振る舞いに対して**失敗するテストを先に書く**。実装コードは書かない。
@@ -68,10 +68,10 @@
 
 ### Gate 8: 差し戻し判定（Evaluator）
 - **内容**: 変更差分全体を多次元で採点し、マージ可否を判定する最終ゲート。
-- **手段**: オーケストレータが `reviewer-*` 5 次元（correctness/security/performance/test/maintainability）を**並列起動**し、`gate-evaluator` が 1 枚のスコアカードに集約＋Critical 判定。
+- **手段**: オーケストレータが `*-reviewer` 5 次元（correctness/security/performance/test/maintainability）を**並列起動**し、`gate-evaluator` が 1 枚のスコアカードに集約＋Critical 判定。
 - **Critical（即FAIL）**: 仕様不適合 / 既存回帰 / **偽装テスト検出**（assert なし・常に真・実装の写経）。
 - **採点項目**: 5 次元それぞれ（正確性 / セキュリティ / 性能 / テスト品質 / 保守性）。
-- **証拠**: 集約スコアカード（reviewer-* 所見に裏付け）。
+- **証拠**: 集約スコアカード（*-reviewer 所見に裏付け）。
 
 ### Gate 9: ドキュメント同期（条件付き）
 - **スキップ条件**: リファクタのみ等、ドキュメント影響が無ければスキップ。

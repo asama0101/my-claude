@@ -19,7 +19,7 @@ description: |
 今セッションを以下の順（上が高優先）で点検し、定義に恒久反映すべき種を拾う:
 
 1. **ユーザーの指摘・依頼（最優先の種）**: セッション中にユーザーが訂正・要望したことを洗い出す。改善の種は自己観察由来の先回りより、ユーザー由来の指摘・依頼を優先する。
-2. **必須エージェント・ゲートの使用漏れ**: substantial 実装で `tdd-gates`（gate-generator / gate-evaluator / reviewer-*）が回されたか。RED の実失敗ログ証拠・別コンテキスト採点が守られたか。python-dev が必要場面で使われたか。汎用 `claude` での代替・並列化できた場面の逐次実行も拾う。
+2. **必須エージェント・ゲートの使用漏れ**: substantial 実装で `tdd-gates`（gate-generator / gate-evaluator / *-reviewer）が回されたか。RED の実失敗ログ証拠・別コンテキスト採点が守られたか。python-dev が必要場面で使われたか。汎用 `claude` での代替・並列化できた場面の逐次実行も拾う。
 3. **使った agent/skill の実害**: 今回実際に困った具体例 — 誤誘導した／古い参照・存在しないファイルを指した／期待した出力形式でなかった。
 
 > 対象は agent/skill 定義。**CLAUDE.md 本体の改訂は `claude-md-management:revise-claude-md` / `claude-md-improver` に委譲する**（本スキルは扱わない）。
