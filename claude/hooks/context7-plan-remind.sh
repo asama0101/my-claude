@@ -9,7 +9,7 @@ if [[ "$SKILL" == *"writing-plans"* ]]; then
     echo "📋 writing-plans を実行します"
     echo ""
     echo "⚠️  CONTEXT7 確認チェック:"
-    echo "   実装で使うライブラリ（polars・psycopg2・TimescaleDB 等）の API を"
+    echo "   実装で使うライブラリ・SDK・API を"
     echo "   resolve-library-id → query-docs の順で確認しましたか？"
     echo "   トレーニングデータで推定した API をプランに書かないでください。"
 fi

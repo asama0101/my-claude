@@ -29,7 +29,7 @@ ruff check . --statistics              # コード品質の統計
 
 **JavaScript/TypeScript プロジェクト:**
 ```bash
-npx tsx scripts/codemaps/generate.ts    # コードマップを生成
+npx tsx scripts/codemaps/generate.ts    # コードマップ生成（プロジェクトに該当スクリプトがある場合のみ）
 npx madge --image graph.svg src/        # 依存関係グラフ
 npx jsdoc2md src/**/*.ts                # JSDoc を抽出
 ```

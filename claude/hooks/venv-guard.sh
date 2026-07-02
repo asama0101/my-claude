@@ -1,4 +1,5 @@
 #!/bin/bash
+command -v jq >/dev/null 2>&1 || { echo "❌ venv-guard: jq not found, failing closed" >&2; exit 2; }
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
@@ -13,13 +14,16 @@ if echo "$COMMAND" | grep -qE '([./]venv|\.venv)/bin/pip[0-9.]*\s+(install|unins
 fi
 
 # ── pip install チェック（pip / pip3 / python -m pip）──
+# VIRTUAL_ENV が実際にセットされている場合のみ許可する。
+# .venv ディレクトリが存在するだけでは system pip を許可しない（未 activate のため）。
 if echo "$COMMAND" | grep -qE '(^|&&|;)\s*(pip3?\s+install|python[0-9.]*\s+-m\s+pip\s+install)'; then
-  if [ -z "$VIRTUAL_ENV" ] && [ ! -d "$PROJECT_DIR/.venv" ]; then
-    echo "❌ pip install はvenv内でのみ許可されています。" >&2
-    echo "   python -m venv .venv && source .venv/bin/activate" >&2
+  if [ -z "$VIRTUAL_ENV" ]; then
+    echo "❌ pip install はvenv内でのみ許可されています（VIRTUAL_ENV 未設定）。" >&2
+    echo "   venv を有効化するか、venv 内 pip を明示してください:" >&2
+    echo "   source .venv/bin/activate && pip install ...   または   .venv/bin/pip install ..." >&2
     exit 2
   fi
-  if [ -n "$VIRTUAL_ENV" ] && [[ "$VIRTUAL_ENV" != "$PROJECT_DIR"* ]]; then
+  if [[ "$VIRTUAL_ENV" != "$PROJECT_DIR"* ]]; then
     echo "❌ venvがプロジェクトフォルダ外です。" >&2
     echo "   現在のvenv: $VIRTUAL_ENV" >&2
     echo "   プロジェクト: $PROJECT_DIR" >&2
@@ -30,13 +34,15 @@ if echo "$COMMAND" | grep -qE '(^|&&|;)\s*(pip3?\s+install|python[0-9.]*\s+-m\s+
 fi
 
 # ── pip uninstall チェック（pip / pip3 / python -m pip）──
+# VIRTUAL_ENV が実際にセットされている場合のみ許可する。
 if echo "$COMMAND" | grep -qE '(^|&&|;)\s*(pip3?\s+uninstall|python[0-9.]*\s+-m\s+pip\s+uninstall)'; then
-  if [ -z "$VIRTUAL_ENV" ] && [ ! -d "$PROJECT_DIR/.venv" ]; then
-    echo "❌ pip uninstall はvenv内でのみ許可されています。" >&2
-    echo "   python -m venv .venv && source .venv/bin/activate" >&2
+  if [ -z "$VIRTUAL_ENV" ]; then
+    echo "❌ pip uninstall はvenv内でのみ許可されています（VIRTUAL_ENV 未設定）。" >&2
+    echo "   venv を有効化するか、venv 内 pip を明示してください:" >&2
+    echo "   source .venv/bin/activate && pip uninstall ...   または   .venv/bin/pip uninstall ..." >&2
     exit 2
   fi
-  if [ -n "$VIRTUAL_ENV" ] && [[ "$VIRTUAL_ENV" != "$PROJECT_DIR"* ]]; then
+  if [[ "$VIRTUAL_ENV" != "$PROJECT_DIR"* ]]; then
     echo "❌ venvがプロジェクトフォルダ外です。" >&2
     echo "   現在のvenv: $VIRTUAL_ENV" >&2
     echo "   プロジェクト: $PROJECT_DIR" >&2

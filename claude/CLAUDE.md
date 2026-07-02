@@ -22,9 +22,10 @@
 
 | 規模 | 定義 | 工程 |
 |------|------|------|
-| trivial | 数行・既存パターン踏襲でテスト不要。設定/ドキュメント/コメント/明白な誤記の修正 | 単一の軽量 Agent に一括委任（Main は Read/Edit せず要約のみ受け取る）。Plan モード・planner・reviewer 群は省略可 |
+| trivial | 数行・既存パターン踏襲でテスト不要。設定/ドキュメント/コメント/明白な誤記の修正 | 単一の軽量 Agent（`trivial-executor`＝haiku）に一括委任（Main は Read/Edit せず要約のみ受け取る）。Plan モード・planner・reviewer 群は省略可 |
 | substantial | 新規ロジック・複数ファイル横断・公開インターフェース変更・非自明なバグ修正 | Plan モード → `tdd-gates` スキル（9品質ゲート）でフル工程。採点は実装者と別コンテキストで行い自己承認を排除 |
-| レビュー単独 | フル工程は不要だがコードレビューだけ独立して欲しい（小〜中規模・既存コード点検・PR 前チェック） | `gate-evaluator` を単独起動し、reviewer-* を集約採点（実装者と別コンテキストで自己承認を排除） |
+| small | trivial 超だが substantial 未満（差分が小さく・既存テストがあり・公開インターフェース不変） | `tdd-gates` の Gate4–5(RED→GREEN) 中心の簡略パイプ。Gate3/Gate8 の省略可否は Gate1 で明示承認し台帳に記録 |
+| レビュー単独 | フル工程は不要だがコードレビューだけ独立して欲しい（小〜中規模・既存コード点検・PR 前チェック） | Main が `reviewer-*` を並列起動 → `gate-evaluator` が集約採点（実装者と別コンテキストで自己承認を排除。evaluator は reviewer を自分で起動しない） |
 
 - 本ドキュメントの「必ず/必須」（Plan モード・reviewer・TDD）はすべて **substantial 前提**。
 - 例外（Main 直接可）: 内容が事前確定した exact-edit・探索を伴わない機械的編集。
@@ -54,9 +55,10 @@
 | planner | 実装計画の素材づくり（ステップ分解・依存関係・順序）＋設計判断・トレードオフ・ADR | 複雑な機能・リファクタリング着手前、設計判断・スケーラビリティ検討時。planner は素材を作り、最終計画は Main が組む |
 | gate-generator | TDD Generator（RED→GREEN→REFACTOR・実行ログを証拠に） | 新機能・バグ修正時、`tdd-gates` から段階起動。汎用 Agent で代替しない |
 | gate-evaluator | TDD Evaluator（reviewer-* を集約採点・Critical 即 FAIL） | `tdd-gates` の Gate3/Gate8。レビュー単独時は単独起動（作業ルーティング表参照） |
-| reviewer-correctness / -performance / -security / -maintainability | 1次元ずつのレビュー（正確性／性能／セキュリティ／保守性・doc 整合） | substantial のコード変更後、Gate3・Gate8 で gate-evaluator が並列集約 |
-| reviewer-test | テスト品質・要件適合レビュー（カバレッジ・仕様適合・冪等性） | 同上、ただし Gate8 のみ（Gate3 はテスト未作成のため除外） |
+| reviewer-correctness / -performance / -security / -maintainability | 1次元ずつのレビュー（正確性／性能／セキュリティ／保守性・doc 整合） | substantial のコード変更後（ゲート別の構成・本数は gates.md が正典） |
+| reviewer-test | テスト品質・要件適合レビュー（カバレッジ・仕様適合・冪等性） | 同上（適用ゲートは gates.md が正典） |
 | python-dev | Python 実装（スタイル・設計パターン・イディオム） | Python コードを書くとき（FastAPI/REST 設計は `references/` 参照） |
+| trivial-executor | trivial 変更の軽量実行（haiku）。設定/ドキュメント/コメント/誤記/機械的編集 | 比例ルールの trivial ルートで一括委任（substantial と気づいたら止めて差し戻す） |
 | doc-updater | ドキュメント・コードマップ更新 | 受け入れ OK 後のドキュメント同期・README/ガイド/コードマップ更新時 |
 
 ゲートごとの reviewer 構成・本数の正典は `~/.claude/skills/tdd-gates/references/gates.md`。
@@ -79,4 +81,4 @@
 | tdd-gates-nudge.sh | `tests/` 外の Python 実装ファイル編集時に `tdd-gates` 使用を非ブロッキングで促す（言語追加は profile 用意後に拡張） |
 | session-stop.sh | 統合 Stop フック。①新規 feedback メモリを検出しパッシブ通知 ②最後のユーザー入力に終了意図がある時のみ `session-close-improve` を1セッション1回 block で促す（スキップはセッション単位・ループ防止あり） |
 | venv-guard.sh | venv 外への `pip install` 等をブロック。コマンド文字列に含まれるだけで誤検知する場合あり（回避は Read ツール） |
-| context7-plan-remind.sh | Skill 実行前（PreToolUse→Skill）にライブラリ/SDK 質問で context7 使用を促す |
+| context7-plan-remind.sh | `writing-plans` スキル実行前（PreToolUse→Skill）に限り context7 確認を促す（通常のライブラリ質問では発火しない。「context7 必ず使用」自体はモデルの規律で担保する） |

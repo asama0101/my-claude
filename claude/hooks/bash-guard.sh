@@ -1,4 +1,6 @@
 #!/bin/bash
+# ── fail-close: jq 不在なら解析不能として block ──────────────
+command -v jq >/dev/null 2>&1 || { echo "❌ bash-guard: jq not found, failing closed" >&2; exit 2; }
 INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 PROJECT_DIR=$(pwd)
@@ -63,6 +65,13 @@ BLOCKED_PATTERNS=(
   # ── ファイル内容消去 ────────────────────────────
   'truncate\s+.*-s\s+0'                     # ファイルを空にする
 
+  # ── 迂回削除（find/python/rsync 経由）──────────────
+  'find\s+.*-delete'                        # find -delete による一括削除
+  'shutil\.rmtree'                          # Python shutil.rmtree
+  'os\.(remove|unlink|rmdir)'               # Python os.remove/unlink/rmdir
+  'rsync\s+.*--delete'                      # rsync --delete による同期削除
+  'truncate\s+.*--size[= ]*0'              # truncate --size 0 でファイルを空にする
+
   # ── Git 系破壊 ──────────────────────────────────
   'git\s+clean\s+-[a-z]*f[a-z]*d'          # 未追跡ファイル全削除
 
@@ -82,6 +91,9 @@ BLOCKED_PATTERNS=(
   '(>>|>)\s*~?/?\.(bashrc|zshrc|profile|bash_profile|bash_login|zprofile)'
   '(>>|>)\s*/home/[^/]+/\.(bashrc|zshrc|profile|bash_profile|bash_login|zprofile)'
   '(>>|>)\s*/root/\.(bashrc|zshrc|profile|bash_profile)'
+
+  # ── 機密ファイル読取・持ち出し ──────────────────
+  '(cat|less|more|head|tail|base64|xxd|od|strings)\s+.*(\.env(\.|\s|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|$)|\.key(\s|$)|authorized_keys|\.netrc|credentials)'
 )
 
 for pattern in "${BLOCKED_PATTERNS[@]}"; do
@@ -92,6 +104,19 @@ for pattern in "${BLOCKED_PATTERNS[@]}"; do
     exit 2
   fi
 done
+
+# ── 削除系コマンドの難読化（変数展開・コマンド置換）遮断 ────────────
+# 削除語（rm/rmdir/unlink）を含み、かつ $展開 または
+# コマンド置換（` / $(）を含む場合は削除対象を確定できず解析不能として block。
+# 削除語を含む場合のみに限定し、通常コマンドの誤爆を避ける（delete/rmtree は
+# 英単語での誤爆を避けるためトリガーから除外＝それぞれ専用パターンで捕捉済み）。
+if printf '%s' "$COMMAND" | grep -qiP '\b(rm|rmdir|unlink)\b' \
+   && printf '%s' "$COMMAND" | grep -qE '[$`]'; then
+  echo "❌ BLOCKED: $COMMAND" >&2
+  echo "   削除系コマンドに変数展開/コマンド置換が含まれ、削除対象を確定できません。" >&2
+  echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
+  exit 2
+fi
 
 # ── rm/rmdir/unlink: プロジェクト配下の子要素のみ許可 ──────────────
 # 上のブロックリストを通過した後に評価する。
