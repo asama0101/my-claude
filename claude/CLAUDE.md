@@ -76,8 +76,8 @@
 
 | Hook | 効果 |
 |------|------|
-| bash-guard.sh | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink` はプロジェクト配下の子要素のみ許可し、配下外・ルート自体・解析不能なものはブロック。ブロック時はユーザーへ `! <コマンド>` 形式で依頼 |
-| workspace-guard.sh | プロジェクト配下／`~/.claude` 配下以外への Write/Edit と `/tmp` への Bash リダイレクトをブロック（`exit 2`）。誤検知時は Read ツールで回避 |
+| bash-guard.sh | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink` はプロジェクト配下の子要素のみ許可（配下外・ルート自体・解析不能・変数難読化はブロック）。`find -delete`・`shutil.rmtree`・`rsync --delete` 等の非 rm 削除、機密ファイル（`.env`/`.ssh`/鍵）の読取・持ち出しもブロック。jq 不在時は fail-close。代表パターンのみで網羅ではない。ブロック時はユーザーへ `! <コマンド>` 形式で依頼 |
+| workspace-guard.sh | プロジェクト配下／`~/.claude` 配下以外への Write/Edit をブロック（`exit 2`）。ただし `~/.claude/hooks/` とハーネス設定（settings.json）は `~/.claude` 配下でも自己書換防止でブロック。Bash は `/tmp` リダイレクトと cp/tee/mv のプロジェクト外宛先を保守的にブロック。jq 不在時は fail-close。誤検知時は Read ツールで回避 |
 | tdd-gates-nudge.sh | `tests/` 外の Python 実装ファイル編集時に `tdd-gates` 使用を非ブロッキングで促す（言語追加は profile 用意後に拡張） |
 | session-stop.sh | 統合 Stop フック。①新規 feedback メモリを検出しパッシブ通知 ②最後のユーザー入力に終了意図がある時のみ `session-close-improve` を1セッション1回 block で促す（スキップはセッション単位・ループ防止あり） |
 | venv-guard.sh | venv 外への `pip install` 等をブロック。コマンド文字列に含まれるだけで誤検知する場合あり（回避は Read ツール） |
