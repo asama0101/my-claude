@@ -126,10 +126,11 @@
     "frontend-design@claude-plugins-official": true
   },
   "effortLevel": "high",
+  "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "tui": "fullscreen"
+  "model": "claude-fable-5[1m]"
 }

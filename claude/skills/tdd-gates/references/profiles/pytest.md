@@ -47,5 +47,5 @@ pytest tests/e2e -q            # playwright pytest plugin 前提
 
 ## 参照委譲
 
-深い pytest 作法（fixture の初期化/クリーンアップ必須・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定）は
-`~/.claude/agents/references/pytest-patterns.md` を Read すること。
+- 深い pytest 作法（fixture の初期化/クリーンアップ必須・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定）: `~/.claude/agents/references/pytest-patterns.md` を Read すること。
+- Gate6(REFACTOR) の整理では `~/.claude/agents/references/python-patterns.md`（実装スタイル・設計パターン）を Read すること（Gate5(GREEN) は最小実装原則を優先し、参照しない）。

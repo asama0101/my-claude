@@ -18,8 +18,6 @@ model: sonnet
 
 ## Python コーディングスタイル
 
-### Python コーディングスタイル
-
 ### 標準
 
 - **PEP 8** 規約に従う
@@ -133,15 +131,9 @@ ruff check .
 - [ ] ミューテーションがない（イミュータブルパターンを使用）
 - [ ] 外部プロセス/IO境界（subprocess・ssh・HTTP・DB等）をラップするコードは、モックのみのテストで完了としない。最低1本の結合/E2Eテストで実挙動を担保する（モックは結合バグを隠す）
 
-### 参考
-
-参照: `~/.claude/agents/references/python-patterns.md` で包括的な Python イディオムとパターンを Read。
-
 ---
 
 ## Python 設計パターン
-
-### Python パターン
 
 ### 新規プロジェクト立ち上げ
 
@@ -152,23 +144,19 @@ ruff check .
 
 #### リポジトリパターン
 
-`Protocol` を使って一貫したインターフェースの後ろにデータアクセスをカプセル化する。ビジネスロジックは抽象インターフェースに依存し、ストレージの実装には依存しない — データソースの切り替えが容易になり、モックを使ったテストが簡単になる。具体例は `references/python-patterns.md`（「設計パターン」節）を Read。
+`Protocol` を使って一貫したインターフェースの後ろにデータアクセスをカプセル化する。ビジネスロジックは抽象インターフェースに依存し、ストレージの実装には依存しない — データソースの切り替えが容易になり、モックを使ったテストが簡単になる。
 
 #### APIレスポンス形式
 
-すべてのAPIレスポンスに一貫したエンベロープ（`ApiResponse` / `PaginatedResponse`）を使用する。具体例は `references/python-patterns.md`（「設計パターン」節）を Read。
+すべてのAPIレスポンスに一貫したエンベロープ（`ApiResponse` / `PaginatedResponse`）を使用する。
 
 ### DTOとしてのデータクラス
 
-境界をまたぐリクエスト・入力は軽量なデータクラス DTO で表現する。具体例は `references/python-patterns.md`（「設計パターン」節）を Read。
+境界をまたぐリクエスト・入力は軽量なデータクラス DTO で表現する。
 
 ### コンテキストマネージャーとジェネレーター
 
-リソース管理には `with` 文、遅延評価には `yield` を使用する。具体例は `references/python-patterns.md`（「コンテキストマネージャー」「内包表記とジェネレーター」節）を Read。
-
-### 参考
-
-参照: `~/.claude/agents/references/python-patterns.md` でデコレーター・並行処理・パッケージ構成を含む包括的なパターンを Read。
+リソース管理には `with` 文、遅延評価には `yield` を使用する。
 
 ---
 
