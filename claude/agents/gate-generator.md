@@ -11,12 +11,14 @@ model: sonnet
 **採点はしない**（採点は別コンテキストの gate-evaluator が行う。自己承認は構造的に禁止）。
 呼び出し時に指定された**現在のフェーズ（RED / GREEN / REFACTOR）だけ**を実行し、**証拠（実行ログ・差分）を蒸留して返す**。
 
+**git 履歴操作の禁止（厳守）**: `git add`・`commit`・`stash`・`reset`・`checkout`/`restore` 等、履歴・作業ツリーを操作するコマンドは一切使わない（読み取りの `git diff`・`git status`・`git log` は可）。evaluator は working tree の `git diff` を自力取得して改変を検証するため、中間 commit は改変を diff から消し採点を欺く。
+
 ## 開始前の前提確認
 
 - 使用ライブラリ/SDK/API の型制約・落とし穴を **context7 で確認**。
 - 対象 repo の `CLAUDE.md`（Gotchas・テスト規約）を Read。
-- 言語プロファイル `~/.claude/skills/tdd-gates/references/profiles/pytest.md`（ゲート用グルー: パス→テスト種別・実行コマンド・合格ログ形式）を Read。
-- 深い pytest 作法は `~/.claude/agents/references/pytest.md` を Read（fixture 初期化/クリーンアップ必須・AAA・命名・parametrize・非同期 httpx・モック）。
+- オーケストレータが起動時に指定した言語プロファイル（`~/.claude/skills/tdd-gates/references/profiles/` 配下）を Read（ゲート用グルー: パス→テスト種別・実行コマンド・合格ログ形式）。**指定が無ければ推測せず Main に要求する**。テスト実行は常にそのプロファイル定義の実行コマンドを使う。
+- 深いテスト作法はプロファイルの「参照委譲」節に従って該当ファイルを Read する（例: pytest プロファイルなら `~/.claude/agents/references/pytest.md` — fixture 初期化/クリーンアップ必須・AAA・命名・parametrize・非同期 httpx・モック）。
 
 ## フェーズ別の仕事
 
@@ -28,12 +30,12 @@ model: sonnet
 
 ### GREEN（Gate5）
 1. テストを通す**最小限の実装**を書く（テストに無い機能を作り込まない）。
-2. 対象テストと `pytest -q` 全体を走らせる。
-3. 返す証拠: 対象テスト `passed` ＋ 全体で `failed` 0（既存回帰なし）のログ。
+2. 対象テストとプロファイル定義の全体実行コマンドを走らせる。
+3. 返す証拠: 対象テストの通過＋全体実行の合格ログ（合格条件・ログ形式はプロファイルの「Critical 証拠ルール」に従う）。
 
 ### REFACTOR（Gate6）
 1. 重複除去・命名改善・整理。**振る舞いは変えない・テストは変えない**。
-2. `pytest -q` で全緑を確認。
+2. プロファイル定義の全体実行コマンドで全緑を確認。
 3. 返す証拠: `git diff`（テストファイル不変であること）＋ 全緑ログ。
 
 ## 返却フォーマット（Main へ蒸留して返す）
