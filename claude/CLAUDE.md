@@ -24,7 +24,7 @@
 |------|------|------|
 | trivial | 数行・既存パターン踏襲でテスト不要。設定/ドキュメント/コメント/明白な誤記の修正 | 単一の軽量 Agent（`trivial-executor`＝haiku）に一括委任（Main は Read/Edit せず要約のみ受け取る）。Plan モード・planner・reviewer 群は省略可 |
 | substantial | 新規ロジック・複数ファイル横断・公開インターフェース変更・非自明なバグ修正 | Plan モード → `tdd-gates` スキル（9品質ゲート）でフル工程。採点は実装者と別コンテキストで行い自己承認を排除 |
-| small | trivial 超だが substantial 未満（差分が小さく・既存テストがあり・公開インターフェース不変） | `tdd-gates` の Gate4–5(RED→GREEN) 中心の簡略パイプ。Gate3/Gate8 の省略可否は Gate1 で明示承認し台帳に記録 |
+| small | 差分 ≤2ファイル・実装差分 ≤50行（テスト除く）・公開インターフェース不変・既存テストが対象範囲を被覆、を**すべて**満たす（1つでも外れたら substantial） | `tdd-gates` の Gate4–5(RED→GREEN) 中心の簡略パイプ（承認手順はスキル「段階導入の限界」が正典。gate-evaluator が Gate1 で判定） |
 | レビュー単独 | フル工程は不要だがコードレビューだけ独立して欲しい（小〜中規模・既存コード点検・PR 前チェック） | Main が `*-reviewer` を並列起動 → `gate-evaluator` が集約採点（実装者と別コンテキストで自己承認を排除。evaluator は reviewer を自分で起動しない） |
 
 - 本ドキュメントの「必ず/必須」（Plan モード・reviewer・TDD）はすべて **substantial 前提**。

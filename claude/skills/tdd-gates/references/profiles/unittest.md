@@ -31,8 +31,8 @@ python3 -m unittest discover -s tests -v
 
 ## Critical 証拠ルール（このランナーでの合格ログの形）
 
-- **Gate4(RED)**: 出力末尾が `FAILED (failures=N)`（N≥1）で、`FAIL:` 行が対象テストを指す。
-  - **許容される例外**: 新規モジュール/新規シンボルが未実装であることに起因する `ERROR`（`ModuleNotFoundError` / `ImportError` / `AttributeError` / `TypeError: unexpected keyword argument`）で `FAILED (errors=N)` となるケースは、TDD の自然な初回 RED として**有効**。
+- **Gate4(RED)**: 出力末尾が `FAILED (failures=N)`（N≥1）で、`FAIL:` 行が対象テストを指し、トレースバックが対象 assert 行の `AssertionError` を示す。
+  - **許容される例外（初回 RED のみ）**: 新規モジュール/新規シンボルが未実装であることに起因する `ERROR`（`ModuleNotFoundError` / `ImportError` / `AttributeError` / `TypeError: unexpected keyword argument`）で `FAILED (errors=N)` となるケースは、TDD の自然な初回 RED として**有効**。ただし GREEN に進む前に**二段階 RED を必須**とする: Generator がスタブ（署名だけの雑最小実装）を置いて再実行し、対象 assert の失敗（`FAIL:` 行＋`AssertionError`）で落ちることを evaluator が確認し台帳に記録する。ERROR のまま GREEN に進んではならない。
   - 無効例（0 点＝FAIL 扱い）: ログなしの「多分落ちる」／`Ran 0 tests`（未収集）／対象と無関係な収集時クラッシュ。
 - **Gate5(GREEN)**: 単一テストの出力が `OK`、かつ `python3 -m unittest discover -s tests -v` の末尾が `OK`（`FAILED` なし＝既存回帰なし）。
 - **Gate6(REFACTOR)**: `git diff` にテストファイルの変更が無く（＝振る舞い不変）、discover 全体が `OK`。
