@@ -64,7 +64,6 @@
     "defaultMode": "plan",
     "disableBypassPermissionsMode": "disable"
   },
-  "model": "claude-fable-5[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -106,16 +105,6 @@
           {
             "type": "command",
             "command": "__CLAUDE_HOME__/hooks/tdd-gates-nudge.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "__CLAUDE_HOME__/hooks/session-stop.sh"
           }
         ]
       }

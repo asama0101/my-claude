@@ -65,9 +65,7 @@
 
 ## スキル
 
-- **tdd-gates**（ローカル）: TDD×9品質ゲートのオーケストレータ。substantial 実装で使用。
-- **session-close-improve**（ローカル）: セッション終了時の改善ワークフロー専用。
-- プラグイン（superpowers / context7 / frontend-design 等）は `enabledPlugins` で有効化済み。
+- **tdd-gates**（ローカル）: TDD×9品質ゲートのオーケストレータ。substantial 実装で使用。- プラグイン（superpowers / context7 / frontend-design 等）は `enabledPlugins` で有効化済み。
 - **context7 は必ず使用**: ライブラリ・SDK・API の質問時。`resolve-library-id` → `query-docs` の順。
 - **frontend-design は必ず使用**: UI・Web ページ・HTML 成果物（レポート/構成図等）・スライド等の資料をデザイン・生成・変更するとき（スキルの description は Web アプリ寄りで資料系に自動発火しないため、ここで明示）。
 - **HTML 成果物**: 提出前に独立サブエージェントで敵対的クロスレビュー→修正→再レビューを通す（ブラウザ不可環境では `node --check`＋JS ロジック追跡等の静的解析で代替）。
@@ -78,7 +76,5 @@
 |------|------|
 | bash-guard.sh | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink` はプロジェクト配下の子要素のみ許可（配下外・ルート自体・解析不能・変数難読化はブロック）。`find -delete`・`shutil.rmtree`・`rsync --delete` 等の非 rm 削除、機密ファイル（`.env`/`.ssh`/鍵）の読取・持ち出しもブロック。jq 不在時は fail-close。代表パターンのみで網羅ではない。ブロック時はユーザーへ `! <コマンド>` 形式で依頼 |
 | workspace-guard.sh | プロジェクト配下／`~/.claude` 配下以外への Write/Edit をブロック（`exit 2`）。ただし `~/.claude/hooks/` とハーネス設定（settings.json）は `~/.claude` 配下でも自己書換防止でブロック。Bash は `/tmp` リダイレクトと cp/tee/mv のプロジェクト外宛先を保守的にブロック。jq 不在時は fail-close。誤検知時は Read ツールで回避 |
-| tdd-gates-nudge.sh | `tests/` 外の Python 実装ファイル編集時に `tdd-gates` 使用を非ブロッキングで促す（言語追加は profile 用意後に拡張） |
-| session-stop.sh | 統合 Stop フック。①新規 feedback メモリを検出しパッシブ通知 ②最後のユーザー入力に終了意図がある時のみ `session-close-improve` を1セッション1回 block で促す（スキップはセッション単位・ループ防止あり） |
-| venv-guard.sh | venv 外への `pip install` 等をブロック。コマンド文字列に含まれるだけで誤検知する場合あり（回避は Read ツール） |
+| tdd-gates-nudge.sh | `tests/` 外の Python 実装ファイル編集時に `tdd-gates` 使用を非ブロッキングで促す（言語追加は profile 用意後に拡張） || venv-guard.sh | venv 外への `pip install` 等をブロック。コマンド文字列に含まれるだけで誤検知する場合あり（回避は Read ツール） |
 | context7-plan-remind.sh | `writing-plans` スキル実行前（PreToolUse→Skill）に限り context7 確認を促す（通常のライブラリ質問では発火しない。「context7 必ず使用」自体はモデルの規律で担保する） |

@@ -369,8 +369,8 @@
     </div>
     <div class="layer-card">
       <p class="role">工 程 書</p>
-      <h3>skills（2本 + プラグイン）</h3>
-      <p><code>tdd-gates</code>＝TDD×9ゲートのオーケストレータ（フロー図の正典）。<code>session-close-improve</code>＝セッション終了時の改善3ステップ。工程の順序と強制力はここが持つ。</p>
+      <h3>skills（1本 + プラグイン）</h3>
+      <p><code>tdd-gates</code>＝TDD×9ゲートのオーケストレータ（フロー図の正典）。工程の順序と強制力はここが持つ。</p>
     </div>
     <div class="layer-card">
       <p class="role">実 行 役</p>
@@ -432,7 +432,7 @@
 <!-- ═══════════ §3 参照関係図 ═══════════ -->
 <section id="graph">
   <div class="sec-head"><span class="sec-no">第三条</span><h2>参照関係図 — 誰が誰を起動し、誰が何を読むか</h2></div>
-  <p class="lede">朱線＝CLAUDE.md 発のルーティング（比例ルールの分岐＋セッション終了時）、実線＝skill によるエージェント起動、破線＝正典の参照（Read）。上から下へ「憲法 → 工程書 → 実行役 → 正典」。</p>
+  <p class="lede">朱線＝CLAUDE.md 発のルーティング（比例ルールの分岐）、実線＝skill によるエージェント起動、破線＝正典の参照（Read）。上から下へ「憲法 → 工程書 → 実行役 → 正典」。</p>
 
   <div class="diagram-frame">
   <svg viewBox="0 0 1160 830" role="img" aria-label="CLAUDE.md・skills・agents・references の参照関係図">
@@ -463,10 +463,6 @@
     <rect class="node" x="330" y="176" width="300" height="72" rx="3"/>
     <text class="t-title" x="480" y="203" text-anchor="middle">skills/tdd-gates/SKILL.md</text>
     <text class="t-sub" x="480" y="222" text-anchor="middle">TDD×9ゲート オーケストレータ／フロー図の正典</text>
-
-    <rect class="node" x="860" y="176" width="270" height="60" rx="3"/>
-    <text class="t-title" x="995" y="202" text-anchor="middle">session-close-improve</text>
-    <text class="t-sub" x="995" y="221" text-anchor="middle">終了時の改善ワークフロー（3ステップ）</text>
 
     <!-- skill refs group -->
     <rect class="group" x="34" y="166" width="230" height="186" rx="3"/>
@@ -534,10 +530,6 @@
     <rect class="lblbg" x="356" y="115" width="156" height="18"/>
     <text class="t-edge shu-t" x="362" y="128">substantial / small（簡略）</text>
 
-    <path class="edge route" d="M 700 92 C 780 120, 900 135, 970 172" marker-end="url(#arw-shu)"/>
-    <rect class="lblbg" x="828" y="118" width="104" height="18"/>
-    <text class="t-edge shu-t" x="834" y="131">セッション終了時</text>
-
     <path class="edge route" d="M 760 92 C 850 180, 860 320, 1070 430" marker-end="url(#arw-shu)"/>
     <rect class="lblbg" x="878" y="244" width="48" height="18"/>
     <text class="t-edge shu-t" x="884" y="257">trivial</text>
@@ -594,7 +586,7 @@
     <path class="edge ref" d="M 960 500 C 990 570, 1010 630, 1020 704" marker-end="url(#arw-gray)"/>
   </svg>
   <div class="legend">
-    <span class="key"><span class="sw shu-line"></span>CLAUDE.md 発のルーティング（比例ルール＋終了時）</span>
+    <span class="key"><span class="sw shu-line"></span>CLAUDE.md 発のルーティング（比例ルール）</span>
     <span class="key"><span class="sw"></span>skill によるエージェント起動（ゲート番号つき）</span>
     <span class="key"><span class="sw dash"></span>正典の参照（Read）</span>
   </div>
@@ -848,7 +840,6 @@
       <thead><tr><th>hook</th><th>この仕組みとの関係</th></tr></thead>
       <tbody>
         <tr><td><code>tdd-gates-nudge.sh</code></td><td><code>tests/</code> 外の Python 実装ファイル編集を検知し、tdd-gates の使用を非ブロッキングで促す — 比例ルールの飛ばし忘れ対策</td></tr>
-        <tr><td><code>session-stop.sh</code></td><td>終了意図を検出したときのみ <code>session-close-improve</code> を1セッション1回促す — 振り返り工程の飛ばし忘れ対策</td></tr>
         <tr><td><code>bash-guard.sh</code> / <code>workspace-guard.sh</code></td><td>破壊的コマンド・プロジェクト外への書込をブロック — 禁止事項（憲法）の機械的執行</td></tr>
         <tr><td><code>venv-guard.sh</code></td><td>venv 外への pip install をブロック — 環境汚染の防止</td></tr>
         <tr><td><code>context7-plan-remind.sh</code></td><td>計画スキル実行前に context7 でのライブラリ事実確認を促す — 計画段階の思い込み対策</td></tr>
