@@ -79,7 +79,8 @@
 - `Explore`／`Plan`: ビルトイン Agent（読取専用の探索／実装計画の設計）。`~/.claude/agents/` には無い。
 
 スキル:
-- **tdd-gates**（ローカル）: TDD×10品質ゲートのオーケストレータ。substantial 実装で使え。プラグイン群（superpowers/context7/frontend-design 等）は有効化済み。
+- **tdd-gates**（ローカル）: TDD×10品質ゲートのオーケストレータ。substantial 実装で使え。
+- プラグイン群（superpowers/context7/frontend-design 等）は有効化済み。
 - **context7 は必ず使用せよ**: ライブラリ・SDK・API の質問時（`resolve-library-id` → `query-docs` の順）。
 - **frontend-design は必ず使用せよ**: UI・Web ページ・HTML 成果物・スライド等をデザイン・生成・変更するとき。
 - **HTML 成果物**: 独立サブエージェントで敵対的クロスレビュー→修正→再レビューを通せ。ブラウザ不可なら静的解析で代替せよ。
