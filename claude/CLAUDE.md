@@ -59,7 +59,7 @@
 | review-test | テスト品質・要件適合レビュー（カバレッジ・仕様適合・冪等性） | 同上（適用ゲートは gates.md が正典） |
 | dev-python | Python 実装（スタイル・設計パターン・イディオム） | Python コードを書くとき（FastAPI/REST 設計は `references/` 参照） |
 | trivial-executor | trivial 変更の軽量実行（haiku）。設定/ドキュメント/コメント/誤記/機械的編集 | 比例ルールの trivial ルートで一括委任（substantial と気づいたら止めて差し戻す） |
-| doc-updater | ドキュメント・コードマップ更新 | 受け入れ OK 後のドキュメント同期・README/ガイド/コードマップ更新時 |
+| doc-updater | ドキュメントの新規作成・構成/セクション設計＋コードマップ・既存ドキュメント更新 | 人間向けドキュメントの新規整備（設計→作成→整合確認）、受け入れ OK 後のドキュメント同期・README/ガイド/コードマップ更新時 |
 
 ゲートごとの reviewer 構成・本数の正典は `~/.claude/skills/tdd-gates/references/gates.md`。
 
