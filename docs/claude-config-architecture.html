@@ -352,7 +352,7 @@
   <h1>設定の解剖台帳
     <span class="sub">CLAUDE.md・Skill・Agent・Reference の参照関係と、TDD 品質防衛のしくみ</span>
   </h1>
-  <p class="header-meta">調査日 2026-07-03 ／ 対象 ~/.claude/（リポジトリ claude/ ミラー・commit 21f0858 時点）</p>
+  <p class="header-meta">調査日 2026-07-03・改訂 2026-07-05（9→10 ゲート再設計を反映）／ 対象 ~/.claude/（リポジトリ claude/ ミラー・commit 10e9d40 時点）</p>
   <div class="kenin" aria-hidden="true"><b>検</b><span>2026.07</span></div>
 </header>
 
@@ -370,7 +370,7 @@
     <div class="layer-card">
       <p class="role">工 程 書</p>
       <h3>skills（1本 + プラグイン）</h3>
-      <p><code>tdd-gates</code>＝TDD×9ゲートのオーケストレータ（フロー図の正典）。工程の順序と強制力はここが持つ。</p>
+      <p><code>tdd-gates</code>＝TDD×10ゲートのオーケストレータ（フロー図の正典）。工程の順序と強制力はここが持つ。</p>
     </div>
     <div class="layer-card">
       <p class="role">実 行 役</p>
@@ -417,7 +417,7 @@
         <tr>
           <td class="center"><b>substantial</b></td>
           <td>新規ロジック・複数ファイル横断・公開 IF 変更・非自明なバグ修正</td>
-          <td>Plan モード → <code>tdd-gates</code> フル9ゲート。採点は実装者と別コンテキストで自己承認を排除</td>
+          <td>Plan モード → <code>tdd-gates</code> フル10ゲート。採点は実装者と別コンテキストで自己承認を排除</td>
         </tr>
         <tr>
           <td class="center"><b>レビュー単独</b></td>
@@ -462,7 +462,7 @@
     <!-- ── L1: skills ── -->
     <rect class="node" x="330" y="176" width="300" height="72" rx="3"/>
     <text class="t-title" x="480" y="203" text-anchor="middle">skills/tdd-gates/SKILL.md</text>
-    <text class="t-sub" x="480" y="222" text-anchor="middle">TDD×9ゲート オーケストレータ／フロー図の正典</text>
+    <text class="t-sub" x="480" y="222" text-anchor="middle">TDD×10ゲート オーケストレータ／フロー図の正典</text>
 
     <!-- skill refs group -->
     <rect class="group" x="34" y="166" width="230" height="186" rx="3"/>
@@ -496,7 +496,7 @@
 
     <rect class="node" x="744" y="438" width="120" height="62" rx="3"/>
     <text class="t-title" x="804" y="464" text-anchor="middle">doc-updater</text>
-    <text class="t-sub" x="804" y="483" text-anchor="middle">ドキュメント同期</text>
+    <text class="t-sub" x="804" y="483" text-anchor="middle">doc同期・CI生成</text>
 
     <rect class="node" x="884" y="438" width="120" height="62" rx="3"/>
     <text class="t-title" x="944" y="464" text-anchor="middle">dev-python</text>
@@ -546,23 +546,23 @@
     <!-- ══ edges: SKILL.md dispatch (indigo) ══ -->
     <path class="edge" d="M 360 248 C 330 340, 180 390, 100 434" marker-end="url(#arw)"/>
     <rect class="lblbg" x="250" y="296" width="80" height="18"/>
-    <text class="t-edge" x="256" y="309">G1–2 起草</text>
+    <text class="t-edge" x="256" y="309">G1・2 起草</text>
 
     <path class="edge" d="M 420 248 C 340 310, 280 370, 250 434" marker-end="url(#arw)"/>
     <rect class="lblbg" x="344" y="308" width="48" height="18"/>
     <text class="t-edge" x="350" y="321">G4–6</text>
 
     <path class="edge" d="M 470 248 C 440 310, 415 370, 406 434" marker-end="url(#arw)"/>
-    <rect class="lblbg" x="418" y="336" width="98" height="18"/>
-    <text class="t-edge" x="424" y="349">G1–6・G8 採点</text>
+    <rect class="lblbg" x="418" y="336" width="120" height="18"/>
+    <text class="t-edge" x="424" y="349">G1–6・8・9 採点</text>
 
     <path class="edge" d="M 540 248 C 580 310, 600 370, 607 426" marker-end="url(#arw)"/>
-    <rect class="lblbg" x="560" y="330" width="110" height="18"/>
-    <text class="t-edge" x="566" y="343">G3 ×4 ／ G8 ×5</text>
+    <rect class="lblbg" x="560" y="330" width="128" height="18"/>
+    <text class="t-edge" x="566" y="343">G8 ×5／G3 条件付き</text>
 
     <path class="edge" d="M 630 222 C 720 280, 780 370, 800 434" marker-end="url(#arw)"/>
-    <rect class="lblbg" x="742" y="360" width="30" height="18"/>
-    <text class="t-edge" x="748" y="373">G9</text>
+    <rect class="lblbg" x="742" y="360" width="98" height="18"/>
+    <text class="t-edge" x="748" y="373">G9 CI／G10 doc</text>
 
     <!-- SKILL.md → skill refs (dashed) -->
     <path class="edge ref" d="M 330 212 C 305 220, 290 228, 268 240" marker-end="url(#arw-gray)"/>
@@ -630,7 +630,7 @@
         <tr><td><code>review-test</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>テスト品質・要件/スキーマ適合・冪等性</td></tr>
         <tr><td><code>dev-python</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>Python 実装（スタイル・設計パターン・イディオム）</td><td><code>python.md</code>・<code>fastapi.md</code>・<code>api-design.md</code>・<code>pytest.md</code></td></tr>
         <tr><td><code>trivial-executor</code></td><td class="center"><span class="model-chip haiku">haiku</span></td><td>trivial 変更の軽量一括実行。substantial と気づいたら止めて差し戻す</td><td>（なし）</td></tr>
-        <tr><td><code>doc-updater</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>ドキュメント・コードマップの生成/同期（Gate 9・受け入れ後）</td><td><code>doc-building.md</code></td></tr>
+        <tr><td><code>doc-updater</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>ドキュメント・コードマップの生成/同期（Gate 10）＋ Gate 9 の CI ワークフロー生成・受け入れ後</td><td><code>doc-building.md</code></td></tr>
       </tbody>
     </table>
   </div>
@@ -638,16 +638,27 @@
 
 <!-- ═══════════ §5 検査ライン ═══════════ -->
 <section id="gates">
-  <div class="sec-head"><span class="sec-no">第五条</span><h2>TDD 9ゲート検査ライン — 順序そのものが防衛</h2></div>
+  <div class="sec-head"><span class="sec-no">第五条</span><h2>TDD 10ゲート検査ライン — 順序そのものが防衛</h2></div>
   <p class="lede">「動くように見えて中身がバグだらけ」を防ぐには、工程を飛ばせないことが第一の防衛になる。各ゲートは <span style="color:var(--shu); font-weight:700;">Critical 条件</span>を持ち、1つでも未達なら他が満点でも即 FAIL。番号が朱のゲートは Critical が特に要となる工程。</p>
 
   <div class="gateline">
-    <div class="gate">
-      <div class="gate-badge-no">1·2</div>
+    <div class="gate critical-gate">
+      <div class="gate-badge-no">1</div>
       <div class="gate-card">
-        <div class="gate-head"><h3>計画</h3><span class="gate-en">PLAN</span><span class="badge must">substantial 必須</span></div>
-        <p>受入基準の言語化・テストシナリオ設計・対象ファイルとテスト種別の対応付け。planner が素材を起草し、最終計画は Main が組む。簡略化の可否（small の Gate 3/8 省略等）はここで明示承認し台帳に記録する。</p>
+        <div class="gate-head"><h3>コンテキスト分析・要件整理</h3><span class="gate-en">CONTEXT</span><span class="badge must">substantial 必須</span></div>
+        <p>依頼＋既存コード・ドメイン・制約を分析し、要件を抽出・構造化して<b>抜け漏れなく確定</b>する。変更影響範囲の整理・スコープ単一性の確認もここ。small の簡略可否（Gate 3/8 省略等）はこの Gate 1 で判定し台帳に記録する。</p>
         <div class="gate-actors"><span class="actor">planner 起草</span><span class="actor">tdd-evaluator 採点</span></div>
+        <div class="gate-crit"><b>Critical:</b> 要件の網羅性 — evaluator が<b>抜け漏れ候補を敵対的に列挙</b>し、非自明な欠落はユーザー確認（Stop &amp; Ask）で解消。コンテキスト把握が的確・スコープが単一。</div>
+      </div>
+    </div>
+
+    <div class="gate">
+      <div class="gate-badge-no">2</div>
+      <div class="gate-card">
+        <div class="gate-head"><h3>受入基準・テスト設計</h3><span class="gate-en">SPEC &amp; TEST DESIGN</span><span class="badge must">substantial 必須</span></div>
+        <p>確定した要件を検証可能な受入基準に言語化し、テストシナリオ（正常・異常・境界）へ落とす。想定不具合を列挙し、<b>3層（unit=業務ロジック／integration=機能品質・主軸／e2e=最小）</b>のどこで守るか・E2E 要否を判断する。</p>
+        <div class="gate-actors"><span class="actor">planner 起草</span><span class="actor">tdd-evaluator 採点</span></div>
+        <div class="gate-crit"><b>Critical:</b> 受入基準が検証可能で、<b>要件 ↔ 受入基準 ↔ テストシナリオの対応に漏れがない</b>（トレーサビリティ）。</div>
       </div>
     </div>
 
@@ -655,8 +666,8 @@
       <div class="gate-badge-no">3</div>
       <div class="gate-card">
         <div class="gate-head"><h3>事前レビュー</h3><span class="gate-en">PRE-REVIEW</span><span class="badge must">substantial 省略不可</span></div>
-        <p>テストを書く<b>前</b>に、既存コード・DB・セキュリティ・設計を4次元並列でレビューする（review-test はまだ入らない）。実装前の唯一の実レビュー層。</p>
-        <div class="gate-actors"><span class="actor">correctness</span><span class="actor">security</span><span class="actor">performance</span><span class="actor">maintainability</span><span class="actor">→ tdd-evaluator 集約</span></div>
+        <p>テストを書く<b>前</b>に、既存コード・DB・セキュリティ（権限漏れ含む）・設計をレビューし、<b>業務ロジックが unit テスト可能に分離されているか</b>を検査する。既定は evaluator 単独。セキュリティ/性能敏感な計画のときだけ該当 reviewer を条件付き並列（最大2本）。</p>
+        <div class="gate-actors"><span class="actor">tdd-evaluator 単独（既定）</span><span class="actor">＋条件付き security／performance（最大2）</span></div>
       </div>
     </div>
 
@@ -712,12 +723,22 @@
     <div class="acceptance">
       <div class="gate-badge-no">✓</div>
       <div class="gate-card">
-        <b>ユーザー受け入れ確認</b> — Gate 8 PASS 後・Gate 9 の前に必ず挟む。NG なら修正へ差し戻し、ドキュメントは更新しない。
+        <b>ユーザー受け入れ確認</b> — Gate 8 PASS 後・Gate 9/10 の前に必ず挟む。この時 evaluator が<b>受け入れチェックリスト</b>（受入基準＋5次元＋例外処理・権限漏れ・変更影響範囲）を生成して台帳に残し、手動確認を再現可能にする。NG なら修正へ差し戻し、ドキュメントは更新しない。
       </div>
     </div>
 
     <div class="gate">
       <div class="gate-badge-no">9</div>
+      <div class="gate-card">
+        <div class="gate-head"><h3>CI 品質ゲート整備</h3><span class="gate-en">CI GATE</span><span class="badge cond">CI 運用時のみ</span></div>
+        <p>CI が必須ステージ（lint・typecheck・build・unit・integration・主要 E2E）を自動実行するよう整備・検証する。<b>プロファイル駆動</b> — 具体コマンドは言語プロファイルが供給し、ワークフロー実体は各プロジェクトに生成（GitHub Actions 既定）。「グリーン」は push 後の非同期事象のため、本ゲートは<b>定義の存在・被覆</b>をゲートする。</p>
+        <div class="gate-actors"><span class="actor">doc-updater 生成</span><span class="actor">tdd-evaluator 採点</span></div>
+        <div class="gate-crit"><b>Critical:</b> 必須ステージのいずれかが CI 定義から欠落している（preview デプロイは任意で対象外）。</div>
+      </div>
+    </div>
+
+    <div class="gate">
+      <div class="gate-badge-no">10</div>
       <div class="gate-card">
         <div class="gate-head"><h3>ドキュメント同期</h3><span class="gate-en">DOC SYNC</span><span class="badge cond">doc 影響なしならスキップ</span></div>
         <p>README・ガイド・コードマップ・API 仕様を変更内容に同期する。</p>
@@ -752,9 +773,15 @@
 
 <!-- ═══════════ §7 破り方と防ぎ方 ═══════════ -->
 <section id="defense">
-  <div class="sec-head"><span class="sec-no">第七条</span><h2>破り方と防ぎ方 — AI 駆動開発の品質問題への12の防衛</h2></div>
+  <div class="sec-head"><span class="sec-no">第七条</span><h2>破り方と防ぎ方 — AI 駆動開発の品質問題への13の防衛</h2></div>
   <p class="lede">この仕組みは「AI 実装者がどうサボり・どう取り繕うか」を先回りして設計されている。各カードは <b>破り方（起きうる品質問題）→ それを構造的に潰す仕組み</b> の対。</p>
   <div class="defense">
+
+    <div class="def-card">
+      <p class="def-attack">要件の抜け漏れ — 存在しない要件は誰も検査しない</p>
+      <p class="def-guard">Gate 1 で evaluator が要件集合の完全性を<b>敵対的に点検</b>し、抜け漏れ候補（未記載・暗黙要件・未対応エッジ）を列挙。真実源はユーザーにあるため、非自明な欠落は自動 FAIL せず <b>Stop &amp; Ask</b> で確認して要件へ反映する。</p>
+      <span class="src">gates.md（Gate 1 Critical）</span>
+    </div>
 
     <div class="def-card">
       <p class="def-attack">自己承認 — 実装者が自分で合格を出す</p>
@@ -824,7 +851,7 @@
 
     <div class="def-card">
       <p class="def-attack">ゲートのバイパス — 監査できない工程</p>
-      <p class="def-guard">タスクごとに一意名の<b>台帳（ledger）</b> <code>tdd-gates-ledger-&lt;slug&gt;.md</code> を作り、verdict・スコア率・証拠スニペット・再評価回数・evaluator 再実行出力を記録。工程飛ばしと自己承認を監査証跡で防ぐ。</p>
+      <p class="def-guard">タスクごとに一意名の<b>台帳（ledger）</b> <code>.tdd-gates/ledger-&lt;slug&gt;.md</code>（プロジェクト配下）を作り、verdict・スコア率・証拠スニペット・再評価回数・evaluator 再実行出力を記録。工程飛ばしと自己承認を監査証跡で防ぐ。</p>
       <span class="src">SKILL.md</span>
     </div>
 
@@ -853,7 +880,7 @@
 </section>
 
 <footer>
-  <span>my-claude / claude-config-architecture — 2026-07-03</span>
+  <span>my-claude / claude-config-architecture — 2026-07-03（改訂 2026-07-05）</span>
   <span>正典: skills/tdd-gates/references/{gates,scoring}.md ・ agents/references/ ・ ~/.claude/CLAUDE.md</span>
 </footer>
 
