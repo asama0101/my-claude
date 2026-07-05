@@ -30,7 +30,7 @@
 
 ### Gate 3: 事前レビュー（Evaluator）
 - **内容**: テストを書く前に、既存コード・DB・セキュリティ・設計をレビュー。**ファイル肥大は `maintainability-reviewer` の基準に従って**検出し分割を提案（数値はそちらを単一ソースとする）。
-- **手段**: オーケストレータが `*-reviewer` を**並列起動**し、`gate-evaluator` が所見を集約・採点。**Gate3 のデフォルトセットは correctness / security / performance / maintainability の4本**（テスト未作成のため `test-reviewer` は含めず、Gate8 でのみ使う）。
+- **手段**: `gate-evaluator` が計画と既存コードを直接レビュー・採点する（**既定は evaluator 単独・reviewer 起動なし**——テスト・差分が未作成の段階では多次元 reviewer の検査材料が乏しく、実差分への多次元フルレビューは Gate8 で行うため）。計画がセキュリティ敏感（認証・入力処理・機密データ）または性能敏感（大量データ・ホットパス）な場合のみ、該当する `security-reviewer`／`performance-reviewer` を条件付きで並列起動し（最大2本）、起動構成を台帳に記録する。
 - **Critical**: 重大セキュリティ欠陥・設計破綻がない。
 - **採点項目**: 既存構造の把握 / セキュリティ観点 / DB・I/O 観点 / ファイルサイズ・責務分割。
 - **証拠**: レビュー所見（*-reviewer の出力）。

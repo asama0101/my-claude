@@ -54,7 +54,7 @@
 |-------|---------|--------------|
 | planner | 実装計画の素材づくり（ステップ分解・依存関係・順序）＋設計判断・トレードオフ・ADR | 複雑な機能・リファクタリング着手前、設計判断・スケーラビリティ検討時。planner は素材を作り、最終計画は Main が組む |
 | gate-generator | TDD Generator（RED→GREEN→REFACTOR・実行ログを証拠に） | 新機能・バグ修正時、`tdd-gates` から段階起動。汎用 Agent で代替しない |
-| gate-evaluator | TDD Evaluator（*-reviewer を集約採点・Critical 即 FAIL） | `tdd-gates` の Gate3/Gate8。レビュー単独時は単独起動（作業ルーティング表参照） |
+| gate-evaluator | TDD Evaluator（*-reviewer を集約採点・Critical 即 FAIL） | `tdd-gates` の採点全般（Gate1–8。Gate8=差し戻し判定）。レビュー単独時は単独起動（作業ルーティング表参照） |
 | correctness- / performance- / security- / maintainability-reviewer | 1次元ずつのレビュー（正確性／性能／セキュリティ／保守性・doc 整合） | substantial のコード変更後（ゲート別の構成・本数は gates.md が正典） |
 | test-reviewer | テスト品質・要件適合レビュー（カバレッジ・仕様適合・冪等性） | 同上（適用ゲートは gates.md が正典） |
 | python-dev | Python 実装（スタイル・設計パターン・イディオム） | Python コードを書くとき（FastAPI/REST 設計は `references/` 参照） |
