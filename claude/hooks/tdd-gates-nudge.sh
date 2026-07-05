@@ -19,7 +19,7 @@ esac
 
 # 促し文を JSON(additionalContext)で stdout に出し、model に確実に届くようにする（非ブロック・exit 0）。
 MSG="⚠️  [tdd-gates] 実装ファイルを編集しました: $BASENAME
-   substantial な変更なら tdd-gates スキル（9品質ゲート）で回しましたか？
+   substantial な変更なら tdd-gates スキル（10品質ゲート）で回しましたか？
    RED は実際の失敗ログを証拠に、採点は tdd-evaluator（実装者とは別コンテキスト）で。
    trivial（数行・設定/ドキュメント）は比例ルールによりゲート不要（CLAUDE.md 参照）。"
 jq -nc --arg m "$MSG" '{hookSpecificOutput:{hookEventName:"PostToolUse",additionalContext:$m}}'

@@ -44,18 +44,30 @@ FAILED tests/test_foo.py::test_bar - AssertionError: expected 3 got None
 - 実行ログのない主張（「テストは通るはず」「多分失敗する」）は証拠として無効＝該当項目 0 点。
 - 差分が証拠になる場合（Gate6 等）は `git diff` の該当箇所を貼る。
 
-## スコアカード出力形式（tdd-evaluator が返す）
+## スコアカード出力形式（tdd-evaluator が各ゲートで返す）
+
+すべてのゲートで、tdd-evaluator は以下の **Quality Gate Report** 形式で返す。
+**「評価理由」欄には根拠となる証拠（実行ログ行・`git diff` 該当箇所・`file:line`）を必ず含める**（証拠なしの項目は上記のとおり 0 点）。
 
 ```
-## Gate<N> スコアカード
-| 項目 | 点/3 | Critical | 証拠 |
-|------|------|----------|------|
-| ... | 2 | - | pytest ログ: ... |
-| ... | 0 | ★ | 証拠なし |
+Quality Gate Report: Gate <N> - <ゲート名>
 
-スコア率: 62% (13/21)
-Critical: 1件未達（証拠なし）
-判定: FAIL（Critical 未達）
-差し戻し指摘:
-- <1行で具体的に>
+| # | 評価項目 | 点数 | 評価理由（証拠つき） |
+|---|---------|------|--------------------|
+| 1 | <項目名> | X/3 | <具体的な評価理由 ＋ 証拠スニペット> |
+| 2 | ...     | ...  | ...                |
+
+スコア: XX / YY（ZZ%）
+判定: PASS / CONDITIONAL / FAIL
+Critical違反: なし / <違反項目>
+
+指摘事項（CONDITIONAL / FAIL 時のみ）
+- <修正が必要な具体的指摘>
+
+次のアクション
+- PASS        → Gate <N+1> へ進む
+- CONDITIONAL → <修正対象> を修正後、再評価（台帳の再評価カウンタ +1）
+- FAIL        → <差し戻し先> から再実行（ユーザーに差し戻して停止）
 ```
+
+- 判定閾値（PASS ≥80% / CONDITIONAL 60–79% / Critical即FAIL）と CONDITIONAL 上限2回は**変更しない**——変えるのは出力レイアウトのみ。

@@ -34,6 +34,30 @@ Playwright(-python)（e2e / Gate7）:
 pytest tests/e2e -q            # playwright pytest plugin 前提
 ```
 
+## 層別テストコマンド（Gate2 の3層戦略 / テスト3層戦略）
+
+pytest マーカーで層を分離する（`pyproject.toml`/`pytest.ini` に `markers` を登録）。
+
+```bash
+pytest -m unit -q             # unit（業務ロジック・高速多数）
+pytest -m integration -q      # integration（機能品質・主軸）
+pytest tests/e2e -q           # e2e（最後の砦・最小限）
+```
+
+## CI ステージ（Gate9・GitHub Actions 既定）
+
+Gate9 が CI ワークフローで被覆すべき必須ステージと、このプロファイルでの具体コマンド。CI プロバイダを変える場合はここを差し替える（グローバル skill 側は抽象ステージ名のみ保持）。
+
+| ステージ | コマンド（Python 既定） |
+|---------|------------------------|
+| lint | `ruff check .` |
+| typecheck | `mypy src` |
+| build | `python -m build`（配布物がある場合。無ければ import スモークで代替） |
+| unit test | `pytest -m unit -q` |
+| integration test | `pytest -m integration -q` |
+| 主要E2E | `pytest tests/e2e -q`（重要導線に絞る） |
+| preview デプロイ（任意） | プロジェクト固有・既定 off |
+
 ## Critical 証拠ルール（このプロファイルでの「合格ログ」の形）
 
 - **Gate4(RED)**: 出力に `FAILED` が含まれ、対象テストが 1 件以上 `failed`、かつトレースバックの `E` 行が**対象 assert の `AssertionError`** を示す。assert 到達前の実行時エラー（`TypeError`/`AttributeError` 等）による `failed` は未実装シンボル起因の初回 RED としてのみ有効——GREEN 前に Generator がスタブを置いた二段階 RED で対象 assert の失敗を確認する。

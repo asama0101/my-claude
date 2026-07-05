@@ -24,6 +24,31 @@
 <cmd>
 ```
 
+## 層別テストコマンド（Gate2 の3層戦略）
+
+```bash
+# unit（業務ロジック・高速多数）
+<cmd>
+# integration（機能品質・主軸）
+<cmd>
+# e2e（最後の砦・最小限）
+<cmd>
+```
+
+## CI ステージ（Gate9・CI プロバイダ既定 = <provider>）
+
+Gate9 が被覆すべき必須ステージと具体コマンド（グローバル skill 側は抽象ステージ名のみ保持）。
+
+| ステージ | コマンド |
+|---------|---------|
+| lint | `<cmd>` |
+| typecheck | `<cmd>` |
+| build | `<cmd>` |
+| unit test | `<cmd>` |
+| integration test | `<cmd>` |
+| 主要E2E | `<cmd>` |
+| preview デプロイ（任意） | プロジェクト固有・既定 off |
+
 ## Critical 証拠ルール（このランナーでの合格ログの形）
 
 - **Gate4(RED)**: 失敗を示す出力パターン = `<...>`。無効例（FAIL 扱い）= `<...>`。
