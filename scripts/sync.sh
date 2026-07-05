@@ -35,6 +35,7 @@ DIR_TARGETS=(
     "$CLAUDE_HOME/skills"
     "$CLAUDE_HOME/agents"
     "$CLAUDE_HOME/rules"
+    "$CLAUDE_HOME/assets"
 )
 
 command -v rsync >/dev/null 2>&1 || { echo "rsync が見つかりません。インストールしてください。"; exit 1; }
