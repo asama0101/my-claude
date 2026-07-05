@@ -1,5 +1,5 @@
 ---
-name: implementation-planner
+name: planner
 description: 複雑な機能やリファクタリングの計画専門家。機能実装・アーキテクチャ変更・複雑なリファクタリングのリクエスト時に積極的に活用。計画タスクに自動的に起動。
 tools: ["Read", "Grep", "Glob"]
 model: opus

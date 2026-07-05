@@ -1,5 +1,5 @@
 ---
-name: python-dev
+name: dev-python
 description: Python 開発の専門家。コーディングスタイル・設計パターン・イディオムを担当。Python コードを書くときに積極的に活用。
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 model: sonnet
@@ -138,7 +138,7 @@ ruff check .
 ### 新規プロジェクト立ち上げ
 
 既存のスケルトンやテンプレートが利用可能な場合はそれを優先する。
-ゼロから始める場合は **implementation-planner** エージェントで設計から着手する。
+ゼロから始める場合は **planner** エージェントで設計から着手する。
 
 ### デザインパターン
 

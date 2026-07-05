@@ -1,6 +1,6 @@
 # REST API 設計パターン
 
-> python-dev エージェント用のオンデマンド参照ファイル。REST API のエンドポイント・スキーマ・契約を設計するとき、本体エージェントから必要時に Read して参照する。
+> dev-python エージェント用のオンデマンド参照ファイル。REST API のエンドポイント・スキーマ・契約を設計するとき、本体エージェントから必要時に Read して参照する。
 > 一貫性があり、開発者に優しい REST API を設計するための規約とベストプラクティス。
 
 ## リソース設計
@@ -401,5 +401,5 @@ Accept: application/vnd.myapp.v2+json
 
 ## 関連参照
 
-- `python-dev` エージェント — Python での実装（`~/.claude/agents/references/fastapi.md` に FastAPI 詳細パターン）
+- `dev-python` エージェント — Python での実装（`~/.claude/agents/references/fastapi.md` に FastAPI 詳細パターン）
 - `tdd-gates` スキル — API エンドポイントのテストを 9 品質ゲートで（`~/.claude/agents/references/pytest.md` に pytest 詳細パターン）

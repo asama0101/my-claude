@@ -4,7 +4,7 @@
 採点は `scoring.md` 準拠。**PASS したゲートだけが次に進める。**
 
 3 ロール分離（自己承認の構造的排除）:
-- **Planner** = `implementation-planner` エージェント
+- **Planner** = `planner` エージェント
 - **Generator** = `tdd-generator` エージェント（テストと実装を書く）
 - **Evaluator** = `tdd-evaluator` エージェント（採点する）
 
@@ -23,7 +23,7 @@
 
 ### Gate 1–2: 計画（Planner 起草 → Evaluator 採点）
 - **内容**: 受入基準の言語化、テストシナリオ設計、対象ファイルとテスト種別の対応付け、レビュー方針。
-- **手段**: `implementation-planner` が計画を起草し、`tdd-evaluator` が rubric で採点して PASS/CONDITIONAL/FAIL を判定（Generator 起動前なので自己承認リスクは無いが、Main の独断で次へ進めないよう採点主体を明示）。
+- **手段**: `planner` が計画を起草し、`tdd-evaluator` が rubric で採点して PASS/CONDITIONAL/FAIL を判定（Generator 起動前なので自己承認リスクは無いが、Main の独断で次へ進めないよう採点主体を明示）。
 - **Critical**: 受入基準とテスト対象の対応に漏れがない。
 - **採点項目**: 受入基準の明確さ / シナリオ網羅（正常・異常・境界）/ テスト種別の妥当性 / スコープの単一性。
 - **証拠**: 計画書（テスト対象一覧・シナリオ表）。

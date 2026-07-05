@@ -375,7 +375,7 @@
     <div class="layer-card">
       <p class="role">実 行 役</p>
       <h3>agents（11本）</h3>
-      <p>implementation-planner／tdd-generator／tdd-evaluator／5次元 review-*／python-dev／trivial-executor／doc-updater。各自は差分となる責務だけを持ち、共通手順は references を読む。</p>
+      <p>planner／tdd-generator／tdd-evaluator／5次元 review-*／dev-python／trivial-executor／doc-updater。各自は差分となる責務だけを持ち、共通手順は references を読む。</p>
     </div>
     <div class="layer-card">
       <p class="role">正 典</p>
@@ -390,7 +390,7 @@
       <li>ゲート定義・Critical 条件 → <code>skills/tdd-gates/references/gates.md</code>（CLAUDE.md からも正典委譲）</li>
       <li>採点閾値・スコアカード形式 → <code>skills/tdd-gates/references/scoring.md</code></li>
       <li>ゲート順序・フロー図 → <code>skills/tdd-gates/SKILL.md</code>（gates.md は重複掲載しない）</li>
-      <li>行数・ネスト深さ等の数値基準 → <code>review-maintainability</code>（python-dev・implementation-planner・gates.md が参照）</li>
+      <li>行数・ネスト深さ等の数値基準 → <code>review-maintainability</code>（dev-python・planner・gates.md が参照）</li>
       <li>レビューの共通手順・出力形式 → <code>agents/references/review.md</code>（5本の reviewer が共有）</li>
     </ul>
   </div>
@@ -478,7 +478,7 @@
 
     <!-- ── L2: agents ── -->
     <rect class="node" x="34" y="438" width="120" height="62" rx="3"/>
-    <text class="t-title" x="94" y="464" text-anchor="middle">implementation-planner</text>
+    <text class="t-title" x="94" y="464" text-anchor="middle">planner</text>
     <text class="t-sub" x="94" y="483" text-anchor="middle">計画素材・ADR</text>
 
     <rect class="node" x="174" y="438" width="140" height="62" rx="3"/>
@@ -499,7 +499,7 @@
     <text class="t-sub" x="804" y="483" text-anchor="middle">ドキュメント同期</text>
 
     <rect class="node" x="884" y="438" width="120" height="62" rx="3"/>
-    <text class="t-title" x="944" y="464" text-anchor="middle">python-dev</text>
+    <text class="t-title" x="944" y="464" text-anchor="middle">dev-python</text>
     <text class="t-sub" x="944" y="483" text-anchor="middle">Python 実装</text>
 
     <rect class="node" x="1024" y="438" width="120" height="62" rx="3"/>
@@ -510,7 +510,7 @@
     <rect class="group" x="34" y="672" width="1110" height="118" rx="3"/>
     <text class="t-sub" x="46" y="694" style="font-weight:700; fill:#5A6478;">agents/references/ — 深い作法・共通骨格の単一ソース（7本）</text>
     <rect class="chip-r" x="48" y="708" width="140" height="30" rx="2"/>
-    <text class="t-chip" x="60" y="728">implementation-planner.md</text>
+    <text class="t-chip" x="60" y="728">planner.md</text>
     <rect class="chip-r" x="196" y="708" width="140" height="30" rx="2"/>
     <text class="t-chip" x="208" y="728">pytest.md</text>
     <rect class="chip-r" x="344" y="708" width="140" height="30" rx="2"/>
@@ -523,7 +523,7 @@
     <text class="t-chip" x="810" y="728">fastapi.md</text>
     <rect class="chip-r" x="946" y="708" width="150" height="30" rx="2"/>
     <text class="t-chip" x="958" y="728">api-design.md</text>
-    <text class="t-sub" x="48" y="766">pytest.md は tdd-generator と python-dev の両方が読む「pytest 作法の単一ソース」。profiles/pytest.md（薄いグルー）はここへ委譲する。</text>
+    <text class="t-sub" x="48" y="766">pytest.md は tdd-generator と dev-python の両方が読む「pytest 作法の単一ソース」。profiles/pytest.md（薄いグルー）はここへ委譲する。</text>
 
     <!-- ══ edges: routing (shu) ══ -->
     <path class="edge route" d="M 500 92 C 495 125, 490 145, 486 172" marker-end="url(#arw-shu)"/>
@@ -595,7 +595,7 @@
   <div class="fnotes">
     <div class="fnote">
       <b>pytest は意図的に「二枚」ある</b>
-      <code>skills/tdd-gates/references/profiles/pytest.md</code> は薄い「ゲート用グルー」（パス→テスト種別・実行コマンド・合格ログ判定）。深い作法は <code>agents/references/pytest.md</code> が単一ソースで、グルー側が委譲する。tdd-generator は両方、python-dev は後者のみを読む。
+      <code>skills/tdd-gates/references/profiles/pytest.md</code> は薄い「ゲート用グルー」（パス→テスト種別・実行コマンド・合格ログ判定）。深い作法は <code>agents/references/pytest.md</code> が単一ソースで、グルー側が委譲する。tdd-generator は両方、dev-python は後者のみを読む。
     </div>
     <div class="fnote">
       <b>新言語は _template.md から拡張する</b>
@@ -615,12 +615,12 @@
 <!-- ═══════════ §4 agent 台帳 ═══════════ -->
 <section id="agents">
   <div class="sec-head"><span class="sec-no">第四条</span><h2>Agent 台帳 — 11本の実行役と読む正典</h2></div>
-  <p class="lede">model の使い分けは「思考の重さ」に比例する: 設計思考（implementation-planner）と正確性レビュー（review-correctness）だけ opus、実装と他レビューは sonnet、trivial は haiku。</p>
+  <p class="lede">model の使い分けは「思考の重さ」に比例する: 設計思考（planner）と正確性レビュー（review-correctness）だけ opus、実装と他レビューは sonnet、trivial は haiku。</p>
   <div class="scroll">
     <table>
       <thead><tr><th>agent</th><th>model</th><th>役割</th><th>参照する正典（references）</th></tr></thead>
       <tbody>
-        <tr><td><code>implementation-planner</code></td><td class="center"><span class="model-chip opus">opus</span></td><td>実装計画の素材づくり・設計判断・ADR（読み取り専用ツールのみ）</td><td><code>implementation-planner.md</code></td></tr>
+        <tr><td><code>planner</code></td><td class="center"><span class="model-chip opus">opus</span></td><td>実装計画の素材づくり・設計判断・ADR（読み取り専用ツールのみ）</td><td><code>planner.md</code></td></tr>
         <tr><td><code>tdd-generator</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>TDD Generator。RED→GREEN→REFACTOR を実行ログを証拠に遂行</td><td><code>profiles/pytest.md</code>＋<code>pytest.md</code></td></tr>
         <tr><td><code>tdd-evaluator</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>TDD Evaluator。所見集約・Critical 即 FAIL 判定・独立再実行（<b>書込ツールなし</b>）</td><td><code>scoring.md</code>＋<code>gates.md</code></td></tr>
         <tr><td><code>review-correctness</code></td><td class="center"><span class="model-chip opus">opus</span></td><td>正確性: バグ・論理エラー・境界値・冪等性</td><td rowspan="5"><code>review.md</code>（共通骨格・出力形式。各 reviewer は差分チェックリストのみ保持）</td></tr>
@@ -628,7 +628,7 @@
         <tr><td><code>review-performance</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>性能: メモリ・DB/I-O 最適化・並列処理</td></tr>
         <tr><td><code>review-maintainability</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>保守性・doc 整合（<b>数値基準の単一ソース</b>: 関数50行・ファイル800行・ネスト4）</td></tr>
         <tr><td><code>review-test</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>テスト品質・要件/スキーマ適合・冪等性</td></tr>
-        <tr><td><code>python-dev</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>Python 実装（スタイル・設計パターン・イディオム）</td><td><code>python.md</code>・<code>fastapi.md</code>・<code>api-design.md</code>・<code>pytest.md</code></td></tr>
+        <tr><td><code>dev-python</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>Python 実装（スタイル・設計パターン・イディオム）</td><td><code>python.md</code>・<code>fastapi.md</code>・<code>api-design.md</code>・<code>pytest.md</code></td></tr>
         <tr><td><code>trivial-executor</code></td><td class="center"><span class="model-chip haiku">haiku</span></td><td>trivial 変更の軽量一括実行。substantial と気づいたら止めて差し戻す</td><td>（なし）</td></tr>
         <tr><td><code>doc-updater</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>ドキュメント・コードマップの生成/同期（Gate 9・受け入れ後）</td><td><code>doc-building.md</code></td></tr>
       </tbody>
@@ -646,8 +646,8 @@
       <div class="gate-badge-no">1·2</div>
       <div class="gate-card">
         <div class="gate-head"><h3>計画</h3><span class="gate-en">PLAN</span><span class="badge must">substantial 必須</span></div>
-        <p>受入基準の言語化・テストシナリオ設計・対象ファイルとテスト種別の対応付け。implementation-planner が素材を起草し、最終計画は Main が組む。簡略化の可否（small の Gate 3/8 省略等）はここで明示承認し台帳に記録する。</p>
-        <div class="gate-actors"><span class="actor">implementation-planner 起草</span><span class="actor">tdd-evaluator 採点</span></div>
+        <p>受入基準の言語化・テストシナリオ設計・対象ファイルとテスト種別の対応付け。planner が素材を起草し、最終計画は Main が組む。簡略化の可否（small の Gate 3/8 省略等）はここで明示承認し台帳に記録する。</p>
+        <div class="gate-actors"><span class="actor">planner 起草</span><span class="actor">tdd-evaluator 採点</span></div>
       </div>
     </div>
 
