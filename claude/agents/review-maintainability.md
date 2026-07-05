@@ -1,5 +1,5 @@
 ---
-name: maintainability-reviewer
+name: review-maintainability
 description: 保守性・ドキュメント整合性レビュー専門家。命名・構造・複雑さ・DRY・YAGNI＋docstring・CLAUDE.md・仕様書との整合性を検査。substantial のコード変更後に使用。
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: sonnet
@@ -13,7 +13,7 @@ model: sonnet
 
 ### HIGH: 構造
 
-> ※ 以下の **関数 50 行超 / ファイル 800 行超 / ネスト 4 レベル超** が、これら数値基準の**単一の真実源（single source of truth）**。gates.md・python-dev・planner はこの数値をここへ参照させること（各所で重複定義しない）。
+> ※ 以下の **関数 50 行超 / ファイル 800 行超 / ネスト 4 レベル超** が、これら数値基準の**単一の真実源（single source of truth）**。gates.md・python-dev・implementation-planner はこの数値をここへ参照させること（各所で重複定義しない）。
 
 - **共通処理の重複** — 既存の共通ユーティリティ/ヘルパーを再実装していないか
 - **関数の肥大化** — 50 行超の関数は責務分割を検討

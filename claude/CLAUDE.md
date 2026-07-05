@@ -22,10 +22,10 @@
 
 | 規模 | 定義 | 工程 |
 |------|------|------|
-| trivial | 数行・既存パターン踏襲でテスト不要。設定/ドキュメント/コメント/明白な誤記の修正 | 単一の軽量 Agent（`trivial-executor`＝haiku）に一括委任（Main は Read/Edit せず要約のみ受け取る）。Plan モード・planner・reviewer 群は省略可 |
+| trivial | 数行・既存パターン踏襲でテスト不要。設定/ドキュメント/コメント/明白な誤記の修正 | 単一の軽量 Agent（`trivial-executor`＝haiku）に一括委任（Main は Read/Edit せず要約のみ受け取る）。Plan モード・implementation-planner・reviewer 群は省略可 |
 | substantial | 新規ロジック・複数ファイル横断・公開インターフェース変更・非自明なバグ修正 | Plan モード → `tdd-gates` スキル（9品質ゲート）でフル工程。採点は実装者と別コンテキストで行い自己承認を排除 |
-| small | 差分 ≤2ファイル・実装差分 ≤50行（テスト除く）・公開インターフェース不変・既存テストが対象範囲を被覆、を**すべて**満たす（1つでも外れたら substantial） | `tdd-gates` の Gate4–5(RED→GREEN) 中心の簡略パイプ（承認手順はスキル「段階導入の限界」が正典。gate-evaluator が Gate1 で判定） |
-| レビュー単独 | フル工程は不要だがコードレビューだけ独立して欲しい（小〜中規模・既存コード点検・PR 前チェック） | Main が `*-reviewer` を並列起動 → `gate-evaluator` が集約採点（実装者と別コンテキストで自己承認を排除。evaluator は reviewer を自分で起動しない） |
+| small | 差分 ≤2ファイル・実装差分 ≤50行（テスト除く）・公開インターフェース不変・既存テストが対象範囲を被覆、を**すべて**満たす（1つでも外れたら substantial） | `tdd-gates` の Gate4–5(RED→GREEN) 中心の簡略パイプ（承認手順はスキル「段階導入の限界」が正典。tdd-evaluator が Gate1 で判定） |
+| レビュー単独 | フル工程は不要だがコードレビューだけ独立して欲しい（小〜中規模・既存コード点検・PR 前チェック） | Main が `review-*` を並列起動 → `tdd-evaluator` が集約採点（実装者と別コンテキストで自己承認を排除。evaluator は reviewer を自分で起動しない） |
 
 - 本ドキュメントの「必ず/必須」（Plan モード・reviewer・TDD）はすべて **substantial 前提**。
 - 例外（Main 直接可）: 内容が事前確定した exact-edit・探索を伴わない機械的編集。
@@ -46,17 +46,17 @@
   2. 質問は一度に1問
   3. 各質問に推奨回答を添えて提示する
   4. コードで答えられる問いはユーザーに聞かず Explore で事実を確定し、真に曖昧な点だけ質問する
-- **並列実行**: 並列は「互いに独立した作業」でのみ効果がある。対象は3つ——① 複数の Explore で同時に調べる、② 複数の *-reviewer で同時にレビューし gate-evaluator が結果をまとめる、③ 依存関係のない複数ファイル/タスクを同時に実装する（`dispatching-parallel-agents`／`subagent-driven-development`）。一方、設計→実装→テストのように前工程の結果を次工程が使う「直列依存」は、並列にしても速くならない。並列に渡す各エージェントは前後の文脈を持たない（cold start）ため、タスクの分け方と渡す情報は Plan モードで設計し、plan ファイルに書き込んでから起動する。
+- **並列実行**: 並列は「互いに独立した作業」でのみ効果がある。対象は3つ——① 複数の Explore で同時に調べる、② 複数の review-* で同時にレビューし tdd-evaluator が結果をまとめる、③ 依存関係のない複数ファイル/タスクを同時に実装する（`dispatching-parallel-agents`／`subagent-driven-development`）。一方、設計→実装→テストのように前工程の結果を次工程が使う「直列依存」は、並列にしても速くならない。並列に渡す各エージェントは前後の文脈を持たない（cold start）ため、タスクの分け方と渡す情報は Plan モードで設計し、plan ファイルに書き込んでから起動する。
 
 ## 利用可能なエージェント（~/.claude/agents/）
 
 | Agent | Purpose | 使用タイミング |
 |-------|---------|--------------|
-| planner | 実装計画の素材づくり（ステップ分解・依存関係・順序）＋設計判断・トレードオフ・ADR | 複雑な機能・リファクタリング着手前、設計判断・スケーラビリティ検討時。planner は素材を作り、最終計画は Main が組む |
-| gate-generator | TDD Generator（RED→GREEN→REFACTOR・実行ログを証拠に） | 新機能・バグ修正時、`tdd-gates` から段階起動。汎用 Agent で代替しない |
-| gate-evaluator | TDD Evaluator（*-reviewer を集約採点・Critical 即 FAIL） | `tdd-gates` の採点全般（Gate1–8。Gate8=差し戻し判定）。レビュー単独時は単独起動（作業ルーティング表参照） |
-| correctness- / performance- / security- / maintainability-reviewer | 1次元ずつのレビュー（正確性／性能／セキュリティ／保守性・doc 整合） | substantial のコード変更後（ゲート別の構成・本数は gates.md が正典） |
-| test-reviewer | テスト品質・要件適合レビュー（カバレッジ・仕様適合・冪等性） | 同上（適用ゲートは gates.md が正典） |
+| implementation-planner | 実装計画の素材づくり（ステップ分解・依存関係・順序）＋設計判断・トレードオフ・ADR | 複雑な機能・リファクタリング着手前、設計判断・スケーラビリティ検討時。implementation-planner は素材を作り、最終計画は Main が組む |
+| tdd-generator | TDD Generator（RED→GREEN→REFACTOR・実行ログを証拠に） | 新機能・バグ修正時、`tdd-gates` から段階起動。汎用 Agent で代替しない |
+| tdd-evaluator | TDD Evaluator（review-* を集約採点・Critical 即 FAIL） | `tdd-gates` の採点全般（Gate1–8。Gate8=差し戻し判定）。レビュー単独時は単独起動（作業ルーティング表参照） |
+| review-correctness / review-performance / review-security / review-maintainability | 1次元ずつのレビュー（正確性／性能／セキュリティ／保守性・doc 整合） | substantial のコード変更後（ゲート別の構成・本数は gates.md が正典） |
+| review-test | テスト品質・要件適合レビュー（カバレッジ・仕様適合・冪等性） | 同上（適用ゲートは gates.md が正典） |
 | python-dev | Python 実装（スタイル・設計パターン・イディオム） | Python コードを書くとき（FastAPI/REST 設計は `references/` 参照） |
 | trivial-executor | trivial 変更の軽量実行（haiku）。設定/ドキュメント/コメント/誤記/機械的編集 | 比例ルールの trivial ルートで一括委任（substantial と気づいたら止めて差し戻す） |
 | doc-updater | ドキュメント・コードマップ更新 | 受け入れ OK 後のドキュメント同期・README/ガイド/コードマップ更新時 |

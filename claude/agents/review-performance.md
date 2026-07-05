@@ -1,5 +1,5 @@
 ---
-name: performance-reviewer
+name: review-performance
 description: 性能レビュー専門家。メモリ効率・DB最適化・データフレーム最適化・並列処理を検査。substantial のコード変更後に使用。
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: sonnet

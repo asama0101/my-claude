@@ -1,5 +1,5 @@
 ---
-name: test-reviewer
+name: review-test
 description: テスト品質・要件適合レビュー専門家。カバレッジ・フィクスチャ・エッジケース＋仕様書要件・スキーマ適合・冪等性を検査。substantial のコード変更後に使用。
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: sonnet
@@ -59,4 +59,4 @@ model: sonnet
 カバレッジ影響: [変更後の推定カバレッジ / 既存カバレッジからの変化]
 ```
 
-> ドキュメント（仕様書）更新要否の提案は maintainability-reviewer へ一元化しているため、この reviewer では出力しない。
+> ドキュメント（仕様書）更新要否の提案は review-maintainability へ一元化しているため、この reviewer では出力しない。

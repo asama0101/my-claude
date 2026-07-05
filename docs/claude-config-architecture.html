@@ -375,7 +375,7 @@
     <div class="layer-card">
       <p class="role">実 行 役</p>
       <h3>agents（11本）</h3>
-      <p>planner／gate-generator／gate-evaluator／5次元 *-reviewer／python-dev／trivial-executor／doc-updater。各自は差分となる責務だけを持ち、共通手順は references を読む。</p>
+      <p>implementation-planner／tdd-generator／tdd-evaluator／5次元 review-*／python-dev／trivial-executor／doc-updater。各自は差分となる責務だけを持ち、共通手順は references を読む。</p>
     </div>
     <div class="layer-card">
       <p class="role">正 典</p>
@@ -390,7 +390,7 @@
       <li>ゲート定義・Critical 条件 → <code>skills/tdd-gates/references/gates.md</code>（CLAUDE.md からも正典委譲）</li>
       <li>採点閾値・スコアカード形式 → <code>skills/tdd-gates/references/scoring.md</code></li>
       <li>ゲート順序・フロー図 → <code>skills/tdd-gates/SKILL.md</code>（gates.md は重複掲載しない）</li>
-      <li>行数・ネスト深さ等の数値基準 → <code>maintainability-reviewer</code>（python-dev・planner・gates.md が参照）</li>
+      <li>行数・ネスト深さ等の数値基準 → <code>review-maintainability</code>（python-dev・implementation-planner・gates.md が参照）</li>
       <li>レビューの共通手順・出力形式 → <code>agents/references/review.md</code>（5本の reviewer が共有）</li>
     </ul>
   </div>
@@ -422,7 +422,7 @@
         <tr>
           <td class="center"><b>レビュー単独</b></td>
           <td>フル工程は不要だがレビューだけ独立して欲しい</td>
-          <td>Main が <code>*-reviewer</code> を並列起動 → <code>gate-evaluator</code> が集約採点</td>
+          <td>Main が <code>review-*</code> を並列起動 → <code>tdd-evaluator</code> が集約採点</td>
         </tr>
       </tbody>
     </table>
@@ -478,19 +478,19 @@
 
     <!-- ── L2: agents ── -->
     <rect class="node" x="34" y="438" width="120" height="62" rx="3"/>
-    <text class="t-title" x="94" y="464" text-anchor="middle">planner</text>
+    <text class="t-title" x="94" y="464" text-anchor="middle">implementation-planner</text>
     <text class="t-sub" x="94" y="483" text-anchor="middle">計画素材・ADR</text>
 
     <rect class="node" x="174" y="438" width="140" height="62" rx="3"/>
-    <text class="t-title" x="244" y="464" text-anchor="middle">gate-generator</text>
+    <text class="t-title" x="244" y="464" text-anchor="middle">tdd-generator</text>
     <text class="t-sub" x="244" y="483" text-anchor="middle">RED→GREEN→REF.</text>
 
     <rect class="node" x="334" y="438" width="140" height="62" rx="3"/>
-    <text class="t-title" x="404" y="464" text-anchor="middle">gate-evaluator</text>
+    <text class="t-title" x="404" y="464" text-anchor="middle">tdd-evaluator</text>
     <text class="t-sub" x="404" y="483" text-anchor="middle">採点・独立再実行</text>
 
     <rect class="node" x="494" y="430" width="230" height="78" rx="3"/>
-    <text class="t-title" x="609" y="454" text-anchor="middle">*-reviewer ×5</text>
+    <text class="t-title" x="609" y="454" text-anchor="middle">review-* ×5</text>
     <text class="t-sub" x="609" y="472" text-anchor="middle">correctness / security / performance</text>
     <text class="t-sub" x="609" y="488" text-anchor="middle">maintainability / test</text>
 
@@ -510,7 +510,7 @@
     <rect class="group" x="34" y="672" width="1110" height="118" rx="3"/>
     <text class="t-sub" x="46" y="694" style="font-weight:700; fill:#5A6478;">agents/references/ — 深い作法・共通骨格の単一ソース（7本）</text>
     <rect class="chip-r" x="48" y="708" width="140" height="30" rx="2"/>
-    <text class="t-chip" x="60" y="728">planner.md</text>
+    <text class="t-chip" x="60" y="728">implementation-planner.md</text>
     <rect class="chip-r" x="196" y="708" width="140" height="30" rx="2"/>
     <text class="t-chip" x="208" y="728">pytest.md</text>
     <rect class="chip-r" x="344" y="708" width="140" height="30" rx="2"/>
@@ -523,7 +523,7 @@
     <text class="t-chip" x="810" y="728">fastapi.md</text>
     <rect class="chip-r" x="946" y="708" width="150" height="30" rx="2"/>
     <text class="t-chip" x="958" y="728">api-design.md</text>
-    <text class="t-sub" x="48" y="766">pytest.md は gate-generator と python-dev の両方が読む「pytest 作法の単一ソース」。profiles/pytest.md（薄いグルー）はここへ委譲する。</text>
+    <text class="t-sub" x="48" y="766">pytest.md は tdd-generator と python-dev の両方が読む「pytest 作法の単一ソース」。profiles/pytest.md（薄いグルー）はここへ委譲する。</text>
 
     <!-- ══ edges: routing (shu) ══ -->
     <path class="edge route" d="M 500 92 C 495 125, 490 145, 486 172" marker-end="url(#arw-shu)"/>
@@ -595,7 +595,7 @@
   <div class="fnotes">
     <div class="fnote">
       <b>pytest は意図的に「二枚」ある</b>
-      <code>skills/tdd-gates/references/profiles/pytest.md</code> は薄い「ゲート用グルー」（パス→テスト種別・実行コマンド・合格ログ判定）。深い作法は <code>agents/references/pytest.md</code> が単一ソースで、グルー側が委譲する。gate-generator は両方、python-dev は後者のみを読む。
+      <code>skills/tdd-gates/references/profiles/pytest.md</code> は薄い「ゲート用グルー」（パス→テスト種別・実行コマンド・合格ログ判定）。深い作法は <code>agents/references/pytest.md</code> が単一ソースで、グルー側が委譲する。tdd-generator は両方、python-dev は後者のみを読む。
     </div>
     <div class="fnote">
       <b>新言語は _template.md から拡張する</b>
@@ -615,19 +615,19 @@
 <!-- ═══════════ §4 agent 台帳 ═══════════ -->
 <section id="agents">
   <div class="sec-head"><span class="sec-no">第四条</span><h2>Agent 台帳 — 11本の実行役と読む正典</h2></div>
-  <p class="lede">model の使い分けは「思考の重さ」に比例する: 設計思考（planner）と正確性レビュー（correctness-reviewer）だけ opus、実装と他レビューは sonnet、trivial は haiku。</p>
+  <p class="lede">model の使い分けは「思考の重さ」に比例する: 設計思考（implementation-planner）と正確性レビュー（review-correctness）だけ opus、実装と他レビューは sonnet、trivial は haiku。</p>
   <div class="scroll">
     <table>
       <thead><tr><th>agent</th><th>model</th><th>役割</th><th>参照する正典（references）</th></tr></thead>
       <tbody>
-        <tr><td><code>planner</code></td><td class="center"><span class="model-chip opus">opus</span></td><td>実装計画の素材づくり・設計判断・ADR（読み取り専用ツールのみ）</td><td><code>planner.md</code></td></tr>
-        <tr><td><code>gate-generator</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>TDD Generator。RED→GREEN→REFACTOR を実行ログを証拠に遂行</td><td><code>profiles/pytest.md</code>＋<code>pytest.md</code></td></tr>
-        <tr><td><code>gate-evaluator</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>TDD Evaluator。所見集約・Critical 即 FAIL 判定・独立再実行（<b>書込ツールなし</b>）</td><td><code>scoring.md</code>＋<code>gates.md</code></td></tr>
-        <tr><td><code>correctness-reviewer</code></td><td class="center"><span class="model-chip opus">opus</span></td><td>正確性: バグ・論理エラー・境界値・冪等性</td><td rowspan="5"><code>review.md</code>（共通骨格・出力形式。各 reviewer は差分チェックリストのみ保持）</td></tr>
-        <tr><td><code>security-reviewer</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>セキュリティ: インジェクション・認証認可・機密・パストラバーサル</td></tr>
-        <tr><td><code>performance-reviewer</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>性能: メモリ・DB/I-O 最適化・並列処理</td></tr>
-        <tr><td><code>maintainability-reviewer</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>保守性・doc 整合（<b>数値基準の単一ソース</b>: 関数50行・ファイル800行・ネスト4）</td></tr>
-        <tr><td><code>test-reviewer</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>テスト品質・要件/スキーマ適合・冪等性</td></tr>
+        <tr><td><code>implementation-planner</code></td><td class="center"><span class="model-chip opus">opus</span></td><td>実装計画の素材づくり・設計判断・ADR（読み取り専用ツールのみ）</td><td><code>implementation-planner.md</code></td></tr>
+        <tr><td><code>tdd-generator</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>TDD Generator。RED→GREEN→REFACTOR を実行ログを証拠に遂行</td><td><code>profiles/pytest.md</code>＋<code>pytest.md</code></td></tr>
+        <tr><td><code>tdd-evaluator</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>TDD Evaluator。所見集約・Critical 即 FAIL 判定・独立再実行（<b>書込ツールなし</b>）</td><td><code>scoring.md</code>＋<code>gates.md</code></td></tr>
+        <tr><td><code>review-correctness</code></td><td class="center"><span class="model-chip opus">opus</span></td><td>正確性: バグ・論理エラー・境界値・冪等性</td><td rowspan="5"><code>review.md</code>（共通骨格・出力形式。各 reviewer は差分チェックリストのみ保持）</td></tr>
+        <tr><td><code>review-security</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>セキュリティ: インジェクション・認証認可・機密・パストラバーサル</td></tr>
+        <tr><td><code>review-performance</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>性能: メモリ・DB/I-O 最適化・並列処理</td></tr>
+        <tr><td><code>review-maintainability</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>保守性・doc 整合（<b>数値基準の単一ソース</b>: 関数50行・ファイル800行・ネスト4）</td></tr>
+        <tr><td><code>review-test</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>テスト品質・要件/スキーマ適合・冪等性</td></tr>
         <tr><td><code>python-dev</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>Python 実装（スタイル・設計パターン・イディオム）</td><td><code>python.md</code>・<code>fastapi.md</code>・<code>api-design.md</code>・<code>pytest.md</code></td></tr>
         <tr><td><code>trivial-executor</code></td><td class="center"><span class="model-chip haiku">haiku</span></td><td>trivial 変更の軽量一括実行。substantial と気づいたら止めて差し戻す</td><td>（なし）</td></tr>
         <tr><td><code>doc-updater</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>ドキュメント・コードマップの生成/同期（Gate 9・受け入れ後）</td><td><code>doc-building.md</code></td></tr>
@@ -646,8 +646,8 @@
       <div class="gate-badge-no">1·2</div>
       <div class="gate-card">
         <div class="gate-head"><h3>計画</h3><span class="gate-en">PLAN</span><span class="badge must">substantial 必須</span></div>
-        <p>受入基準の言語化・テストシナリオ設計・対象ファイルとテスト種別の対応付け。planner が素材を起草し、最終計画は Main が組む。簡略化の可否（small の Gate 3/8 省略等）はここで明示承認し台帳に記録する。</p>
-        <div class="gate-actors"><span class="actor">planner 起草</span><span class="actor">gate-evaluator 採点</span></div>
+        <p>受入基準の言語化・テストシナリオ設計・対象ファイルとテスト種別の対応付け。implementation-planner が素材を起草し、最終計画は Main が組む。簡略化の可否（small の Gate 3/8 省略等）はここで明示承認し台帳に記録する。</p>
+        <div class="gate-actors"><span class="actor">implementation-planner 起草</span><span class="actor">tdd-evaluator 採点</span></div>
       </div>
     </div>
 
@@ -655,8 +655,8 @@
       <div class="gate-badge-no">3</div>
       <div class="gate-card">
         <div class="gate-head"><h3>事前レビュー</h3><span class="gate-en">PRE-REVIEW</span><span class="badge must">substantial 省略不可</span></div>
-        <p>テストを書く<b>前</b>に、既存コード・DB・セキュリティ・設計を4次元並列でレビューする（test-reviewer はまだ入らない）。実装前の唯一の実レビュー層。</p>
-        <div class="gate-actors"><span class="actor">correctness</span><span class="actor">security</span><span class="actor">performance</span><span class="actor">maintainability</span><span class="actor">→ gate-evaluator 集約</span></div>
+        <p>テストを書く<b>前</b>に、既存コード・DB・セキュリティ・設計を4次元並列でレビューする（review-test はまだ入らない）。実装前の唯一の実レビュー層。</p>
+        <div class="gate-actors"><span class="actor">correctness</span><span class="actor">security</span><span class="actor">performance</span><span class="actor">maintainability</span><span class="actor">→ tdd-evaluator 集約</span></div>
       </div>
     </div>
 
@@ -665,7 +665,7 @@
       <div class="gate-card">
         <div class="gate-head"><h3>RED — 失敗するテストを先に書く</h3><span class="gate-en">RED</span><span class="badge must">実失敗ログはいかなる場合も省略不可</span></div>
         <p>実装コードは一切書かず、テストだけを書いて実行する。この時点のテスト本文（パス＋内容またはハッシュ）を台帳に固定記録し、後のゲートで照合する。</p>
-        <div class="gate-actors"><span class="actor">gate-generator</span></div>
+        <div class="gate-actors"><span class="actor">tdd-generator</span></div>
         <div class="gate-crit"><b>Critical:</b> 実行ログで「実際に・意味のある理由で」失敗していること。<code>assert False</code> 等の無条件失敗、<code>collected 0 items</code>、import ERROR で失敗を装うのは無効。</div>
       </div>
     </div>
@@ -675,7 +675,7 @@
       <div class="gate-card">
         <div class="gate-head"><h3>GREEN — テストを通す最小限の実装</h3><span class="gate-en">GREEN</span><span class="badge small-ok">small は G4–5 中心の簡略可</span></div>
         <p>Gate 4 と同一の Generator を SendMessage で継続し、最小実装で全テストを通す。evaluator が git diff で「テストに対応しない実装ブランチ（過剰実装）」と「テストの書き換え」を照合する。</p>
-        <div class="gate-actors"><span class="actor">gate-generator（同一継続）</span></div>
+        <div class="gate-actors"><span class="actor">tdd-generator（同一継続）</span></div>
         <div class="gate-crit"><b>Critical:</b> 全テスト通過の実行ログ＋Gate 4 で固定したテスト本文と差分がないこと。</div>
       </div>
     </div>
@@ -685,7 +685,7 @@
       <div class="gate-card">
         <div class="gate-head"><h3>REFACTOR — 振る舞い不変で整理</h3><span class="gate-en">REFACTOR</span></div>
         <p>重複除去・命名改善のみ。evaluator が git diff でテストファイル不変と「既存テストから到達不能な新機能の混入なし」を確認する（差分カバレッジで裏取り推奨）。</p>
-        <div class="gate-actors"><span class="actor">gate-generator（同一継続）</span></div>
+        <div class="gate-actors"><span class="actor">tdd-generator（同一継続）</span></div>
         <div class="gate-crit"><b>Critical:</b> 振る舞い不変 — テスト不変のまま全テスト通過。</div>
       </div>
     </div>
@@ -703,8 +703,8 @@
       <div class="gate-badge-no">8</div>
       <div class="gate-card">
         <div class="gate-head"><h3>差し戻し判定 — 最終ゲート</h3><span class="gate-en">FINAL REVIEW</span><span class="badge must">substantial 省略不可</span></div>
-        <p>変更差分全体を5次元並列でレビューし、evaluator が集約採点してマージ可否を判定する。ここで test-reviewer が加わり、<b>偽装テスト（assert なし・常に真・実装の写経）の検出</b>が Critical になる。</p>
-        <div class="gate-actors"><span class="actor">correctness</span><span class="actor">security</span><span class="actor">performance</span><span class="actor">maintainability</span><span class="actor">test</span><span class="actor">→ gate-evaluator 集約</span></div>
+        <p>変更差分全体を5次元並列でレビューし、evaluator が集約採点してマージ可否を判定する。ここで review-test が加わり、<b>偽装テスト（assert なし・常に真・実装の写経）の検出</b>が Critical になる。</p>
+        <div class="gate-actors"><span class="actor">correctness</span><span class="actor">security</span><span class="actor">performance</span><span class="actor">maintainability</span><span class="actor">test</span><span class="actor">→ tdd-evaluator 集約</span></div>
         <div class="gate-crit"><b>Critical:</b> 仕様不適合ゼロ・既存回帰ゼロ・偽装テスト検出ゼロ。カバレッジ 80%（行・ブランチ）未満は test-quality 次元で減点。</div>
       </div>
     </div>
@@ -730,7 +730,7 @@
 <!-- ═══════════ §6 判定と検印 ═══════════ -->
 <section id="verdict">
   <div class="sec-head"><span class="sec-no">第六条</span><h2>判定と検印 — スコア率を Critical が上書きする</h2></div>
-  <p class="lede">各ゲートの採点は gate-evaluator が scoring.md 準拠で行う。重要なのは、スコア率がどれだけ高くても <b>Critical 1件で即 FAIL</b> になること — 「点数を稼いで欠陥をすり抜ける」経路を断つ。</p>
+  <p class="lede">各ゲートの採点は tdd-evaluator が scoring.md 準拠で行う。重要なのは、スコア率がどれだけ高くても <b>Critical 1件で即 FAIL</b> になること — 「点数を稼いで欠陥をすり抜ける」経路を断つ。</p>
   <div class="verdicts">
     <div class="verdict">
       <div class="stamp pass" aria-hidden="true"><b>合</b><span>PASS</span></div>
@@ -759,7 +759,7 @@
     <div class="def-card">
       <p class="def-attack">自己承認 — 実装者が自分で合格を出す</p>
       <p class="def-guard">Generator（実装）と Evaluator（採点）を<b>必ず別のサブエージェント・別コンテキスト</b>で起動。さらに reviewer の所見は scratchpad ファイル経由で evaluator が直接 Read し、<b>Main が要約・改変する経路を外す</b>（工程当事者が critical 所見を軟化させる余地を消す）。</p>
-      <span class="src">gates.md / SKILL.md / gate-evaluator.md</span>
+      <span class="src">gates.md / SKILL.md / tdd-evaluator.md</span>
     </div>
 
     <div class="def-card">
@@ -771,13 +771,13 @@
     <div class="def-card">
       <p class="def-attack">ログ捏造 — それらしい出力を貼る</p>
       <p class="def-guard">evaluator は貼られたログ・差分を<b>信頼せず、Critical 項目は自分で Bash 再実行して再現した出力のみを証拠</b>にする。再現不能・テストパス不一致は 0 点。</p>
-      <span class="src">gate-evaluator.md / SKILL.md</span>
+      <span class="src">tdd-evaluator.md / SKILL.md</span>
     </div>
 
     <div class="def-card">
       <p class="def-attack">採点者の不正 — 通したいがためにテストを直す</p>
       <p class="def-guard">evaluator は <b>Write/Edit ツールを持たず</b>、Bash でも <code>sed -i</code>・リダイレクト・<code>mv</code>/<code>rm</code>・<code>git add/commit</code> を禁止。読取と検証実行しかできない。</p>
-      <span class="src">gate-evaluator.md（frontmatter・制約）</span>
+      <span class="src">tdd-evaluator.md（frontmatter・制約）</span>
     </div>
 
     <div class="def-card">
@@ -789,7 +789,7 @@
     <div class="def-card">
       <p class="def-attack">assert 骨抜き — GREEN でテストを弱める</p>
       <p class="def-guard">Gate 4 時点のテスト本文を<b>台帳に固定記録</b>し、Gate 5・6 で照合。差分があれば Critical 未達。</p>
-      <span class="src">SKILL.md / gates.md / gate-evaluator.md</span>
+      <span class="src">SKILL.md / gates.md / tdd-evaluator.md</span>
     </div>
 
     <div class="def-card">
@@ -801,7 +801,7 @@
     <div class="def-card">
       <p class="def-attack">過剰実装 — テストにない機能の作り込み</p>
       <p class="def-guard">Gate 5 で evaluator が git diff に<b>テスト非対応の実装ブランチがないか</b>（最小性）を確認する。</p>
-      <span class="src">gates.md / gate-evaluator.md</span>
+      <span class="src">gates.md / tdd-evaluator.md</span>
     </div>
 
     <div class="def-card">

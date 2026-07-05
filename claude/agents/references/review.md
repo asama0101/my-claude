@@ -1,6 +1,6 @@
-# コードレビュー共通手順（*-reviewer 共通リファレンス）
+# コードレビュー共通手順（review-* 共通リファレンス）
 
-> correctness-reviewer / security-reviewer / performance-reviewer / test-reviewer / maintainability-reviewer の共通骨格。
+> review-correctness / review-security / review-performance / review-test / review-maintainability の共通骨格。
 > エージェント定義ではなくオンデマンド参照ファイル。各 reviewer はこの手順に従い、**自分のドメイン固有のチェックリスト差分のみ**を本文に持つ。
 
 ---

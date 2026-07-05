@@ -67,7 +67,7 @@ class Point(NamedTuple):
 
 多くの小さなファイル > 少ない大きなファイル:
 - 高凝集・低結合
-- ファイル/関数の行数・ネスト深さの数値基準は **maintainability-reviewer** を単一ソースとする
+- ファイル/関数の行数・ネスト深さの数値基準は **review-maintainability** を単一ソースとする
 - 大きなモジュールからユーティリティを抽出する
 - タイプ別ではなく機能/ドメイン別に整理する
 
@@ -125,7 +125,7 @@ ruff check .
 
 作業を完了とマークする前に:
 - [ ] コードが読みやすく適切に命名されている
-- [ ] 関数の長さ・ファイルの長さ・ネスト深さが妥当（数値基準は **maintainability-reviewer** を単一ソースとする）
+- [ ] 関数の長さ・ファイルの長さ・ネスト深さが妥当（数値基準は **review-maintainability** を単一ソースとする）
 - [ ] 適切なエラー処理がある
 - [ ] ハードコードされた値がない（定数または設定を使用）
 - [ ] ミューテーションがない（イミュータブルパターンを使用）
@@ -138,7 +138,7 @@ ruff check .
 ### 新規プロジェクト立ち上げ
 
 既存のスケルトンやテンプレートが利用可能な場合はそれを優先する。
-ゼロから始める場合は **planner** エージェントで設計から着手する。
+ゼロから始める場合は **implementation-planner** エージェントで設計から着手する。
 
 ### デザインパターン
 
@@ -167,4 +167,4 @@ ruff check .
 - 汎用 Python 詳細パターン（型ヒント・エラーハンドリング・コンテキストマネージャ・内包表記・データクラス・デコレータ・並行処理・パッケージ構成・メモリ最適化・イディオム）: `~/.claude/agents/references/python.md`
 - FastAPI を使う場合の実装規約・詳細パターン（アプリファクトリ・Pydantic・依存性注入・非同期・エラーハンドリング・OpenAPI・設定管理・テスト）: `~/.claude/agents/references/fastapi.md`
 - REST API を設計する場合の設計パターン（リソース命名・ステータスコード・ページネーション・エラーレスポンス・バージョニング）: `~/.claude/agents/references/api-design.md`
-- テストを書く場合の pytest 詳細作法（fixture 初期化/クリーンアップ・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定）: `~/.claude/agents/references/pytest.md`（テスト作法の単一ソース。gate-generator も同ファイルを参照）
+- テストを書く場合の pytest 詳細作法（fixture 初期化/クリーンアップ・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定）: `~/.claude/agents/references/pytest.md`（テスト作法の単一ソース。tdd-generator も同ファイルを参照）

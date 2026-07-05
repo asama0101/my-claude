@@ -1,5 +1,5 @@
 ---
-name: security-reviewer
+name: review-security
 description: セキュリティレビュー専門家。SQL injection・認証・機密情報・パストラバーサルを検査。substantial のコード変更後に使用。
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: sonnet
