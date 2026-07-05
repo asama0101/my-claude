@@ -81,31 +81,11 @@
         ]
       },
       {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "__CLAUDE_HOME__/hooks/context7-plan-remind.sh"
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
         "hooks": [
           {
             "type": "command",
             "command": "__CLAUDE_HOME__/hooks/workspace-guard.sh"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "__CLAUDE_HOME__/hooks/tdd-gates-nudge.sh"
           }
         ]
       }
