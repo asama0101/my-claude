@@ -69,8 +69,8 @@
   - 実質的なスコープ変更。
   - ユーザーにしか出せない情報。
   - 本ファイルが定める承認手順。
-  - 着手前承認（trivial 含む）。
-  - 例外: それ以外の可逆な操作は、依頼範囲内なら確認せず進めよ。
+  - 着手前承認（trivial 含む）。タスク開始時に一度取れ。
+  - 例外: 承認済みタスク内の可逆な個別操作は、依頼範囲内なら確認せず進めよ。
 - **非破壊**: README・既存ドキュメントの生成/変更は確認してから行え。
 - **テスト保護**: テストコードを確認なしに削除・コメントアウトするな。
 - **無断リファクタ禁止**: 動作中コードの書き換えは確認してから行え。
@@ -84,7 +84,7 @@
 | 規模 | 定義 | 工程 |
 |------|------|------|
 | trivial | 数行・既存パターン踏襲・テスト不要（設定/doc/コメント/誤記） | 単一の軽量 Agent（`trivial-executor`＝haiku）に一括委任せよ。Main は Read/Edit するな。要約のみ受け取れ。Plan/planner/reviewer は省略可 |
-| small | 次を**すべて**満たす: 差分 ≤2ファイル。実装差分 ≤50行（テスト除く）。公開 IF 不変。既存テストが対象を被覆。1つでも外れたら substantial | `tdd-gates` の Gate4–5（RED→GREEN）中心の簡略パイプで進めよ。small 該当判定は Gate1 で `tdd-evaluator` が行う |
+| small | 次を**すべて**満たす: 差分 ≤2ファイル。実装差分 ≤50行（テスト除く）。公開 IF 不変。既存テストが対象を被覆。1つでも外れたら substantial | 着手前は substantial と仮置きして `tdd-gates` に入れ。small 該当判定は Gate1 で `tdd-evaluator` が行う。該当なら Gate4–5（RED→GREEN）中心の簡略パイプに降格して進めよ |
 | substantial | 新規ロジック・複数ファイル横断・公開 IF 変更・非自明なバグ修正 | Plan モード → `tdd-gates` フル工程で進めよ。採点は実装者と別コンテキストで行え |
 | レビュー単独 | コードレビューだけ独立で欲しいとき | Main が `review-*` を並列起動せよ。`tdd-evaluator` は集約採点のみ行え（reviewer を自分で起動するな） |
 
@@ -95,7 +95,7 @@
      - trivial も方針を一言提示せよ。
   2. 遂行中は進捗をマークせよ。各ステップで高レベルなサマリーを出せ。
   3. 実装後は受け入れ確認を取れ。
-     - OK なら関連ドキュメント（README・ガイド・`docs/CODEMAPS/*`・仕様書）の更新を `doc-updater` に委任せよ。
+     - OK なら関連ドキュメント（README・ガイド・`docs/CODEMAPS/*`・仕様書）の更新を `doc-updater` に委任せよ（受け入れ OK が「非破壊」の確認を兼ねる）。
      - NG なら修正に戻り doc は更新するな。
      - 対象が無ければ何もするな。
 - grill（設計の徹底詰め・substantial/Plan 時）:
@@ -117,6 +117,7 @@
 - `trivial-executor`: trivial 変更の軽量実行（haiku）。設定/doc/コメント/誤記/機械的編集。
 - `doc-updater`: doc の新規作成・構成設計＋コードマップ・既存 doc 更新。
 - `doc-verifier`: doc の整合確認（記載事実 vs ソース）を別コンテキストで採点（report 専用）。
+- `Explore`／`Plan`: ビルトイン Agent（読取専用の探索／実装計画の設計）。`~/.claude/agents/` には無い。
 
 スキル:
 - **tdd-gates**（ローカル）: TDD×10品質ゲートのオーケストレータ。substantial 実装で使え。プラグイン群（superpowers/context7/frontend-design 等）は有効化済み。
