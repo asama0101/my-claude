@@ -36,7 +36,7 @@ pytest tests/e2e -q            # playwright pytest plugin 前提
 
 ## Critical 証拠ルール（このプロファイルでの「合格ログ」の形）
 
-- **Gate4(RED)**: 出力に `FAILED` が含まれ、対象テストが 1 件以上 `failed`、かつトレースバックの `E` 行が**対象 assert の `AssertionError`** を示す。assert 到達前の実行時エラー（`TypeError`/`AttributeError` 等）による `failed` は未実装シンボル起因の初回 RED としてのみ有効——GREEN 前に Generator がスタブを置いた二段階 RED で対象 assert の失敗を確認する（unittest プロファイルと同一運用）。
+- **Gate4(RED)**: 出力に `FAILED` が含まれ、対象テストが 1 件以上 `failed`、かつトレースバックの `E` 行が**対象 assert の `AssertionError`** を示す。assert 到達前の実行時エラー（`TypeError`/`AttributeError` 等）による `failed` は未実装シンボル起因の初回 RED としてのみ有効——GREEN 前に Generator がスタブを置いた二段階 RED で対象 assert の失敗を確認する。
   - 無効例（0 点＝FAIL）: ログなしの「多分落ちる」／`collected 0 items`（テスト未収集）／`ERROR`（import 失敗などで RED になっていない）。
 - **Gate5(GREEN)**: 対象テストが `passed`、かつ `pytest -q` 全体で**ベースライン比の新規 `failed` が 0**（台帳のベースライン記録に無い failed が 0。ベースラインが全緑なら従来どおり `failed` 0）。
 - **Gate6(REFACTOR)**: `git diff` にテストファイルの変更が無く（＝振る舞い不変）、`pytest -q` が全緑。

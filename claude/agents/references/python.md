@@ -5,17 +5,6 @@
 
 ## Python 実装パターン（詳細）
 
-### Python 開発パターン
-
-堅牢・効率的・保守性の高いアプリケーションを構築するための Pythonic なパターンとベストプラクティス。
-
-### 使用場面
-
-- 新規 Python コードを書くとき
-- Python コードをレビューするとき
-- 既存 Python コードをリファクタリングするとき
-- Python パッケージ/モジュールを設計するとき
-
 ### 基本原則
 
 #### 1. 可読性を最優先に
@@ -734,11 +723,9 @@ python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "--cov=mypackage --cov-report=term-missing"
 ```
+
+> pytest の設定（`testpaths`/`addopts` 等）は `agents/references/pytest.md`「pytest 設定」を単一ソースとする。
 
 ### Python イディオム クイックリファレンス
 
@@ -804,8 +791,4 @@ try:
 except SpecificError as e:
     logger.error(f"Operation failed: {e}")
 ```
-
-**覚えておくこと**: Python コードは読みやすく、明示的で、最小限の驚きの原則に従うべきだ。迷ったときは、巧みさより明快さを優先する。
-
----
 
