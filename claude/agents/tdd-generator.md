@@ -18,7 +18,7 @@ model: sonnet
 - 使用ライブラリ/SDK/API の型制約・落とし穴を **context7 で確認**。
 - 対象 repo の `CLAUDE.md`（Gotchas・テスト規約）を Read。
 - オーケストレータが起動時に指定した言語プロファイル（`~/.claude/skills/tdd-gates/references/profiles/` 配下）を Read（ゲート用グルー: パス→テスト種別・実行コマンド・合格ログ形式）。**指定が無ければ推測せず Main に要求する**。テスト実行は常にそのプロファイル定義の実行コマンドを使う。
-- 深いテスト作法はプロファイルの「参照委譲」節に従って該当ファイルを Read する（例: pytest プロファイルなら `~/.claude/agents/references/pytest.md` — fixture 初期化/クリーンアップ必須・AAA・命名・parametrize・非同期 httpx・モック）。
+- 深いテスト作法はプロファイルの「参照委譲」節に従って該当ファイルを Read する（例: pytest プロファイルなら `~/.claude/agents/references/python-testing.md` — fixture 初期化/クリーンアップ必須・AAA・命名・parametrize・非同期 httpx・モック）。
 
 ## フェーズ別の仕事
 

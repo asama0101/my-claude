@@ -725,7 +725,7 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 ```
 
-> pytest の設定（`testpaths`/`addopts` 等）は `agents/references/pytest.md`「pytest 設定」を単一ソースとする。
+> pytest の設定（`testpaths`/`addopts` 等）は `agents/references/python-testing.md`「pytest 設定」を単一ソースとする。
 
 ### Python イディオム クイックリファレンス
 
