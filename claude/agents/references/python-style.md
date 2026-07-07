@@ -61,6 +61,27 @@ def get_value(dictionary: dict, key: str, default: Any = None) -> Any:
         return default
 ```
 
+### docstring（Google スタイル）
+
+public な関数・クラスの docstring は Google Python Style Guide に従い、要約行のあとに `Args` / `Returns` / `Raises` セクションを置く。単純な関数は1行要約のみでよい。
+
+```python
+def fetch_user(user_id: str, *, include_deleted: bool = False) -> User:
+    """指定 ID のユーザーを取得する。
+
+    Args:
+        user_id: 取得対象のユーザー ID。
+        include_deleted: 論理削除済みユーザーも対象に含めるか。
+
+    Returns:
+        取得した User エンティティ。
+
+    Raises:
+        UserNotFoundError: 該当ユーザーが存在しないとき。
+    """
+    ...
+```
+
 ### 型ヒント
 
 #### 基本的な型アノテーション
