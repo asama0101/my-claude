@@ -101,11 +101,15 @@ class Point(NamedTuple):
 - コードフォーマットには **black**
 - インポートソートには **isort**
 - リンティングには **ruff**
+- docstring 形式チェックには **ruff の D ルール**（`convention="google"`）
+- docstring と実シグネチャの整合には **darglint**
+- （ruff/darglint の具体設定は `references/python-style.md`「Python ツール連携」を単一ソースとする）
 
 ```bash
 black .
 isort .
 ruff check .
+darglint mypackage/
 ```
 
 ### 避けるべきコードの臭い

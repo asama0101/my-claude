@@ -45,6 +45,8 @@ model: sonnet
 
 ### MEDIUM: docstring
 
+> 形式（Google 準拠）と実装との整合は CI で ruff の D ルール・darglint が機械検査する。レビューは意味的妥当性（説明が実装意図と合っているか）に集中する。
+
 - **新規 public 関数に docstring があるか** — 引数・戻り値・副作用の説明
 - **docstring の内容が実装と一致しているか** — 古い設計を説明した docstring が残っていないか
 - **Google スタイルに準拠しているか** — Args/Returns/Raises セクション形式か

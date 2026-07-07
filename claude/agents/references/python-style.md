@@ -693,7 +693,8 @@ black .
 isort .
 
 ### リンティング
-ruff check .
+ruff check .          # E/F/I/N/W + D（docstring 形式）
+darglint mypackage/   # docstring と実シグネチャの整合
 pylint mypackage/
 
 ### 型チェック
@@ -728,6 +729,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
+    "darglint>=1.8.0",
     "mypy>=1.5.0",
 ]
 
@@ -737,13 +739,26 @@ target-version = ['py39']
 
 [tool.ruff]
 line-length = 88
-select = ["E", "F", "I", "N", "W"]
+select = ["E", "F", "I", "N", "W", "D"]   # D を追加（pydocstyle: docstring 規約）
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"                       # Google 形式のみを対象に
 
 [tool.mypy]
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+```
+
+#### darglint 設定（setup.cfg）
+
+darglint は pyproject.toml を読まないため、`setup.cfg` / `tox.ini` / `.darglint` に置く。
+
+```ini
+[darglint]
+docstring_style = google
+strictness = short
 ```
 
 > pytest の設定（`testpaths`/`addopts` 等）は `agents/references/python-testing.md`「pytest 設定」を単一ソースとする。
