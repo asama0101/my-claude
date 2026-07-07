@@ -82,6 +82,25 @@ def fetch_user(user_id: str, *, include_deleted: bool = False) -> User:
     ...
 ```
 
+docstring・コメントは次の細則に従う。
+
+- **日本語**で書く。ただし セクションヘッダ（`Args:` / `Returns:` / `Raises:` / `Yields:`）・コード識別子・シンボル・例外名・設計参照タグ（`SS7.2` 等）は**英語のまま**残す。
+- 要約行は全角「。」で終える（このため下記 ruff で `D400`/`D415` を無効化する）。
+- **簡潔に**書く。1文を run-on にしない（ダッシュ挿入句・入れ子括弧・セミコロン連結で長大化させず、短い複数文へ分ける）。コメントも同様。
+- **モジュール docstring（ファイル冒頭）が長い場合**は「要約1行 → 空行 → 箇条書き（`-`）」で構造化する。処理ステップ・責務・トレードオフの列挙は箇条書きにする。
+
+```python
+"""結果ファイルの writer: 単一のフォーマット/IO 経路 (spec SS6)。
+
+確定は次の順で行われ、読み手が書きかけの最終ファイルを目にすることはない:
+
+- `{final}.tmp` へストリーミングする(0600、書き込み中は所有者のみ)
+- flush + fsync する
+- chmod 0644 にする
+- os.rename で確定する
+"""
+```
+
 ### 型ヒント
 
 #### 基本的な型アノテーション
@@ -740,9 +759,13 @@ target-version = ['py39']
 [tool.ruff]
 line-length = 88
 select = ["E", "F", "I", "N", "W", "D"]   # D を追加（pydocstyle: docstring 規約）
+ignore = ["D400", "D415"]                 # 要約を全角「。」で終える日本語 docstring を許容
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"                       # Google 形式のみを対象に
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]                          # テスト関数は名前で自己説明的なため docstring 規約の対象外
 
 [tool.mypy]
 python_version = "3.9"

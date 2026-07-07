@@ -22,7 +22,7 @@ model: sonnet
 
 - **PEP 8** 規約に従う
 - すべての関数シグネチャに**型アノテーション**を使用する
-- docstring は **Google スタイル**（Args/Returns/Raises セクション）で書く
+- docstring は **Google スタイル**（Args/Returns/Raises セクション）で書く。**日本語**・**簡潔**（1文を run-on にしない）とし、**長いモジュール docstring は箇条書き**で構造化する（詳細は `references/python-style.md`）
 
 ### 基本原則
 
