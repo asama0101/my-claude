@@ -47,6 +47,7 @@ model: sonnet
 
 - **新規 public 関数に docstring があるか** — 引数・戻り値・副作用の説明
 - **docstring の内容が実装と一致しているか** — 古い設計を説明した docstring が残っていないか
+- **Google スタイルに準拠しているか** — Args/Returns/Raises セクション形式か
 - **複雑なロジックにコメントがあるか** — 非自明な処理（複雑な SQL・アルゴリズム）に理由コメントがあるか
 
 ### LOW: その他

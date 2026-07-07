@@ -22,6 +22,7 @@ model: sonnet
 
 - **PEP 8** 規約に従う
 - すべての関数シグネチャに**型アノテーション**を使用する
+- docstring は **Google スタイル**（Args/Returns/Raises セクション）で書く
 
 ### 基本原則
 
