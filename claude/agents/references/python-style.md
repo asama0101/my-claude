@@ -614,6 +614,21 @@ myproject/
 └── .gitignore
 ```
 
+#### レイアウト規約: src を基本とする
+
+- **src を基本とせよ**。新規 Python パッケージは上図の src レイアウト（`src/mypackage/`）を既定とせよ。
+- **flat レイアウト**（`mypackage/` をリポジトリ直下に置く）は、**配布しないアプリ/スクリプト**に限り、理由を添えて選べ。理由なき flat は避けよ。
+- 理由: src はインストール状態でのみ import できるため、同梱漏れ・import shadowing をテスト/CI が検知できる。flat はルートが `sys.path` に入り未インストールでも import が通るため、これらを見逃す。
+
+```
+### flat レイアウト（配布しないアプリ/スクリプト限定）
+myproject/
+├── mypackage/
+│   └── __init__.py
+├── tests/
+└── pyproject.toml
+```
+
 #### インポート規約
 
 ```python
