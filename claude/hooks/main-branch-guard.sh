@@ -7,6 +7,8 @@
 # Bash: 削除・変更系コマンド（rm/mv/cp/tee/touch/sed -i/リダイレクト/git commit/git rm 等）
 # のみを対象に、cwd の git ブランチが main/master なら exit 2。読み取り専用コマンド
 # （git status/cat/ls/grep 等）は対象外。
+# find -delete/shutil.rmtree/rsync --delete は bash-guard.sh がブランチに関係なく
+# 常時無条件ブロックするため、ここには含めない（含めても到達不能な重複ロジックになるため）。
 #
 # 既知の限界: scripts/sync.sh のようなラッパースクリプトの呼び出し自体は、Bash
 # に渡る文字列がスクリプト名のみで内部コマンドが見えないため検知できない。
@@ -51,9 +53,6 @@ case "$TOOL" in
 
     MUTATING_PATTERNS=(
       '\b(rm|rmdir|unlink)\b'                       # 削除
-      '\bfind\b.*-delete'                           # find -delete
-      'shutil\.rmtree'                               # Python shutil.rmtree
-      'rsync\s+.*--delete'                           # rsync --delete
       '\bgit\s+rm\b'                                 # git rm
       '\bgit\s+commit\b'                             # git commit（--amend含む）
       '(^|[[:space:]])>>?[[:space:]]*[^[:space:]]'   # リダイレクト書き込み

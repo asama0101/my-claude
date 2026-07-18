@@ -4,6 +4,7 @@ command -v jq >/dev/null 2>&1 || { echo "❌ bash-guard: jq not found, failing c
 INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 PROJECT_DIR=$(pwd)
+CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 BLOCKED_PATTERNS=(
   # ── ディスク・デバイス破壊 ──────────────────────
@@ -118,12 +119,12 @@ if printf '%s' "$COMMAND" | grep -qiP '\b(rm|rmdir|unlink)\b' \
   exit 2
 fi
 
-# ── rm/rmdir/unlink: プロジェクト配下の子要素のみ許可 ──────────────
+# ── rm/rmdir/unlink: プロジェクト配下／$CLAUDE_HOME配下／/tmp配下の子要素のみ許可 ──
 # 上のブロックリストを通過した後に評価する。
 # 許可は「先頭トークンが rm/rmdir/unlink の単純コマンド」かつ「全対象が
-# プロジェクト配下の子要素」の場合のみ。ルート自体・配下外・シェル展開や
-# cd を含むものは不許可。wrapper(sudo 等)/パイプ/連結/-exec 経由や末尾形の
-# rm 呼び出しは下のブロック正規表現で従来どおりブロックし手動実行に委ねる。
+# 上記3ゾーンいずれかの子要素」の場合のみ。各ゾームのルート自体・ゾーン外・
+# シェル展開や cd を含むものは不許可。wrapper(sudo 等)/パイプ/連結/-exec 経由や
+# 末尾形の rm 呼び出しは下のブロック正規表現で従来どおりブロックし手動実行に委ねる。
 RM_FIRST=$(printf '%s' "$COMMAND" | awk 'NR==1{print $1}')
 case "$RM_FIRST" in
   rm | rmdir | unlink)
@@ -144,14 +145,14 @@ case "$RM_FIRST" in
         abs=$(realpath -m "$tok" 2>/dev/null)
         [ -z "$abs" ] && { rm_allowed=0; break; }
         case "$abs" in
-          "$PROJECT_DIR"/*) ;;              # 配下の子要素 → OK
-          *) rm_allowed=0; break ;;         # ルート自体・配下外 → NG
+          "$PROJECT_DIR"/* | "$CLAUDE_HOME"/* | /tmp/*) ;;  # 3ゾーンいずれかの子要素 → OK
+          *) rm_allowed=0; break ;;                          # ルート自体・ゾーン外 → NG
         esac
       done
       set +f
     fi
     if [ "$rm_allowed" -eq 1 ] && [ "$had_target" -eq 1 ]; then
-      exit 0                                # プロジェクト配下の削除のみ → 許可
+      exit 0                                # 許可ゾーン配下の削除のみ → 許可
     fi
     ;;
   git)
@@ -172,14 +173,14 @@ case "$RM_FIRST" in
           abs=$(realpath -m "$tok" 2>/dev/null)
           [ -z "$abs" ] && { rm_allowed=0; break; }
           case "$abs" in
-            "$PROJECT_DIR"/*) ;;              # 配下の子要素 → OK
-            *) rm_allowed=0; break ;;         # 配下外 → NG
+            "$PROJECT_DIR"/* | "$CLAUDE_HOME"/* | /tmp/*) ;;  # 3ゾーンいずれかの子要素 → OK
+            *) rm_allowed=0; break ;;                          # ゾーン外 → NG
           esac
         done
         set +f
       fi
       if [ "$rm_allowed" -eq 1 ] && [ "$had_target" -eq 1 ]; then
-        exit 0                                # プロジェクト配下の git rm のみ許可
+        exit 0                                # 許可ゾーン配下の git rm のみ許可
       fi
     fi
     ;;
@@ -188,7 +189,7 @@ esac
 # 上で許可されなかった rm/rmdir/unlink 呼び出しはブロック（末尾形も捕捉）
 if printf '%s' "$COMMAND" | grep -qiP '\b(rm|rmdir|unlink)(\s|$)'; then
   echo "❌ BLOCKED: $COMMAND" >&2
-  echo "   rm 等はプロジェクト配下($PROJECT_DIR)の子要素削除のみ許可されています（配下外/ルート自体/パイプ・連結・wrapper 経由は不可）。" >&2
+  echo "   rm 等はプロジェクト配下($PROJECT_DIR)／\$CLAUDE_HOME配下($CLAUDE_HOME)／/tmp配下の子要素削除のみ許可されています（各ゾーン外/ルート自体/パイプ・連結・wrapper 経由は不可）。" >&2
   echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
   exit 2
 fi
