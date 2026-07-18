@@ -86,6 +86,10 @@
           {
             "type": "command",
             "command": "__CLAUDE_HOME__/hooks/workspace-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "__CLAUDE_HOME__/hooks/main-branch-guard.sh"
           }
         ]
       }
