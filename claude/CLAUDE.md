@@ -89,6 +89,6 @@ Hooks（enforcement の正典）:
 | Hook | 効果 |
 |------|------|
 | bash-guard.sh | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink` はプロジェクト配下の子要素のみ許可。<br>非 rm 削除（`find -delete`・`shutil.rmtree`・`rsync --delete`）もブロック。機密ファイル（`.env`/`.ssh`/鍵）の読取/持ち出しもブロック。<br>jq 不在時 fail-close。ブロック時は `! <コマンド>` 形式で依頼せよ |
-| workspace-guard.sh | プロジェクト配下／`~/.claude` 配下以外への Write/Edit をブロック。<br>`~/.claude/hooks/` とハーネス設定（settings.json）は自己書換防止でブロック。<br>Bash の `/tmp` リダイレクト・プロジェクト外宛先の cp/tee/mv も保守的にブロック。誤検知時は Read で回避せよ |
+| workspace-guard.sh | プロジェクト配下／`~/.claude` 配下／`/tmp` 配下以外への Write/Edit をブロック。<br>`~/.claude/hooks/` とハーネス設定（settings.json）は許可（実行前確認は settings.json の `permissions.ask` 側で担保）。<br>Bash の `/var/tmp` リダイレクト・プロジェクト外宛先の cp/tee/mv も保守的にブロック。誤検知時は Read で回避せよ |
 | venv-guard.sh | venv 外への `pip install` 等をブロック。文字列一致で誤検知しうる。回避は Read |
 | main-branch-guard.sh | main/master ブランチ上での Write/Edit/MultiEdit/NotebookEdit、および Bash の削除・変更系コマンド（`rm`/`mv`/`cp`/`tee`/`touch`/リダイレクト/`sed -i`/`git commit`/`git rm` 等）をブロック。<br>読み取り専用コマンドは対象外。ブロック時は `git checkout -b <branch>` でブランチを作成してから再試行せよ |

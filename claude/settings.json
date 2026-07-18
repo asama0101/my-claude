@@ -45,13 +45,7 @@
       "Write(/lib/**)",
       "Write(/lib64/**)",
       "Write(/proc/**)",
-      "Write(/sys/**)",
-      "Edit(**/.claude/hooks/**)",
-      "Write(**/.claude/hooks/**)",
-      "Edit(**/.claude/settings.json)",
-      "Write(**/.claude/settings.json)",
-      "Edit(**/.claude/settings.local.json)",
-      "Write(**/.claude/settings.local.json)"
+      "Write(/sys/**)"
     ],
     "ask": [
       "Bash(git push *)",
@@ -59,7 +53,13 @@
       "Bash(git stash drop*)",
       "Bash(git stash clear*)",
       "Bash(git branch -D*)",
-      "WebFetch"
+      "WebFetch",
+      "Edit(**/.claude/hooks/**)",
+      "Write(**/.claude/hooks/**)",
+      "Edit(**/.claude/settings.json)",
+      "Write(**/.claude/settings.json)",
+      "Edit(**/.claude/settings.local.json)",
+      "Write(**/.claude/settings.local.json)"
     ],
     "defaultMode": "plan",
     "disableBypassPermissionsMode": "disable"
