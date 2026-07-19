@@ -1,0 +1,58 @@
+{
+  "skill_name": "python-review-map",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "shaper-transform-map",
+      "prompt": "/home/asama/shaper-db の src/shaper_db/transform/ 配下を初めて読むので、レビュー準備として地図を作ってほしい。docs/spec/ に仕様書があるはずなので、対応関係も分かるようにして。",
+      "expected_output": "src/shaper_db/transform/ 配下の全モジュール(common.py, rules.py, subscribers.py)を対象にした単一のHTMLレポートが生成される。各モジュールが「平たく言うと/なぜ要るか/呼ばれ方」で説明され、非自明な関数(ロンゲストマッチ・ID生成・検証系)には意図vs実装や制御フローの可視化がある。レビューチェックリストは明示的な依頼が無いためデフォルトで含まれない。docs/spec/03_data-spec.md 等のREQ-xx/NFR-xxとの対応表が含まれる。file:lineが実ソースと一致する。",
+      "files": [],
+      "assertions": [
+        {"text": "docs/codemap/配下にHTMLファイルが生成されている(リポジトリ直下やcwdではない)", "check": "file_exists"},
+        {"text": "transform/配下の3モジュール(common.py, rules.py, subscribers.py)すべてに言及している", "check": "content_contains_all"},
+        {"text": "モジュール地図のセクションがある(平たく言うと/なぜ要るか等のテンプレ language)", "check": "content_contains"},
+        {"text": "レビューチェックリストが明示的な依頼なしにデフォルトで生成されていない(依頼されていない機能を勝手に追加していない)", "check": "manual_review"},
+        {"text": "仕様書との対応表があり、REQ-またはNFR-のIDを含んでいる", "check": "content_contains"},
+        {"text": "非自明な関数について意図(docstring/仕様)と実装の要点を並記している箇所が少なくとも1つある", "check": "content_contains"},
+        {"text": "callgraphによるインタラクティブなSVG可視化(application/jsonのグラフデータ)が少なくとも1つ埋め込まれている", "check": "content_contains"},
+        {"text": "callgraphの直前にある実装の要点等の説明文と、そのcallgraphが視覚的に隣接して配置されている(2カラムなどでその場で対応が分かる)", "check": "manual_review"},
+        {"text": "変数一覧のセクション(モジュール定数からローカル変数まで)があり、折りたたみ可能になっている", "check": "content_contains"},
+        {"text": "通常のコードブロックに素のコードだけでなく説明文が伴っている(比例原則の範囲で)", "check": "manual_review"},
+        {"text": "非公開ヘルパ関数の呼び出し元が明記されており、複数の公開関数が並列にあるモジュールで誤帰属を招く記述がない", "check": "manual_review"},
+        {"text": "docs/codemap/以外の対象ソースファイルが変更されていない(git statusで確認)", "check": "manual_review"},
+        {"text": "サンプリングしたfile:line参照(3件程度)が実ソースのgrep結果と一致する", "check": "manual_grep_verify"}
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "shaper-diff-scope",
+      "prompt": "/home/asama/shaper-db のコミット 0253fe0 (sync/subscribers.py の加入者同期エントリ実装) のレビュー準備をしたい。git diff 0253fe0^ 0253fe0 で見られる変更を中心に、地図とチェックリストを作って。",
+      "expected_output": "リポジトリ全体ではなく、diffで変更されたモジュール(sync/subscribers.py等)とその直接の呼び出し元/呼び出し先(1 hop)に絞った地図が生成される。スコープを絞った旨がレポート冒頭に明記されている。チェックリストは全面廃止されているため、明示的に依頼されていてもレビューチェックリストは生成されず、その旨がユーザーに伝えられる。地図・意図vs実装の可視化・(見つかれば)仕様対応表は含まれる。",
+      "files": [],
+      "assertions": [
+        {"text": "docs/codemap/配下にHTMLファイルが生成されている", "check": "file_exists"},
+        {"text": "sync/subscribers.py に焦点を当てている(ファイル名への言及がある)", "check": "content_contains"},
+        {"text": "スコープをdiffに絞ったことが明記されている(全体マップではないと分かる記述)", "check": "manual_review"},
+        {"text": "transform/ や fx2/ など diffと無関係な広範囲のモジュールを網羅的に列挙していない(スコープ超過がない)", "check": "manual_review"},
+        {"text": "プロンプトでチェックリストを明示的に依頼しているにもかかわらず、レビューチェックリストのセクションが生成されていない(全面廃止の方針が守られている)", "check": "manual_review"},
+        {"text": "チェックリストを作らない旨(またはreview-correctness等への案内)がユーザーへの応答で伝えられている", "check": "manual_review"},
+        {"text": "変更された関数の制御フローがcallgraphで可視化されている", "check": "manual_review"},
+        {"text": "変更は docs/codemap/配下の新規ファイル(および.gitignoreへの追記)のみで、対象ソースファイルは変更されていない(git statusで確認)", "check": "manual_review"}
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "bwc-generic",
+      "prompt": "/home/asama/notebook/bwc-api-tool の src/bwc_provisioner/fx2/ 配下のコードベースの構造を地図にしてほしい。初めて読むコードなので、仕様書があれば対応も知りたい。",
+      "expected_output": "shaper-dbとは無関係の別プロジェクトに対しても汎用的に動作し、fx2/ 配下のモジュール地図が生成される。仕様書探索の結果(docs/requirements/spec.html のようなREQ-xx形式ではない仕様書、またはHTML形式の仕様)をユーザーに提示して確認を取ってから対応表を作る、または該当なしとして進める挙動が確認できる。shaper-db固有の用語やREQ-xx形式を無理に当てはめていない。",
+      "files": [],
+      "assertions": [
+        {"text": "bwc-api-toolのdocs/codemap/配下にHTMLファイルが生成されている", "check": "file_exists"},
+        {"text": "fx2/配下の実在するモジュール(例: client.py)に言及している", "check": "content_contains"},
+        {"text": "shaper-db固有のREQ-xx/NFR-xxをbwc-api-toolに対して捏造していない", "check": "manual_review"},
+        {"text": "仕様書がREQ-xx形式でない/見つけにくいことへの対応(ユーザー確認や柔軟なID表記)が読み取れる", "check": "manual_review"},
+        {"text": "変更は対象リポジトリのdocs/codemap/配下の新規ファイル(および.gitignoreへの追記)のみ(git statusで確認)", "check": "manual_review"}
+      ]
+    }
+  ]
+}

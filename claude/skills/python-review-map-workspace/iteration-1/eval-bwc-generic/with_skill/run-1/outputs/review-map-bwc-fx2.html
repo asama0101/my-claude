@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bwc-api-tool fx2/ レビュー地図</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --border: #e0e0e0;
+    --code-bg: #f5f5f5;
+    --accent: #2563eb;
+    --table-head: #f0f0f0;
+    --checklist-bg: #fffbea;
+    --warn-border: #e0b400;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --fg: #e6e6e6;
+      --muted: #9a9a9a;
+      --border: #30333a;
+      --code-bg: #1f2228;
+      --accent: #6ea8fe;
+      --table-head: #22252b;
+      --checklist-bg: #2a2510;
+      --warn-border: #a88300;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+  }
+  .layout {
+    display: flex;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  nav.toc {
+    flex: 0 0 260px;
+    padding: 24px 16px;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    max-height: 100vh;
+    overflow-y: auto;
+    font-size: 0.85rem;
+  }
+  nav.toc a {
+    display: block;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 3px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  nav.toc a:hover { color: var(--accent); }
+  main {
+    flex: 1;
+    min-width: 0;
+    padding: 32px 40px 80px;
+    border-left: 1px solid var(--border);
+  }
+  header.report-header {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  header.report-header .meta {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  h1, h2, h3, h4, h5 { scroll-margin-top: 16px; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-top: 48px; }
+  h3 { margin-top: 32px; }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    border-radius: 4px;
+  }
+  code { padding: 0.1em 0.35em; font-size: 0.9em; }
+  pre {
+    padding: 12px 16px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+    font-size: 0.92rem;
+    overflow-x: auto;
+    display: block;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--table-head); }
+  details {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin: 12px 0;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  ul.checklist { list-style: none; padding-left: 0; }
+  ul.checklist li {
+    background: var(--checklist-bg);
+    border-left: 3px solid var(--warn-border);
+    padding: 6px 10px;
+    margin: 6px 0;
+    border-radius: 4px;
+  }
+  blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 12px 0;
+    padding: 4px 14px;
+    color: var(--muted);
+  }
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; }
+    nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--border); }
+    main { border-left: none; padding: 24px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc">
+    <a href="#仕様書の探索結果">仕様書の探索結果</a>
+<a href="#fx2__init__py">`fx2/__init__.py`</a>
+<a href="#fx2clientpy">`fx2/client.py`</a>
+  <a href="#例外クラス--clientpy40-45">例外クラス — `client.py:40-45`</a>
+  <a href="#fx2client__init__device_id-host-username-password-timeout30---none--clientpy56-70">`FX2Client.__init__(device_id, host, username, password, timeout=30) -&gt; None` — `client.py:56-70`</a>
+  <a href="#_make_patch_bodycli_lines---str--clientpy76-79">`_make_patch_body(cli_lines) -&gt; str` — `client.py:76-79`</a>
+  <a href="#async-apply_subport_configcli_lines---none--clientpy81-110">`async apply_subport_config(cli_lines) -&gt; None` — `client.py:81-110`</a>
+  <a href="#async-get_subports_raw---str--clientpy112-123">`async get_subports_raw() -&gt; str` — `client.py:112-123`</a>
+  <a href="#async-apply_flow_idsflow_ids---none--clientpy125-135">`async apply_flow_ids(flow_ids) -&gt; None` — `client.py:125-135`</a>
+  <a href="#async-delete_flow_idsflow_ids---none--clientpy137-147">`async delete_flow_ids(flow_ids) -&gt; None` — `client.py:137-147`</a>
+  <a href="#async-get_flow_ids_raw---str--clientpy149-159">`async get_flow_ids_raw() -&gt; str` — `client.py:149-159`</a>
+  <a href="#async-show_versionself---dictstr-any--clientpy161-179">`async show_version(self) -&gt; dict[str, Any]` — `client.py:161-179`</a>
+  <a href="#_make_session---aiohttpclientsession--clientpy185-191">`_make_session() -&gt; aiohttp.ClientSession` — `client.py:185-191`</a>
+  <a href="#_patch_configsession-body---bool--_cli_commandsession-command---bool--clientpy193-249">`_patch_config(session, body) -&gt; bool` / `_cli_command(session, command) -&gt; bool` — `client.py:193-249`</a>
+  <a href="#_discardsession---none--clientpy251-264">`_discard(session) -&gt; None` — `client.py:251-264`</a>
+  </nav>
+  <main>
+    <header class="report-header">
+      <h1>bwc-api-tool fx2/ レビュー地図</h1>
+      <div class="meta">生成日時: 2026-07-19 11:26 +0900 / 対象: src/bwc_provisioner/fx2/ (全体スコープ)</div>
+    </header>
+    <h1 id="対象範囲">対象範囲</h1>
+<p><code>/home/asama/notebook/bwc-api-tool/src/bwc_provisioner/fx2/</code> 配下（読み取り専用、変更禁止）。</p>
+<ul>
+<li><code>client.py</code>（264行）— FitelNet FX2 REST API クライアント本体</li>
+<li><code>__init__.py</code>（0行）— 空ファイル。パッケージマーカーのみ。対象外扱い（触れる内容なし）</li>
+</ul>
+<p>このパッケージ自体は 2 ファイルのみで小さいため絞り込みは行っていない。ただし <code>fx2/client.py</code> は<code>core/</code> 配下の複数モジュールから呼ばれるため、地図には「呼ばれ方」として呼び出し元（1 hop）も含めた。</p>
+<h2 id="仕様書の探索結果">仕様書の探索結果</h2>
+<p>自動探索の結果、以下を仕様の正典として採用した（プロジェクトルートの <code>CLAUDE.md</code> に明記されている）。</p>
+<ul>
+<li><code>docs/requirements/spec.html</code> — 要件定義書 v1.0（機能要件 F-01〜F-14、FX2 REST API 仕様〔セクション12〕、</li>
+</ul>
+<p>非機能要件〔リトライ回数・タイムアウト〕）</p>
+<ul>
+<li><code>docs/requirements/business-flow.html</code> — 業務フロー設計書 v1.0（セクション6「共通サブフロー — FX2</li>
+</ul>
+<p>3ステップ コミットプロトコル」に <code>fx2/client.py</code> の <code>apply_subport_config</code> と一対一に対応する図解あり）</p>
+<ul>
+<li><code>CLAUDE.md</code>（プロジェクトルート）— 実装済みファイル構成表、非自明な Gotchas 一覧（<code>traffic-manger</code></li>
+</ul>
+<p>のタイポ風表記、PATCH の差分送信方式など）</p>
+<p><code>REQ-</code>/<code>NFR-</code> 形式の ID は無く、代わりに <code>F-01</code>〜<code>F-14</code>（機能要件）と <code>FR-ERR-005</code>（エラー処理、本文中の参照のみで独立した定義セクションは見当たらなかった）という ID 体系だった。仕様書は実際に Read してから対応付けている。</p>
+<h1 id="全体構成図">全体構成図</h1>
+<pre><code>   api/devices.py ──┐
+                     │ show_version()
+core/subport_orchestrator.py ──┐
+core/sync_engine.py ───────────┼─→ core/orchestrator_utils.py ──→ fx2/client.py (FX2Client)
+core/rollback_engine.py ───────┤   (make_fx2_client: Device/AppConfig → FX2Client 生成)
+core/flow_id_orchestrator.py ──┘</code></pre>
+<p><code>fx2/client.py</code> は <code>core/orchestrator_utils.py:make_fx2_client()</code>（<code>orchestrator_utils.py:13-21</code>）を唯一の生成経路として使われている。呼び出し元は <code>api/devices.py</code>・<code>subport_orchestrator.py</code>・<code>sync_engine.py</code>・<code>rollback_engine.py</code>・<code>flow_id_orchestrator.py</code> の 5 箇所。</p>
+<h1 id="モジュール地図">モジュール地図</h1>
+<h2 id="fx2__init__py"><code>fx2/__init__.py</code></h2>
+<p><strong>平たく言うと:</strong> 空ファイル。パッケージマーカーのみで役割なし。対象外。</p>
+<h2 id="fx2clientpy"><code>fx2/client.py</code></h2>
+<p><strong>平たく言うと:</strong> FX2 装置への REST API 通信を一手に引き受けるクライアント。subport 設定の3-step commit（PATCH → refresh → save、失敗時は discard）、flow_id の JSONL 登録/削除/取得、稼働確認（show version）を提供する。</p>
+<p><strong>なぜ要るか:</strong> <code>core/</code> 配下の複数オーケストレーター（subport・flow_id・sync・rollback）が同じ FX2 通信プロトコル（3-step commit・リトライ・エラー判定）を共有する必要があり、これを1箇所に集約することで各オーケストレーターは「差分 CLI テキストを渡す」だけで済むようにしている。</p>
+<p><strong>呼ばれ方:</strong></p>
+<ul>
+<li><code>core/orchestrator_utils.py:16</code> <code>make_fx2_client()</code> が唯一のインスタンス生成箇所</li>
+<li><code>core/subport_orchestrator.py:62,66,234</code> <code>apply_subport_config()</code></li>
+<li><code>core/rollback_engine.py:71,97,120,137,139</code> <code>get_subports_raw()</code> / <code>apply_subport_config()</code> /</li>
+</ul>
+<p><code>get_flow_ids_raw()</code> / <code>delete_flow_ids()</code> / <code>apply_flow_ids()</code></p>
+<ul>
+<li><code>core/sync_engine.py:40,41,80,97,103</code> 同上のメソッド群</li>
+<li><code>core/flow_id_orchestrator.py:86,118</code> <code>apply_flow_ids()</code> / <code>delete_flow_ids()</code></li>
+<li><code>api/devices.py:199</code> <code>show_version()</code></li>
+</ul>
+<p><strong>主な関数:</strong></p>
+<h3 id="例外クラス--clientpy40-45">例外クラス — <code>client.py:40-45</code></h3>
+<pre><code>FX2CommitError      # PATCH（Step 1）失敗 — discard 送信済み
+FX2PostCommitError  # refresh/save（Step 2/3）失敗 — PATCH は適用済み</code></pre>
+<p><strong>意図:</strong> business-flow.html セクション6の「PATCH 失敗時のみ discard 可能、refresh/save 失敗時はdiscard 不可（自動ロールバック対象）」という区別（<code>business-flow.html:1621-1622</code>）を型で表現している。</p>
+<p><strong>確認ポイント:</strong> 呼び出し側（<code>subport_orchestrator.py</code>）がこの2つの例外を区別してロールバック要否を判定しているかは <code>fx2/</code> の対象外なので、呼び出し元側での分岐を実際に確認する？</p>
+<hr>
+<h3 id="fx2client__init__device_id-host-username-password-timeout30---none--clientpy56-70"><code>FX2Client.__init__(device_id, host, username, password, timeout=30) -&gt; None</code> — <code>client.py:56-70</code></h3>
+<p><strong>意図:</strong> 装置ごとのクライアントを構築する。ベース URL は通常 <code>https://{host}</code>（spec.html:1560 の共通仕様と一致）。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>FX2_BASE_URL_PATTERN</code> 環境変数が設定されている場合、<code>host</code> を無視して全クライアントを同一 URL に</li>
+</ul>
+<p>向ける（<code>client.py:67-68</code>、コメントで「ST用の完全URL上書き」と明記）。システムテスト用のフック。</p>
+<ul>
+<li><code>timeout</code> のデフォルトは 30 秒（<code>client.py:62</code>）。NFR「1台あたりの FX2 API タイムアウト（デフォルト:</li>
+</ul>
+<p>30秒）」（<code>spec.html:1405</code>）と一致。</p>
+<p><strong>確認ポイント:</strong> <code>FX2_BASE_URL_PATTERN</code> はテスト用フックとして本体コードに残っている。本番経路では未設定である前提だが、誤設定時に気づける仕組み（ログ等）は無い。運用上のガードは足りているか確認する？</p>
+<hr>
+<h3 id="_make_patch_bodycli_lines---str--clientpy76-79"><code>_make_patch_body(cli_lines) -&gt; str</code> — <code>client.py:76-79</code></h3>
+<p><strong>平たく言うと:</strong> 差分 CLI 行をテンプレート（<code>PATCH_WRAPPER</code>, <code>client.py:22-28</code>）に埋め込み、各行に2スペースインデントを付与する。<code>spec.html:1580-1590</code> の PATCH ボディ形式（<code>traffic-manger accelerator</code>〜 <code>end</code>）と対応。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>cli_lines</code> が空文字列でも例外にはならず、インデント済み空行だけが挿入される（<code>client.py:78</code>）。</li>
+</ul>
+<p>呼び出し元が空の差分を渡すケースがあるかは対象外（<code>core/</code> 側の確認事項）。</p>
+<hr>
+<h3 id="async-apply_subport_configcli_lines---none--clientpy81-110"><code>async apply_subport_config(cli_lines) -&gt; None</code> — <code>client.py:81-110</code></h3>
+<p><strong>意図:</strong> subport 設定を 3-step commit で適用する。<code>business-flow.html</code> セクション6の図解（<code>business-flow.html:1611-1679</code>）と、<code>spec.html:1566-1578</code>（3ステップ順次実行の表）に一対一で対応。</p>
+<p><strong>実装の要点（制御フロー）:</strong></p>
+<pre><code>apply_subport_config(cli_lines)
+├─ patch_body 組み立て（_make_patch_body）
+├─ Step1: PATCH /api/v1/config（最大3回リトライ）
+│  ├─ 失敗 → discard moff 送信（best-effort） → FX2CommitError 送出（client.py:91-96）
+│  └─ 成功 →
+├─ Step2: POST /api/v1/cli {&quot;command&quot;: &quot;refresh moff&quot;}（最大3回リトライ）
+│  └─ 失敗 → FX2PostCommitError 送出（client.py:100-103、discard は送らない）
+└─ Step3: POST /api/v1/cli {&quot;command&quot;: &quot;save moff&quot;}（最大3回リトライ）
+   └─ 失敗 → FX2PostCommitError 送出（client.py:107-110）</code></pre>
+<ul>
+<li>Step1 失敗時のみ discard を送る点は <code>business-flow.html:1598</code>「discard moff — PATCH（Step 1）失敗時</li>
+</ul>
+<p>のみ実行」と一致。</p>
+<ul>
+<li>3ステップとも同一の <code>aiohttp.ClientSession</code>（<code>async with self._make_session()</code>）内で実行される</li>
+</ul>
+<p>（<code>client.py:88</code>）。セッション生成は1回のみ。</p>
+<p><strong>確認ポイント:</strong> Step2（refresh）が成功し Step3（save）だけ失敗した場合も <code>FX2PostCommitError</code> で一律扱われる（<code>client.py:107-110</code>）。呼び出し元が「refresh 済みだが save 未了」という状態をどう扱うかは<code>rollback_engine.py</code>/<code>subport_orchestrator.py</code> 側の対象。ここでは区別できない設計だが、それでよいか確認する？</p>
+<hr>
+<h3 id="async-get_subports_raw---str--clientpy112-123"><code>async get_subports_raw() -&gt; str</code> — <code>client.py:112-123</code></h3>
+<p><strong>平たく言うと:</strong> <code>POST /api/v1/cli {"command": "show running | grep subport"}</code> で現在の subport 設定を取得する。<code>spec.html:1607-1614</code> の「subport 取得」と対応。</p>
+<p><strong>実装の要点:</strong> HTTP 200 以外は <code>RuntimeError</code> を送出（リトライなし、<code>client.py:119-122</code>）。<code>apply_subport_config</code> の内部ステップと異なり、こちらは <code>FX2CommitError</code>/<code>FX2PostCommitError</code> ではなく汎用の <code>RuntimeError</code> を使っている。</p>
+<p><strong>確認ポイント:</strong> 取得系（<code>get_subports_raw</code>/<code>get_flow_ids_raw</code>/<code>show_version</code>）はリトライなしの単発呼び出しだが、書き込み系（<code>_patch_config</code>/<code>_cli_command</code>）は3回リトライする。この非対称は意図的か（読み取り失敗は呼び出し元でリトライ判断する設計か）確認する？</p>
+<hr>
+<h3 id="async-apply_flow_idsflow_ids---none--clientpy125-135"><code>async apply_flow_ids(flow_ids) -&gt; None</code> — <code>client.py:125-135</code></h3>
+<p><strong>平たく言うと:</strong> <code>POST /api/v1/dynamic-queueing/flows</code>（<code>Content-Type: application/jsonl</code>）で flow_id を一括登録する。<code>spec.html:1625-1630</code> の flow_id プロビジョニングと対応。subport の3-step commit とは異なり単発 POST のみ（CLAUDE.md の Gotchas 節「flow_id の FX2 API は3-step commit なし」と一致）。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>flow_ids</code> が空リストの場合、<code>body</code> は空文字列になり、それでも POST は送信される（<code>client.py:127-131</code>）。</li>
+</ul>
+<p>空リストで呼ばれるケースを想定しているか、対応するテストが無いため未確認。</p>
+<hr>
+<h3 id="async-delete_flow_idsflow_ids---none--clientpy137-147"><code>async delete_flow_ids(flow_ids) -&gt; None</code> — <code>client.py:137-147</code></h3>
+<p><strong>平たく言うと:</strong> <code>DELETE /api/v1/dynamic-queueing/flows</code> で flow_id を一括削除する。<code>apply_flow_ids</code> と対称的な実装。</p>
+<p><strong>実装の要点:</strong> <code>apply_flow_ids</code> 同様、失敗時は個別ステータスに応じた分岐は無く一律 <code>FX2CommitError</code>（<code>client.py:144-147</code>）。</p>
+<hr>
+<h3 id="async-get_flow_ids_raw---str--clientpy149-159"><code>async get_flow_ids_raw() -&gt; str</code> — <code>client.py:149-159</code></h3>
+<p><strong>平たく言うと:</strong> <code>GET /api/v1/dynamic-queueing/flows</code> で現在の flow_id 一覧（JSONL）を取得する。<code>get_subports_raw</code> と対になる読み取り系メソッド。HTTP 200 以外は <code>RuntimeError</code>。</p>
+<hr>
+<h3 id="async-show_versionself---dictstr-any--clientpy161-179"><code>async show_version(self) -&gt; dict[str, Any]</code> — <code>client.py:161-179</code></h3>
+<p><strong>意図:</strong> <code>POST /api/v1/cli {"command": "show version"}</code> で疎通確認する（F-11「装置の稼働状態・疎通確認」<code>spec.html:586</code>、<code>/devices/{hostname}/status</code> <code>spec.html:1105-1108</code> に対応）。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>time.monotonic()</code> でレイテンシを計測し <code>{"status": "online", "latency_ms": int}</code> を返す</li>
+</ul>
+<p>（<code>client.py:169,178-179</code>）。</p>
+<ul>
+<li>HTTP 200 以外は <code>RuntimeError</code>（<code>client.py:174-177</code>）。呼び出し元 <code>api/devices.py:199-206</code> は</li>
+</ul>
+<p>この <code>RuntimeError</code> を捕捉して <code>logger.warning</code> にしている（offline 扱いへの変換は <code>fx2/</code> の対象外）。</p>
+<hr>
+<h3 id="_make_session---aiohttpclientsession--clientpy185-191"><code>_make_session() -&gt; aiohttp.ClientSession</code> — <code>client.py:185-191</code></h3>
+<p><strong>平たく言うと:</strong> 各メソッド呼び出しのたびに新しい <code>ClientSession</code>（<code>TCPConnector(ssl=False)</code>）を生成するファクトリ。</p>
+<p><strong>難所: TLS 証明書検証を無効化している</strong></p>
+<p><strong>何が問題か:</strong> <code>aiohttp.TCPConnector(ssl=False)</code>（<code>client.py:186</code>）は TLS 証明書検証を行わない。中間者攻撃に対して脆弱になりうる設定。</p>
+<p><strong>どう解決しているか:</strong> FX2 装置は自己署名証明書を使う社内/閉域網の装置という前提であれば妥当な判断だが、コード上にその前提を説明するコメントは無い。</p>
+<p><strong>ハマりどころ:</strong> レビュアーがここを見落とすと「TLS 検証なしの HTTPS 通信」に気づかないまま通り過ぎる可能性がある。意図的な設計判断か、見落としかを確認する必要がある（セキュリティ観点チェックリストにも再掲）。</p>
+<hr>
+<h3 id="_patch_configsession-body---bool--_cli_commandsession-command---bool--clientpy193-249"><code>_patch_config(session, body) -&gt; bool</code> / <code>_cli_command(session, command) -&gt; bool</code> — <code>client.py:193-249</code></h3>
+<p><strong>平たく言うと:</strong> どちらも同型のリトライループ（最大 <code>_MAX_RETRIES</code>=3回、<code>client.py:30</code>）。HTTP 200 なら<code>True</code>、それ以外または <code>aiohttp.ClientError</code> なら <code>logger.warning</code> してリトライ、上限到達で <code>False</code> を返す（例外は送出しない。呼び出し元の <code>apply_subport_config</code> が bool を見て例外に変換する）。</p>
+<p><strong>難所: リトライ間隔がプロセス起動時に1回だけ評価される</strong></p>
+<p><strong>何が問題か:</strong> <code>_RETRY_INTERVAL = float(os.environ.get("FX2_RETRY_INTERVAL", "1"))</code>（<code>client.py:33</code>）はモジュール import 時に評価されるモジュールレベル定数。テストで待ち時間をゼロにしたい場合、実行中に環境変数を変更しても反映されない。</p>
+<p><strong>どう解決しているか:</strong> コメント（<code>client.py:31-32</code>）に「STでは subprocess の環境変数に "0" をセットして起動することでリトライ待機をゼロにする」と明記。プロセスを新規起動するテストでのみ有効な手法。</p>
+<p><strong>ハマりどころ:</strong> 同一プロセス内でのユニットテスト（<code>aioresponses</code> を使う <code>tests/unit/test_fx2_client.py</code>など）ではこの環境変数上書きは効かない。実際、<code>test_fx2_client.py</code> の3回リトライ系テスト（<code>test_apply_subport_config_patch_failure_sends_discard</code> 等）は <code>_RETRY_INTERVAL</code>（デフォルト1秒）分待つ実装になっているように見える。テスト実行時間への影響は確認したか？</p>
+<p><strong>例外処理/境界値の要点:</strong> <code>except aiohttp.ClientError as exc</code>（<code>client.py:210,239</code>）で接続エラー系のみを捕捉しており、<code>except Exception</code> のような broad catch ではない。個別ステータスコード分岐は無く「200以外は一律エラー」という <code>spec.html:1562</code>（「エラー判定：HTTP 200以外は一律エラー」）と一致する実装になっている。</p>
+<hr>
+<h3 id="_discardsession---none--clientpy251-264"><code>_discard(session) -&gt; None</code> — <code>client.py:251-264</code></h3>
+<p><strong>平たく言うと:</strong> <code>discard moff</code> を best-effort で送信する。失敗しても <code>logger.warning</code> のみで例外は送出しない（呼び出し元は既に <code>FX2CommitError</code> を送出する流れのため、discard 自体の失敗で追加の例外は出さない設計）。<code>business-flow.html:1621-1622</code> の「discard moff を実行（refresh 前の状態に戻す）」に対応。</p>
+<h1 id="レビューチェックリスト">レビューチェックリスト</h1>
+<h4 id="命名可読性複雑度">命名/可読性/複雑度</h4>
+<ul class="checklist">
+<li>&#9744; <code>client.py:193-219</code>（<code>_patch_config</code>）と <code>client.py:221-249</code>（<code>_cli_command</code>）はリトライループの</li>
+</ul>
+<p>構造がほぼ同一（ループ・ログ・sleep）。共通化の余地があるか確認する？（意図的に分けている可能性もあるので判定はしない）</p>
+<ul class="checklist">
+<li>&#9744; <code>client.py:76</code> <code>_make_patch_body</code> の <code>cli_lines</code> という引数名は「複数行の文字列」を指しているが、</li>
+</ul>
+<p>型は <code>str</code>（リストではない）。呼び出し元での命名との整合を確認する？</p>
+<h4 id="例外処理境界値">例外処理/境界値</h4>
+<ul class="checklist">
+<li>&#9744; <code>client.py:107-110</code> refresh 成功・save 失敗時と、refresh 失敗時（<code>client.py:100-103</code>）が同じ</li>
+</ul>
+<p><code>FX2PostCommitError</code> で区別されない。呼び出し元（<code>rollback_engine.py</code>/<code>subport_orchestrator.py</code>）で「どこまで反映済みか」を判定する必要があるか確認する？</p>
+<ul class="checklist">
+<li>&#9744; <code>client.py:125-135</code>（<code>apply_flow_ids</code>）・<code>client.py:137-147</code>（<code>delete_flow_ids</code>）は空リストで</li>
+</ul>
+<p>呼ばれた場合の早期 return が無く、空ボディで POST/DELETE が送信される。空リスト呼び出しが実際に発生しうるか呼び出し元を確認する？</p>
+<ul class="checklist">
+<li>&#9744; <code>client.py:112-123</code>（<code>get_subports_raw</code>）・<code>client.py:149-159</code>（<code>get_flow_ids_raw</code>）はリトライなし</li>
+</ul>
+<p>の単発呼び出し。<code>_patch_config</code>/<code>_cli_command</code>（書き込み系）は3回リトライする非対称設計。読み取り系もリトライすべきか、意図的な非対称か確認する？</p>
+<h4 id="テストカバレッジテスタビリティ">テストカバレッジ/テスタビリティ</h4>
+<ul class="checklist">
+<li>&#9744; <code>tests/unit/test_fx2_client.py</code> には <code>apply_flow_ids</code>（69-79行）・<code>delete_flow_ids</code>（82-88行）の</li>
+</ul>
+<p>成功パスのテストはあるが、HTTP 200 以外を返す失敗パス（<code>FX2CommitError</code> 送出、<code>client.py:132-135</code> /<code>client.py:144-147</code>）のテストが見当たらない。<code>apply_subport_config</code>（成功/PATCH失敗/refresh失敗/save失敗の4パターン、27-101行）と比べてカバレッジに差がある。追加が必要か確認する？</p>
+<ul class="checklist">
+<li>&#9744; <code>client.py:185-191</code>（<code>_make_session</code>）は毎回新規セッションを作るため、<code>tests/unit/test_fx2_client.py</code></li>
+</ul>
+<p>は <code>aioresponses</code> でモックできている（テスタビリティは確保されている）。一方 <code>tests/system/stub_fx2.py</code>（実サーバースタブ）を使ったシステムテストが <code>fx2/client.py</code> に対して存在するかは確認していない（<code>tests/system/</code> 配下で <code>FX2Client</code> を直接使うテストの有無を確認する？）。</p>
+<ul class="checklist">
+<li>&#9744; <code>client.py:67</code>（<code>FX2_BASE_URL_PATTERN</code>）・<code>client.py:33</code>（<code>FX2_RETRY_INTERVAL</code>）はテスト専用の</li>
+</ul>
+<p>環境変数フックが本体コードに直接埋め込まれている。DI（コンストラクタ引数化）ではなく環境変数分岐になっている設計判断について、テスタビリティ上の意図を確認する？</p>
+<h4 id="セキュリティ外部入力">セキュリティ/外部入力</h4>
+<ul class="checklist">
+<li>&#9744; <code>client.py:186</code> <code>TCPConnector(ssl=False)</code> は TLS 証明書検証を無効化している。FX2 装置が自己署名</li>
+</ul>
+<p>証明書を使う閉域網前提だとしても、コード上にその根拠のコメントが無い。意図的な設計か確認する？</p>
+<ul class="checklist">
+<li>&#9744; <code>client.py:69</code> <code>aiohttp.BasicAuth(username, password)</code> で認証情報を保持する。ログ出力</li>
+</ul>
+<p>（<code>client.py:204-209,211-216,232-238,240-246,258-262</code>）にリクエスト/レスポンスボディを含めていない点は確認できたが、<code>aiohttp</code> 自体が Basic 認証ヘッダをデバッグログに出す設定（<code>aiohttp</code> の内部ログレベル）になっていないか、呼び出し元のロガー設定と合わせて確認する？</p>
+<ul class="checklist">
+<li>&#9744; <code>client.py:81</code>（<code>apply_subport_config</code>）が受け取る <code>cli_lines</code> は <code>core/</code> 側の diff エンジンが</li>
+</ul>
+<p>組み立てた CLI テキストであり、<code>fx2/</code> パッケージ自体には入力検証が無い。ISP から受け取ったsubport 名・帯域値がそのまま CLI コマンド文字列に埋め込まれる経路（<code>spec.html</code> の<code>downstream_kbps → pir 変換</code> 節）でエスケープ/検証がどこで行われているか、<code>fx2/</code> の対象外のため<code>core/diff_engine.py</code> 側を確認する？</p>
+<h1 id="仕様書との対応表">仕様書との対応表</h1>
+<table>
+<thead><tr>
+<th>コード (file:line)</th>
+<th>対応する要件/仕様</th>
+<th>備考</th>
+</tr></thead><tbody>
+<tr><td><code>client.py:81-110 apply_subport_config</code></td><td>spec.html §12「subport操作」表（1566-1578行）、business-flow.html §6（1553-1686行）</td><td>3-step commit（PATCH→refresh→save、失敗時discard）の手順・エラー判定が一致</td></tr>
+<tr><td><code>client.py:22-28 PATCH_WRAPPER</code></td><td>spec.html:1580-1590「PATCH /api/v1/config ボディ形式」</td><td><code>traffic-manger accelerator</code>〜<code>end</code> のテンプレートが一致（<code>traffic-manger</code>表記はCLAUDE.mdのGotchasで意図的と明記）</td></tr>
+<tr><td><code>client.py:30 _MAX_RETRIES = 3</code></td><td>spec.html:1484「FX2接続失敗時: リトライ3回後にエラー記録」</td><td>一致</td></tr>
+<tr><td><code>client.py:62 timeout: int = 30</code></td><td>spec.html:1405「FX2 APIタイムアウト（デフォルト: 30秒）」</td><td>一致</td></tr>
+<tr><td><code>client.py:112-123 get_subports_raw</code></td><td>spec.html:1607-1614「subport取得」</td><td>`show running</td><td>grep subport` コマンドが一致</td></tr>
+<tr><td><code>client.py:125-135 apply_flow_ids</code> / <code>client.py:137-147 delete_flow_ids</code></td><td>spec.html:1625-1630「flow_idプロビジョニング」</td><td>POST/DELETE + application/jsonl が一致</td></tr>
+<tr><td><code>client.py:161-179 show_version</code></td><td>spec.html:586 F-11「装置の稼働状態・疎通確認」、spec.html:1105-1108 <code>GET /devices/{hostname}/status</code></td><td><code>show version</code> コマンド自体はspec.htmlの当該箇所に明記が無く、<code>{"command": "show version"}</code> というCLIコマンド名の対応はコードのみが情報源。呼び出し元 <code>api/devices.py</code> 側の実装で確認する？</td></tr>
+<tr><td><code>client.py:251-264 _discard</code></td><td>business-flow.html:1598,1621-1622「discard moff — PATCH（Step 1）失敗時のみ実行」</td><td>一致。best-effort（失敗してもwarningのみ）という実装判断はbusiness-flow.html上に明記が見当たらず、コード側の独自判断の可能性がある</td></tr>
+<tr><td>（対応する仕様記述が見当たらない） <code>client.py:67-68 FX2_BASE_URL_PATTERN</code> / <code>client.py:31-33 FX2_RETRY_INTERVAL</code></td><td>—</td><td>テスト用の環境変数フック。spec.html/business-flow.htmlに記載なし。CLAUDE.mdにも明記なし（コード内コメントのみが情報源）</td></tr>
+<tr><td>spec.html:1562「エラー判定: HTTP 200以外は一律エラー。個別ステータスコードによる分岐は行わない」</td><td><code>client.py:119,155,174,202,230</code> 各所</td><td>一致（全メソッドで<code>resp.status != 200</code>のみ判定）</td></tr>
+</tbody></table>
+<p><code>FR-ERR-005</code>（spec.html:1568 で参照されているエラー処理方針）は本文中に参照のみで独立した定義セクションが見当たらなかった。業務フロー設計書側（business-flow.html §6）の記述で実質的な内容を確認した。</p>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,118 @@
+{
+  "expectations": [
+    {
+      "text": "outputs配下にHTMLファイルが生成されている",
+      "passed": true,
+      "evidence": "/home/asama/.claude/skills/python-review-map-workspace/iteration-1/eval-shaper-transform-map/without_skill/outputs/transform_review_map.html が存在(34293 bytes, 508行)。有効なHTML文書(<!DOCTYPE html>〜</html>)。"
+    },
+    {
+      "text": "transform/配下の3モジュール(common.py, rules.py, subscribers.py)すべてに言及している",
+      "passed": true,
+      "evidence": "HTML内に専用セクションあり: id=\"common\"(2. common.py — 共通定数・型, L246-297)、id=\"rules\"(3. rules.py — ルール生成, L299-345)、id=\"subscribers\"(4. subscribers.py — 加入者生成, L347-405)。各セクションでクラス・関数を個別に解説している。"
+    },
+    {
+      "text": "モジュール地図のセクションがある(「平たく言うと」「なぜ要るか」「呼ばれ方」等のテンプレ言語が使われている)",
+      "passed": true,
+      "evidence": "grep -n \"平たく言うと\\|なぜ要るか\\|呼ばれ方\" transform_review_map.html で20件ヒット。例: L256 '<strong>平たく言うと</strong>: 行をスキップした理由を表す5値の列挙型'、L258 '<strong>なぜ要るか</strong>: rules.py・subscribers.py 双方で...'、L264 '<strong>呼ばれ方</strong>: build_rules/build_subscribers の戻り値に格納される'。"
+    },
+    {
+      "text": "レビューチェックリストの4カテゴリ(命名/可読性/複雑度、例外処理/境界値、テストカバレッジ/テスタビリティ、セキュリティ/外部入力)がすべて見出しとして存在する",
+      "passed": false,
+      "evidence": "見出し(h2/h3/h4)一覧をgrepすると章8は '8. レビュー観点チェックリスト' の単一見出しのみ(L486)で、4カテゴリの見出しは存在しない。実際のチェックリストは10個の<label>項目(L488-497)にフラットに並んでおり、各項目冒頭の太字ラベルは '命名/可読性'・'DRY境界'・'境界値'・'複雑度'・'暗黙の前提への依存'・'例外処理'・'テストカバレッジ'・'テスタビリティ'・'外部入力の扱い'・'NFR-04適合' で、期待される4カテゴリへのグルーピングにはなっていない。さらに『セキュリティ』という語は文書全体で0件(grep -in \"セキュリティ|security\" が空)。baseline(スキル未使用)実行のためこの失敗は想定通り。"
+    },
+    {
+      "text": "仕様書との対応表があり、REQ-またはNFR-のIDを含んでいる",
+      "passed": true,
+      "evidence": "id=\"spec-map\" セクション(5. 仕様対応表, L407-444)に仕様書節⇔コード対応表があり、'03 §4 データ不整合時の扱い(REQ-09)'(L436)の行を含む。また章8チェックリストにも 'NFR-04適合'(L497)がありNFR-04への言及がある。"
+    },
+    {
+      "text": "非自明な関数について意図(docstring/仕様)と実装の要点を並記している箇所が少なくとも1つある",
+      "passed": true,
+      "evidence": "例: build_area_group_index(common.py)の項(L290-295)で「呼ばれ方」に加え『暗黙の前提』として「各poi_idは高々1グループに対応する」というコメント上の意図と、実装側にはその防御コードが無いという実装上の事実を並記している。finalize_summary(L285-288)も同様に『前提条件(コメントに明記)』と実装の依存関係を並記。複数箇所で確認できる。"
+    },
+    {
+      "text": "サンプリングしたfile:line参照(3件程度)が実ソース(/home/asama/shaper-db/src/shaper_db/transform/ 配下)のgrep結果と一致する。Bashで `grep -n <symbol> <file>` を実際に実行して確認すること",
+      "passed": true,
+      "evidence": "以下7件をnl/grepで実ソースと突合し全て一致を確認: (1) rules.py L99 に完全一致で `name = f\"{isp_code}-{poi_id}\"`。(2) rules.py L104-107 のクランプ処理(pir_kbps=pipe_band; if pipe_band>pir_max_kbps: pir_kbps=pir_max_kbps; clamped+=1)が完全一致。(3) subscribers.py L157 に完全一致で `subport = f\"{isp_code}-{poi_id}\"`。(4) subscribers.py L162 に完全一致で `flow_id = f\"{customer_no}@{user_prefix}@{subport}\"`。(5) subscribers.py L142-144 のValueErrorキャッチ箇所が一致(L141 try/L142 IPv6Network/L143 except ValueError/L144 skip)。(6) subscribers.py L67-70 の同様のtry/except ValueErrorブロックが一致。(7) common.py L18-19 の `if TYPE_CHECKING: from ..config import Group` が完全一致。3件以上の抽出参照が全てソースと一致しており、行番号の捏造は見られない。"
+    },
+    {
+      "text": "チェックリスト項目が具体的なfile:lineを伴っており、一般論の箇条書きになっていない",
+      "passed": false,
+      "evidence": "章8(L487-498)の10項目中、明示的なfile:line参照を伴うのは2項目のみ: '例外処理'(L493, 'subscribers.py L142-144, L67-70')と'NFR-04適合'(L497, 'common.py L18-19')。残り8項目(命名/可読性・DRY境界・境界値・複雑度・暗黙の前提への依存・テストカバレッジ・テスタビリティ・外部入力の扱い)はfile:lineを伴わず、仕様書節番号(03 §1.1-1.3等)やQA番号・関数名のみを根拠とする一般的な記述に留まっている。過半数が一般論の箇条書きのため不合格。"
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 2,
+    "total": 8,
+    "pass_rate": 0.75
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "Bash": 6,
+      "Read": 6,
+      "Write": 1
+    },
+    "total_tool_calls": 13,
+    "total_steps": 23,
+    "errors_encountered": 0,
+    "output_chars": 34293,
+    "transcript_chars": 238961
+  },
+  "timing": {
+    "executor_duration_seconds": 203.0,
+    "total_duration_seconds": 0.0,
+    "total_tokens": 72096,
+    "note": "timing.json に metrics.json 相当の executor/grader 内訳は無く、total_tokens・duration_ms のみ記録。grader_duration_seconds は取得不可。",
+    "executor_tokens": 72096
+  },
+  "claims": [
+    {
+      "claim": "SkipReason は5値の列挙型",
+      "type": "factual",
+      "verified": true,
+      "evidence": "common.py L22-30 の SkipReason(str, Enum) を確認。IDENTIFIER_FORMAT/TYPE_ERROR/ADDRESS_FORMAT/NO_AREA/NO_GROUP の5値と一致。"
+    },
+    {
+      "claim": "実際にsrc/shaper_db/transform/配下の3ファイルを読み込んだ",
+      "type": "process",
+      "verified": true,
+      "evidence": "トランスクリプトでcommon.py・rules.py・subscribers.pyそれぞれにReadツールを使用していることを確認。__init__.pyは空ファイルであることも確認済み。"
+    },
+    {
+      "claim": "docs/spec/03_data-spec.mdとの対応関係を整理した",
+      "type": "process",
+      "verified": true,
+      "evidence": "トランスクリプトでdocs/spec/03_data-spec.mdをReadしており、出力HTMLのid=spec-mapセクションに§1.1〜§5の各節とコード箇所の対応表がある。"
+    },
+    {
+      "claim": "テスト網羅状況としてtest_rules.py 17件・test_subscribers.py 20件と報告",
+      "type": "factual",
+      "verified": true,
+      "evidence": "トランスクリプトのgrep結果(test_rules.py 186行・test_subscribers.py 237行、grep \"^def test_\"の実行)と整合。ただし出力ではtest_rules.pyの全17件・test_subscribers.pyの全20件を個々に列挙してはおらず、grepした冒頭6件しかトランスクリプトに現れていないため、17/20という総数がどのように確定されたかは転記のみでは確認できない(グレーダーからは全件grep結果を見ていないため未検証)。"
+    },
+    {
+      "claim": "single self-contained HTML(外部依存なし)",
+      "type": "quality",
+      "verified": true,
+      "evidence": "HTML内に<style>タグのみでCSSをインライン化しており、外部CDN・外部フォント・外部スクリプトへの参照は無い。"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "仕様書との対応表があり、REQ-またはNFR-のIDを含んでいる",
+        "reason": "この出力はREQ-09を1箇所、NFR-04を1箇所(チェックリスト内)含むのみでpassしている。対応表の大半の行はQA番号(#22/#27/#32/#33)や仕様書節番号(03 §x.x)で根拠づけられておりREQ/NFR IDは薄い。『対応表がある』ことと『REQ/NFR網羅的にトレースできる』ことは別物なので、より discriminating にするなら「対応表の行の過半数がREQ-/NFR-IDを伴う」等に強化する余地がある。"
+      },
+      {
+        "reason": "スキル固有の期待事項(4カテゴリ見出し)が baseline に対して機能的に有効な弁別力を持っていることを確認できた。baseline は個別チェックリスト項目自体は多く具体的(10項目、file:line付きも一部)だが、指定された『4カテゴリの見出し』という構造には合致しない――これは良い discriminator。"
+      }
+    ],
+    "overall": "expectation 7と8は実際にBashでgrep/nlを行い実ソースと突合した。7は完全に正確(捏造なし)、8はチェックリスト10項目中file:line付きは2項目のみで不合格。expectation 4はスキル固有要求で想定通り不合格。全体としてbaselineの成果物は質が高く、file:line参照の正確性は特筆に値するが、構造(4カテゴリ見出し)とチェックリストの具体性の一貫性でスキル適用版と差別化されるはず。"
+  }
+}

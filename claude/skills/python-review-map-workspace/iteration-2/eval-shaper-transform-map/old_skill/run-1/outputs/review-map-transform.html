@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shaper-db transform/ レビュー地図</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --border: #e0e0e0;
+    --code-bg: #f5f5f5;
+    --accent: #2563eb;
+    --table-head: #f0f0f0;
+    --checklist-bg: #fffbea;
+    --warn-border: #e0b400;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --fg: #e6e6e6;
+      --muted: #9a9a9a;
+      --border: #30333a;
+      --code-bg: #1f2228;
+      --accent: #6ea8fe;
+      --table-head: #22252b;
+      --checklist-bg: #2a2510;
+      --warn-border: #a88300;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+  }
+  .layout {
+    display: flex;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  nav.toc {
+    flex: 0 0 260px;
+    padding: 24px 16px;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    max-height: 100vh;
+    overflow-y: auto;
+    font-size: 0.85rem;
+  }
+  nav.toc a {
+    display: block;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 3px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  nav.toc a:hover { color: var(--accent); }
+  main {
+    flex: 1;
+    min-width: 0;
+    padding: 32px 40px 80px;
+    border-left: 1px solid var(--border);
+  }
+  header.report-header {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  header.report-header .meta {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  h1, h2, h3, h4, h5 { scroll-margin-top: 16px; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-top: 48px; }
+  h3 { margin-top: 32px; }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    border-radius: 4px;
+  }
+  code { padding: 0.1em 0.35em; font-size: 0.9em; }
+  pre {
+    padding: 12px 16px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+    font-size: 0.92rem;
+    overflow-x: auto;
+    display: block;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--table-head); }
+  details {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin: 12px 0;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  ul.checklist { list-style: none; padding-left: 0; }
+  ul.checklist li {
+    background: var(--checklist-bg);
+    border-left: 3px solid var(--warn-border);
+    padding: 6px 10px;
+    margin: 6px 0;
+    border-radius: 4px;
+  }
+  blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 12px 0;
+    padding: 4px 14px;
+    color: var(--muted);
+  }
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; }
+    nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--border); }
+    main { border-left: none; padding: 24px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc">
+    <a href="#対象範囲">対象範囲</a>
+<a href="#全体構成図">全体構成図</a>
+<a href="#モジュール地図">モジュール地図</a>
+  <a href="#srcshaper_dbtransform__init__py">`src/shaper_db/transform/__init__.py`</a>
+  <a href="#srcshaper_dbtransformcommonpy">`src/shaper_db/transform/common.py`</a>
+<a href="#srcshaper_dbtransformrulespy">`src/shaper_db/transform/rules.py`</a>
+<a href="#srcshaper_dbtransformsubscriberspy">`src/shaper_db/transform/subscribers.py`</a>
+<a href="#レビューチェックリスト">レビューチェックリスト</a>
+<a href="#仕様書との対応表">仕様書との対応表</a>
+  </nav>
+  <main>
+    <header class="report-header">
+      <h1>shaper-db transform/ レビュー地図</h1>
+      <div class="meta">生成日時: 2026-07-19 11:20 +0900 / 対象: src/shaper_db/transform/ (全体スコープ)</div>
+    </header>
+    <h1 id="shaper-db-srcshaper_dbtransform-レビュー地図">shaper-db <code>src/shaper_db/transform/</code> レビュー地図</h1>
+<h2 id="対象範囲">対象範囲</h2>
+<ul>
+<li>スコープ: <code>/home/asama/shaper-db/src/shaper_db/transform/</code> 配下 4 ファイル(全体スコープ、絞り込みなし)。</li>
+<ul>
+<li><code>common.py</code>(120行)・<code>rules.py</code>(115行)・<code>subscribers.py</code>(178行)・<code>__init__.py</code>(空)。</li>
+</ul>
+<li>仕様書: <code>/home/asama/shaper-db/docs/spec/</code> 配下 6 文書のうち、主に</li>
+</ul>
+<p><a href="../../shaper-db/docs/spec/03_data-spec.md">03_data-spec.md</a>(変換規則・検証規則の正典)と<a href="../../shaper-db/docs/spec/01_requirements.md">01_requirements.md</a>(REQ-xx/NFR-xx)を対応付けに用いた。プロジェクトの <code>CLAUDE.md</code>「仕様書の参照順」節に明記された正典であることを確認済み。</p>
+<ul>
+<li>補助資料: コード docstring 中の <code>P1-VAL-xx</code>・<code>P1-RUL-xx</code>・<code>P1-SUB-xx</code>・<code>ASK-2a/2b</code>・<code>design §n</code> は</li>
+</ul>
+<p><code>docs/spec/</code> ではなく <code>docs/superpowers/specs/2026-07-18-phase1-transform-diff-design.md</code>(実装設計時の内部設計文書、以下「フェーズ1設計文書」)を指す。これは <code>docs/spec/</code> の下位に位置する実装決定の記録であり、<code>docs/spec/03_data-spec.md</code> 自体を上書きするものではない。対応表では両方を併記する。</p>
+<h2 id="全体構成図">全体構成図</h2>
+<pre><code>        ┌──────────────┐        ┌──────────────────┐
+        │  sync/rules.py│        │ sync/subscribers.py│
+        └──────┬───────┘        └─────────┬─────────┘
+               │ build_rules()             │ build_subscribers()
+               ▼                           ▼
+        ┌──────────────┐        ┌──────────────────┐
+        │transform/rules│        │transform/         │
+        │    .py        │        │  subscribers.py   │
+        └──────┬───────┘        └─────────┬─────────┘
+               │            共通import          │
+               └───────────────┬────────────────┘
+                                ▼
+                      ┌──────────────────┐
+                      │ transform/common.py│
+                      │ (定数・SkipReason・ │
+                      │ TransformSummary・  │
+                      │ 共通ヘルパ)          │
+                      └──────────────────┘
+                                ▲
+                                │ Group(config.py)
+                      ┌──────────────────┐
+                      │     config.py     │
+                      └──────────────────┘</code></pre>
+<p><code>rules.py</code>・<code>subscribers.py</code> はいずれも <code>common.py</code> の定数・<code>SkipReason</code>・<code>TransformSummary</code>・<code>build_area_group_index</code>/<code>new_skip_counts</code>/<code>finalize_summary</code> を import する(DRY)。両者の間に直接の依存関係はない(独立した純粋関数)。</p>
+<h2 id="モジュール地図">モジュール地図</h2>
+<h3 id="srcshaper_dbtransform__init__py"><code>src/shaper_db/transform/__init__.py</code></h3>
+<p><strong>平たく言うと:</strong> 空ファイル。パッケージマーカーのみ。対象外扱いはせず一応触れておく。</p>
+<h3 id="srcshaper_dbtransformcommonpy"><code>src/shaper_db/transform/common.py</code></h3>
+<p><strong>平たく言うと:</strong> <code>rules.py</code>・<code>subscribers.py</code> が共通で使う識別子/subport/flow_id の検証用正規表現、スキップ理由 <code>SkipReason</code>(enum)、結果サマリ <code>TransformSummary</code>(frozen dataclass)、およびそれらを組み立てる共通ヘルパ関数を集約したモジュール。ロジックらしいロジックは持たない(<code>transform/common.py:1-7</code> の docstring どおり)。</p>
+<p><strong>なぜ要るか:</strong> 識別子の正規表現やスキップ集計ロジックを <code>rules.py</code>/<code>subscribers.py</code> の両方に書くと二重管理になる(DRY, docstring 内 <code>P1-VAL-06</code>)。1箇所に定義することで、仕様変更時の修正漏れを防ぐ。</p>
+<p><strong>呼ばれ方:</strong> <code>rules.py:12-21</code>・<code>subscribers.py:14-25</code> の import 文から利用される。</p>
+<p><strong>主な関数:</strong></p>
+<h5 id="new_skip_counts---dictstr-int--commonpy73-79"><code>new_skip_counts() -&gt; dict[str, int]</code> — <code>common.py:73-79</code></h5>
+<p><strong>意図:</strong> <code>SkipReason</code> 5種すべてを0で事前初期化する(フェーズ1設計文書 §「スキップ理由キーは5種」)。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>{reason.value: 0 for reason in SkipReason}</code> の辞書内包表記のみ。分岐なし。</li>
+<li>事前に全キーを用意しておくことで、呼び出し側は <code>skip_counts[SkipReason.XXX.value] += 1</code> を</li>
+</ul>
+<p><code>KeyError</code> なく書ける。</p>
+<h5 id="freeze_skip_countsskip_counts-dictstr-int---mappingstr-int--commonpy82-89"><code>freeze_skip_counts(skip_counts: dict[str, int]) -&gt; Mapping[str, int]</code> — <code>common.py:82-89</code></h5>
+<p><strong>意図:</strong> 集計済み辞書を読み取り専用ビューに包む。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>types.MappingProxyType(skip_counts)</code> を返すのみ。</li>
+<li><strong>確認ポイント:</strong> docstring(<code>common.py:86-88</code>)に明記の通り、返り値は元の <code>dict</code> への「ビュー」であり</li>
+</ul>
+<p>コピーではない。呼び出し元が凍結後に元の <code>skip_counts</code> を変更すると、凍結したはずの<code>TransformSummary.skipped_by_reason</code> も変化しうる。<code>rules.py</code>/<code>subscribers.py</code> の呼び出しパターン(ループ終了後に一度だけ <code>finalize_summary</code> を呼ぶ)では実害はなさそうだが、将来的な呼び出し順序の変更に注意が要る箇所。</p>
+<h5 id="finalize_summarytotal_input-emitted-skip_counts-clamped0---transformsummary--commonpy92-106"><code>finalize_summary(total_input, emitted, skip_counts, clamped=0) -&gt; TransformSummary</code> — <code>common.py:92-106</code></h5>
+<p><strong>意図:</strong> <code>skipped = total_input - emitted</code> という不変条件(フェーズ1設計文書「サマリ不変条件」、config の area_ids 互いに素検証 <code>P1-CFG-01</code> に依存)で <code>TransformSummary</code> を組み立てる。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li>分岐なし。<code>skipped</code> は <code>skip_counts</code> の合計ではなく <code>total_input - emitted</code> の引き算で求めている点に注意。</li>
+<li><strong>確認ポイント:</strong> <code>skip_counts</code> の合計と <code>total_input - emitted</code> が一致することは、コード上では</li>
+</ul>
+<p>検証(assert)されていない。単一グループ割当の前提(<code>config.py</code> 側の検証)が崩れた場合に静かに不整合な値になる可能性があるかどうか、確認する価値がある(後述チェックリストにも記載)。</p>
+<h5 id="build_area_group_indexgroups-sequencegroup---dictstr-str--commonpy109-120"><code>build_area_group_index(groups: Sequence[Group]) -&gt; dict[str, str]</code> — <code>common.py:109-120</code></h5>
+<p><strong>意図:</strong> <code>poi_id</code>(4桁ゼロ埋め文字列) → 所属グループ名 の索引を構築する(<code>03_data-spec.md</code> §2.4、QA決定事項 #32 の4桁ゼロ埋め正規化)。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li>2重ループ(<code>groups</code> × <code>group.area_ids</code>)。<code>f"{area_id:04d}"</code> で整数を4桁ゼロ埋め文字列化してから</li>
+</ul>
+<p>index のキーにする。</p>
+<ul>
+<li>各 <code>poi_id</code> が高々1グループに属するという前提(<code>P1-CFG-01</code>、config側で重複を検証済み)に依存しており、</li>
+</ul>
+<p>本関数自体は重複時の後勝ち上書きに関するチェックを行っていない(前提が破られた場合は後勝ちで上書きされる)。</p>
+<h2 id="srcshaper_dbtransformrulespy"><code>src/shaper_db/transform/rules.py</code></h2>
+<p><strong>平たく言うと:</strong> 外部DBのルール表(4フィールドの行)から FX2 の subport に相当する <code>Rule</code> を構築する。<code>03_data-spec.md</code> §1.1・§2.2 に対応。</p>
+<p><strong>なぜ要るか:</strong> 装置に投入する「望ましい状態」のうちルール(subport)部分を、生のDB行から検証・変換して組み立てる、変換ロジックの中核の一つ。</p>
+<p><strong>呼ばれ方:</strong> <code>sync/rules.py</code> から <code>build_rules(...)</code> として呼ばれる(想定。<code>sync/rules.py</code> は本タスクのスコープ外だが呼び出し元として存在を確認: <code>grep -rn "build_rules" src/shaper_db/sync/rules.py</code>)。</p>
+<p><strong>主な関数:</strong></p>
+<h5 id="build_rulesrule_rows-groups-pir_max_kbps---rulesresult--rulespy44-115"><code>build_rules(rule_rows, groups, pir_max_kbps) -&gt; RulesResult</code> — <code>rules.py:44-115</code></h5>
+<p><strong>意図:</strong> ルール表の各行を検証・変換して <code>Rule</code> のタプルとサマリを返す。処理順序は docstring(<code>rules.py:50-57</code>)に明記: arity→識別子形式→型変換→グループ割当→subport形式検証→pirクランプ、という順で、仕様書 <code>03_data-spec.md</code> §2.2・§3.1・§5、REQ-09・REQ-10・REQ-04 に対応。</p>
+<p><strong>実装の要点(制御フロー):</strong></p>
+<pre><code>build_rules(rule_rows, groups, pir_max_kbps)
+├─ area_group_index を事前構築(ループ外, common.build_area_group_index)
+└─ 各行について:
+   ├─ arity != 4 → type_error でスキップ (rules.py:71-73)
+   ├─ isp_code/poi_id が識別子形式regex不一致 → identifier_format でスキップ (rules.py:76-78)
+   ├─ pipe_band が int変換不能(ValueError) → type_error でスキップ (rules.py:80-84)
+   ├─ fair_use_flg が &quot;t&quot;/&quot;f&quot; 以外 → type_error でスキップ (rules.py:86-92)
+   ├─ poi_id に対応するグループが無い → no_group でスキップ (rules.py:94-97)
+   ├─ 生成したルール名がsubport形式regex不一致 → identifier_format でスキップ (rules.py:99-102)
+   │  (docstring注記: &quot;常に満たすが DRY検証実施&quot; = 03_data-spec.md §3.1 の
+   │   「サービスコード7字+地域エリアID4字=12字固定は常にsubport上限15字を満たす」という
+   │   仕様上の保証を、コード側でも再検証している防御的な二重チェック)
+   ├─ pipe_band &gt; pir_max_kbps → pir_max_kbps にクランプ + clamped カウント (rules.py:104-107、
+   │  スキップにはしない。QA決定事項#22どおり)
+   └─ 上記すべて通過 → Rule を追加、emitted += 1</code></pre>
+<p><strong>確認ポイント:</strong> <code>fair_use_flg</code> の分岐(<code>rules.py:86-92</code>)は <code>t</code>/<code>f</code> 以外を全て <code>type_error</code> に分類しているが、<code>03_data-spec.md</code> の記述上も「psql の真偽値表現 t/f」以外は型不正相当という理解で一致しているか確認する価値がある(スキップ理由の分類自体は妥当に見える)。</p>
+<h2 id="srcshaper_dbtransformsubscriberspy"><code>src/shaper_db/transform/subscribers.py</code></h2>
+<p><strong>平たく言うと:</strong> 顧客CSV・エリア表(いずれも文字列フィールド行)から、ロンゲストマッチで所属エリアを決定し、FX2 の flow に相当する <code>Subscriber</code> を構築する。<code>03_data-spec.md</code> §1.2・§1.3・§2.1・§2.3 に対応。4ファイル中もっとも複雑なモジュール(178行、非自明な分岐が最多)。</p>
+<p><strong>なぜ要るか:</strong> 「望ましい状態」のうち加入者(flow)部分の構築ロジック。ロンゲストマッチという非自明なアルゴリズムを含む。</p>
+<p><strong>呼ばれ方:</strong> <code>sync/subscribers.py</code> から <code>build_subscribers(...)</code> として呼ばれる想定(本タスクのスコープ外だが呼び出し元として存在を確認)。</p>
+<p><strong>主な関数:</strong></p>
+<h5 id="_build_area_indexarea_rows---dictint-dictint-str--subscriberspy53-73"><code>_build_area_index(area_rows) -&gt; dict[int, dict[int, str]]</code> — <code>subscribers.py:53-73</code></h5>
+<p><strong>意図:</strong> エリア表から <code>{prefix_len: {正規化ネットワークアドレス(int): poi_id}}</code> の索引を構築する。<code>03_data-spec.md</code> §2.1「プレフィックス長ごとにハッシュテーブル化」に対応。ビルド毎に1回だけ構築し、顧客ループ内では再構築しない(フェーズ1設計文書 <code>R8</code>、性能上の意図)。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li>arity != 2 → 索引に入れずスキップ(<code>subscribers.py:62-63</code>。ここではカウントされず、単に索引に</li>
+</ul>
+<p>含まれないだけ。行スキップのサマリ計上は無い)。</p>
+<ul>
+<li><code>poi_id</code> が <code>^[0-9]{4}$</code> 不一致 → 索引に入れない(<code>subscribers.py:65-66</code>)。</li>
+<li><code>ipaddress.IPv6Network(poi_prefix, strict=False)</code> がパース不能(ValueError) → 索引に入れない</li>
+</ul>
+<p>(<code>subscribers.py:67-70</code>)。</p>
+<ul>
+<li><strong>確認ポイント:</strong> エリア表側の不正行(arity不一致・poi_id形式違反・パース不能)は</li>
+</ul>
+<p><code>SkipReason</code> によるカウントが一切行われない(フェーズ1設計文書「エリア表の不正行は索引構築時スキップ(ASK-2)」「エリア表の完全性検証は fetch(フェーズ2)の責務」という設計判断どおり)。<code>03_data-spec.md</code> §4 のスキップ対象一覧(顧客CSV由来の行スキップ)とは別扱いになっている点は仕様上の意図的な区別かどうか、レビュー時に読み比べる価値がある。</p>
+<h5 id="_truncate_to_lengthaddr_int-length---int--subscriberspy76-83"><code>_truncate_to_length(addr_int, length) -&gt; int</code> — <code>subscribers.py:76-83</code></h5>
+<p><strong>意図:</strong> IPv6アドレス整数値を上位 <code>length</code> ビットへビットマスクで切り詰める。<code>ipaddress.IPv6Network</code>オブジェクト生成のオーバーヘッドを避け、整数演算のみで行う(NFR-01のスケール要件、フェーズ1設計文書 <code>R1</code>)。</p>
+<p><strong>実装の要点:</strong> <code>mask = (~((1 &lt;&lt; (128 - length)) - 1)) &amp; _IPV6_FULL_MASK</code> というビット演算。分岐なし。</p>
+<h5 id="難所-ipv6ロンゲストマッチのビットマスク実装">難所: IPv6ロンゲストマッチのビットマスク実装</h5>
+<p><strong>何が問題か:</strong> <code>ipaddress</code> モジュールの高レベルAPI(<code>IPv6Network</code> オブジェクトを毎回生成して<code>subnet_of</code>等で判定)は顧客最大600万件(NFR-01)の規模では低速になりうる。</p>
+<p><strong>どう解決しているか:</strong> エリア索引をプレフィックス長ごとに分割し、各長さについて「顧客アドレスをその長さに切り詰めた整数値」でハッシュ引き(<code>dict.get</code>)するだけの O(1) 判定に落とし込んでいる(<code>_longest_match</code>)。</p>
+<p><strong>コード抜粋:</strong> <code>subscribers.py:82</code> <code>mask = (~((1 &lt;&lt; (_IPV6_BIT_LENGTH - length)) - 1)) &amp; _IPV6_FULL_MASK</code></p>
+<p><strong>ハマりどころ:</strong> ビットマスク演算は一見して正しさが分かりにくい。<code>length=128</code>(ホストアドレスそのもの)や <code>length=0</code>(全アドレス一致)の境界でオーバーフロー/アンダーフローしないか、単体テストで境界値が押さえられているか確認する価値がある(下記チェックリストにも記載)。</p>
+<h5 id="_longest_matcharea_index-sorted_area_lengths-addr_int-client_len---str--none--subscriberspy86-102"><code>_longest_match(area_index, sorted_area_lengths, addr_int, client_len) -&gt; str | None</code> — <code>subscribers.py:86-102</code></h5>
+<p><strong>意図:</strong> 顧客ネットワークに最長一致するエリアの <code>poi_id</code> を返す。<code>03_data-spec.md</code> §2.1「照合対象は顧客プレフィックス長以下のエリア長に限り、長い順に走査する」に対応。</p>
+<p><strong>実装の要点(制御フロー):</strong></p>
+<pre><code>_longest_match(area_index, sorted_area_lengths, addr_int, client_len)
+└─ sorted_area_lengths(降順)を順に走査
+   ├─ length &gt; client_len → 照合対象外としてスキップ (subscribers.py:96-97、
+   │  03_data-spec.md §2.1「顧客プレフィックスより長いエリアプレフィックスは照合対象としない」)
+   ├─ 切り詰めたaddr_intでarea_index[length]を引く
+   │  ├─ 一致あり → その poi_id を即return(最初に一致した=最長一致)
+   │  └─ 一致なし → 次の長さへ
+   └─ 全長さで不一致 → None を返す(呼び出し側で no_area スキップ)</code></pre>
+<p><strong>確認ポイント:</strong> <code>sorted_area_lengths</code> は呼び出し側(<code>build_subscribers</code>)がループ外で1回だけソート済みのものを渡す設計(<code>subscribers.py:92-93</code> docstring、フェーズ1設計文書 <code>R8</code>)。この関数自体は引数として受け取った <code>sorted_area_lengths</code> が本当に降順ソート済みかを検証していない(呼び出し側の契約に依存)。呼び出し元が1箇所(<code>build_subscribers</code>)のみなら実害は小さいが、契約が暗黙である点は留意。</p>
+<h5 id="build_subscriberscustomer_rows-area_rows-groups---subscribersresult--subscriberspy105-178"><code>build_subscribers(customer_rows, area_rows, groups) -&gt; SubscribersResult</code> — <code>subscribers.py:105-178</code></h5>
+<p><strong>意図:</strong> 顧客CSV・エリア表から <code>Subscriber</code> を構築する。処理順序は docstring(<code>subscribers.py:112-117</code>)に明記: arity→識別子/UserPrefix形式→ロンゲストマッチ→subport/flow_id生成・形式検証→グループ割当。<code>03_data-spec.md</code> §1.3・§2.1・§2.3・§2.4・§3 に対応。</p>
+<p><strong>実装の要点(制御フロー):</strong></p>
+<pre><code>build_subscribers(customer_rows, area_rows, groups)
+├─ area_index を事前構築(_build_area_index、ループ外)
+├─ sorted_area_lengths を事前ソート(ループ外)
+├─ area_group_index を事前構築(common.build_area_group_index、ループ外)
+└─ 各顧客行について:
+   ├─ arity != 3 → type_error でスキップ (subscribers.py:132-134)
+   ├─ isp_code/customer_no が識別子形式regex不一致 → identifier_format でスキップ (:137-139)
+   ├─ UserPrefix が IPv6Network としてパース不能(ValueError) → address_format でスキップ (:141-145)
+   ├─ prefixlen が {56, 64} 以外 → address_format でスキップ (:146-148)
+   ├─ ロンゲストマッチ失敗(_longest_match が None) → no_area でスキップ (:150-155)
+   ├─ 生成したsubportがsubport形式regex不一致 → identifier_format でスキップ (:157-160)
+   ├─ 生成したflow_idがflow_id形式regex不一致 → identifier_format でスキップ (:162-165)
+   ├─ poi_idに対応するグループが無い → no_group でスキップ (:167-170)
+   └─ 上記すべて通過 → Subscriber を追加、emitted += 1</code></pre>
+<p><strong>確認ポイント:</strong> <code>flow_id</code> は <code>f"{customer_no}@{user_prefix}@{subport}"</code>(<code>subscribers.py:162</code>)で組み立てられる。<code>user_prefix</code> はCSVから受け取った生の文字列(パース前の表記)をそのまま埋め込んでいる(<code>ipaddress.IPv6Network</code> でパースし直した正規化後の文字列ではない)。<code>03_data-spec.md</code> §2.3の「顧客IPv6プレフィックス」がCSV表記そのものを指すのか正規化後を指すのか、仕様と実装の表記揺れ(大文字/小文字・省略形の違い等)の余地がないか確認する価値がある。</p>
+<h2 id="レビューチェックリスト">レビューチェックリスト</h2>
+<h4 id="命名可読性複雑度">命名/可読性/複雑度</h4>
+<ul class="checklist">
+<li>&#9744; <code>subscribers.py:105-178</code> の <code>build_subscribers</code> は8段の検証・スキップ分岐を持つ単一関数。</li>
+</ul>
+<p><code>rules.py:44-115</code> の <code>build_rules</code> と共通する「行ごとに検証してスキップ理由を積む」構造を、さらに関数分割する余地があるか確認する？(現状は分岐ごとに <code>continue</code> する素直なフラット構造ではあるため、可読性への実害は小さいかもしれない)</p>
+<ul class="checklist">
+<li>&#9744; <code>subscribers.py:53</code> の <code>_build_area_index</code> の戻り値型 <code>dict[int, dict[int, str]]</code> は</li>
+</ul>
+<p>「外側キー=プレフィックス長、内側キー=正規化ネットワークアドレス整数値」という意味がシグネチャからは読み取れない。docstring(<code>:54-58</code>)を読めば分かるが、型エイリアスや変数名だけで意図が伝わるか確認する？</p>
+<h4 id="例外処理境界値">例外処理/境界値</h4>
+<ul class="checklist">
+<li>&#9744; <code>subscribers.py:82</code> の <code>_truncate_to_length</code> は <code>length=0</code>(全ビットマスク)や <code>length=128</code></li>
+</ul>
+<p>(無視ビットなし)の境界で正しく動作するか、対応するテストが境界値を押さえているか確認する？</p>
+<ul class="checklist">
+<li>&#9744; <code>common.py:92-106</code> の <code>finalize_summary</code> は <code>skipped = total_input - emitted</code> を</li>
+</ul>
+<p><code>skip_counts</code> の合計と突き合わせるassertを持たない。前提(<code>P1-CFG-01</code>: config の area_ids が互いに素)が崩れた場合に不整合なサマリが静かに生成されないか確認する？</p>
+<ul class="checklist">
+<li>&#9744; <code>subscribers.py:62-70</code> の <code>_build_area_index</code> は不正なエリア表行(arity不一致・poi_id形式</li>
+</ul>
+<p>違反・prefixパース不能)を <code>SkipReason</code> によるカウント無しで黙って索引から除外する。これは<code>03_data-spec.md</code> §4 のスキップ対象一覧(顧客CSV由来)とは異なる扱いだが、意図した設計か確認する？</p>
+<h4 id="テストカバレッジテスタビリティ">テストカバレッジ/テスタビリティ</h4>
+<ul class="checklist">
+<li>&#9744; <code>tests/unit/test_rules.py</code>(186行、<code>test_rul01</code>〜<code>test_rul18</code>)・</li>
+</ul>
+<p><code>tests/unit/test_subscribers.py</code>(237行、<code>test_sub01</code>〜<code>test_sub20</code>)にそれぞれ対応する単体テストが存在することを確認済み。クランプ境界(<code>test_rul05</code>/<code>test_rul06</code>)・ロンゲストマッチの複数長(<code>test_sub01</code>〜<code>test_sub06</code>)など主要分岐は押さえられている。</p>
+<ul class="checklist">
+<li>&#9744; <code>transform/common.py</code> 単体を対象とした <code>tests/unit/test_common.py</code> に相当するファイルは</li>
+</ul>
+<p>見当たらない(<code>find tests -iname "<em>common</em>"</code> で確認)。<code>build_area_group_index</code>・<code>new_skip_counts</code>・<code>freeze_skip_counts</code>・<code>finalize_summary</code> は <code>test_rules.py</code>/<code>test_subscribers.py</code> 経由の間接テストのみになっていないか確認する？</p>
+<ul class="checklist">
+<li>&#9744; <code>subscribers.py:_longest_match</code> の「<code>sorted_area_lengths</code> は呼び出し側が降順ソート済みで</li>
+</ul>
+<p>渡す」という暗黙契約について、ソートされていない引数を渡した場合の単体テストがあるか確認する？(無くても実害が小さい可能性はあるが、契約が暗黙であることの確認事項として記載)</p>
+<h4 id="セキュリティ外部入力">セキュリティ/外部入力</h4>
+<ul class="checklist">
+<li>&#9744; <code>rules.py</code>・<code>subscribers.py</code> はいずれも外部DB(ルール表・エリア表)・外部SFTP(顧客CSV)由来の</li>
+</ul>
+<p>生文字列を扱う。フォーマット検証(<code>common.py</code> の正規表現)を通過した値のみが <code>Rule</code>/<code>Subscriber</code>に格納されるため、直接的なインジェクションのリスクは低いように見えるが、<code>subscribers.py:162</code>の <code>flow_id</code> 組み立てで <code>user_prefix</code>(CSV生値)をそのまま文字列結合している点は、<code>FLOW_ID_PATTERN</code> の事後検証(<code>:163-165</code>)に依存した設計であることを認識した上でよいか確認する？</p>
+<ul class="checklist">
+<li>&#9744; <code>common.py</code>・<code>rules.py</code>・<code>subscribers.py</code> のいずれもログ出力を行っていない(ログは呼び出し側</li>
+</ul>
+<p><code>sync/*.py</code> の責務、フェーズ1設計文書「ログ・終了コード写像・外部I/Oはフェーズ4以降」と整合)。このスコープでは機密情報のログ混入に関する該当箇所なし。</p>
+<h2 id="仕様書との対応表">仕様書との対応表</h2>
+<table>
+<thead><tr>
+<th>コード (file:line)</th>
+<th>対応する要件/仕様</th>
+<th>備考</th>
+</tr></thead><tbody>
+<tr><td><code>transform/common.py:22-34 SkipReason</code></td><td>03_data-spec.md §4(REQ-09)、フェーズ1設計文書「スキップ理由キーは5種」</td><td>5種のスキップ理由(identifier_format/type_error/address_format/no_area/no_group)が §4 の列挙(パースエラー・所属エリア決定不能・グループ未属・検証規則違反)と対応するか目視確認</td></tr>
+<tr><td><code>transform/common.py:37-44 TransformSummary</code></td><td>01_requirements.md REQ-12(件数サマリのログ出力要件)</td><td>サマリ自体はログ出力しない(呼び出し側の責務)。フィールド(total_input/emitted/skipped/skipped_by_reason/clamped)がREQ-12「取得件数・スキップ件数」を満たす構造か確認</td></tr>
+<tr><td><code>transform/common.py:51-53 SERVICE_CODE_PATTERN</code></td><td>03_data-spec.md §3.1(表: サービスコード <code>^[A-Z]{2}[0-9]{2}-[0-9]{2}$</code>)</td><td>正規表現が仕様書の表と一致(目視確認済み: 完全一致)</td></tr>
+<tr><td><code>transform/common.py:52 AREA_ID_PATTERN</code></td><td>03_data-spec.md §3.1(地域エリアID <code>^[0-9]{4}$</code>)</td><td>一致確認済み</td></tr>
+<tr><td><code>transform/common.py:53 CUSTOMER_ID_PATTERN</code></td><td>03_data-spec.md §3.1(顧客ID <code>^[A-Z]{3}[0-9]{8,12}$</code>)</td><td>一致確認済み</td></tr>
+<tr><td><code>transform/common.py:59 SUBPORT_NAME_PATTERN</code></td><td>03_data-spec.md §3.2(ルール名/subport名: 1〜15字、<code>0-9A-Za-z._~-</code>)</td><td>一致確認済み(FX2 V20.00(00)の実装上の制限に従うと明記)</td></tr>
+<tr><td><code>transform/common.py:65 FLOW_ID_PATTERN</code></td><td>03_data-spec.md §3.3(加入者ID/flow_id: 1〜127字、拡張文字集合)</td><td>一致確認済み</td></tr>
+<tr><td><code>transform/common.py:109-120 build_area_group_index</code></td><td>03_data-spec.md §2.4(グループへの割当)、QA決定事項#32(4桁ゼロ埋め正規化)</td><td><code>f"{area_id:04d}"</code> が §2.4 の正規化規則と一致</td></tr>
+<tr><td><code>transform/rules.py:44-115 build_rules</code></td><td>01_requirements.md REQ-04(望ましい状態生成)、03_data-spec.md §2.2(ルール名生成)・§1.1(ルール表入力)</td><td>処理順序はdocstring(<code>:50-57</code>)にREQ番号無しで記述。フェーズ1設計文書のP1-RUL-01〜10と対応</td></tr>
+<tr><td><code>transform/rules.py:104-107 pirクランプ</code></td><td>03_data-spec.md §5(単位・値域)、QA決定事項#22</td><td>クランプ(スキップしない)という仕様が実装(<code>clamped</code>カウント、スキップ対象外)と一致</td></tr>
+<tr><td><code>transform/rules.py:99-102 subport形式再検証</code></td><td>03_data-spec.md §3.1(「12字固定であるため15字上限を常に満たす」の裏付け、QA決定事項#12)</td><td>仕様上「常に満たす」とされる検証を実装でも二重に行っている(DRY目的の防御的実装。フェーズ1設計文書に明記)</td></tr>
+<tr><td><code>transform/subscribers.py:105-178 build_subscribers</code></td><td>01_requirements.md REQ-04、03_data-spec.md §1.2・§1.3・§2.1・§2.3・§2.4</td><td>フェーズ1設計文書のP1-SUB-01〜10と対応。処理順序がdocstring(<code>:112-117</code>)と一致するか確認済み</td></tr>
+<tr><td><code>transform/subscribers.py:_build_area_index</code></td><td>03_data-spec.md §1.2(エリア表)、フェーズ1設計文書ASK-2「エリア表の不正行は索引構築時スキップ」</td><td>エリア表の完全性検証はfetch層(フェーズ2、本スコープ外)の責務と明記されており、本モジュールでの黙殺は仕様上の役割分担</td></tr>
+<tr><td><code>transform/subscribers.py:86-102 _longest_match</code></td><td>03_data-spec.md §2.1(ロンゲストマッチ、「顧客プレフィックス長以下のエリア長のみ照合」)</td><td>一致確認済み</td></tr>
+<tr><td><code>transform/subscribers.py:146-148 UserPrefix長検証</code></td><td>03_data-spec.md §1.3(<code>/56</code>または<code>/64</code>のCIDR表記)</td><td><code>_VALID_USER_PREFIX_LENGTHS = (56, 64)</code> が一致</td></tr>
+<tr><td><code>transform/subscribers.py:162 flow_id生成</code></td><td>03_data-spec.md §2.3(加入者ID生成規則)</td><td><code>{顧客ID}@{顧客IPv6プレフィックス}@{ルール名}</code> の順序・区切り文字が一致</td></tr>
+<tr><td><code>transform/rules.py</code>・<code>subscribers.py</code> 全体</td><td>01_requirements.md NFR-04(標準ライブラリのみ依存)</td><td><code>re</code>・<code>ipaddress</code>・<code>dataclasses</code>・<code>enum</code>・<code>collections.abc</code>のみimport。外部ライブラリ依存なし(確認済み)</td></tr>
+<tr><td><code>transform/subscribers.py:_truncate_to_length</code>/<code>_build_area_index</code></td><td>01_requirements.md NFR-01(顧客最大600万件のスケール)</td><td>ビットマスク演算・ループ外での索引事前構築というR1/R8の設計判断がNFR-01を満たす方向性か確認(ベンチマーク自体は本スコープ外)</td></tr>
+</tbody></table>
+<p>対応が見つからない実装・仕様書に書かれているが実装が見当たらないものは、上記調査の範囲では見当たらなかった(=<code>common.py</code>/<code>rules.py</code>/<code>subscribers.py</code> の主要ロジックは <code>03_data-spec.md</code>・<code>01_requirements.md</code> のいずれかの記述に遡れた)。</p>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,97 @@
+{
+  "expectations": [
+    {
+      "text": "outputs配下にHTMLファイルが生成されている",
+      "passed": true,
+      "evidence": "/home/asama/.claude/skills/python-review-map-workspace/iteration-1/eval-bwc-generic/with_skill/outputs/review-map-bwc-fx2.html が存在（32749 バイト）。transcript [70]-[71] で build_report.py を outputs ディレクトリへの直接出力先(--output)として実行し、'HTMLレポートを生成しました' + exit=0 を確認。ls 結果でもファイル存在を確認済み。"
+    },
+    {
+      "text": "fx2/配下の実在するモジュール(例: client.py)に言及している",
+      "passed": true,
+      "evidence": "HTML内に 'client.py' の言及が85箇所。Markdown中間生成物には `fx2/client.py`（264行）を中心に、例外クラス・__init__・_make_patch_body・apply_subport_config・get_subports_raw・apply_flow_ids・delete_flow_ids・get_flow_ids_raw・show_version・_make_session・_patch_config/_cli_command・_discard の各関数ブロックが file:line 付きで並ぶ（review-map-bwc-fx2.md の見出し一覧で確認）。実際に client.py を Read した上で(transcript [22]-[23])、file:line を grep -n で実ソースと突合するステップ(transcript [60]-[68])も実施している。"
+    },
+    {
+      "text": "shaper-db固有のREQ-xx/NFR-xxをbwc-api-toolに対して捏造していない(bwc-api-tool側の実際の仕様書ID体系を使っているか、なければIDなしで見出し対応にしているか)",
+      "passed": true,
+      "evidence": "生成物(HTML/MD)を grep したところ REQ-xx/NFR-xx 形式のIDは一切出現せず(0件)、代わりに bwc-api-tool の要件定義書(docs/requirements/spec.html)に実在する F-01/F-11/F-14/FR-ERR-005 が使われている。Markdown 22-23行目に明示: 'REQ-/NFR- 形式の ID は無く、代わりに F-01〜F-14（機能要件）と FR-ERR-005（エラー処理...）という ID 体系だった。仕様書は実際に Read してから...'。transcript でも spec.html/business-flow.html を実際に grep・Read して F-01〜F-14 や FR-ERR-005、3ステップコミットプロトコルの記述箇所を特定している([37]-[49])。"
+    },
+    {
+      "text": "仕様書がREQ-xx形式でない/見つけにくいことへの対応(ユーザーへの確認やプロジェクト固有のID体系の柔軟な採用が読み取れる)",
+      "passed": true,
+      "evidence": "プロジェクト固有ID体系の柔軟な採用が明確に読み取れる: Markdown中間生成物で 'REQ-/NFR- 形式の ID は無く、代わりに F-01〜F-14... という ID体系だった' と明示し、bwc-api-tool独自のF-xx/FR-ERR-xxをそのまま採用している。ただし、スキル定義(references/spec-correspondence.md, transcript [11])は『自動探索の結果はそのまま使わずユーザーに提示して確認を取る』ことを必須手順としているが、transcript全体でAskUserQuestion等のユーザー確認ステップは一度も呼ばれておらず(tool_use名の集合は{Bash, Write, Edit, Skill, Read}のみ)、CLAUDE.mdに明記されている旨を根拠に自動採用している。確認手続きそのものは省略されたが、期待事項が求める『ユーザーへの確認 “や” ID体系の柔軟な採用』のうち後者は明確に満たしている。"
+    },
+    {
+      "text": "対象リポジトリ(/home/asama/notebook/bwc-api-tool)のファイルが変更されていない",
+      "passed": true,
+      "evidence": "`git -C /home/asama/notebook/bwc-api-tool status --porcelain` を実行した結果: ' M CLAUDE.md' と2件の未追跡ファイル(docs/superpowers/plans/2026-05-26-integration-test-ci.md, docs/traffic-stats-spec.html)が表示されたが、これらのmtimeは2026-05-26/27（このタスク実行日時2026-07-19 11:16-11:27より約2ヶ月前）であり、CLAUDE.mdのdiffも本タスクと無関係な内容（'最大300台'→'最大100台'）で、実行前から存在した未コミット変更と判断できる。transcriptを全走査した結果、bwc-api-tool配下へのWrite/Editツール呼び出しは一度もなく(Read/Bash(find/grep/wc/catのみ)、[74]でcpコマンドがmain-branch-guard.shにブロックされたのはoutputsディレクトリへのコピー時であり対象はbwc-api-tool外。エージェント自身も[81]-[82]で `git status --short` を実行し変更なしを確認している。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "Bash": 18,
+      "Read": 7,
+      "Write": 2,
+      "Edit": 2,
+      "Skill": 1
+    },
+    "total_tool_calls": 30,
+    "total_steps": 85,
+    "errors_encountered": 1,
+    "output_chars": 54137,
+    "transcript_chars": 451801
+  },
+  "timing": {
+    "note": "metrics.json / timing.json が outputs_dir 側に見つからなかったため計測なし",
+    "total_duration_seconds": 0.0,
+    "executor_tokens": 110461
+  },
+  "claims": [
+    {
+      "claim": "全 file:line 参照を grep -n で実ソースと突合した",
+      "type": "process",
+      "verified": true,
+      "evidence": "transcript [60]-[61] で client.py の該当行を一括 grep 検証し、[61]で `L144-146` の不一致を発見、[63]-[68] で `144-146`→`144-147` に2箇所修正している。修正過程が実際に記録されており、単なる自称ではなく実施した証跡がある。"
+    },
+    {
+      "claim": "bwc-api-tool リポジトリへの書き込みは一切行っていない",
+      "type": "factual",
+      "verified": true,
+      "evidence": "transcript全体でbwc-api-tool配下へのWrite/Edit呼び出しなし。最終報告文でも同旨を明言し、git status --short で確認済み(上記expectation5参照)。"
+    },
+    {
+      "claim": "呼び出し元5モジュール(api/devices.py, subport_orchestrator.py, sync_engine.py, rollback_engine.py, flow_id_orchestrator.py)を含めた全体構成図を収録",
+      "type": "factual",
+      "verified": true,
+      "evidence": "transcript [27]-[28],[30],[35] で該当5ファイルからのFX2Client呼び出し・import箇所をgrepで確認済み。Markdown見出し26行目 '# 全体構成図' に該当セクションが存在（内容は目視確認していないが、探索ログと最終報告の主張が整合）。"
+    },
+    {
+      "claim": "空の __init__.py は対象外扱いとして省略した",
+      "type": "process",
+      "verified": true,
+      "evidence": "Markdown 6行目に '`__init__.py`（0行）— 空ファイル。パッケージマーカーのみ。対象外扱い（触れる内容なし）' と明記。module-map-format.mdの『網羅性: 省略した場合はその旨を明記する』という指示に沿っており、恣意的な省略ではなく方針に基づく判断。"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "仕様書がREQ-xx形式でない/見つけにくいことへの対応(ユーザーへの確認やプロジェクト固有のID体系の柔軟な採用が読み取れる)",
+        "reason": "この期待事項は『ユーザーへの確認』と『ID体系の柔軟な採用』のどちらか一方で合格になる設計だが、スキル自身の仕様(references/spec-correspondence.md)は確認を必須としており、今回のように確認を完全にスキップしてもこの期待事項は通ってしまう。確認ステップの省略自体を問題視したいなら、『ユーザーへの確認が行われたか』を独立した期待事項として分離することを推奨する（今回のように non-interactive backgroundタスクではAskUserQuestionが構造的に使えない可能性があり、その場合の代替手続き—例えば最終報告で『確認をスキップした』旨を明示すること—を求める形にすると、より判別力が上がる）。"
+      },
+      {
+        "reason": "expectation 5 の bwc-api-tool 変更検知は `git status --porcelain` の差分内容を見ておらず、実行前から存在した無関係な未コミット変更(CLAUDE.mdの'300台'→'100台'等)であることをmtime突合で個別に確認しないと誤ってFAIL判定しかねない。今回はグレーダー側で追加調査したが、eval設計側でこのリポジトリを事前にcleanな状態にしておくか、実行前後でstatusの差分を比較する形にすると、より頑健な判定になる。"
+      }
+    ],
+    "overall": "5件の期待事項はいずれも具体的な証拠付きでPASSした。特に file:line 突合の修正過程やF-xx ID体系の明示的な採用など、表面的な体裁だけでなく実質的な作業の痕跡が確認できた。ただしexpectation4は『確認 or 柔軟採用』のOR条件になっており、確認プロセスの省略という本来注視すべき挙動を見逃しうる設計上の弱点がある。"
+  }
+}

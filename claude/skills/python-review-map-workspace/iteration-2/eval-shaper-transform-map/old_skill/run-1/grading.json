@@ -1,0 +1,132 @@
+{
+  "note": "transcriptなし(old_skill/run-1配下にtranscript本体のmdファイルは存在せず、grading.json・timing.jsonのみ)。旧採点時のgrading.json(2026-07-19 13:37付)を補助情報として参照しつつ、判定はoutputs_dir配下の実ファイル(review-map-transform.html/.md)をReadした内容にもとづく。新基準(callgraph可視化・変数一覧・docs/codemap出力先)は旧バージョンのスキルが生成した成果物には存在しないことが予想される項目であり、実際に不在を確認した。",
+  "expectations": [
+    {
+      "text": "docs/codemap/配下にHTMLファイルが生成されている(リポジトリ直下やcwdではない)",
+      "passed": false,
+      "evidence": "outputs_dir配下のファイル構成(review-map-transform.html/.md がフラットに置かれている)からは実際の書き込み先パスは判定できない。旧採点時のgrading.json(claims欄)には『main-branch-guardフックによりBashでのcp/リダイレクトがブロックされたため、最終成果物はWriteツールでoutputs配下に再作成した』とあり、docs/codemap/への言及は無い。加えて成果物本文(HTML/MD)を実際にgrepしたが『codemap』という文字列は0件で、出力先や設計方針としてdocs/codemap/を想定している記述も見当たらない。これは旧版が『別の場所に出力する設計だった』という前提と整合する。出力先パスを積極的に確認する材料が無いためFAILとする。"
+    },
+    {
+      "text": "transform/配下の3モジュール(common.py, rules.py, subscribers.py)すべてに言及している",
+      "passed": true,
+      "evidence": "HTMLに3モジュールそれぞれの見出しセクションが存在する: h3 id=\"srcshaper_dbtransformcommonpy\" (`common.py`, 202行目)、h2 id=\"srcshaper_dbtransformrulespy\" (`rules.py`, 242行目)、h2 id=\"srcshaper_dbtransformsubscriberspy\" (`subscribers.py`, 266行目)。各セクションに平たく言うと/なぜ要るか/呼ばれ方および主な関数の解説がある。"
+    },
+    {
+      "text": "モジュール地図のセクションがある(平たく言うと/なぜ要るか等のテンプレ language)",
+      "passed": true,
+      "evidence": "h2 id=\"モジュール地図\"(199行目)配下に、common.py/rules.py/subscribers.pyそれぞれで<strong>平たく言うと:</strong>・<strong>なぜ要るか:</strong>・<strong>呼ばれ方:</strong>のテンプレ見出しが揃っている(例: 203-205行目のcommon.py節)。"
+    },
+    {
+      "text": "レビューチェックリストの4カテゴリ(命名/可読性/複雑度、例外処理/境界値、テストカバレッジ/テスタビリティ、セキュリティ/外部入力)がすべて見出しとして存在する",
+      "passed": true,
+      "evidence": "h4見出しとして4件確認: '命名/可読性/複雑度'(326行目)・'例外処理/境界値'(335行目)・'テストカバレッジ/テスタビリティ'(348行目)・'セキュリティ/外部入力'(361行目)。全てh2'レビューチェックリスト'(325行目)の直下に並ぶ。"
+    },
+    {
+      "text": "仕様書との対応表があり、REQ-またはNFR-のIDを含んでいる",
+      "passed": true,
+      "evidence": "h2'仕様書との対応表'(370行目)配下に14行の表(コードfile:line/対応する要件仕様/備考の3列)があり、REQ-04・REQ-09・REQ-12・REQ-10・NFR-04・NFR-01を含む(377-394行目)。"
+    },
+    {
+      "text": "非自明な関数について意図(docstring/仕様)と実装の要点を並記している箇所が少なくとも1つある",
+      "passed": true,
+      "evidence": "<strong>意図:</strong>/<strong>実装の要点:</strong>の組がHTML全体で計18回出現(grep確認)。例えばnew_skip_counts(207-214行目)・finalize_summary(223-230行目)・_longest_match(295-306行目)・build_subscribers(307-324行目)など複数の非自明関数で並記されている。"
+    },
+    {
+      "text": "callgraphによるインタラクティブなSVG可視化(application/jsonのグラフデータ)が少なくとも1つ埋め込まれている",
+      "passed": false,
+      "evidence": "HTML/MD双方に対してgrep -i 'callgraph|application/json|svg' を実行したが0件。可視化はテキストのASCIIアート(全体構成図、175-197行目)と制御フローの箇条書き(例: build_rulesの250-264行目)のみで、SVGやapplication/jsonのグラフデータは埋め込まれていない。新基準で追加された項目であり、旧版スキルには実装されていないことが確認できた。"
+    },
+    {
+      "text": "変数一覧のセクション(モジュール定数からローカル変数まで)がある",
+      "passed": false,
+      "evidence": "HTML/MD双方に対してgrep -i '変数一覧|モジュール定数|グローバル変数|ローカル変数' を実行したが0件。目次(nav.toc, 144-153行目)にも該当セクションへのリンクは無く、本文の見出し構成(対象範囲/全体構成図/モジュール地図/レビューチェックリスト/仕様書との対応表)にも変数一覧に相当するセクションは存在しない。新基準で追加された項目であり、旧版には無い。"
+    },
+    {
+      "text": "通常のコードブロックに素のコードだけでなく説明文が伴っている(比例原則の範囲で)",
+      "passed": true,
+      "evidence": "全てのコードブロック(<pre><code>)に直後の説明段落が伴う。全体構成図(175-197行目)の直後に依存関係の説明(198行目)、build_rulesの制御フロー図(250-264行目)の直後に'確認ポイント'段落(265行目)、_longest_matchの制御フロー図(298-305行目)の直後に確認ポイント(306行目)、build_subscribersの制御フロー図(310-323行目)の直後に確認ポイント(324行目)がある。素のコードのみで放置されているブロックは見当たらない。"
+    },
+    {
+      "text": "非公開ヘルパ関数の呼び出し元が明記されており、複数の公開関数が並列にあるモジュールで誤帰属を招く記述がない",
+      "passed": true,
+      "evidence": "実ソースを確認したところ、subscribers.pyの非公開ヘルパ(_build_area_index, _truncate_to_length, _longest_match)に対し公開関数はbuild_subscribers 1つのみ(grep '^def '結果: rules.pyもbuild_rules 1つのみ)であり、そもそも『複数の公開関数が並列にあり誤帰属しうる』状況自体がこのコードベースには存在しない。その上でHTMLの記述を見ると、build_subscribersの制御フロー図(310-323行目)内で『_longest_match が None → no_area でスキップ』(319行目)と明記され、_build_area_index/_truncate_to_lengthも同じbuild_subscribers節の解説文中で言及されており、他の関数の呼び出しであるかのような誤った記述は見当たらない。"
+    },
+    {
+      "text": "docs/codemap/以外の対象ソースファイルが変更されていない(git statusで確認)",
+      "passed": true,
+      "evidence": "old_skill/run-1の実行時transcriptは存在せず当時のgit状態は直接確認できないが、現在のリポジトリ(/home/asama/shaper-db)でgit logを確認すると src/shaper_db/transform/ 配下は最後にコミット073c791(フェーズ1: transform/diffを実装)以降変更がなく、git diff --stat -- src/shaper_db/transform/ も空(差分なし)。old_skill実行時刻(2026-07-19 13:24-13:37)前後にtransform/へのコミットも存在しない(git log --all --since/untilで0件)。レビュー地図生成はレビュー専用の読み取りタスクであり対象ソースを書き換えた形跡は見当たらないため、間接的な傍証としてPASSと判断する。"
+    },
+    {
+      "text": "サンプリングしたfile:line参照(3件程度)が実ソースのgrep結果と一致する",
+      "passed": true,
+      "evidence": "4件を実ソース(/home/asama/shaper-db/src/shaper_db/transform/)に対して実際にgrep/sedで突合し、全て一致を確認: (1) common.py:73 `def new_skip_counts() -> dict[str, int]:` の定義行が一致。(2) rules.py:44 `def build_rules(` の定義開始行が一致。(3) subscribers.py:86 `def _longest_match(` の定義開始行が一致し、86-102行目のロジック(sorted_area_lengths降順走査・length > client_lenでcontinue・areaindex[length].get(key)でヒットしたら即return)もHTML記載の制御フロー説明と完全に整合。(4) subscribers.py:162 `flow_id = f\"{customer_no}@{user_prefix}@{subport}\"` がHTML記載の式と一致。"
+    },
+    {
+      "text": "チェックリスト項目が具体的なfile:lineを伴っており、一般論の箇条書きになっていない",
+      "passed": true,
+      "evidence": "4カテゴリ全項目にfile:line付きの具体的な指摘がある。例: '命名/可読性/複雑度'内 'subscribers.py:105-178 の build_subscribers は8段の検証・スキップ分岐を持つ単一関数'(328行目)、'例外処理/境界値'内 'subscribers.py:82 の _truncate_to_length は length=0(全ビットマスク)や length=128...の境界で正しく動作するか'(337-339行目)、'テストカバレッジ/テスタビリティ'内 'tests/unit/test_rules.py(186行、test_rul01〜test_rul18)'(350行目)。'例外処理は適切か'のような抽象的な定型文のみの項目は見当たらない。"
+    }
+  ],
+  "summary": {
+    "passed": 10,
+    "failed": 3,
+    "total": 13,
+    "pass_rate": 0.77
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "Skill": 1,
+      "Bash": 16,
+      "Read": 10,
+      "Write": 3
+    },
+    "total_tool_calls": 30,
+    "total_steps": 43,
+    "errors_encountered": 4,
+    "output_chars": 63582,
+    "transcript_chars": 398224,
+    "note": "旧採点時grading.jsonからそのまま転記(今回のtranscriptファイルは存在しないため再計測不可)。"
+  },
+  "timing": {
+    "executor_duration_seconds": 476.1,
+    "grader_duration_seconds": null,
+    "total_duration_seconds": 0.0,
+    "executor_tokens": 129336,
+    "note": "timing.jsonからそのまま転記。"
+  },
+  "claims": [
+    {
+      "claim": "旧版スキルの成果物にはcallgraphのインタラクティブSVG可視化・変数一覧セクション・docs/codemap/への出力のいずれも実装されていない",
+      "type": "factual",
+      "verified": true,
+      "evidence": "HTML/MD双方をgrepし、callgraph/application-json/svg/変数一覧/codemapのいずれも0件だったことを確認した。旧バージョンのスキルが生成した成果物であるため、これらの新基準アサーションが存在しない結果自体は想定通りの正しい結果。"
+    },
+    {
+      "claim": "旧版の成果物は新基準アサーションのうち構造面(モジュール地図・レビューチェックリスト4カテゴリ・対応表・意図/実装の要点並記・file:line根拠)はいずれも高品質に満たしている",
+      "type": "quality",
+      "verified": true,
+      "evidence": "10/13のアサーションがPASSしており、内容もgrep/sedによる実ソース突合で裏付けが取れた。旧採点(旧基準8件)でも全件PASSだった実績と整合する。"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [
+      "old_skill/run-1配下に実行transcript本体(mdファイル)が存在しないため、docs/codemap/への出力可否・ソースファイル無変更の確認については、当時の実行ログではなく現在のリポジトリ状態や旧grading.jsonのclaims記載を根拠とした間接的な判定になっている。"
+    ],
+    "needs_review": [
+      "アサーション『docs/codemap/配下にHTMLファイルが生成されている』は、当時の実際の書き込み先パスを直接確認する手段が無いままFAILとした。もし当時docs/codemap/相当のパスに書き込まれていた形跡が別途見つかれば再判定が必要。"
+    ],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "docs/codemap/配下にHTMLファイルが生成されている(リポジトリ直下やcwdではない)",
+        "reason": "outputsディレクトリの構造上、実際の書き込み先パス(cwd相対か絶対か、docs/codemap/かどうか)を採点時に機械的に確認する手段が無い。実行時にmetrics.json等へ実際の書き込み先パスを記録させる仕組みがあれば、このアサーションを再現性高く判定できる。"
+      },
+      {
+        "reason": "callgraph可視化アサーションは『application/jsonのグラフデータが埋め込まれている』という実装詳細(データ形式)まで指定しているが、視覚的にインタラクティブなcallgraphが実現されていれば実装方式は他にもありうる(例: インラインSVG生成のみでJSONデータを介さない実装)。判定基準をやや実装依存にしすぎている可能性がある。"
+      }
+    ],
+    "overall": "旧版スキルが生成した成果物は、新基準のうち旧版に元々存在しない機能(callgraph可視化・変数一覧・docs/codemap出力)の3項目でFAILし、それ以外の構造・内容面の10項目はすべてPASSした。これは想定通りの結果であり、新基準が旧版と新版の差分を適切に検出できていることを示している。docs/codemap出力先の判定は当時のtranscriptが無いため間接証拠に依存しており、確度はやや低い。"
+  }
+}

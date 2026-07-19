@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>レビュー準備: コミット 0253fe0 (sync/subscribers.py)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #5b6470; --border: #dde1e6;
+    --card: #f7f8fa; --code-bg: #f0f2f5; --accent: #2b6cb0; --accent-bg: #eaf2fb;
+    --warn-bg: #fff6e6; --warn-border: #e8b74a;
+    --ok-bg: #eafaf0; --ok-border: #3aa76d;
+    --risk-bg: #fdecec; --risk-border: #d9534f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171c; --fg:#e6e8eb; --muted:#9aa4b2; --border:#2b3138; --card:#1b1f26;
+      --code-bg:#0f1216; --accent:#6fa8dc; --accent-bg:#182634;
+      --warn-bg:#2a2410; --warn-border:#8a6d1f; --ok-bg:#0f2419; --ok-border:#2f7a52;
+      --risk-bg:#2a1414; --risk-border:#a24541; }
+  }
+  :root[data-theme="dark"] { --bg:#14171c; --fg:#e6e8eb; --muted:#9aa4b2; --border:#2b3138; --card:#1b1f26;
+    --code-bg:#0f1216; --accent:#6fa8dc; --accent-bg:#182634;
+    --warn-bg:#2a2410; --warn-border:#8a6d1f; --ok-bg:#0f2419; --ok-border:#2f7a52;
+    --risk-bg:#2a1414; --risk-border:#a24541; }
+  :root[data-theme="light"] { --bg:#ffffff; --fg:#1a1a1a; --muted:#5b6470; --border:#dde1e6;
+    --card:#f7f8fa; --code-bg:#f0f2f5; --accent:#2b6cb0; --accent-bg:#eaf2fb;
+    --warn-bg:#fff6e6; --warn-border:#e8b74a; --ok-bg:#eafaf0; --ok-border:#3aa76d;
+    --risk-bg:#fdecec; --risk-border:#d9534f; }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    line-height: 1.7; padding: 2rem 1.25rem 5rem;
+  }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.75rem; border-bottom: 2px solid var(--border); padding-bottom: .4rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.75rem; color: var(--accent); }
+  h4 { font-size: .95rem; margin: 1rem 0 .3rem; }
+  p { color: var(--fg); }
+  .sub { color: var(--muted); font-size: .92rem; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: .9rem 1rem; overflow-x: auto; font-size: .84rem;
+  }
+  code.inline { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: .75rem 0 1.25rem; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .5rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.2rem; margin: .8rem 0;
+  }
+  .fn-card { border-left: 4px solid var(--accent); }
+  .badge {
+    display: inline-block; font-size: .74rem; font-weight: 600; padding: .15em .55em;
+    border-radius: 999px; margin-left: .4rem; vertical-align: middle;
+  }
+  .badge.new { background: var(--ok-bg); border: 1px solid var(--ok-border); color: var(--ok-border); }
+  .badge.risk { background: var(--risk-bg); border: 1px solid var(--risk-border); color: var(--risk-border); }
+  .badge.watch { background: var(--warn-bg); border: 1px solid var(--warn-border); color: #8a6d1f; }
+  .note {
+    border: 1px solid var(--warn-border); background: var(--warn-bg); border-radius: 8px;
+    padding: .7rem 1rem; margin: .8rem 0; font-size: .92rem;
+  }
+  .flow {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 1rem; font-family: ui-monospace, monospace; font-size: .85rem; white-space: pre; overflow-x:auto;
+  }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: .25rem 0; }
+  .checklist label { display: flex; gap: .55rem; align-items: flex-start; margin: .5rem 0; cursor: default; }
+  .checklist input { margin-top: .3rem; flex-shrink: 0; }
+  .filemap-grid { display: grid; grid-template-columns: 1fr; gap: .6rem; }
+  .filemap-item { display: flex; gap: .8rem; align-items: baseline; flex-wrap: wrap; }
+  .filemap-item .path { font-weight: 600; }
+  .toc { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.4rem; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc ol { margin: .3rem 0; }
+  .diffline-add { color: #2f7a52; }
+  .diffline-del { color: #a24541; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .82rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>レビュー準備マップ: <code class="mono">sync/subscribers.py</code>(加入者同期エントリ)</h1>
+<p class="sub">
+  対象コミット: <code class="mono">0253fe0</code> —
+  「フェーズ4 Task6: sync/subscribers.py(加入者同期エントリ)を実装」<br>
+  差分範囲: <code class="mono">git diff 0253fe0^ 0253fe0</code>(新規3ファイル、+409行、削除0行)<br>
+  リポジトリ: <code class="mono">/home/asama/shaper-db</code>(main ブランチ、読み取り専用調査)
+</p>
+
+<div class="toc">
+  <strong>目次</strong>
+  <ol>
+    <li><a href="#overview">変更概要</a></li>
+    <li><a href="#map">ファイル間の地図</a></li>
+    <li><a href="#functions">関数ごとの詳細</a></li>
+    <li><a href="#asymmetry">rules.py との非対称性(意図的な差分)</a></li>
+    <li><a href="#flow">apply() の処理フロー</a></li>
+    <li><a href="#traceability">仕様書との対応表</a></li>
+    <li><a href="#tests">テストカバレッジの現況</a></li>
+    <li><a href="#checklist">レビューチェックリスト</a></li>
+  </ol>
+</div>
+
+<h2 id="overview">1. 変更概要</h2>
+<div class="filemap-grid">
+  <div class="card filemap-item">
+    <span class="path mono">src/shaper_db/sync/subscribers.py</span>
+    <span class="badge new">新規 +111</span>
+    <span>sync-subscribers の3ステップ(fetch/transform, read_current, apply)実装本体</span>
+  </div>
+  <div class="card filemap-item">
+    <span class="path mono">tests/unit/test_sync_subscribers.py</span>
+    <span class="badge new">新規 +90</span>
+    <span>装置I/Oを伴わない3関数(make_fetch_and_transform / _subscriber_to_row / main)の単体テスト</span>
+  </div>
+  <div class="card filemap-item">
+    <span class="path mono">tests/system/test_sync_subscribers_system.py</span>
+    <span class="badge new">新規 +208</span>
+    <span>fake FX2 サーバ経由の read_current / apply の system テスト(AC-4〜AC-12)</span>
+  </div>
+</div>
+<p>
+  この commit は既存の <code class="inline">sync/rules.py</code>(フェーズ4 Task5、コミット
+  <code class="mono">ed3c761</code> 系列)と対になる、加入者(flow)版の同期エントリポイントである。
+  <code class="inline">sync/pipeline.py</code> の <code class="inline">run_cli</code> /
+  <code class="inline">run_sync</code> は既に実装済みで変更なし。今回の commit は
+  <code class="inline">FetchAndTransform</code> / <code class="inline">ReadCurrent</code> /
+  <code class="inline">Apply</code> という3つの関数を注入する側だけを実装している。
+</p>
+
+<h2 id="map">2. ファイル間の地図</h2>
+<p><code class="inline">sync/subscribers.py</code> が依存する既存モジュールと、その役割。</p>
+<div class="flow">sync/subscribers.py
+├─ config.Config                      設定(groups, db, csv)を読む型
+├─ diff.DiffResult                    差分(to_add/to_delete)の型
+├─ fetch/csv_source.fetch_subscribers  SFTPで顧客CSV取得(§05 3.1)
+├─ fetch/db.fetch_db                   SSH+psqlでDB取得(rules・areas 両方を返す。
+│                                      本関数は areas のみ使用、rules は破棄)
+├─ fx2/client.FX2Client                get_flows / post_flows / delete_flows を呼ぶ
+├─ sync/pipeline
+│    ├─ FetchAndTransform (型)
+│    ├─ pipeline.run_cli               main() から委譲される先(周辺: ロック・指紋ゲート・
+│    │                                  装置間並列・失敗分離。sync/subscribers.py の変更対象外)
+│    └─ pipeline._sync_one_device      read_current/apply の「Fx2Errorだけ捕捉」契約の所有者
+└─ transform/subscribers
+     ├─ Subscriber (dataclass)         flow_id/subport/address/group_name
+     └─ build_subscribers              CSV+エリア表→Subscriber集合(ロンゲストマッチ)
+</div>
+<p class="sub">
+  比較対象として <code class="inline">sync/rules.py</code>(既存・未変更)を全編参照した。
+  同一の3ステップ構成(make_fetch_and_transform / read_current / apply)を持ち、
+  今回のコードは意図的にこれと非対称な設計判断をしている箇所が複数ある(4節参照)。
+</p>
+
+<h2 id="functions">3. 関数ごとの詳細</h2>
+
+<div class="card fn-card">
+  <h4><code class="mono">_chunks(seq: tuple, size: int) -&gt; Iterator[tuple]</code></h4>
+  <p><strong>何をするか:</strong> シーケンスを <code class="inline">size</code> 件ずつのタプルに分割するジェネレータ。単純なスライスループ(<code class="inline">range(0, len(seq), size)</code>)。</p>
+  <p><strong>なぜ要るか:</strong> 04_fx2-api.md §2.4/2.5 の「1リクエスト最大1,000,000件」制約を満たすため、<code class="inline">apply()</code> が delete/post 両側で使う。</p>
+  <p><strong>境界:</strong> <code class="inline">size</code> の倍数でない件数(5件/chunk=2)でのオフバイワンは system テスト
+  <code class="mono">test_apply_chunks_both_sides</code> で検証済み(3チャンク: 2,2,1)。</p>
+</div>
+
+<div class="card fn-card">
+  <h4><code class="mono">_subscriber_to_row(sub) / _flow_to_row(flow: dict) / _row_to_flow(row: tuple)</code></h4>
+  <p><strong>何をするか:</strong> 3つの相互変換ヘルパー。正準タプル <code class="inline">(flow_id, subport, address)</code> を軸に、
+  <code class="inline">Subscriber</code>→タプル、装置応答dict→タプル(<code class="inline">count_id</code> 破棄)、タプル→POST用dict、を行う。</p>
+  <p><strong>なぜ要るか:</strong> <code class="inline">diff_rows</code>(sqlite3ベース)は列数が両辺で一致していないとcrashする。
+  装置応答は4キー(<code class="inline">count_id</code> 込み)、desired側は3キーのため、<code class="inline">_flow_to_row</code> で明示的に3-tuple化しないと
+  列数不一致でクラッシュする — <strong>この一致がこの commit の中核的な正しさの前提</strong>。</p>
+  <p><strong>呼ばれ方:</strong> <code class="inline">_subscriber_to_row</code> は <code class="inline">make_fetch_and_transform</code> 内、
+  <code class="inline">_flow_to_row</code> は <code class="inline">read_current</code> 内、<code class="inline">_row_to_flow</code> は <code class="inline">apply</code> 内(POST時)。</p>
+  <div class="note">
+    <strong>注目点:</strong> row のタプル位置(<code class="inline">row[0]</code>=flow_id, <code class="inline">row[1]</code>=subport,
+    <code class="inline">row[2]</code>=address)という「順序による契約」が3関数と <code class="inline">apply()</code> の delete処理
+    (<code class="inline">row[0]</code> だけ使う)に暗黙に散らばっている。フィールド取り違えのリグレッションは
+    <code class="mono">test_apply_sends_exact_field_mapping</code> が実際の送信bodyのキー・値まで検証することで
+    ミューテーション耐性を担保している(コミットメッセージにも明記)。
+  </div>
+</div>
+
+<div class="card fn-card">
+  <h4><code class="mono">make_fetch_and_transform(config: Config) -&gt; FetchAndTransform</code></h4>
+  <p><strong>何をするか:</strong> <code class="inline">fetch_db(config.db)</code> + <code class="inline">fetch_subscribers(config.csv)</code> →
+  <code class="inline">build_subscribers(customer_rows, db_rows.areas, config.groups)</code> → group_name別に
+  正準タプルへ集約するクロージャを返す。</p>
+  <p><strong>なぜ要るか:</strong> <code class="inline">pipeline.run_sync</code> が要求する
+  <code class="inline">FetchAndTransform = Callable[[], dict[str, list[tuple]]]</code> 型を満たす「望ましい状態」の生成。</p>
+  <p><strong>rules.py との非対称:</strong> <code class="inline">build_rules</code> は <code class="inline">config.sync.pir_max_kbps</code> を追加引数に取るが、
+  <code class="inline">build_subscribers</code> は取らない(subscribers に PIR 概念が無いため)。docstring に明記。</p>
+  <p><strong>未使用の戻り値:</strong> <code class="inline">fetch_db</code> は <code class="inline">DbRows(rules, areas)</code> を返すが、
+  ここでは <code class="inline">db_rows.areas</code> のみ使用し <code class="inline">db_rows.rules</code> は破棄する
+  (<code class="inline">fetch_db</code> 自体は sync-rules と共用の既存関数で、この commit の変更範囲外)。</p>
+</div>
+
+<div class="card fn-card">
+  <h4><code class="mono">read_current(client, group_name, desired_rows) -&gt; list[tuple]</code></h4>
+  <p><strong>何をするか:</strong> <code class="inline">group_name</code>/<code class="inline">desired_rows</code> 引数を無視し、
+  <code class="inline">client.get_flows([])</code>(空リスト=クエリなし=全件取得)で装置上の全flowを取得、
+  <code class="inline">_flow_to_row</code> で3-tuple化して返す。</p>
+  <p><strong>なぜ全件か:</strong> (1) subport絞り込みは04_fx2-api.md §2.3の「最大10件」制約に抵触しうる、
+  (2) desiredに無いsubport上の残存flowを取りこぼすとドリフト検知漏れになる。
+  1装置=1グループ不変は <code class="inline">config._validate_devices_unique</code>(config.py:381-406、この commit の変更範囲外)が
+  config読込時に保証するため、全件取得しても他グループのflowと混ざる心配がない。</p>
+  <p><strong>fail-loud:</strong> <code class="inline">Fx2Error</code> を捕捉しない。捕捉するのは
+  <code class="inline">pipeline._sync_one_device</code>(pipeline.py:83-109)の責務。</p>
+</div>
+
+<div class="card fn-card">
+  <h4><code class="mono">apply(client, group_name, diff: DiffResult) -&gt; None</code></h4>
+  <p><strong>何をするか:</strong> 差分ゼロなら即return(no-op)。それ以外は
+  <strong>削除を先に</strong>全部実行してから追加を実行する。delete/post いずれも
+  <code class="inline">_CHUNK</code>(1,000,000)件単位に分割する。<code class="inline">commit_config</code> は呼ばない。</p>
+  <p><strong>削除→追加の順序の理由:</strong> <code class="inline">flow_id</code>/<code class="inline">address</code> は装置全体で一意制約があり
+  (04_fx2-api.md §2.4)、更新APIが無いため「値の変更」は削除→再登録でしか表現できない。
+  追加を先にすると一意制約違反になりうる。</p>
+  <p><strong>rules.py との非対称:</strong> rules は subport の CLI コンフィグ差分であり
+  <code class="inline">commit_config</code>(PATCH /config → refresh moff → save moff)必須。flows は
+  REST API(<code class="inline">POST</code>/<code class="inline">DELETE /dynamic-queueing/flows</code>)で即時反映されるため、
+  commit手順は一切呼ばれない(system テスト <code class="mono">test_apply_no_commit</code> が
+  <code class="mono">/api/v1/cli</code>・<code class="mono">PATCH /api/v1/config</code> への呼び出しゼロを確認)。</p>
+  <p><strong>失敗時の巻き戻し:</strong> チャンク分割送信の途中で失敗しても明示的なロールバックはしない
+  (fail-loud、<code class="inline">Fx2Error</code> は捕捉しない)。次周期の事前読取diffによる自己修復に委ねる
+  (05_sync-spec.md §7)。</p>
+</div>
+
+<div class="card fn-card">
+  <h4><code class="mono">main(argv=None) -&gt; int</code></h4>
+  <p><strong>何をするか:</strong> <code class="inline">pipeline.run_cli("subscribers", make_fetch_and_transform, read_current, apply, argv)</code> に委譲するだけ。
+  ロジックを持たないため、単体テストは「正しい引数で委譲したか」のみを
+  <code class="inline">monkeypatch</code> で検証している(<code class="mono">test_main_delegates_to_run_cli</code>)。</p>
+</div>
+
+<h2 id="asymmetry">4. <code class="mono">rules.py</code> との非対称性(意図的な設計判断)</h2>
+<p>
+  コミットメッセージが「非対称」と明記している箇所を中心に、<code class="mono">sync/rules.py</code>(既存・未変更)と
+  横並びで確認した表。非対称であること自体は正しい設計判断だが、レビュー時は
+  「対称にすべきなのに漏れている」のか「意図的な非対称」なのかの見極めが要る。
+</p>
+<table>
+  <tr><th>観点</th><th>rules.py(既存)</th><th>subscribers.py(今回)</th><th>非対称の理由</th></tr>
+  <tr>
+    <td>望ましい状態の引数</td>
+    <td><code class="mono">build_rules(rows, groups, pir_max_kbps)</code></td>
+    <td><code class="mono">build_subscribers(rows, area_rows, groups)</code></td>
+    <td>subscribersにPIR概念が無い</td>
+  </tr>
+  <tr>
+    <td>現状読取の対象</td>
+    <td><code class="mono">post_cli("show current.cfg")</code> をパース</td>
+    <td><code class="mono">get_flows([])</code> でNDJSON取得</td>
+    <td>rulesはCLIコンフィグ、subscribersはREST資源</td>
+  </tr>
+  <tr>
+    <td>適用手段</td>
+    <td><code class="mono">commit_config</code>(PATCH→refresh→save、3ステップ)</td>
+    <td><code class="mono">delete_flows</code> → <code class="mono">post_flows</code>(直接、チャンク分割)</td>
+    <td>flowsは即時反映APIでCLIコンフィグではない</td>
+  </tr>
+  <tr>
+    <td>変更(update)の表現</td>
+    <td>同名subportへの再投入で上書き(no行不要、QA#23)</td>
+    <td>削除→再登録が必須(更新APIが存在しない、一意制約)</td>
+    <td>API仕様の違い(04_fx2-api §2.4)</td>
+  </tr>
+  <tr>
+    <td>適用順序</td>
+    <td>単一CLIテキストに追加/削除混在(順序は文字列内)</td>
+    <td>削除を先に全チャンク実行→追加を全チャンク実行</td>
+    <td>一意制約違反回避のため</td>
+  </tr>
+</table>
+
+<h2 id="flow">5. apply() の処理フロー</h2>
+<div class="flow">apply(client, group_name, diff)
+  │
+  ├─ diff.to_add と diff.to_delete が両方とも空か?
+  │     └─ Yes → return (装置に一切触れない no-op)
+  │
+  ├─ diff.to_delete を _CHUNK(1,000,000)件ずつ分割
+  │     └─ 各チャンクごとに client.delete_flows(flow_ids=[row[0] for row in chunk])
+  │        ※ 全delete完了 "before" 次のadd開始(先行完了、混在しない)
+  │
+  ├─ diff.to_add を _CHUNK 件ずつ分割
+  │     └─ 各チャンクごとに client.post_flows(flows=[_row_to_flow(row) for row in chunk])
+  │
+  └─ commit_config は呼ばない(rulesと非対称)
+
+  ※ どの段階でも Fx2Error は捕捉せずそのまま送出(fail-loud)。
+     途中で例外が飛べば、残りのチャンクは実行されない = 部分適用の可能性あり。
+     → 保存指紋は pipeline.run_sync 側で「全装置成功時のみ」更新されるため、
+       次周期に必ず再読取・再差分・再送される(自己修復、05_sync-spec §7)。
+</div>
+
+<h2 id="traceability">6. 仕様書との対応表</h2>
+<table>
+  <tr><th>コード箇所</th><th>仕様書 節</th><th>内容</th><th>確認</th></tr>
+  <tr>
+    <td><code class="mono">make_fetch_and_transform</code></td>
+    <td>05_sync-spec.md §3.1〜3.2</td>
+    <td>DB(エリア表)+CSV(顧客)取得→ロンゲストマッチ→望ましい状態生成</td>
+    <td>build_subscribers の実処理は transform/subscribers.py(この commit の変更対象外)側で既に実装・検証済み</td>
+  </tr>
+  <tr>
+    <td><code class="mono">read_current</code></td>
+    <td>05_sync-spec.md §3.3 / 04_fx2-api.md §2.3</td>
+    <td>指紋不一致グループのみ全件GET、NDJSON・gzip対応</td>
+    <td>gzip・count_id破棄は system テストで確認(gzip自体はfx2/client.py側の実装、この commitはcount_id破棄のみ担当)</td>
+  </tr>
+  <tr>
+    <td><code class="mono">apply</code>(delete→add順)</td>
+    <td>05_sync-spec.md §3.4〜3.5 / 04_fx2-api.md §2.4</td>
+    <td>「address変更は削除→再登録」「1,000,000件分割」</td>
+    <td>順序・チャンク分割ともsystemテストで確認</td>
+  </tr>
+  <tr>
+    <td><code class="mono">apply</code>(commit_config非呼び出し)</td>
+    <td>05_sync-spec.md §3.6</td>
+    <td>「適用後の再読取による一致確認は行わない」= flows即時反映、CLIコミット手順は不要</td>
+    <td><code class="mono">test_apply_no_commit</code> で /api/v1/cli・PATCH /api/v1/config 呼び出しゼロを確認</td>
+  </tr>
+  <tr>
+    <td>全体(fail-loud)</td>
+    <td>05_sync-spec.md §6 / §7.3</td>
+    <td>装置単位失敗分離・保存指紋は全台成功時のみ更新・自己修復は次周期</td>
+    <td>pipeline.py側の既存契約(この commitは「捕捉しない」ことで契約を守るだけ)</td>
+  </tr>
+</table>
+
+<h2 id="tests">7. テストカバレッジの現況</h2>
+<table>
+  <tr><th>関数</th><th>単体テスト</th><th>systemテスト</th><th>備考</th></tr>
+  <tr><td>make_fetch_and_transform</td><td>◯(group集約・引数受け渡し)</td><td>—</td><td>fetch_db/fetch_subscribers/build_subscribersはmonkeypatchでスタブ化</td></tr>
+  <tr><td>_subscriber_to_row</td><td>◯(shape確認)</td><td>—</td><td></td></tr>
+  <tr><td>_flow_to_row / count_id破棄</td><td>—</td><td>◯ AC-5, AC-6(diff_rows crash回帰)</td><td></td></tr>
+  <tr><td>read_current(全件取得・クエリ無し)</td><td>—</td><td>◯ AC-4</td><td></td></tr>
+  <tr><td>read_current(gzip)</td><td>—</td><td>◯ AC-7</td><td></td></tr>
+  <tr><td>read_current(Fx2Error伝播)</td><td>—</td><td><span class="badge watch">未カバー</span></td><td>apply側は AC-12 で伝播確認済みだが read_current側は無い。rules.py側も同様に無く、既存パターンと一致(この commit固有の欠落ではない)</td></tr>
+  <tr><td>apply(削除先行)</td><td>—</td><td>◯ AC-8</td><td></td></tr>
+  <tr><td>apply(両側チャンク分割・要素の完全一致)</td><td>—</td><td>◯ AC-9</td><td>件数だけでなく送信flow_id集合まで検証、off-by-one耐性あり</td></tr>
+  <tr><td>apply(フィールド対応の正確性)</td><td>—</td><td>◯ HIGH(無名)</td><td>DELETE/POSTの実bodyをkey/valueまで検証</td></tr>
+  <tr><td>apply(commit_config非呼び出し)</td><td>—</td><td>◯ AC-10</td><td></td></tr>
+  <tr><td>apply(no-op)</td><td>—</td><td>◯ AC-11</td><td></td></tr>
+  <tr><td>apply(Fx2Error伝播)</td><td>—</td><td>◯ AC-12</td><td></td></tr>
+  <tr><td>main→run_cli委譲</td><td>◯</td><td>—</td><td></td></tr>
+</table>
+
+<h2 id="checklist">8. レビューチェックリスト</h2>
+
+<h3>命名・可読性</h3>
+<div class="card checklist">
+  <label><input type="checkbox">正準タプル <code class="inline">(flow_id, subport, address)</code> の順序が3つの変換関数(<code class="inline">_subscriber_to_row</code>/<code class="inline">_flow_to_row</code>/<code class="inline">_row_to_flow</code>)と <code class="inline">apply</code> 内の <code class="inline">row[0]</code> 参照で一貫しているか、目視で再確認する</label>
+  <label><input type="checkbox"><code class="inline">read_current</code>/<code class="inline">apply</code> が受け取るが使わない <code class="inline">group_name</code>/<code class="inline">desired_rows</code> 引数について、docstringの「無視する」記述が実装と一致しているか(未使用引数の意図が明文化されているか)</label>
+  <label><input type="checkbox"><code class="inline">rules.py</code> と関数シグネチャ(<code class="inline">make_fetch_and_transform</code>/<code class="inline">read_current</code>/<code class="inline">apply</code>/<code class="inline">main</code>)が対称に保たれているか(<code class="inline">pipeline.FetchAndTransform</code>/<code class="inline">ReadCurrent</code>/<code class="inline">Apply</code> 型との適合)</label>
+</div>
+
+<h3>複雑度・例外処理</h3>
+<div class="card checklist">
+  <label><input type="checkbox"><code class="inline">apply</code> がチャンク送信の途中で例外送出された場合、それまでに送信済みのチャンクは巻き戻されない仕様であることを許容できるか(05_sync-spec §7の自己修復モデルとの整合を確認)</label>
+  <label><input type="checkbox"><code class="inline">Fx2Error</code> を明示的に捕捉しない設計(fail-loud)が <code class="inline">pipeline._sync_one_device</code> の契約(Fx2Errorのみ装置単位で捕捉)と噛み合っているか、pipeline.py:83-109を突き合わせて確認する</label>
+  <label><input type="checkbox">分岐は「diff空判定」「チャンク分割ループ」のみで、ネストは浅い。複雑度自体は低いが、非自明な副作用(削除→追加の順序保証)がコメントなしでも自明かを確認する</label>
+</div>
+
+<h3>境界値</h3>
+<div class="card checklist">
+  <label><input type="checkbox"><code class="inline">_CHUNK</code>(1,000,000)ちょうどの件数、および <code class="inline">_CHUNK+1</code> 件のケースで分割数が期待通りか(テストは5件/chunk=2の3分割のみで、ジャストサイズの境界は未検証)</label>
+  <label><input type="checkbox">delete/add どちらか一方のみが空のケース(全追加のみ・全削除のみ)で <code class="inline">apply</code> が意図通り動くか(no-op判定は「両方空」のみをチェックしており、片方だけ空はスキップされない実装だが、その経路のテストが明示的にあるか確認)</label>
+  <label><input type="checkbox">装置からのflow応答が0件(空リスト)のときの <code class="inline">read_current</code> の挙動(空list返却で後続のdiff_rowsが正しく動くか)</label>
+</div>
+
+<h3>テストカバレッジ・テスタビリティ</h3>
+<div class="card checklist">
+  <label><input type="checkbox"><code class="inline">read_current</code> が <code class="inline">Fx2Error</code> を伝播させるsystemテストが無い(apply側のAC-12はあるがread_current側は無い)。rules.py側も同様の欠落があるため、この commit固有の指摘にすべきか、既存のギャップとして別チケット化すべきかを判断する</label>
+  <label><input type="checkbox">単体テストは全て <code class="inline">monkeypatch</code> によるスタブ化に依存している。<code class="inline">make_fetch_and_transform</code> のテストが実際の <code class="inline">build_subscribers</code> 実装(transform/subscribers.py)と統合された経路を1つもカバーしていない点を許容できるか(結合はsystemテストにも無い)</label>
+  <label><input type="checkbox">チャンク分割テスト(AC-9)は送信された<code class="inline">flow_id</code>集合の完全一致まで検証しており、件数だけの検証より高い変異検知力を持つ。同水準の厳密さが <code class="inline">test_apply_sends_exact_field_mapping</code> 以外の箇所にも必要かを判断する</label>
+</div>
+
+<h3>セキュリティ・外部入力</h3>
+<div class="card checklist">
+  <label><input type="checkbox">装置からの応答(<code class="inline">get_flows</code> の戻り値dict)のキー(<code class="inline">flow_id</code>/<code class="inline">subport</code>/<code class="inline">address</code>/<code class="inline">count_id</code>)が欠落していた場合、<code class="inline">_flow_to_row</code> の <code class="inline">flow["flow_id"]</code> 等が <code class="inline">KeyError</code> を送出する実装になっている。これが「不正な装置応答=fail-loudで良い」という設計判断として妥当か(04_fx2-api.md §2.3のスキーマ保証をどこまで信頼するか)を確認する</label>
+  <label><input type="checkbox">CSV/DBから来る値が <code class="inline">build_subscribers</code>(transform層)で検証済みという前提を <code class="inline">apply</code> の送信データがそのまま信頼している点(このcommit自体は追加の検証を行わない)が仕様(03_data-spec.md §3節「適用前に検証規則を満たすことを確認済み」)と整合しているか</label>
+  <label><input type="checkbox">機密情報(認証情報等)がログや例外メッセージに含まれる経路が無いか(このcommit自体はログ出力を持たないが、<code class="inline">Fx2Error</code> の再送出時にリクエストbodyが例外メッセージに漏れる経路がfx2/client.py側に無いか、あわせて確認)</label>
+</div>
+
+<footer>
+  調査範囲: <code class="mono">git diff 0253fe0^ 0253fe0</code> の3ファイル本体に加え、比較・裏取りのため
+  <code class="mono">sync/rules.py</code>, <code class="mono">sync/pipeline.py</code>, <code class="mono">diff.py</code>,
+  <code class="mono">errors.py</code>, <code class="mono">fx2/client.py</code>(該当メソッド抜粋),
+  <code class="mono">transform/subscribers.py</code>, <code class="mono">config.py</code>(該当箇所抜粋),
+  <code class="mono">fetch/db.py</code>, <code class="mono">fetch/csv_source.py</code>(シグネチャのみ),
+  <code class="mono">docs/spec/05_sync-spec.md</code> §3, <code class="mono">docs/spec/04_fx2-api.md</code> §2 を
+  読み取り専用で参照した。リポジトリへの変更・コミットは行っていない。
+</footer>
+
+</main>
+</body>
+</html>

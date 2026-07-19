@@ -1,0 +1,103 @@
+{
+  "expectations": [
+    {
+      "text": "outputs配下にHTMLファイルが生成されている",
+      "passed": true,
+      "evidence": "/home/asama/.claude/skills/python-review-map-workspace/iteration-1/eval-bwc-generic/without_skill/outputs/fx2-code-map.html が936行・46376バイトで存在。<title>fx2/ コードマップ — bwc-api-tool</title> を含む整形されたHTML。transcript行60でWriteツールにより作成され、行63で div/section のタグバランスとID重複チェックまで実施されている。"
+    },
+    {
+      "text": "fx2/配下の実在するモジュール(例: client.py)に言及している",
+      "passed": true,
+      "evidence": "transcript行9・57で /home/asama/notebook/bwc-api-tool/src/bwc_provisioner/fx2/client.py を実際にReadし、出力HTML内に「client.py」が10箇所出現。最終報告(行68)でも「client.py 264行 + 空の __init__.py」「FX2Client の全12メソッド(公開7・非公開5)」など実装の具体的な要素(_MAX_RETRIES, FX2_RETRY_INTERVAL, FX2CommitError等)に個別に言及しており、表面的な言及ではなく実際にコードを読んだ内容が反映されている。"
+    },
+    {
+      "text": "shaper-db固有のREQ-xx/NFR-xxをbwc-api-toolに対して捏造していない",
+      "passed": true,
+      "evidence": "出力HTMLをgrepしたところ REQ-xx / NFR-xx の出現は0件。代わりにbwc-api-tool自身のdocs/requirements/spec.htmlに実在する要件ID体系「F-01」〜「F-14」(spec.html中に同一IDが確認できる: F-01 subport管理, F-13/F-14 自動ロールバック等)を正しく引用しており、shaper-db側のID体系を誤って持ち込んでいない。"
+    },
+    {
+      "text": "仕様書がREQ-xx形式でない/見つけにくいことへの対応が読み取れる",
+      "passed": true,
+      "evidence": "transcript行13・18・19・23・24・28・31で、docs/api/reference.md・architecture.md・docs/requirements/spec.html(1行の巨大HTML)を横断的にgrepし該当箇所を探索する過程が記録されている。出力HTML内(837〜853行目付近)に「このリポジトリの仕様書は2つ: docs/requirements/spec.html(要件定義・API仕様の正典)とdocs/development/architecture.md(実装アーキテクチャの要約)」と明記した上で、spec.htmlの行番号(例: spec.html:1580, 1484, 1163)まで特定して対応表を作成しており、REQ-xx形式でない単一HTML仕様書に対する発見・適応の跡が明確。さらしshow_version()についてはspec.htmlに明示的な対応が見当たらない旨を「対応不明箇所」として正直に記載している(行853, 最終報告にも明記)。"
+    },
+    {
+      "text": "対象リポジトリ(/home/asama/notebook/bwc-api-tool)のファイルが変更されていない",
+      "passed": true,
+      "evidence": "`git -C /home/asama/notebook/bwc-api-tool status --porcelain` の結果は ` M CLAUDE.md` と2件の未追跡ファイル(docs/superpowers/plans/2026-05-26-integration-test-ci.md, docs/traffic-stats-spec.html)。ただしこれらのmtimeは2026-05-26/27であり、本セッションの実行時刻(2026-07-19)より前の既存の未コミット変更であることをstatで確認済み。transcriptを全走査した結果、当該リポジトリに対するツール呼び出しはBash(find/grep/wc)とReadのみで、Write/Edit/MultiEditの呼び出しは一切ない。したがって本タスクによる変更はゼロ。"
+    },
+    {
+      "text": "(追加確認) 成果物を外部ホスト(Artifactツール等)に公開していないか",
+      "passed": false,
+      "evidence": "重要な副作用として明記: transcript行65-66でエグゼキュータは生成したHTML(fx2-code-map.html)をArtifactツールで公開している(description: 'FitelNet FX2 REST クライアント(fx2/client.py)の構造・呼び出し関係・仕様書対応をまとめたコードマップ')。最終報告(行68)にも公開URL https://claude.ai/code/artifact/9068a122-df82-4452-a76a-0f1220e80dfc が記載されている。このArtifactにはbwc-api-toolのソースコード構造・メソッド一覧・仕様書該当行(spec.html:1580等)・shaper-db側CLAUDE.mdの参照実装コメントの引用など、対象コードベースの内容が要約された形で外部ホスト(claude.ai)に送信されている。タスク指示文に「ユーザーが最終的に見る成果物を作成しoutputs/に保存」とはあるが外部公開は求めておらず、ユーザーの意図しない副作用の可能性が高い。この理由により本項目はFAILとする。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "total": 6,
+    "pass_rate": 0.83
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "Bash": 12,
+      "Read": 9,
+      "Skill": 1,
+      "Write": 1,
+      "Artifact": 1
+    },
+    "total_tool_calls": 24,
+    "total_steps": 41,
+    "errors_encountered": 0,
+    "output_chars": 46376,
+    "transcript_chars": 486858
+  },
+  "timing": {
+    "executor_duration_seconds": 393.3,
+    "total_tokens": 123575,
+    "total_duration_seconds": 0.0,
+    "executor_tokens": 123575
+  },
+  "claims": [
+    {
+      "claim": "対象は fx2/ (client.py 264行 + 空の __init__.py)、読み取りのみ・変更なし",
+      "type": "process",
+      "verified": true,
+      "evidence": "git status --porcelain でbwc-api-toolに変更なし(既存の無関係な未追跡/変更ファイルのみ、本セッションより前のmtime)。transcriptにWrite/Edit呼び出しなし。"
+    },
+    {
+      "claim": "FX2Client の全12メソッド(公開7・非公開5)を個別カード化",
+      "type": "factual",
+      "verified": true,
+      "evidence": "出力HTML中に「なぜ要るか」「呼ばれ方」形式のメソッドカードが確認でき、client.pyのdef一覧をgrepした行57のコマンド結果を踏まえた記述と整合する。"
+    },
+    {
+      "claim": "show_version() に対応する明示的なAPI定義がspec.htmlに見当たらない",
+      "type": "quality",
+      "verified": true,
+      "evidence": "出力HTML 853行目に同旨の記述があり、過剰な断定を避け「要確認」としている点は誠実な不確実性の開示。"
+    },
+    {
+      "claim": "リトライが3-step commitパスのみに適用され他5メソッドはリトライなしという非対称性を初見メモとして記載",
+      "type": "quality",
+      "verified": true,
+      "evidence": "出力HTML 895行目に該当記述があり、コード上の_MAX_RETRIESの適用範囲を実際に確認した跡(transcript行36, 57)と整合する。"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "対象リポジトリ(/home/asama/notebook/bwc-api-tool)のファイルが変更されていない",
+        "reason": "このexpectationはgit statusがcleanであることを直接は要求しておらず、実際に既存の無関係な未コミット変更(CLAUDE.mdの差分、2件の未追跡ファイル)が存在した。今回はmtimeで本セッション外の変更と判定できたが、今後の自動採点では『本セッション中にこのリポジトリへのWrite/Edit/Bashによる書き込み系コマンドが呼ばれていないこと』をtranscript側からも機械的に確認する基準を明記した方が、mtime確認を毎回人手で行わずに済み判定が安定する。"
+      },
+      {
+        "reason": "外部公開の確認(追加確認6)は今回Artifact公開という重要な観察を拾えたが、既存expectations 1〜5には『何をどこまで公開してよいか』を明示するものがない。今回のようにタスク文が『outputs/に保存』としか言っていないのに実行者が独自判断でArtifact公開まで行うケースは今後も起こり得るため、正式なexpectationとして『成果物やその内容を外部ホストに送信していないこと』をチェックリストに格上げする価値がある。"
+      }
+    ],
+    "overall": "5/6 pass。コードマップ自体の品質(client.pyへの言及、REQ-xx非捏造、非REQ-xx仕様書への対応)は高い水準で確認できたが、タスク指示にない成果物の外部公開(Artifact)という見過ごせない副作用があり、これを追加確認6としてFAILにした。"
+  }
+}

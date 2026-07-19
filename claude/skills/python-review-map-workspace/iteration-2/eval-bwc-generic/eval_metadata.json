@@ -1,0 +1,27 @@
+{
+  "eval_id": 3,
+  "eval_name": "bwc-generic",
+  "prompt": "/home/asama/notebook/bwc-api-tool の src/bwc_provisioner/fx2/ 配下のコードベースの構造を地図にしてほしい。初めて読むコードなので、仕様書があれば対応も知りたい。",
+  "assertions": [
+    {
+      "text": "bwc-api-toolのdocs/codemap/配下にHTMLファイルが生成されている",
+      "check": "file_exists"
+    },
+    {
+      "text": "fx2/配下の実在するモジュール(例: client.py)に言及している",
+      "check": "content_contains"
+    },
+    {
+      "text": "shaper-db固有のREQ-xx/NFR-xxをbwc-api-toolに対して捏造していない",
+      "check": "manual_review"
+    },
+    {
+      "text": "仕様書がREQ-xx形式でない/見つけにくいことへの対応(ユーザー確認や柔軟なID表記)が読み取れる",
+      "check": "manual_review"
+    },
+    {
+      "text": "変更は対象リポジトリのdocs/codemap/配下の新規ファイル(および.gitignoreへの追記)のみ(git statusで確認)",
+      "check": "manual_review"
+    }
+  ]
+}

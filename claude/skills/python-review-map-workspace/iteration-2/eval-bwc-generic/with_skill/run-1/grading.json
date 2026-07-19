@@ -1,0 +1,85 @@
+{
+  "expectations": [
+    {
+      "text": "bwc-api-toolのdocs/codemap/配下にHTMLファイルが生成されている",
+      "passed": true,
+      "evidence": "/home/asama/notebook/bwc-api-tool/docs/codemap/review-map-fx2.html が存在(74749バイト)。outputs_dir 内の review-map-fx2.html と同一内容。transcriptでも「HTMLレポート(本来の出力先): /home/asama/notebook/bwc-api-tool/docs/codemap/review-map-fx2.html」と明記。"
+    },
+    {
+      "text": "fx2/配下の実在するモジュール(例: client.py)に言及している",
+      "passed": true,
+      "evidence": "HTML内で `client.py` への言及が163箇所。単なる言及に留まらず、file:line形式(例: `fx2/client.py:81`, `fx2/client.py:193-219`)でクラス(FX2Client, FX2CommitError, FX2PostCommitError)・全メソッド・モジュール定数まで具体的に参照している。実ファイルの行数(264行)・クラス構成(class FX2CommitError/FX2PostCommitError/FX2Client)ともソース(src/bwc_provisioner/fx2/client.py)と一致することを確認。"
+    },
+    {
+      "text": "shaper-db固有のREQ-xx/NFR-xxをbwc-api-toolに対して捏造していない",
+      "passed": true,
+      "evidence": "HTML全文を `grep -oE 'REQ-[0-9]+|NFR-[0-9]+'` で検索したが0件。代わりにbwc-api-tool自身の識別体系(F-01/F-11/F-13/F-14、spec.html §09/§10/§12、business-flow.html §06)を一貫して使用しており、shaper-db側のID体系を持ち込んでいない。"
+    },
+    {
+      "text": "仕様書がREQ-xx形式でない/見つけにくいことへの対応(ユーザー確認や柔軟なID表記)が読み取れる",
+      "passed": true,
+      "evidence": "HTML 233行目: 「仕様書の正典（ユーザー確認待ちのまま調査を先行させたもの。最終確認は報告時に得ること）」として spec.html/business-flow.html/architecture.md/traceability.md/api/reference.md/CLAUDE.md の6候補を列挙し、正典未確定のままユーザー確認待ちである旨を明示。ID表記もREQ-xx形式に固定せず、対象リポジトリ側の実際の形式(F-01などの機能ID、§09/§10/§12などの章番号)にそのまま合わせて柔軟に使用している。transcriptの「確認が必要な点」1項目目とも整合。"
+    },
+    {
+      "text": "変更は対象リポジトリのdocs/codemap/配下の新規ファイル(および.gitignoreへの追記)のみ(git statusで確認)",
+      "passed": true,
+      "evidence": "`git -C /home/asama/notebook/bwc-api-tool status --short` の結果: ` M CLAUDE.md`、`?? docs/codemap/`、`?? docs/superpowers/plans/2026-05-26-integration-test-ci.md`、`?? docs/traffic-stats-spec.html`。docs/codemap/ 配下は review-map-fx2.html のみで今回生成の新規ファイル。CLAUDE.mdの差分は「300台→100台」という装置台数の記述変更でコードマップ生成とは無関係な内容であり、また未追跡の他2ファイルもfx2コードマップと無関係な既存の作業途中ファイル(直近コミット群がsuperpowers/配下のdocs整理・CI追加であることからも同種の既存作業と判断できる)。transcriptにも「既に別件の未コミット変更(CLAUDE.md等)があったため、無断でブランチを切ることは避けた」と明記されており、これらは本タスク実行前からの持ち越し分。.gitignoreへの追記はmain-branch-guardフックにブロックされ未実施(transcript 25行目)であり、指示通りこれはスキルの落ち度と見なさない。以上より本タスクによる変更はdocs/codemap/配下の新規ファイルのみと判断。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "対象は fx2/client.py(264行、FX2Client クラス + 2例外クラス)と空の __init__.py",
+      "type": "factual",
+      "verified": true,
+      "evidence": "`wc -l` で client.py=264行、__init__.py=0行を確認。`grep '^class '` で FX2CommitError/FX2PostCommitError/FX2Client の3クラス(FX2Client 1つ+例外2つ)を確認。"
+    },
+    {
+      "claim": "呼び出し関係の全体図(callgraph)を1つ、apply_subport_configの3-stepコミット分岐フローとリトライループの制御フロー可視化を各1つ、計3つのインタラクティブ図",
+      "type": "factual",
+      "verified": true,
+      "evidence": "HTML内に graph-1(オーケストレーター群からclient.pyへの呼び出し全体図)・graph-2(PATCH/refresh/save 3ステップの分岐: 例外送出FX2CommitError/FX2PostCommitError_refresh/FX2PostCommitError_save/正常終了)・graph-3(_patch_config/_cli_commandのリトライループ: HTTP200判定→警告ログ→sleep→再試行/False返却)の3つのインタラクティブSVG図(callgraph.js駆動、ズーム/フィルタUI付き)を確認。内容も申告通り。"
+    },
+    {
+      "claim": "レビューチェックリスト: 4カテゴリ計13項目",
+      "type": "factual",
+      "verified": false,
+      "evidence": "カテゴリ数4(命名/可読性/複雑度、例外処理/境界値、テストカバレッジ/テスタビリティ、セキュリティ/外部入力)は正しいが、チェックボックス(&#9744;)の総数を実際に数えると3+4+4+3=14項目であり、申告の13項目とは1項目ずれている。実行エージェントの最終報告のこの部分は不正確(軽微な自己申告ミス)。"
+    },
+    {
+      "claim": "仕様書との対応表: 13項目",
+      "type": "factual",
+      "verified": true,
+      "evidence": "「5. 仕様書との対応表」のtable行数を数えると13行(FX2Client.__init__〜_make_session の ssl=False まで)で申告と一致。"
+    },
+    {
+      "claim": "`.gitignore` への追記は未実施(main-branch-guardフックにブロックされたため)",
+      "type": "process",
+      "verified": true,
+      "evidence": "git statusにはCLAUDE.md以外の追跡対象ファイルの変更がなく、.gitignoreの変更も存在しない。bwc-api-toolは`git log`確認の通りmasterブランチで運用されており、フックによるブロックの説明と整合する。"
+    },
+    {
+      "claim": "発見事項は判定せず確認事項として記載した(「確認する？」形式)",
+      "type": "quality",
+      "verified": true,
+      "evidence": "チェックリスト14項目・対応表の注記のいずれも「〜か確認する？」「一致するか目視確認」という疑問形・確認依頼の文体で統一されており、「バグである」等の断定表現は見当たらない。show_versionのoffline状態欠落やリトライの非対称性など、transcriptで「判定はせず確認事項として記載」と申告された発見内容も本文中に該当箇所を確認できた。"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "fx2/配下の実在するモジュール(例: client.py)に言及している",
+        "reason": "「client.pyという文字列がHTML中に存在する」だけでも通ってしまう低い基準になっている。今回の出力はfile:line単位の詳細な参照を伴っており本質的には合格に値するが、アサーション自体は空疎な言及(例えば単なるファイル一覧への記載)でも通過してしまう。実際に検証したところ、client.pyへの言及は呼び出し元(4つのオーケストレーター+api/devices.py)まで含めた具体的なfile:line参照であり、単なる名前の言及ではなく実質的な構造理解を伴っていた。アサーションを「client.py内の具体的な関数/クラス名とfile:line形式で複数箇所言及している」のように強化すると、より判別力が上がる。"
+      },
+      {
+        "reason": "今回のグレーディングで、レポートの実行エージェント自己申告(チェックリスト計13項目)と実際のHTML内容(14項目)に軽微な不一致を発見したが、これを検出するアサーションは存在しない。生成物の自己申告数値と実体の一致を確認するアサーション(または『file:lineがsrcの実ファイルと一致するか』のような機械的な整合性チェック)を1つ追加すると、この種の数え間違いを継続的に検出できる。"
+      }
+    ],
+    "overall": "5件のアサーションは全てPASSしたが、いずれも存在確認(file_exists)または捏造の有無・柔軟な運用姿勢の有無というmanual_reviewが中心で、生成された地図の技術的な正確性(file:line参照が実ソースと一致するか、呼び出し関係が実際のコードと合っているか)を直接検証するアサーションが無い。今回は手動でclient.pyの行数・クラス構成・3つのインタラクティブ図の内容を実ソースと突き合わせて正確性を確認できたが、これは本来のアサーション群ではカバーされていない範囲であり、今後同種のevalを重ねる場合は正確性を機械的に抜き打ち検証する軽量なアサーション(例: 対応表に記載されたfile:line中の行番号が実ファイルの該当行と一致するか)を足す価値がある。"
+  }
+}

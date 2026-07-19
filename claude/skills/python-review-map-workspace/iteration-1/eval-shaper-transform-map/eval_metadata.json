@@ -1,0 +1,15 @@
+{
+  "eval_id": 1,
+  "eval_name": "shaper-transform-map",
+  "prompt": "/home/asama/shaper-db の src/shaper_db/transform/ 配下を初めて読むので、レビュー準備として地図を作ってほしい。docs/spec/ に仕様書があるはずなので、対応関係も分かるようにして。",
+  "assertions": [
+    {"text": "outputs配下にHTMLファイルが生成されている", "check": "file_exists"},
+    {"text": "transform/配下の3モジュール(common.py, rules.py, subscribers.py)すべてに言及している", "check": "content_contains_all"},
+    {"text": "モジュール地図のセクションがある(平たく言うと/なぜ要るか等のテンプレ language)", "check": "content_contains"},
+    {"text": "レビューチェックリストの4カテゴリがすべて見出しとして存在する", "check": "content_contains_all"},
+    {"text": "仕様書との対応表があり、REQ-またはNFR-のIDを含んでいる", "check": "content_contains"},
+    {"text": "非自明な関数について意図と実装の要点を並記している箇所が少なくとも1つある", "check": "content_contains"},
+    {"text": "サンプリングしたfile:line参照(3件程度)が実ソースのgrep結果と一致する", "check": "manual_grep_verify"},
+    {"text": "チェックリスト項目が具体的なfile:lineを伴っており、一般論の箇条書きになっていない", "check": "manual_review"}
+  ]
+}

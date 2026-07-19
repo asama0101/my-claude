@@ -1,0 +1,140 @@
+{
+  "expectations": [
+    {
+      "text": "docs/codemap/配下にHTMLファイルが生成されている(リポジトリ直下やcwdではない)",
+      "passed": true,
+      "evidence": "/home/asama/shaper-db/docs/codemap/review-map-transform.html が存在し(75170バイト、mtime 2026-07-19 13:24:58)、outputs/review-map-transform.html とバイト単位で完全に一致(diff で差分なし)。リポジトリ直下には別ファイル(review-map-transform.md 等)しかなく、HTMLはdocs/codemap/配下にのみ生成されている。"
+    },
+    {
+      "text": "transform/配下の3モジュール(common.py, rules.py, subscribers.py)すべてに言及している",
+      "check": "content_contains_all",
+      "passed": true,
+      "evidence": "「モジュール地図」セクションに <h4 id=\"srcshaper_dbtransformcommonpy\">src/shaper_db/transform/common.py</h4>、<h4 id=\"srcshaper_dbtransformrulespy\">src/shaper_db/transform/rules.py</h4>、<h4 id=\"srcshaper_dbtransformsubscriberspy\">src/shaper_db/transform/subscribers.py</h4> の3見出しがあり、それぞれに平たく言うと/なぜ要るか/呼ばれ方/主な関数/変数一覧が記載されている。"
+    },
+    {
+      "text": "モジュール地図のセクションがある(平たく言うと/なぜ要るか等のテンプレ language)",
+      "passed": true,
+      "evidence": "<h2 id=\"モジュール地図\">モジュール地図</h2> 配下の3モジュールすべてに <strong>平たく言うと:</strong> <strong>なぜ要るか:</strong> <strong>呼ばれ方:</strong> の定型見出しが揃っている(例: common.py セクションの行250-252)。"
+    },
+    {
+      "text": "レビューチェックリストの4カテゴリ(命名/可読性/複雑度、例外処理/境界値、テストカバレッジ/テスタビリティ、セキュリティ/外部入力)がすべて見出しとして存在する",
+      "check": "content_contains_all",
+      "passed": true,
+      "evidence": "<h4 id=\"命名可読性複雑度\">命名/可読性/複雑度</h4>、<h4 id=\"例外処理境界値\">例外処理/境界値</h4>、<h4 id=\"テストカバレッジテスタビリティ\">テストカバレッジ/テスタビリティ</h4>、<h4 id=\"セキュリティ外部入力\">セキュリティ/外部入力</h4> の4見出しが全て存在(行483/492/505/518)。チェックリスト項目は class=\"checklist\" のliが計11件(grep -c で確認)、transcriptの「4カテゴリ、計11項目」という申告と一致。"
+    },
+    {
+      "text": "仕様書との対応表があり、REQ-またはNFR-のIDを含んでいる",
+      "passed": true,
+      "evidence": "<h2 id=\"仕様書との対応表\">仕様書との対応表</h2> の表(行533-555)に REQ-09・REQ-12・(本文中にNFR-01・REQ-04・REQ-10も)が含まれる。docs/spec/01_requirements.md をgrepして実在するIDであることも確認済み(REQ-04/REQ-09/REQ-10/REQ-12/NFR-01すべて実在)。"
+    },
+    {
+      "text": "非自明な関数について意図(docstring/仕様)と実装の要点を並記している箇所が少なくとも1つある",
+      "passed": true,
+      "evidence": "new_skip_counts・freeze_skip_counts・finalize_summary・build_area_group_index(common.py)、build_rules(rules.py)、_build_area_index・_truncate_to_length・_longest_match・build_subscribers(subscribers.py)の計9関数すべてに <strong>意図:</strong> と <strong>実装の要点:</strong> が並記されている(例: 行280-288 の finalize_summary)。"
+    },
+    {
+      "text": "callgraphによるインタラクティブなSVG可視化(application/jsonのグラフデータ)が少なくとも1つ埋め込まれている",
+      "passed": true,
+      "evidence": "<script type=\"application/json\" id=\"graph-1-data\">(全体構成図)・graph-2-data(build_rulesの分岐)・graph-3-data(build_subscribersの分岐)の計3件が埋め込まれ、末尾に callgraph.js(SVG描画・パン/ズーム/フィルタ機能付き、外部依存なし)が同梱されている(行245, 337, 446, 581以降)。"
+    },
+    {
+      "text": "変数一覧のセクション(モジュール定数からローカル変数まで)がある",
+      "passed": true,
+      "evidence": "3モジュールそれぞれに「変数一覧」の表があり、モジュール定数(例: SERVICE_CODE_PATTERN)からクラス、関数内ローカル変数(例: build_rules内のrow/fields/pipe_bandなど)まで網羅している(行253-271, 338-365, 447-480)。"
+    },
+    {
+      "text": "通常のコードブロックに素のコードだけでなく説明文が伴っている(比例原則の範囲で)",
+      "check": "manual_review",
+      "passed": false,
+      "evidence": "最終HTMLに <pre> タグが1つも存在しない(grep -c \"<pre\" の結果 0)。これはスキルのリファレンス(python-review-map/references/module-map-format.md 22-25行)が「非自明な dataclass/関数には```python コードブロックを説明文とともに使う」ことを推奨しているにもかかわらず、最終成果物には一切反映されていない。実際、リポジトリ内に残っていた中間生成物のうち docs/codemap/review-map-transform.md(58294バイト、mtime 13:09、恐らく途中稿)には SkipReason/Rule/RulesResult/Subscriber/_truncate_to_length の5つの```python コードブロックが説明文付きで存在していたが、HTML生成直前(mtime 13:24:25)に確定したリポジトリ直下の review-map-transform.md(35593バイト)ではこれらが完全に削除されており、その版からビルドされた最終HTMLにも一切反映されていない(grep \"class SkipReason\" で0件)。良い実装意図がありながら最終稿で失われた回帰と判断した。"
+    },
+    {
+      "text": "非公開ヘルパ関数の呼び出し元が明記されており、複数の公開関数が並列にあるモジュールで誤帰属を招く記述がない",
+      "check": "manual_review",
+      "passed": true,
+      "evidence": "非公開ヘルパ(_build_area_index・_truncate_to_length・_longest_match)はいずれも単一の呼び出し元が明記されている(例: 「build_subscribers()(subscribers.py:119)からのみ呼ばれる非公開ヘルパ」)。実ソースをgrepして検証した結果、subscribers.py:119の_build_area_index呼び出し、subscribers.py:98の_truncate_to_length呼び出し、subscribers.py:150の_longest_match呼び出しはすべて記載どおり一致した。common.pyの共通ヘルパ(new_skip_counts・finalize_summary・build_area_group_index)はrules.py・subscribers.pyの両方から呼ばれるが、それぞれ「rules.py:65」「subscribers.py:126」のように呼び出し元ファイルごとに明確に書き分けられており、grep結果(rules.py:59/65/114、subscribers.py:119/121/126/177)とも一致。誤帰属は見当たらない。"
+    },
+    {
+      "text": "docs/codemap/以外の対象ソースファイルが変更されていない(git statusで確認)",
+      "check": "manual_review",
+      "passed": true,
+      "evidence": "git status で src/shaper_db/transform/*.py・docs/spec/*.md など今回のレビュー対象ソースに変更は無い。ただし .gitignore が未コミットで変更されており(+docs/codemap/ の1行追加、git diff で確認)、transcriptの「.gitignoreには既にdocs/codemap/の1行が含まれており追記は不要だった」という申告と矛盾する(現状はまさにその1行が追記された未コミット差分として存在している)。また review-map-transform.md・callgraph-selftest.html・review-map-shaper-db.html/.md がリポジトリ直下に未追跡のまま残っている。このリポジトリは複数の並行eval実行(iteration-2配下の他のevalディレクトリ)で共有されているため、.gitignoreの変更がこの実行によるものか他の実行によるものかは確定できないが、レビュー対象のソースコード自体には変更がないため本アサーションはPASS。ただしtranscriptの当該記述の正確性には疑義がある点をeval_feedbackで指摘する。"
+    },
+    {
+      "text": "サンプリングしたfile:line参照(3件程度)が実ソースのgrep結果と一致する",
+      "check": "manual_grep_verify",
+      "passed": true,
+      "evidence": "以下をgrepで突合し全て一致: rules.py:44 (`def build_rules`)、subscribers.py:53 (`def _build_area_index`)、subscribers.py:105 (`def build_subscribers`)、config.py:47 (`class Group`)、sync/rules.py:36・sync/subscribers.py:58(呼び出し行のコード内容も引用文どおり一致)、common.py:22-33(SkipReasonのクラス本体)、rules.py:59/65/114とsubscribers.py:119/121/126/150/177/98(common関数・非公開ヘルパの呼び出し元)。加えて「全3モジュール413行」という記述も wc -l で 120+115+178=413 と厳密に一致することを確認した。"
+    },
+    {
+      "text": "チェックリスト項目が具体的なfile:lineを伴っており、一般論の箇条書きになっていない",
+      "check": "manual_review",
+      "passed": true,
+      "evidence": "11件のチェックリスト項目全てに file:line が付与されている(例: rules.py:44-115、common.py:82、subscribers.py:62-70、rules.py:105-107、subscribers.py:146、rules.py:99・subscribers.py:157,162、subscribers.py:68,142)。「命名に気をつけましょう」のような一般論の箇条書きは見当たらない。"
+    }
+  ],
+  "summary": {
+    "passed": 12,
+    "failed": 1,
+    "total": 13,
+    "pass_rate": 0.92
+  },
+  "execution_metrics": {
+    "note": "outputs_dir に metrics.json は存在しない。transcript.md は26行(2645バイト)で、実行過程のツール呼び出しログは含まれず最終報告のみが記録されている。",
+    "output_chars_html": 75170,
+    "transcript_chars": 2645
+  },
+  "timing": {
+    "note": "outputs_dir の親に timing.json は存在しない。ファイルmtimeから推定: 中間Markdown確定 13:24:25、HTML生成完了 13:24:58(約33秒)。"
+  },
+  "claims": [
+    {
+      "claim": "src/shaper_db/transform/ は3ファイル・__init__.py を除き実質413行",
+      "type": "factual",
+      "verified": true,
+      "evidence": "wc -l で common.py 120 + rules.py 115 + subscribers.py 178 = 413 と一致。"
+    },
+    {
+      "claim": "全ての file:line 参照は grep -n で実ソースと突合済みで、一致しないものは無かった",
+      "type": "process",
+      "verified": true,
+      "evidence": "12件以上を独立にサンプル抽出してgrepしたが不一致は1件も見つからなかった(build_rules/_build_area_index/build_subscribers/class Group/sync呼び出し行/SkipReason/共通ヘルパ呼び出し元など)。"
+    },
+    {
+      "claim": ".gitignore には既に docs/codemap/ の1行が含まれており、追記は不要だった",
+      "type": "process",
+      "verified": false,
+      "evidence": "git diff .gitignore で `+docs/codemap/` が未コミットの追加差分として現存しており、申告と矛盾する。誰がいつ追加したかは複数のeval実行が同一リポジトリを共有しているため特定できないが、少なくとも申告どおり「既に含まれていたので追記不要だった」状態ではない。"
+    },
+    {
+      "claim": "レビューチェックリストは4カテゴリ・計11項目",
+      "type": "factual",
+      "verified": true,
+      "evidence": "grep -c で class=\"checklist\" の li が11件であることを確認、カテゴリ見出しも4件確認。"
+    },
+    {
+      "claim": "_build_area_index はエリア表の不正行を SkipReason に記録せず黙って continue しており、rules.py・build_subscribers本体の同種検証と非対称",
+      "type": "quality",
+      "verified": true,
+      "evidence": "subscribers.py:62-70 を確認すると、arity不一致・poi_id形式違反・IPv6パース失敗のいずれも SkipReason へのカウント無しに continue しているのに対し、build_rules・build_subscribers本体は同種の検証を全て skip_counts に記録しており、報告どおりの非対称性が実在する。これは仕様書側にも明記が見当たらないとの指摘も含め、レビュー観点として妥当。"
+    }
+  ],
+  "user_notes_summary": {
+    "note": "outputs_dir に user_notes.md は存在しないため該当なし。"
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "通常のコードブロックに素のコードだけでなく説明文が伴っている(比例原則の範囲で)",
+        "reason": "このアサーションは「コードブロックが存在する場合」を暗黙の前提にしており、今回のように最終稿でコードブロックがゼロ件になるケースを明確にFAILと判定できる基準になっていない。今回は中間生成物の途中稿(docs/codemap/review-map-transform.md, 58KB)に5件の適切な```pythonブロックが存在したのに、実際にビルドに使われた最終稿(リポジトリ直下のreview-map-transform.md, 35KB)では全て削除されていた、という『後退』が起きていたことをアサーション文面だけでは検出しづらい。今後は「非自明なdataclass/関数が最低1つはコード抜粋を伴って説明されているか」のように、コードブロックの存在自体も問う形に強化すると良い。"
+      },
+      {
+        "reason": "eval実行環境がshaper-dbリポジトリを複数のeval(このtransform-map評価だけでなくsync-subscribers評価等)で共有しており、docs/codemap/配下や.gitignore、リポジトリ直下の中間.mdファイルが実行間で上書き・混在している。このため「git statusで対象外ファイルが変更されていないか」を厳密に判定するにはワークツリー分離(git worktreeなど)が必要で、現状では『どの変更がどのeval実行由来か』を完全には切り分けられない。実行ごとに独立したワークツリーで評価するようharnessの改善を検討する価値がある。"
+      },
+      {
+        "reason": "outputs_dir に metrics.json・timing.json・user_notes.md がいずれも存在せず、transcript.md も最終報告のみで実行過程のツール呼び出しログを含んでいない。ツール呼び出し回数やエラー発生有無を検証できないため、'execution_metrics' や 'errors_encountered' を伴う定量評価ができていない。実行過程のログ(Read/Bash/Write等の呼び出し回数)を出力する仕組みがあると、eval全体の客観性が上がる。"
+      }
+    ],
+    "overall": "13件中12件はコード自体を実際にgrepし複数サンプルで裏取りした上でPASSと判断できる高品質な成果物だった(file:line参照の正確性・非公開ヘルパの呼び出し元表記・チェックリストの具体性はいずれも申告どおりで裏付けが取れた)。唯一のFAILは『コードブロック+説明文』要件で、中間稿では満たしていたものが最終稿への圧縮過程で完全に失われるという見過ごしやすい退行だった。加えて.gitignoreの申告内容が実際のgit状態と矛盾している点は、他のアサーションには現れないが看過できない不整合として記録した。"
+  }
+}

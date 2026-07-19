@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shaper-db sync/subscribers.py レビュー地図 (commit 0253fe0)</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --border: #e0e0e0;
+    --code-bg: #f5f5f5;
+    --accent: #2563eb;
+    --table-head: #f0f0f0;
+    --checklist-bg: #fffbea;
+    --warn-border: #e0b400;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --fg: #e6e6e6;
+      --muted: #9a9a9a;
+      --border: #30333a;
+      --code-bg: #1f2228;
+      --accent: #6ea8fe;
+      --table-head: #22252b;
+      --checklist-bg: #2a2510;
+      --warn-border: #a88300;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+  }
+  .layout {
+    max-width: min(1800px, 98vw);
+    margin: 0 auto;
+  }
+  nav.toc {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 3px 20px;
+    padding: 12px 8px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    max-height: 35vh;
+    overflow-y: auto;
+    font-size: 0.85rem;
+  }
+  nav.toc a {
+    display: inline-block;
+    color: var(--muted);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  nav.toc a:hover { color: var(--accent); }
+  nav.toc a.toc-h2 {
+    color: var(--fg);
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+  nav.toc a.toc-h3 {
+    font-weight: 400;
+    font-size: 0.8rem;
+  }
+  nav.toc a.toc-h3::before {
+    content: "› ";
+    color: var(--border);
+  }
+  main {
+    padding: 28px 48px 80px;
+  }
+  header.report-header {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  header.report-header .meta {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  h1, h2, h3, h4, h5 { scroll-margin-top: 16px; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-top: 48px; }
+  h3 { margin-top: 32px; }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    border-radius: 4px;
+  }
+  code { padding: 0.1em 0.35em; font-size: 0.9em; }
+  pre {
+    padding: 12px 16px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+    font-size: 0.92rem;
+    overflow-x: auto;
+    display: block;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--table-head); }
+  details {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin: 12px 0;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  ul.checklist { list-style: none; padding-left: 0; }
+  ul.checklist li {
+    background: var(--checklist-bg);
+    border-left: 3px solid var(--warn-border);
+    padding: 6px 10px;
+    margin: 6px 0;
+    border-radius: 4px;
+  }
+  blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 12px 0;
+    padding: 4px 14px;
+    color: var(--muted);
+  }
+  @media (max-width: 900px) {
+    nav.toc { gap: 3px 12px; padding: 10px 8px; }
+    main { padding: 24px 20px 60px; }
+  }
+  /* callgraph: インタラクティブSVG呼び出し図(callgraph.js が描画対象)。 */
+  .callgraph-wrap { margin: 16px 0; }
+  .callgraph-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .callgraph-toolbar input[type="text"] {
+    flex: 1 1 200px;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 0.85rem;
+  }
+  .callgraph-toolbar button {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--code-bg);
+    color: var(--fg);
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .callgraph-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .callgraph {
+    position: relative;
+    width: 100%;
+    height: 480px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg);
+    cursor: grab;
+    touch-action: none;
+  }
+  .callgraph.callgraph-dragging { cursor: grabbing; }
+  .callgraph svg { width: 100%; height: 100%; display: block; }
+  .callgraph-node { cursor: pointer; }
+  .callgraph-node rect { fill: var(--code-bg); stroke: var(--border); stroke-width: 1.2; }
+  .callgraph-node.callgraph-terminal rect { stroke-dasharray: 4 3; }
+  .callgraph-node text { fill: var(--fg); font-size: 12px; }
+  .callgraph-node.callgraph-active rect,
+  .callgraph-node.callgraph-match rect { stroke: var(--accent); stroke-width: 2; }
+  .callgraph-node.callgraph-dim { opacity: 0.25; }
+  .callgraph-edge path { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+  .callgraph-edge.callgraph-active path { stroke: var(--accent); stroke-width: 2; }
+  .callgraph-edge.callgraph-dim { opacity: 0.2; }
+  .callgraph-edge-label rect { fill: var(--bg); opacity: 0.85; }
+  .callgraph-edge-label text { fill: var(--muted); font-size: 10px; }
+  .callgraph-heading-flash { animation: callgraph-flash 1.5s ease-out; border-radius: 4px; }
+  @keyframes callgraph-flash {
+    0% { background: var(--checklist-bg); box-shadow: 0 0 0 3px var(--warn-border); }
+    100% { background: transparent; box-shadow: 0 0 0 0 transparent; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc">
+    <a class="toc-h2" href="#対象範囲">対象範囲</a>
+<a class="toc-h2" href="#全体構成図">全体構成図</a>
+<a class="toc-h2" href="#モジュールブロック">モジュールブロック</a>
+<a class="toc-h2" href="#関数ブロック">関数ブロック</a>
+<a class="toc-h2" href="#制御フローの可視化-apply">制御フローの可視化: `apply()`</a>
+<a class="toc-h2" href="#対象外スコープ外の言及">対象外(スコープ外)の言及</a>
+<a class="toc-h3" href="#レビューチェックリスト">レビューチェックリスト</a>
+<a class="toc-h3" href="#仕様書との対応表">仕様書との対応表</a>
+<a class="toc-h2" href="#使用した-fileline-の突合結果">使用した file:line の突合結果</a>
+  </nav>
+  <main>
+    <header class="report-header">
+      <h1>shaper-db sync/subscribers.py レビュー地図 (commit 0253fe0)</h1>
+      <div class="meta">生成日時: 2026-07-19 13:26 +0900 / 対象: src/shaper_db/sync/subscribers.py (diffスコープ: git diff 0253fe0^ 0253fe0)</div>
+    </header>
+    <h1 id="レビュー地図-syncsubscriberspy-コミット-0253fe0">レビュー地図: sync/subscribers.py (コミット 0253fe0)</h1>
+<h2 id="対象範囲">対象範囲</h2>
+<p><code>git diff 0253fe0^ 0253fe0</code>(フェーズ4 Task6: 加入者(flow)同期エントリの新規実装)を対象とする diff スコープの地図。このコミットは3ファイルの新規追加のみで、いずれも変更ではなく新規作成(<code>new file mode</code>)。</p>
+<ul>
+<li><code>src/shaper_db/sync/subscribers.py</code>(+111行、本体)</li>
+<li><code>tests/system/test_sync_subscribers_system.py</code>(+208行、fake FX2 経由の system テスト)</li>
+<li><code>tests/unit/test_sync_subscribers.py</code>(+90行、装置 I/O を伴わない単体テスト)</li>
+</ul>
+<p>本体モジュールは1つのみのため、地図の中心は <code>sync/subscribers.py</code> の関数群と、その直接の呼び出し元/呼び出し先(1 hop)に絞る。呼び出し先は <code>sync/pipeline.py</code>(オーケストレータ)・<code>transform/subscribers.py</code>(望ましい状態の生成)・<code>fetch/db.py</code>/<code>fetch/csv_source.py</code>(取得)・<code>fx2/client.py</code>(装置 I/O)・<code>diff.py</code>(差分の型)。呼び出し元は <code>pyproject.toml</code> のconsole_scripts エントリと、上記2つのテストファイル。リポジトリ全体は対象にしない。</p>
+<p>このコミットは兄弟モジュール <code>sync/rules.py</code>(既存、フェーズ4 Task5)と同じ「3ステップ注入」パターンを踏襲しているため、地図中で適宜 <code>rules.py</code> と対比する形で差異(非対称点)を明記する。</p>
+<h2 id="全体構成図">全体構成図</h2>
+<div class="callgraph-wrap">
+<div class="callgraph-toolbar"><input type="text" class="callgraph-filter" placeholder="ノードを絞り込み..." aria-label="ノード名で絞り込み" data-graph="graph-1"><button type="button" class="callgraph-zoom-in" data-graph="graph-1" aria-label="拡大">+</button><button type="button" class="callgraph-zoom-out" data-graph="graph-1" aria-label="縮小">-</button><button type="button" class="callgraph-zoom-reset" data-graph="graph-1" aria-label="表示をリセット">reset</button></div>
+<div class="callgraph" id="graph-1" role="img" aria-label="呼び出しグラフ"></div>
+</div>
+<script type="application/json" id="graph-1-data">{"nodes": [{"id": "console_scripts", "ref": "pyproject.toml:13", "file": "pyproject.toml", "line": 13}, {"id": "sync/subscribers.py(変更)", "ref": "src/shaper_db/sync/subscribers.py", "file": "src/shaper_db/sync/subscribers.py", "line": null}, {"id": "pipeline.run_cli", "ref": "src/shaper_db/sync/pipeline.py:194", "file": "src/shaper_db/sync/pipeline.py", "line": 194}, {"id": "fetch/db.fetch_db", "ref": "src/shaper_db/fetch/db.py:93", "file": "src/shaper_db/fetch/db.py", "line": 93}, {"id": "fetch/csv_source.fetch_subscribers", "ref": "src/shaper_db/fetch/csv_source.py:106", "file": "src/shaper_db/fetch/csv_source.py", "line": 106}, {"id": "transform/subscribers.build_subscribers", "ref": "src/shaper_db/transform/subscribers.py:105", "file": "src/shaper_db/transform/subscribers.py", "line": 105}, {"id": "fx2/client.get_flows", "ref": "src/shaper_db/fx2/client.py:139", "file": "src/shaper_db/fx2/client.py", "line": 139}, {"id": "fx2/client.post_flows", "ref": "src/shaper_db/fx2/client.py:161", "file": "src/shaper_db/fx2/client.py", "line": 161}, {"id": "fx2/client.delete_flows", "ref": "src/shaper_db/fx2/client.py:176", "file": "src/shaper_db/fx2/client.py", "line": 176}, {"id": "diff.DiffResult", "ref": "src/shaper_db/diff.py:19", "file": "src/shaper_db/diff.py", "line": 19}, {"id": "pipeline.run_sync", "ref": "src/shaper_db/sync/pipeline.py:144", "file": "src/shaper_db/sync/pipeline.py", "line": 144}, {"id": "pipeline._sync_group", "ref": "src/shaper_db/sync/pipeline.py:112", "file": "src/shaper_db/sync/pipeline.py", "line": 112}, {"id": "pipeline._sync_one_device", "ref": "src/shaper_db/sync/pipeline.py:83", "file": "src/shaper_db/sync/pipeline.py", "line": 83}, {"id": "diff.diff_rows", "ref": "src/shaper_db/diff.py:47", "file": "src/shaper_db/diff.py", "line": 47}, {"id": "sync/subscribers.read_current", "ref": "src/shaper_db/sync/subscribers.py:67", "file": "src/shaper_db/sync/subscribers.py", "line": 67}, {"id": "sync/subscribers.apply", "ref": "src/shaper_db/sync/subscribers.py:84", "file": "src/shaper_db/sync/subscribers.py", "line": 84}, {"id": "tests/unit/test_sync_subscribers.py", "ref": "tests/unit/test_sync_subscribers.py", "file": "tests/unit/test_sync_subscribers.py", "line": null}, {"id": "tests/system/test_sync_subscribers_system.py", "ref": "tests/system/test_sync_subscribers_system.py", "file": "tests/system/test_sync_subscribers_system.py", "line": null}], "edges": [{"from": "console_scripts", "to": "sync/subscribers.py(変更)", "label": null}, {"from": "sync/subscribers.py(変更)", "to": "pipeline.run_cli", "label": null}, {"from": "sync/subscribers.py(変更)", "to": "fetch/db.fetch_db", "label": null}, {"from": "sync/subscribers.py(変更)", "to": "fetch/csv_source.fetch_subscribers", "label": null}, {"from": "sync/subscribers.py(変更)", "to": "transform/subscribers.build_subscribers", "label": null}, {"from": "sync/subscribers.py(変更)", "to": "fx2/client.get_flows", "label": null}, {"from": "sync/subscribers.py(変更)", "to": "fx2/client.post_flows", "label": null}, {"from": "sync/subscribers.py(変更)", "to": "fx2/client.delete_flows", "label": null}, {"from": "sync/subscribers.py(変更)", "to": "diff.DiffResult", "label": null}, {"from": "pipeline.run_cli", "to": "pipeline.run_sync", "label": null}, {"from": "pipeline.run_sync", "to": "pipeline._sync_group", "label": null}, {"from": "pipeline._sync_group", "to": "pipeline._sync_one_device", "label": null}, {"from": "pipeline._sync_one_device", "to": "diff.diff_rows", "label": null}, {"from": "pipeline._sync_one_device", "to": "sync/subscribers.read_current", "label": "注入されたコールバック"}, {"from": "pipeline._sync_one_device", "to": "sync/subscribers.apply", "label": "注入されたコールバック"}, {"from": "tests/unit/test_sync_subscribers.py", "to": "sync/subscribers.py(変更)", "label": "モンキーパッチで検証"}, {"from": "tests/system/test_sync_subscribers_system.py", "to": "sync/subscribers.py(変更)", "label": "fake FX2経由で検証"}]}</script>
+<p>この図で読み取れる設計上のポイント: <code>sync/subscribers.py</code> は <code>sync/pipeline.py</code> の<code>run_sync</code>/<code>_sync_one_device</code> に自分自身の3関数(<code>make_fetch_and_transform</code>/<code>read_current</code>/<code>apply</code>)を<strong>注入する側</strong>であり、<code>pipeline.py</code> から見ると <code>sync/subscribers.py</code> は具体的な実装を知らない抽象的なコールバック(<code>FetchAndTransform</code>/<code>ReadCurrent</code>/<code>Apply</code> 型<a href="../../src/shaper_db/sync/pipeline.py">src/shaper_db/sync/pipeline.py:29-32</a>)として扱われる。逆に <code>sync/subscribers.py</code> は <code>pipeline</code> モジュールへの依存(<code>import</code> )を1つ持つのみで、<code>_sync_one_device</code>/<code>_sync_group</code>/<code>run_sync</code> を直接呼び出すことはない(<code>main()</code> が<code>pipeline.run_cli</code> を呼ぶだけ)。</p>
+<h2 id="モジュールブロック">モジュールブロック</h2>
+<h4 id="srcshaper_dbsyncsubscriberspy"><code>src/shaper_db/sync/subscribers.py</code></h4>
+<p><strong>平たく言うと:</strong> 加入者(flow)同期バッチのエントリポイント。「取得+変換」「装置現状読取」「差分適用」の3関数を組み立てて <code>pipeline.run_cli</code> に渡すだけの薄いモジュール。</p>
+<p><strong>なぜ要るか:</strong> <code>sync/pipeline.py</code> の汎用オーケストレータ(指紋ゲート・装置間並列・失敗分離)から、flow 固有の知識(FX2 API のペイロード形式・件数分割・削除→追加の順序制約)を分離するため。これにより <code>sync/rules.py</code>(subport 同期)と同じオーケストレータを共有しつつ、装置適用の非対称性(commit の有無など)をこのモジュール側だけに閉じ込められる。</p>
+<p><strong>呼ばれ方:</strong></p>
+<ul>
+<li><code>pyproject.toml:13</code> の console_scripts エントリ <code>sync-subscribers = "shaper_db.sync.subscribers:main"</code></li>
+</ul>
+<p>から <code>main()</code> が呼ばれる(実運用の唯一の入口)。</p>
+<ul>
+<li><code>tests/unit/test_sync_subscribers.py</code>・<code>tests/system/test_sync_subscribers_system.py</code> から</li>
+</ul>
+<p>個別の関数が直接呼ばれる。</p>
+<p><strong>変数一覧:</strong></p>
+<table>
+<thead><tr>
+<th>変数名</th>
+<th>スコープ</th>
+<th>型/値</th>
+<th>役割</th>
+<th>file:line</th>
+</tr></thead><tbody>
+<tr><td><code>_CHUNK</code></td><td>モジュール定数</td><td><code>int = 1_000_000</code></td><td>delete/post 1リクエストあたりの最大件数(04_fx2-api.md 2.4/2.5)</td><td>src/shaper_db/sync/subscribers.py:17</td></tr>
+<tr><td><code>seq</code></td><td><code>_chunks()</code> 内引数</td><td><code>tuple</code></td><td>分割対象のタプル(<code>diff.to_add</code>/<code>diff.to_delete</code>)</td><td>src/shaper_db/sync/subscribers.py:20</td></tr>
+<tr><td><code>size</code></td><td><code>_chunks()</code> 内引数</td><td><code>int</code></td><td>1チャンクあたりの件数(<code>_CHUNK</code>)</td><td>src/shaper_db/sync/subscribers.py:20</td></tr>
+<tr><td><code>i</code></td><td><code>_chunks()</code> 内ローカル</td><td><code>int</code></td><td><code>range(0, len(seq), size)</code> のループカウンタ(チャンク先頭インデックス)</td><td>src/shaper_db/sync/subscribers.py:22</td></tr>
+<tr><td><code>sub</code></td><td><code>_subscriber_to_row()</code> 内引数</td><td><code>Subscriber</code></td><td>正準タプル化対象の1加入者</td><td>src/shaper_db/sync/subscribers.py:26</td></tr>
+<tr><td><code>flow</code></td><td><code>_flow_to_row()</code> 内引数</td><td><code>dict</code></td><td><code>GET /flows</code> 応答の1行</td><td>src/shaper_db/sync/subscribers.py:31</td></tr>
+<tr><td><code>row</code></td><td><code>_row_to_flow()</code> 内引数</td><td><code>tuple</code></td><td>正準タプル(<code>flow_id, subport, address</code>)</td><td>src/shaper_db/sync/subscribers.py:41</td></tr>
+<tr><td><code>config</code></td><td><code>make_fetch_and_transform()</code> 内引数</td><td><code>Config</code></td><td>設定全体(db/csv/groups を参照)</td><td>src/shaper_db/sync/subscribers.py:46</td></tr>
+<tr><td><code>db_rows</code></td><td><code>_fetch()</code> 内ローカル(<code>make_fetch_and_transform</code>のクロージャ)</td><td><code>DbRows</code></td><td><code>fetch_db</code> の戻り値(<code>areas</code>のみ使用)</td><td>src/shaper_db/sync/subscribers.py:56</td></tr>
+<tr><td><code>customer_rows</code></td><td><code>_fetch()</code> 内ローカル</td><td><code>tuple[tuple[str, ...], ...]</code></td><td><code>fetch_subscribers</code> の戻り値(顧客CSV行)</td><td>src/shaper_db/sync/subscribers.py:57</td></tr>
+<tr><td><code>result</code></td><td><code>_fetch()</code> 内ローカル</td><td><code>SubscribersResult</code></td><td><code>build_subscribers</code> の戻り値</td><td>src/shaper_db/sync/subscribers.py:58</td></tr>
+<tr><td><code>by_group</code></td><td><code>_fetch()</code> 内ローカル</td><td><code>dict[str, list[tuple]]</code></td><td>group_name別に集約した正準タプルのリスト(戻り値)</td><td>src/shaper_db/sync/subscribers.py:59</td></tr>
+<tr><td><code>sub</code>(ループ)</td><td><code>_fetch()</code> 内ローカル</td><td><code>Subscriber</code></td><td><code>result.subscribers</code> のループ変数</td><td>src/shaper_db/sync/subscribers.py:60</td></tr>
+<tr><td><code>client</code></td><td><code>read_current()</code>/<code>apply()</code> 内引数</td><td><code>FX2Client</code></td><td>装置1台分のAPIクライアント</td><td>src/shaper_db/sync/subscribers.py:67, 84</td></tr>
+<tr><td><code>group_name</code></td><td><code>read_current()</code>/<code>apply()</code> 内引数</td><td><code>str</code></td><td><strong>未使用</strong>(<code>ReadCurrent</code>/<code>Apply</code> 型の契約上必須の引数)</td><td>src/shaper_db/sync/subscribers.py:67, 84</td></tr>
+<tr><td><code>desired_rows</code></td><td><code>read_current()</code> 内引数</td><td><code>list[tuple]</code></td><td><strong>未使用</strong>(同上)</td><td>src/shaper_db/sync/subscribers.py:67</td></tr>
+<tr><td><code>flows</code></td><td><code>read_current()</code> 内ローカル</td><td><code>list[dict]</code></td><td><code>client.get_flows([])</code> の戻り値(装置上の全flow)</td><td>src/shaper_db/sync/subscribers.py:80</td></tr>
+<tr><td><code>diff</code></td><td><code>apply()</code> 内引数</td><td><code>DiffResult</code></td><td><code>diff_rows</code> が計算した追加/削除対象</td><td>src/shaper_db/sync/subscribers.py:84</td></tr>
+<tr><td><code>chunk</code></td><td><code>apply()</code> 内ループ変数(2箇所)</td><td><code>tuple</code></td><td><code>_chunks</code> が返す1チャンク分の行</td><td>src/shaper_db/sync/subscribers.py:103, 105</td></tr>
+<tr><td><code>argv</code></td><td><code>main()</code> 内引数</td><td>`list[str] \</td><td>None`</td><td>CLI引数(テスト時の差し替え用)</td><td>src/shaper_db/sync/subscribers.py:109</td></tr>
+</tbody></table>
+<h2 id="関数ブロック">関数ブロック</h2>
+<h5 id="_chunksseq-size---iteratortuple--srcshaper_dbsyncsubscriberspy20"><code>_chunks(seq, size) -&gt; Iterator[tuple]</code> — <code>src/shaper_db/sync/subscribers.py:20</code></h5>
+<p><strong>意図:</strong> docstring「<code>seq</code> を <code>size</code> 件ずつのタプルに分割するジェネレータ。」。04_fx2-api.md§2.4/2.5 の「1リクエスト最大 1,000,000 件」制約に対応するための共通ヘルパ。</p>
+<p><strong>呼び出し元:</strong> <code>apply()</code>(同モジュール内、<code>src/shaper_db/sync/subscribers.py:103,105</code>)からのみ呼ばれる。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>range(0, len(seq), size)</code> によるスライス分割。<code>seq</code> が空なら1回もイテレートしない</li>
+</ul>
+<p>(<code>apply()</code> 側の早期return no-op と合わせて、空チャンクが送信されることはない)。</p>
+<ul>
+<li>最終チャンクが <code>size</code> 件未満でも問題なくスライスされる(Pythonのスライスは範囲外を</li>
+</ul>
+<p>自動的に切り詰めるため、オフバイワンの心配がない)。</p>
+<ul>
+<li><code>size</code> に0以下の値を渡すと <code>range()</code> が <code>ValueError</code> を送出する。ただし呼び出し元は常に</li>
+</ul>
+<p>モジュール定数 <code>_CHUNK</code>(または system テストで <code>monkeypatch</code> された正の整数)を渡すため、実運用経路でこの分岐に到達することはない。</p>
+<h5 id="_flow_to_rowflow---tuple--srcshaper_dbsyncsubscriberspy31"><code>_flow_to_row(flow) -&gt; tuple</code> — <code>src/shaper_db/sync/subscribers.py:31</code></h5>
+<p><strong>意図:</strong> docstring「<code>GET /flows</code> 応答の1行(<code>{flow_id, subport, address, count_id}</code>)を正準タプル化する。<code>count_id</code> は本ツールの管理対象外のため明示的に破棄する。」</p>
+<p><strong>呼び出し元:</strong> <code>read_current()</code>(同モジュール内、<code>src/shaper_db/sync/subscribers.py:81</code>)からリスト内包表記で呼ばれる。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>flow["flow_id"]</code>/<code>flow["subport"]</code>/<code>flow["address"]</code> の3キーのみ辞書アクセスで取り出し、</li>
+</ul>
+<p><code>count_id</code> キーには一切触れない(=破棄)。</p>
+<ul>
+<li>キーが辞書に存在しない場合は <code>KeyError</code> がそのまま送出される(個別の <code>try/except</code> は無い)。</li>
+</ul>
+<p>装置応答の形式異常を専用の例外型(<code>Fx2Error</code> 等)へ変換する処理はこの関数にはない。</p>
+<p><strong>確認ポイント:</strong> 04_fx2-api.md §2.3 は応答スキーマを <code>{flow_id, subport, address, count_id}</code>固定と規定しているため、キー欠落は仕様違反の装置応答のケースに限られる想定と読めるが、その場合に送出される素の <code>KeyError</code> が呼び出し元(<code>pipeline._sync_one_device</code>)の<code>except Fx2Error</code> では捕捉されず、装置単位の失敗分離をすり抜けて周期全体を止めうる。この経路をテストで確認したか、意図した挙動か確認する価値がある(下記チェックリストにも記載)。</p>
+<h5 id="_row_to_flowrow---dict--srcshaper_dbsyncsubscriberspy41"><code>_row_to_flow(row) -&gt; dict</code> — <code>src/shaper_db/sync/subscribers.py:41</code></h5>
+<p><strong>意図:</strong> docstring「正準タプル <code>(flow_id, subport, address)</code> を <code>POST /flows</code> 投入用 dict 化する(count_id なし)。」<code>_flow_to_row</code> の逆変換に相当。</p>
+<p><strong>呼び出し元:</strong> <code>apply()</code>(同モジュール内、<code>src/shaper_db/sync/subscribers.py:105</code>)からリスト内包表記で呼ばれる。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>row[0]</code>/<code>row[1]</code>/<code>row[2]</code> の位置引数アクセスで <code>flow_id</code>/<code>subport</code>/<code>address</code> を組み立てる。</li>
+</ul>
+<p>タプルの列順序(<code>_subscriber_to_row</code>/<code>_flow_to_row</code> と共通の <code>(flow_id, subport, address)</code>)に暗黙依存しており、列順序を変えるとキー名の取り違え(例: <code>subport</code> と <code>address</code> の入れ替え)が静かに起きうる。<code>tests/system/test_sync_subscribers_system.py</code> の<code>test_apply_sends_exact_field_mapping</code>(該当ファイル冒頭のコメント「HIGH: … post のフィールド入替 … を殺す」)がこの取り違えを回帰テストとして押さえている。</p>
+<h5 id="make_fetch_and_transformconfig---fetchandtransform--srcshaper_dbsyncsubscriberspy46"><code>make_fetch_and_transform(config) -&gt; FetchAndTransform</code> — <code>src/shaper_db/sync/subscribers.py:46</code></h5>
+<p><strong>意図:</strong> docstring「<code>FetchAndTransform</code> を返す(design §5 手順1)。外部DBのエリア表と顧客CSVを取得し <code>build_subscribers</code> で <code>Subscriber</code> 集合に変換した後、group_name 別に正準タプルへ集約したクロージャを返す。」05_sync-spec.md §3.1/§3.2 に対応。</p>
+<p><strong>呼び出し元:</strong> <code>main()</code>(同モジュール内、<code>src/shaper_db/sync/subscribers.py:111</code>、関数オブジェクトとして <code>pipeline.run_cli</code> に渡され、<code>pipeline.run_cli</code> 内<a href="../../src/shaper_db/sync/pipeline.py">src/shaper_db/sync/pipeline.py:214</a> で実際に呼び出される)。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li>内側の <code>_fetch()</code> が実際の取得・変換処理。<code>fetch_db(config.db)</code> と</li>
+</ul>
+<p><code>fetch_subscribers(config.csv)</code> を順に呼ぶため、DB取得とCSV取得は並列化されず直列(この点は<code>sync/rules.py</code> の <code>make_fetch_and_transform</code> が <code>fetch_db</code> のみ呼ぶ構成と異なり、<code>subscribers.py</code> 固有に2ソースの直列取得が増えている)。</p>
+<ul>
+<li><code>build_subscribers(customer_rows, db_rows.areas, config.groups)</code> の3引数のみを渡す</li>
+</ul>
+<p>(<code>sync/rules.py</code> の <code>build_rules</code> が受け取る <code>pir_max_kbps</code> 相当の引数はここには無い。docstring に明記あり)。<code>db_rows.rules</code> はこの関数では未使用。</p>
+<ul>
+<li><code>by_group.setdefault(sub.group_name, []).append(...)</code> で group_name 別に振り分ける。</li>
+</ul>
+<p><code>build_subscribers</code> が生成しない group_name(=グループ未割当の顧客行)は<code>transform/subscribers.py</code> 側で既にスキップ済み(<code>SkipReason.NO_GROUP</code>)のため、ここでの集約対象は常にいずれかの <code>config.groups</code> に属する。</p>
+<ul>
+<li><code>fetch_db</code>/<code>fetch_subscribers</code>/<code>build_subscribers</code> からの例外(<code>FetchError</code>/<code>IntegrityError</code>)は</li>
+</ul>
+<p>一切捕捉せず、そのまま呼び出し元(<code>pipeline.run_cli</code>)まで伝播する。</p>
+<h5 id="read_currentclient-group_name-desired_rows---listtuple--srcshaper_dbsyncsubscriberspy67"><code>read_current(client, group_name, desired_rows) -&gt; list[tuple]</code> — <code>src/shaper_db/sync/subscribers.py:67</code></h5>
+<p><strong>意図:</strong> docstring「装置の現状 flow を読み <code>(flow_id, subport, address)</code> の list で返す(design §5 手順2)。」05_sync-spec.md §3.3(REQ-02)に対応。</p>
+<p><strong>呼び出し元:</strong> <code>pipeline._sync_one_device</code>(<code>src/shaper_db/sync/pipeline.py:104</code>)から、<code>ReadCurrent</code> 型のコールバックとして呼ばれる。直接の関数呼び出しではなく、<code>main()</code> →<code>pipeline.run_cli</code> 経由で注入された関数オブジェクトとして呼ばれる点に注意(呼び出し箇所のコードは <code>read_current(client, group.name, desired_rows)</code>)。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>group_name</code>/<code>desired_rows</code> の2引数を<strong>一切使わない</strong>。docstring はこれを意図的な設計判断と</li>
+</ul>
+<p>説明している: (1) subport で絞り込むと 04_fx2-api.md §2.3 の「最大10件」制約に抵触する、(2) desired に無い subport 上の残存 flow を取りこぼしドリフト検知漏れが起きる、という2つの理由により常に <code>client.get_flows([])</code>(空リスト=絞り込みなし=全件取得)を呼ぶ。</p>
+<ul>
+<li>取得した <code>flows</code>(<code>list[dict]</code>)を <code>_flow_to_row</code> でリスト内包表記により3-tupleへ変換して返す。</li>
+<li><code>client.get_flows</code> が送出しうる <code>Fx2Error</code> は捕捉しない(docstring に明記。`pipeline.</li>
+</ul>
+<p>_sync_one_device<code> の </code>except Fx2Error` に委ねる契約)。</p>
+<p><strong>確認ポイント:</strong> <code>sync/rules.py</code> の同名関数 <code>read_current</code>(<code>src/shaper_db/sync/rules.py:89</code>)も同じく <code>group_name</code>/<code>desired_rows</code> を無視する設計で、コメントの理由付けもほぼ同文(1装置=1グループ不変性)。2つのモジュールで同じ理由説明が重複しているが、これは意図的な独立実装(DRY違反ではなく、<code>ReadCurrent</code> という共通の関数シグネチャ契約を満たすための各モジュール固有の実装)と読める。</p>
+<h5 id="applyclient-group_name-diff---none--srcshaper_dbsyncsubscriberspy84"><code>apply(client, group_name, diff) -&gt; None</code> — <code>src/shaper_db/sync/subscribers.py:84</code></h5>
+<p><strong>意図:</strong> docstring「差分を装置へ適用する(design §5 手順3、04_fx2-api.md §2.4/2.5・05_sync-spec.md §3.5)。」</p>
+<p><strong>呼び出し元:</strong> <code>pipeline._sync_one_device</code>(<code>src/shaper_db/sync/pipeline.py:106</code>)から、<code>Apply</code> 型のコールバックとして呼ばれる(<code>read_current</code> と同様、注入された関数オブジェクトとして呼ばれる)。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li><code>diff.to_add</code>/<code>diff.to_delete</code> が両方空なら即 <code>return</code>(装置に一切触れない no-op、</li>
+</ul>
+<p><code>test_apply_noop_empty</code> で回帰テスト済み)。</p>
+<ul>
+<li>削除を先に行ってから追加する順序を<strong>関数内のコード順</strong>(103行目→105行目)で保証している。</li>
+</ul>
+<p>理由は docstring: <code>flow_id</code>/<code>address</code> が装置全体で一意という制約があり、値の変更(=同じ<code>flow_id</code> で <code>address</code> だけ変わるケース)は削除→再登録でしか行えないため、追加が先だと一意制約違反になりうる。</p>
+<ul>
+<li><code>to_delete</code>/<code>to_add</code> それぞれを <code>_chunks(..., _CHUNK)</code> で分割し、チャンクごとに</li>
+</ul>
+<p><code>client.delete_flows(flow_ids=[...])</code>/<code>client.post_flows(flows=[...])</code> を呼ぶ。</p>
+<ul>
+<li><code>sync/rules.py</code> の <code>apply()</code> が最後に <code>client.commit_config(...)</code>(PATCH→refresh moff→</li>
+</ul>
+<p>save moff の3ステップコミット)を呼ぶのに対し、この関数は一切 commit を呼ばない(flows は即時反映のため。docstring・<code>test_apply_no_commit</code> で明記/回帰テスト済み)。</p>
+<ul>
+<li>分割送信の途中(例: 3チャンク中2番目)で <code>Fx2Error</code> が発生した場合、それ以前に送信済みの</li>
+</ul>
+<p>チャンクは装置に適用されたまま残り、この関数はロールバックを一切行わない。docstring はこれを意図的な設計(「次周期の事前読取 diffによる自己修復に委ねる」)と説明している。</p>
+<p><strong>確認ポイント:</strong> 分割送信の部分適用(fail-loud + 自己修復委譲)は 05_sync-spec.md §7 の「失敗・自己修復モデル」を根拠にした設計判断として docstring に明記されている。ただし<code>_sync_one_device</code>(<code>src/shaper_db/sync/pipeline.py:83-109</code>)は例外を捕捉した時点で即座に<code>DeviceOutcome(device.id, "failure", str(exc))</code> を返すため、「delete は完了したが post が一部だけ失敗した」ような部分適用の詳細(どのチャンクまで成功したか)はエラーメッセージ(<code>str(exc)</code>)に残らない。障害対応(06_operations.md §6)の観点でこの粒度で十分か確認する価値がある。</p>
+<h5 id="mainargv---int--srcshaper_dbsyncsubscriberspy109"><code>main(argv) -&gt; int</code> — <code>src/shaper_db/sync/subscribers.py:109</code></h5>
+<p><strong>意図:</strong> docstring「<code>sync-subscribers</code> CLI エントリ。<code>pipeline.run_cli</code> に3ステップを注入して委譲する。」</p>
+<p><strong>呼び出し元:</strong> <code>pyproject.toml:13</code> の console_scripts エントリ <code>sync-subscribers ="shaper_db.sync.subscribers:main"</code> から実運用時に呼ばれる。テストでは<code>tests/unit/test_sync_subscribers.py</code> の <code>test_main_delegates_to_run_cli</code> から直接呼ばれる。</p>
+<p><strong>実装の要点:</strong></p>
+<ul>
+<li>単純な委譲(`return pipeline.run_cli("subscribers", make_fetch_and_transform, read_current,</li>
+</ul>
+<p>apply, argv)<code>)のみで、分岐・例外処理を持たない。終了コードの写像は </code>pipeline.run_cli<code>(</code>src/shaper_db/sync/pipeline.py:194-222`)側の責務。</p>
+<h2 id="制御フローの可視化-apply">制御フローの可視化: <code>apply()</code></h2>
+<p><code>apply()</code> は分岐こそ1つの早期returnのみで単純だが、「削除→追加」の<strong>順序</strong>と「commitを呼ばない」という<strong>非対称性</strong>がレビュー時に見落とされやすい非自明な設計判断のため、簡易図で可視化する。</p>
+<div class="callgraph-wrap">
+<div class="callgraph-toolbar"><input type="text" class="callgraph-filter" placeholder="ノードを絞り込み..." aria-label="ノード名で絞り込み" data-graph="graph-2"><button type="button" class="callgraph-zoom-in" data-graph="graph-2" aria-label="拡大">+</button><button type="button" class="callgraph-zoom-out" data-graph="graph-2" aria-label="縮小">-</button><button type="button" class="callgraph-zoom-reset" data-graph="graph-2" aria-label="表示をリセット">reset</button></div>
+<div class="callgraph" id="graph-2" role="img" aria-label="呼び出しグラフ"></div>
+</div>
+<script type="application/json" id="graph-2-data">{"nodes": [{"id": "差分ゼロ判定", "ref": "src/shaper_db/sync/subscribers.py:101", "file": "src/shaper_db/sync/subscribers.py", "line": 101}, {"id": "早期return", "ref": null, "file": null, "line": null}, {"id": "DELETE分割送信", "ref": "src/shaper_db/sync/subscribers.py:103", "file": "src/shaper_db/sync/subscribers.py", "line": 103}, {"id": "例外送出", "ref": null, "file": null, "line": null}, {"id": "POST分割送信", "ref": "src/shaper_db/sync/subscribers.py:105", "file": "src/shaper_db/sync/subscribers.py", "line": 105}, {"id": "例外送出2", "ref": null, "file": null, "line": null}, {"id": "正常終了", "ref": null, "file": null, "line": null}], "edges": [{"from": "差分ゼロ判定", "to": "早期return", "label": "to_add/to_delete とも空"}, {"from": "差分ゼロ判定", "to": "DELETE分割送信", "label": "差分あり"}, {"from": "DELETE分割送信", "to": "例外送出", "label": "Fx2Error(捕捉せず伝播)"}, {"from": "DELETE分割送信", "to": "POST分割送信", "label": "DELETE全チャンク成功"}, {"from": "POST分割送信", "to": "例外送出2", "label": "Fx2Error(捕捉せず伝播、DELETE済み分はロールバックなし)"}, {"from": "POST分割送信", "to": "正常終了", "label": "全チャンク成功"}]}</script>
+<p>この図が示す通り、<code>DELETE分割送信</code> の途中(2チャンク目以降)で失敗しても、既に送信済みの削除チャンクは取り消されない。同様に <code>POST分割送信</code> の途中で失敗した場合、全ての削除と一部の追加だけが装置に反映された状態で例外が伝播する。<code>apply()</code> の実装コード上の要点にも既述の通り、これは docstring が「意図した設計」と説明している挙動。</p>
+<h2 id="対象外スコープ外の言及">対象外(スコープ外)の言及</h2>
+<ul>
+<li><code>src/shaper_db/sync/rules.py</code>・<code>src/shaper_db/sync/pipeline.py</code>・</li>
+</ul>
+<p><code>src/shaper_db/transform/subscribers.py</code>・<code>src/shaper_db/fx2/client.py</code>・<code>src/shaper_db/fetch/db.py</code>・<code>src/shaper_db/fetch/csv_source.py</code>・<code>src/shaper_db/diff.py</code> はいずれもこのコミットでの変更が無いファイル。1 hop の呼び出し関係を示す目的でのみ地図に登場させており、これらファイル自体の内部実装(分岐・例外処理等)の詳細解説は本レビュー地図の対象外(必要な範囲のみ「実装の要点」内で言及)。</p>
+<ul>
+<li><code>src/shaper_db/state.py</code>・<code>src/shaper_db/fingerprint.py</code>(指紋ゲート)は <code>pipeline.run_sync</code></li>
+</ul>
+<p>経由で間接的に関与するが、<code>sync/subscribers.py</code> から直接呼ばれることは無いため2 hop目として地図には含めない。</p>
+<h3 id="レビューチェックリスト">レビューチェックリスト</h3>
+<h4 id="命名可読性複雑度">命名/可読性/複雑度</h4>
+<ul class="checklist">
+<li>&#9744; <code>src/shaper_db/sync/subscribers.py:67,84</code> の <code>read_current</code>/<code>apply</code> はいずれも</li>
+</ul>
+<p><code>group_name</code>/<code>desired_rows</code> を関数シグネチャに持ちながら本体で一切使っていない(<code>ReadCurrent</code>/<code>Apply</code> 型契約上必須)。呼び出し元のコールバック型を見ないと「なぜ未使用の引数があるのか」が分かりにくい。docstring の説明で十分と判断できるか確認する?</p>
+<ul class="checklist">
+<li>&#9744; <code>src/shaper_db/sync/subscribers.py:84-100</code> の <code>apply()</code> はdocstringが17行あるのに対し</li>
+</ul>
+<p>本体はわずか6行(101-106行目)。設計判断の説明密度が高い分、実装コード側だけを読むと「なぜ削除を先に行うのか」「なぜcommitを呼ばないのか」が読み取れない。コメント無しで差分だけレビューする場合に誤読しないか確認する?</p>
+<ul class="checklist">
+<li>&#9744; <code>src/shaper_db/sync/subscribers.py:31-43</code> の <code>_flow_to_row</code>/<code>_row_to_flow</code> は</li>
+</ul>
+<p><code>_subscriber_to_row</code>(26-28行目)と合わせて3つの「行変換」ヘルパが並ぶ。3つとも<code>(flow_id, subport, address)</code> という同じ列順序に暗黙依存しており、関数名だけでは相互の対応関係(どれが device→row でどれが row→device か)が読み取りにくくないか確認する?</p>
+<h4 id="例外処理境界値">例外処理/境界値</h4>
+<ul class="checklist">
+<li>&#9744; <code>src/shaper_db/sync/subscribers.py:38</code> の <code>_flow_to_row</code> は <code>flow["flow_id"]</code> 等の</li>
+</ul>
+<p>辞書アクセスをそのまま行っており、キー欠落時は素の <code>KeyError</code> が送出される。<code>pipeline._sync_one_device</code>(<code>src/shaper_db/sync/pipeline.py:108</code>)は <code>except Fx2Error</code> のみ捕捉するため、<code>KeyError</code> は装置単位の失敗分離をすり抜けて周期全体を止める。04_fx2-api.md§2.3 の応答スキーマを装置が守らないケース(想定外応答)への対処方針として妥当か確認する?</p>
+<ul class="checklist">
+<li>&#9744; <code>src/shaper_db/sync/subscribers.py:103-106</code> の <code>apply()</code> は <code>to_delete</code>/<code>to_add</code> を</li>
+</ul>
+<p>チャンク単位で送信する途中で例外が発生した場合にロールバックを行わない(docstring 96-99行目に明記の設計)。部分適用状態(例: 3チャンク中1つ目のみ削除成功)から「次周期の事前読取 diff による自己修復」(05_sync-spec.md §7)へ委ねる設計が、実際に次周期の <code>diff_rows</code> で正しく検知・是正されるか(system テストでこのシナリオを再現して確認したか)?</p>
+<ul class="checklist">
+<li>&#9744; <code>src/shaper_db/sync/subscribers.py:20-23</code> の <code>_chunks</code> は <code>size</code> に0以下の値を渡すと</li>
+</ul>
+<p><code>range()</code> が <code>ValueError</code> を送出する経路がある。実運用では常に正の <code>_CHUNK</code> 定数(<code>src/shaper_db/sync/subscribers.py:17</code>)またはテストでの正の値を渡すため到達しないと見えるが、防御的な境界チェックが無い点は許容範囲か確認する?</p>
+<h4 id="テストカバレッジテスタビリティ">テストカバレッジ/テスタビリティ</h4>
+<ul class="checklist">
+<li>&#9744; <code>_chunks</code>/<code>_flow_to_row</code>/<code>_row_to_flow</code>(<code>src/shaper_db/sync/subscribers.py:20,31,41</code>)は</li>
+</ul>
+<p>それぞれ単体で直接呼び出すテストが <code>tests/unit/test_sync_subscribers.py</code> に見当たらない(<code>tests/unit/test_sync_subscribers.py</code> は <code>make_fetch_and_transform</code>/<code>_subscriber_to_row</code>/<code>main</code> のみ対象)。これら3関数は <code>tests/system/test_sync_subscribers_system.py</code> の<code>test_read_current_drops_count_id</code>・<code>test_apply_sends_exact_field_mapping</code>・<code>test_apply_chunks_both_sides</code> を通じて間接的に(fake FX2 サーバ経由で)カバーされている。単体テストでの直接カバレッジが無い点を許容範囲と判断できるか確認する?</p>
+<ul class="checklist">
+<li>&#9744; <code>src/shaper_db/sync/subscribers.py:67,84</code> の <code>read_current</code>/<code>apply</code> は <code>FX2Client</code> を</li>
+</ul>
+<p>直接引数に取る(抽象インターフェースではなく具象クラス)。<code>tests/system/test_sync_subscribers_system.py</code> の <code>_client_to_fake</code>(該当ファイル18-24行目)が<code>client._open_connection</code> を書き換えることでテスト可能にしている(<code>tests/system/test_sync_rules_system.py</code>・<code>tests/unit/test_fx2_client.py:22-38</code> と同型のテスト seam)。この非公開属性差し替えパターンへの依存が今後 <code>FX2Client</code> の内部実装変更で壊れやすくないか確認する?</p>
+<ul class="checklist">
+<li>&#9744; 05_sync-spec.md §3.5 は「適用前に検証規則(03_data-spec.md 3節)を満たすことを確認済み</li>
+</ul>
+<p>のデータのみを送信する」と規定するが、<code>apply()</code> 自身は検証を行わず、上流の<code>build_subscribers</code>(<code>src/shaper_db/transform/subscribers.py:105</code>)で既に検証済みという前提に立っている。この前提(<code>apply()</code> は検証しない)が <code>sync/subscribers.py</code> 単体のテストからは読み取れず、<code>transform/subscribers.py</code> 側のテストと合わせて初めて保証されることを、レビュー時に見落とさないよう確認する?</p>
+<h4 id="セキュリティ外部入力">セキュリティ/外部入力</h4>
+<ul class="checklist">
+<li>&#9744; <code>src/shaper_db/sync/subscribers.py:80</code> の <code>client.get_flows([])</code> で取得する装置応答</li>
+</ul>
+<p>(<code>flow_id</code>/<code>subport</code>/<code>address</code>)は外部入力(装置)由来だが、<code>_flow_to_row</code> はこれを検証せずそのまま <code>diff_rows</code>(<code>src/shaper_db/diff.py:47</code>、sqlite3 パラメータ化クエリ)や<code>_row_to_flow</code> 経由で次周期の <code>POST /flows</code> ペイロードへ流用しうる。装置が信頼された内部インフラという前提であれば妥当だが、その前提が仕様書のどこかに明記されているか確認する?</p>
+<ul class="checklist">
+<li>&#9744; <code>src/shaper_db/sync/subscribers.py</code> 全体を通して <code>logging</code> モジュールの呼び出しが無い</li>
+</ul>
+<p>(<code>grep -rn "logging" src/shaper_db</code> でこのファイルに該当なし)。06_operations.md §4(REQ-12)は実行サマリのINFOログと障害時のエラーログを要求しており、05_sync-spec.md §3.6も「エラーログを記録し」と規定している。このコミット単体ではログ出力を実装していないが、別モジュール(未実装またはフェーズ4の別タスク)で担う設計か確認する?</p>
+<ul class="checklist">
+<li>&#9744; <code>apply()</code>(<code>src/shaper_db/sync/subscribers.py:84-106</code>)が送受信するペイロードは全て</li>
+</ul>
+<p><code>json.dumps</code>/<code>FX2Client</code> 側でエンコードされ(<code>src/shaper_db/fx2/client.py:167,187</code>)、文字列連結によるリクエストボディ組み立ては無い(注入リスクの型的な排除)。この点は<code>sync/rules.py</code> の CLI テキスト組み立て(文字列連結)と対照的に安全側の設計だが、意図した設計判断として記録しておくか確認する?</p>
+<h3 id="仕様書との対応表">仕様書との対応表</h3>
+<p>仕様書は <code>docs/spec/</code> 配下6文書(REQ-xx/NFR-xx形式のID、<code>CLAUDE.md</code> の「仕様書の参照順」節に明記)を正典として使用。加えて <code>docs/superpowers/specs/2026-07-18-phase4-sync-design.md</code>(「design §5」等、モジュール docstring が直接参照する設計文書)も対応表に含める。</p>
+<table>
+<thead><tr>
+<th>コード (file:line)</th>
+<th>対応する要件/仕様</th>
+<th>備考</th>
+</tr></thead><tbody>
+<tr><td><code>sync/subscribers.py:46 make_fetch_and_transform</code></td><td>05_sync-spec.md §3.1(取得)・§3.2(望ましい状態生成)、phase4-sync-design.md §5(手順1)</td><td>DB/CSV取得と <code>build_subscribers</code> への委譲のみで、変換ロジック自体は <code>transform/subscribers.py</code> 側の対応表マター</td></tr>
+<tr><td><code>sync/subscribers.py:67 read_current</code></td><td>05_sync-spec.md §3.3(装置現状読取)、04_fx2-api.md §2.3(<code>GET /flows</code>)、phase4-sync-design.md §5(手順2)</td><td>「常に全件取得」という設計判断はdocstringに理由付けあり。仕様書側にも同趣旨の記述があるか個別確認が必要</td></tr>
+<tr><td><code>sync/subscribers.py:84 apply</code></td><td>05_sync-spec.md §3.5(適用)・§3.6(適用後の確認方針)、04_fx2-api.md §2.4/2.5(<code>POST</code>/<code>DELETE /flows</code>)、phase4-sync-design.md §5(エントリポイントと適用の非対称の表)</td><td>削除先行順序・100万件分割・commit省略の3点とも仕様書の記述と一致する形で実装されているように読める(目視確認推奨)</td></tr>
+<tr><td><code>sync/subscribers.py:17 _CHUNK = 1_000_000</code></td><td>04_fx2-api.md §2.4「1 リクエスト最大 1,000,000 件」・§2.5 同上</td><td>定数値が仕様書記載の数値と一致するか確認</td></tr>
+<tr><td><code>sync/subscribers.py:31 _flow_to_row</code>(count_id破棄)</td><td>04_fx2-api.md §2.3(応答スキーマ <code>{flow_id, subport, address, count_id}</code>)</td><td>04_fx2-api.md には「本ツールの管理対象外」という記述は無く、実装コメント側の追加説明(count_id を diff の列に含めない設計判断)。この判断の根拠がどの仕様記述に基づくか、仕様書側に明記が無い場合は口頭/設計文書ベースの判断である旨を確認</td></tr>
+<tr><td><code>sync/subscribers.py:109 main</code></td><td>06_operations.md §5(終了コード契約)、phase4-sync-design.md §7(終了コード写像)</td><td><code>main</code> 自体は委譲のみのため、終了コード写像の実体は <code>pipeline.run_cli</code>(対象外ファイル)側</td></tr>
+<tr><td>(対応する仕様記述が見当たらない実装)</td><td>—</td><td>部分適用時のロールバック省略(<code>apply()</code> 96-99行目)は 05_sync-spec.md §7(失敗・自己修復モデル)の一般論に基づく設計判断であり、<code>sync-subscribers</code> 固有の章(§3.5/§3.6)には明示のロールバック方針の記述が無い。設計文書(phase4-sync-design.md)側で確定した判断である可能性が高く、確認する価値がある</td></tr>
+</tbody></table>
+<h2 id="使用した-fileline-の突合結果">使用した file:line の突合結果</h2>
+<p>以下は本文中で使用した <code>file:line</code> 参照を <code>grep -n</code> で実ソースと突合した結果(すべて一致確認済み)。</p>
+<pre><code>src/shaper_db/sync/subscribers.py:1,17,20,22,26,28,31,38,41,43,46,53,56,57,58,59,60,61,64,
+  67,68,80,81,84,90,96,97,101,103,105,109,111
+src/shaper_db/sync/pipeline.py:29-32,83,104,106,108,112,144,162,194,214,215
+src/shaper_db/sync/rules.py:89
+src/shaper_db/diff.py:19,47
+src/shaper_db/fx2/client.py:139,161,167,176,187
+src/shaper_db/fetch/db.py:93
+src/shaper_db/fetch/csv_source.py:106
+src/shaper_db/transform/subscribers.py:105
+pyproject.toml:13</code></pre>
+<p>各行は該当コマンド(例: <code>grep -n "def apply" src/shaper_db/sync/subscribers.py</code>)で実ソースの行番号と一致することを確認済み。不一致箇所は無かった。</p>
+  </main>
+</div>
+<script>
+/*
+ * callgraph.js — python-review-map の callgraph フェンスブロックをインタラクティブSVGとして描画する。
+ *
+ * 外部依存ゼロ・ネットワークアクセスゼロ。file:// で直接開いても動く素朴な非モジュールスクリプト。
+ * ページ全体で1回だけ読み込まれ、複数の .callgraph コンテナをそれぞれ独立した状態で描画する。
+ */
+(function () {
+  "use strict";
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var MIN_SCALE = 0.4;
+  var MAX_SCALE = 3;
+  var ROW_HEIGHT = 110;
+  var COL_GAP = 40;
+  var NODE_HEIGHT = 40;
+  var NODE_PAD_X = 14;
+  var MIN_NODE_WIDTH = 90;
+  var MARGIN = 40;
+
+  function escapeText(s) {
+    // DOM API (textContent) を使うため実質不要だが、念のため文字列連結経路でも安全にしておく。
+    return String(s == null ? "" : s);
+  }
+
+  // Python 側 slugify (build_report.py) と同じ規則で見出しidを再現する。
+  // 完全な重複解決(seenカウンタ)までは追わず、初出相当のスラグのみを求める
+  // (一致する見出しが無ければ何もしない、という仕様上それで十分)。
+  function slugify(text) {
+    var plain = String(text).replace(/`([^`]+)`/g, "$1");
+    plain = plain.replace(/[^\p{L}\p{N}_\s\-]/gu, "");
+    var slug = plain.trim().toLowerCase().replace(/ /g, "-");
+    return slug || "section";
+  }
+
+  function svgElement(tag, attrs) {
+    var el = document.createElementNS(SVG_NS, tag);
+    if (attrs) {
+      for (var key in attrs) {
+        if (Object.prototype.hasOwnProperty.call(attrs, key)) {
+          el.setAttribute(key, attrs[key]);
+        }
+      }
+    }
+    return el;
+  }
+
+  function measureTextWidth(text, fontSize) {
+    if (!measureTextWidth._ctx) {
+      var canvas = document.createElement("canvas");
+      measureTextWidth._ctx = canvas.getContext("2d");
+    }
+    var ctx = measureTextWidth._ctx;
+    ctx.font = fontSize + "px -apple-system, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif";
+    return ctx.measureText(text).width;
+  }
+
+  // ノードごとのレイヤー(根からの最長経路の長さ)を素朴な緩和法で求める。
+  // 循環があってもノード数+1回で必ず打ち切るため無限ループにはならない。
+  // ただし循環があると層値そのものは反復回数分まで飛び飛びに大きくなりうるため、
+  // 最後に compressLayers で「実際に使われている値だけ」を0,1,2,...へ詰め直し、
+  // 描画上の行数がノード数程度に収まるようにする。
+  function computeLayers(nodeIds, edges) {
+    var layer = {};
+    nodeIds.forEach(function (id) {
+      layer[id] = 0;
+    });
+    var maxIterations = nodeIds.length + 1;
+    for (var iter = 0; iter < maxIterations; iter++) {
+      var changed = false;
+      for (var e = 0; e < edges.length; e++) {
+        var edge = edges[e];
+        if (!(edge.from in layer) || !(edge.to in layer)) continue;
+        if (layer[edge.to] < layer[edge.from] + 1) {
+          layer[edge.to] = layer[edge.from] + 1;
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    return compressLayers(layer);
+  }
+
+  // 実際に使われている層値だけをソートして0,1,2,...へ再マッピングする。
+  // 循環込みの緩和法では層値がO(反復回数)まで飛び飛びに膨張しうるが、
+  // ノードの相対順序(大小関係)は変えずに詰め直すことで行数の爆発を防ぐ。
+  function compressLayers(layer) {
+    var used = {};
+    Object.keys(layer).forEach(function (id) {
+      used[layer[id]] = true;
+    });
+    var sortedValues = Object.keys(used)
+      .map(Number)
+      .sort(function (a, b) {
+        return a - b;
+      });
+    var remap = {};
+    sortedValues.forEach(function (v, idx) {
+      remap[v] = idx;
+    });
+    var compressed = {};
+    Object.keys(layer).forEach(function (id) {
+      compressed[id] = remap[layer[id]];
+    });
+    return compressed;
+  }
+
+  function cubicPoint(t, p0, p1, p2, p3) {
+    var mt = 1 - t;
+    return (
+      mt * mt * mt * p0 +
+      3 * mt * mt * t * p1 +
+      3 * mt * t * t * p2 +
+      t * t * t * p3
+    );
+  }
+
+  function buildLayout(data) {
+    var nodeIds = data.nodes.map(function (n) {
+      return n.id;
+    });
+    var layer = computeLayers(nodeIds, data.edges);
+
+    var rows = {};
+    data.nodes.forEach(function (n) {
+      var row = layer[n.id] || 0;
+      if (!rows[row]) rows[row] = [];
+      rows[row].push(n);
+    });
+
+    var fontSize = 12;
+    var positions = {};
+    var rowKeys = Object.keys(rows)
+      .map(Number)
+      .sort(function (a, b) {
+        return a - b;
+      });
+
+    var maxWidth = 0;
+    var maxRowRight = MARGIN;
+
+    rowKeys.forEach(function (rowIdx) {
+      var nodesInRow = rows[rowIdx];
+      var x = MARGIN;
+      var y = MARGIN + rowIdx * ROW_HEIGHT;
+      nodesInRow.forEach(function (n) {
+        var textW = measureTextWidth(n.id, fontSize);
+        var w = Math.max(MIN_NODE_WIDTH, textW + NODE_PAD_X * 2);
+        positions[n.id] = {
+          x: x,
+          y: y,
+          w: w,
+          h: NODE_HEIGHT,
+          cx: x + w / 2,
+          cy: y + NODE_HEIGHT / 2,
+        };
+        x += w + COL_GAP;
+      });
+      if (x > maxRowRight) maxRowRight = x;
+    });
+
+    var maxRow = rowKeys.length ? rowKeys[rowKeys.length - 1] : 0;
+    var contentWidth = maxRowRight - COL_GAP + MARGIN;
+    var contentHeight = MARGIN * 2 + (maxRow + 1) * ROW_HEIGHT;
+
+    return { positions: positions, width: contentWidth, height: contentHeight };
+  }
+
+  function buildAdjacency(data) {
+    var adj = {}; // nodeId -> [{edgeIndex, other}]
+    data.nodes.forEach(function (n) {
+      adj[n.id] = [];
+    });
+    data.edges.forEach(function (edge, idx) {
+      if (adj[edge.from]) adj[edge.from].push(idx);
+      if (adj[edge.to]) adj[edge.to].push(idx);
+    });
+    return adj;
+  }
+
+  function initGraph(container) {
+    var graphId = container.id;
+    var dataScript = document.getElementById(graphId + "-data");
+    if (!dataScript) return;
+    var data;
+    try {
+      data = JSON.parse(dataScript.textContent);
+    } catch (err) {
+      return;
+    }
+    if (!data.nodes || !data.nodes.length) return;
+
+    var layout = buildLayout(data);
+    var adjacency = buildAdjacency(data);
+
+    var state = {
+      scale: 1,
+      tx: MARGIN,
+      ty: MARGIN,
+      activeNode: null,
+      filterText: "",
+    };
+
+    var svg = svgElement("svg", {
+      viewBox: "0 0 " + layout.width + " " + layout.height,
+      preserveAspectRatio: "xMinYMin meet",
+    });
+    var defs = svgElement("defs");
+    var arrowId = graphId + "-arrowhead";
+    var marker = svgElement("marker", {
+      id: arrowId,
+      viewBox: "0 0 10 10",
+      refX: "8",
+      refY: "5",
+      markerWidth: "7",
+      markerHeight: "7",
+      orient: "auto-start-reverse",
+    });
+    var arrowPath = svgElement("path", { d: "M 0 0 L 10 5 L 0 10 z" });
+    arrowPath.setAttribute("class", "callgraph-arrowhead");
+    arrowPath.style.fill = "var(--muted)";
+    marker.appendChild(arrowPath);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    var viewport = svgElement("g", { class: "callgraph-viewport" });
+    svg.appendChild(viewport);
+
+    var edgeGroup = svgElement("g", { class: "callgraph-edges" });
+    var nodeGroup = svgElement("g", { class: "callgraph-nodes" });
+    viewport.appendChild(edgeGroup);
+    viewport.appendChild(nodeGroup);
+
+    var edgeEls = [];
+    data.edges.forEach(function (edge, idx) {
+      var from = layout.positions[edge.from];
+      var to = layout.positions[edge.to];
+      if (!from || !to) return;
+      var x1 = from.cx;
+      var y1 = from.y + from.h;
+      var x2 = to.cx;
+      var y2 = to.y;
+      var dy = Math.max(Math.abs(y2 - y1) / 2, 30);
+      var c1x = x1;
+      var c1y = y1 + dy;
+      var c2x = x2;
+      var c2y = y2 - dy;
+      var d =
+        "M " + x1 + " " + y1 + " C " + c1x + " " + c1y + " " + c2x + " " + c2y + " " + x2 + " " + y2;
+
+      var g = svgElement("g", { class: "callgraph-edge" });
+      var path = svgElement("path", {
+        d: d,
+        "marker-end": "url(#" + arrowId + ")",
+      });
+      g.appendChild(path);
+
+      if (edge.label) {
+        var mx = cubicPoint(0.5, x1, c1x, c2x, x2);
+        var my = cubicPoint(0.5, y1, c1y, c2y, y2);
+        var labelText = edge.label;
+        var labelW = measureTextWidth(labelText, 10) + 8;
+        var lg = svgElement("g", {
+          class: "callgraph-edge-label",
+          transform: "translate(" + (mx - labelW / 2) + "," + (my - 7) + ")",
+        });
+        var rect = svgElement("rect", {
+          x: "0",
+          y: "0",
+          width: String(labelW),
+          height: "14",
+          rx: "3",
+        });
+        var text = svgElement("text", { x: String(labelW / 2), y: "10", "text-anchor": "middle" });
+        text.textContent = escapeText(labelText);
+        lg.appendChild(rect);
+        lg.appendChild(text);
+        g.appendChild(lg);
+      }
+
+      edgeGroup.appendChild(g);
+      edgeEls.push({ el: g, from: edge.from, to: edge.to, edgeIndex: idx });
+    });
+
+    var nodeEls = {};
+    data.nodes.forEach(function (n) {
+      var pos = layout.positions[n.id];
+      if (!pos) return;
+      var isTerminal = !n.ref;
+      var g = svgElement("g", {
+        class: "callgraph-node" + (isTerminal ? " callgraph-terminal" : ""),
+        transform: "translate(" + pos.x + "," + pos.y + ")",
+      });
+      var rect = svgElement("rect", {
+        x: "0",
+        y: "0",
+        width: String(pos.w),
+        height: String(pos.h),
+        rx: "8",
+      });
+      var text = svgElement("text", {
+        x: String(pos.w / 2),
+        y: String(pos.h / 2 + 4),
+        "text-anchor": "middle",
+      });
+      text.textContent = escapeText(n.id);
+      g.appendChild(rect);
+      g.appendChild(text);
+
+      var titleParts = [n.id];
+      if (n.ref) titleParts.push(n.ref);
+      var title = svgElement("title");
+      title.textContent = titleParts.join(" — ");
+      g.appendChild(title);
+
+      g.addEventListener("click", function (evt) {
+        evt.stopPropagation();
+        onNodeClick(n.id);
+      });
+
+      nodeGroup.appendChild(g);
+      nodeEls[n.id] = g;
+    });
+
+    container.appendChild(svg);
+
+    // ---- パン/ズーム ----
+    function applyTransform() {
+      viewport.setAttribute(
+        "transform",
+        "translate(" + state.tx + "," + state.ty + ") scale(" + state.scale + ")"
+      );
+    }
+    applyTransform();
+
+    function clampScale(s) {
+      return Math.max(MIN_SCALE, Math.min(MAX_SCALE, s));
+    }
+
+    function zoomAt(factor, cx, cy) {
+      var newScale = clampScale(state.scale * factor);
+      var ratio = newScale / state.scale;
+      state.tx = cx - (cx - state.tx) * ratio;
+      state.ty = cy - (cy - state.ty) * ratio;
+      state.scale = newScale;
+      applyTransform();
+    }
+
+    svg.addEventListener(
+      "wheel",
+      function (evt) {
+        evt.preventDefault();
+        var rect = svg.getBoundingClientRect();
+        var mx = evt.clientX - rect.left;
+        var my = evt.clientY - rect.top;
+        var factor = evt.deltaY < 0 ? 1.1 : 1 / 1.1;
+        zoomAt(factor, mx, my);
+      },
+      { passive: false }
+    );
+
+    var dragging = false;
+    var didDrag = false;
+    var dragStartX = 0;
+    var dragStartY = 0;
+    var startTx = 0;
+    var startTy = 0;
+
+    svg.addEventListener("pointerdown", function (evt) {
+      dragging = true;
+      didDrag = false;
+      dragStartX = evt.clientX;
+      dragStartY = evt.clientY;
+      startTx = state.tx;
+      startTy = state.ty;
+      container.classList.add("callgraph-dragging");
+      if (svg.setPointerCapture) {
+        try {
+          svg.setPointerCapture(evt.pointerId);
+        } catch (e) {
+          /* noop */
+        }
+      }
+    });
+
+    svg.addEventListener("pointermove", function (evt) {
+      if (!dragging) return;
+      var dx = evt.clientX - dragStartX;
+      var dy = evt.clientY - dragStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag = true;
+      state.tx = startTx + dx;
+      state.ty = startTy + dy;
+      applyTransform();
+    });
+
+    function endDrag() {
+      dragging = false;
+      container.classList.remove("callgraph-dragging");
+    }
+    svg.addEventListener("pointerup", endDrag);
+    svg.addEventListener("pointerleave", endDrag);
+
+    svg.addEventListener("click", function () {
+      if (didDrag) {
+        didDrag = false;
+        return;
+      }
+      clearHighlight();
+    });
+
+    // ---- クリックハイライト ----
+    function clearHighlight() {
+      state.activeNode = null;
+      Object.keys(nodeEls).forEach(function (id) {
+        nodeEls[id].classList.remove("callgraph-active", "callgraph-dim");
+      });
+      edgeEls.forEach(function (e) {
+        e.el.classList.remove("callgraph-active", "callgraph-dim");
+      });
+      applyFilter();
+    }
+
+    function onNodeClick(nodeId) {
+      if (state.activeNode === nodeId) {
+        clearHighlight();
+        return;
+      }
+      state.activeNode = nodeId;
+      var connected = { nodeIds: {}, edgeIndexes: {} };
+      connected.nodeIds[nodeId] = true;
+      (adjacency[nodeId] || []).forEach(function (edgeIdx) {
+        connected.edgeIndexes[edgeIdx] = true;
+        var edge = data.edges[edgeIdx];
+        connected.nodeIds[edge.from] = true;
+        connected.nodeIds[edge.to] = true;
+      });
+
+      Object.keys(nodeEls).forEach(function (id) {
+        var el = nodeEls[id];
+        el.classList.remove("callgraph-active", "callgraph-dim");
+        if (connected.nodeIds[id]) {
+          el.classList.add("callgraph-active");
+        } else {
+          el.classList.add("callgraph-dim");
+        }
+      });
+      edgeEls.forEach(function (e) {
+        e.el.classList.remove("callgraph-active", "callgraph-dim");
+        if (connected.edgeIndexes[e.edgeIndex]) {
+          e.el.classList.add("callgraph-active");
+        } else {
+          e.el.classList.add("callgraph-dim");
+        }
+      });
+
+      scrollToHeading(nodeId);
+    }
+
+    function scrollToHeading(nodeLabel) {
+      var slug = slugify(nodeLabel);
+      var heading = document.getElementById(slug);
+      if (!heading) return;
+      heading.scrollIntoView({ behavior: "smooth", block: "center" });
+      heading.classList.add("callgraph-heading-flash");
+      setTimeout(function () {
+        heading.classList.remove("callgraph-heading-flash");
+      }, 1500);
+    }
+
+    // ---- フィルタ ----
+    function applyFilter() {
+      var text = state.filterText.trim().toLowerCase();
+      if (!text) {
+        if (!state.activeNode) {
+          Object.keys(nodeEls).forEach(function (id) {
+            nodeEls[id].classList.remove("callgraph-match", "callgraph-dim");
+          });
+        }
+        return;
+      }
+      Object.keys(nodeEls).forEach(function (id) {
+        var el = nodeEls[id];
+        var matches = id.toLowerCase().indexOf(text) !== -1;
+        el.classList.toggle("callgraph-match", matches);
+        el.classList.toggle("callgraph-dim", !matches);
+      });
+    }
+
+    // ---- ツールバー ----
+    // callgraph-wrap 内で callgraph-toolbar と callgraph はきょうだい要素(1組につき1つずつ)。
+    var toolbar = container.parentNode
+      ? container.parentNode.querySelector(".callgraph-toolbar")
+      : null;
+    if (toolbar) {
+      var filterInput = toolbar.querySelector(
+        '.callgraph-filter[data-graph="' + graphId + '"]'
+      );
+      var zoomInBtn = toolbar.querySelector(
+        '.callgraph-zoom-in[data-graph="' + graphId + '"]'
+      );
+      var zoomOutBtn = toolbar.querySelector(
+        '.callgraph-zoom-out[data-graph="' + graphId + '"]'
+      );
+      var zoomResetBtn = toolbar.querySelector(
+        '.callgraph-zoom-reset[data-graph="' + graphId + '"]'
+      );
+      if (filterInput) {
+        filterInput.addEventListener("input", function () {
+          state.filterText = filterInput.value;
+          applyFilter();
+        });
+      }
+      if (zoomInBtn) {
+        zoomInBtn.addEventListener("click", function () {
+          var rect = svg.getBoundingClientRect();
+          zoomAt(1.2, rect.width / 2, rect.height / 2);
+        });
+      }
+      if (zoomOutBtn) {
+        zoomOutBtn.addEventListener("click", function () {
+          var rect = svg.getBoundingClientRect();
+          zoomAt(1 / 1.2, rect.width / 2, rect.height / 2);
+        });
+      }
+      if (zoomResetBtn) {
+        zoomResetBtn.addEventListener("click", function () {
+          state.scale = 1;
+          state.tx = MARGIN;
+          state.ty = MARGIN;
+          applyTransform();
+        });
+      }
+    }
+  }
+
+  function init() {
+    var containers = document.querySelectorAll(".callgraph");
+    containers.forEach(function (container) {
+      try {
+        initGraph(container);
+      } catch (err) {
+        // 1つのグラフの描画失敗が他のグラフやページ全体を壊さないようにする。
+        if (window.console && console.warn) {
+          console.warn("callgraph render failed for #" + container.id, err);
+        }
+      }
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
+</script>
+</body>
+</html>

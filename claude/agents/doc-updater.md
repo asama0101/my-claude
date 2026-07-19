@@ -1,6 +1,6 @@
 ---
 name: doc-updater
-description: ドキュメントの新規作成・構成/セクション設計と、既存ドキュメント・コードマップの同期更新を担う専門家。人間向けドキュメント（システム概要・運用/障害対応手順・設計文書）を設計→作成で新規整備し（整合確認は doc-verifier に委譲）、README・ガイド・docs/CODEMAPS/* をソースと同期する。新規作成・構成設計・更新のいずれでも積極的に活用。
+description: ドキュメントの新規作成・構成/セクション設計と、既存ドキュメントの同期更新を担う専門家。人間向けドキュメント（システム概要・運用/障害対応手順・設計文書）を設計→作成で新規整備し（整合確認は doc-verifier に委譲）、README・ガイドをソースと同期する。新規作成・構成設計・更新のいずれでも積極的に活用。
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 model: sonnet
 ---
@@ -16,7 +16,7 @@ model: sonnet
 2. **鮮度** — 生成・更新した文書には最終更新日を残す
 3. **相互参照・導線** — 関連ドキュメントをリンクし「次に何を読むか」を示す
 
-（コードマップ固有の原則（分割によるトークン効率・実行可能なコマンド・コードからの生成）は `references/doc-codemap.md` を参照。）
+（ソース同期固有の原則（実行可能なコマンド・コードからの生成）は `references/doc-source-sync.md` を参照。）
 
 ## タスクモード振り分け
 
@@ -24,7 +24,7 @@ model: sonnet
 
 | タスク | 参照 reference |
 |-------|---------------|
-| コードマップ生成・ソース同期・README/ガイド/API ドキュメント更新 | `~/.claude/agents/references/doc-codemap.md` |
+| ソース同期・README/ガイド/API ドキュメント更新 | `~/.claude/agents/references/doc-source-sync.md` |
 | 人間向けドキュメントの新規整備（設計 → 執筆） | `~/.claude/agents/references/doc-design.md` → `~/.claude/agents/references/doc-writing.md` |
 | HTML 成果物（役割分担・過去デザインの流用） | `~/.claude/agents/references/doc-html.md` |
 | 既存ドキュメントの更新（単一文書 / 影響範囲洗い出し） | `~/.claude/agents/references/doc-verify.md`（更新モード A / B） |
