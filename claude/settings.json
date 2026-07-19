@@ -3,25 +3,19 @@
   "permissions": {
     "allow": [
       "Read(./**)",
-      "Write(./**)",
       "Edit(./**)",
       "Bash(*)"
     ],
     "deny": [
       "Read(**/.env)",
-      "Write(**/.env)",
       "Edit(**/.env)",
       "Read(**/*.key)",
-      "Write(**/*.key)",
       "Edit(**/*.key)",
       "Read(**/*.pem)",
-      "Write(**/*.pem)",
       "Edit(**/*.pem)",
       "Read(**/id_rsa)",
-      "Write(**/id_rsa)",
       "Edit(**/id_rsa)",
       "Read(**/authorized_keys)",
-      "Write(**/authorized_keys)",
       "Edit(**/authorized_keys)",
       "Bash(sudo *)",
       "Edit(/etc/**)",
@@ -34,18 +28,7 @@
       "Edit(/lib/**)",
       "Edit(/lib64/**)",
       "Edit(/proc/**)",
-      "Edit(/sys/**)",
-      "Write(/etc/**)",
-      "Write(/usr/**)",
-      "Write(/var/**)",
-      "Write(/bin/**)",
-      "Write(/sbin/**)",
-      "Write(/boot/**)",
-      "Write(/root/**)",
-      "Write(/lib/**)",
-      "Write(/lib64/**)",
-      "Write(/proc/**)",
-      "Write(/sys/**)"
+      "Edit(/sys/**)"
     ],
     "ask": [
       "Bash(git push *)",
@@ -55,11 +38,8 @@
       "Bash(git branch -D*)",
       "WebFetch",
       "Edit(**/.claude/hooks/**)",
-      "Write(**/.claude/hooks/**)",
       "Edit(**/.claude/settings.json)",
-      "Write(**/.claude/settings.json)",
-      "Edit(**/.claude/settings.local.json)",
-      "Write(**/.claude/settings.local.json)"
+      "Edit(**/.claude/settings.local.json)"
     ],
     "defaultMode": "plan",
     "disableBypassPermissionsMode": "disable"
