@@ -17,6 +17,45 @@
   var MIN_NODE_WIDTH = 90;
   var MARGIN = 40;
 
+  // モジュール色分け: ページ内に登場する全モジュール(コールフレーム見出し+全callgraph
+  // データ)をソートした一覧に、離れた色相のパレットを順に割り当てる。ハッシュ方式は
+  // 色相衝突が多発したため不採用。report_template.html 側と同一実装(スクリプト読込順の
+  // 都合で重複定義。変更時は両方を揃えること)。DOMから決定的に計算するので両者の
+  // 割り当ては必ず一致する。
+  var MODULE_HUES = [210, 25, 130, 275, 55, 175, 330, 95, 240, 15, 155, 300];
+  function moduleKey(path) {
+    // 末尾2セグメントに正規化: "src/shaper_db/sync/rules.py" と "sync/rules.py" を同一視
+    return path.split("/").slice(-2).join("/");
+  }
+  function collectModuleHues() {
+    var keys = {};
+    var re = /—\s*(\S+\.py):\d+/;
+    Array.prototype.slice.call(document.querySelectorAll("main h4")).forEach(function (h4) {
+      var m = re.exec(h4.textContent || "");
+      if (m) keys[moduleKey(m[1])] = true;
+    });
+    Array.prototype.slice.call(
+      document.querySelectorAll('script[type="application/json"]')
+    ).forEach(function (s) {
+      try {
+        var data = JSON.parse(s.textContent);
+        (data.nodes || []).forEach(function (n) {
+          if (n.file) keys[moduleKey(n.file)] = true;
+        });
+      } catch (e) {}
+    });
+    var map = {};
+    Object.keys(keys).sort().forEach(function (k, i) {
+      map[k] = MODULE_HUES[i % MODULE_HUES.length];
+    });
+    return map;
+  }
+  var moduleHueMap = null;
+  function moduleHue(path) {
+    if (!moduleHueMap) moduleHueMap = collectModuleHues();
+    return moduleHueMap[moduleKey(path)];
+  }
+
   function escapeText(s) {
     // DOM API (textContent) を使うため実質不要だが、念のため文字列連結経路でも安全にしておく。
     return String(s == null ? "" : s);
@@ -191,6 +230,10 @@
 
     var layout = buildLayout(data);
     var adjacency = buildAdjacency(data);
+    var nodesById = {};
+    data.nodes.forEach(function (n) {
+      nodesById[n.id] = n;
+    });
 
     var state = {
       scale: 1,
@@ -297,6 +340,17 @@
         height: String(pos.h),
         rx: "8",
       });
+      if (n.file) {
+        // file:line を持つノードはモジュール色で枠と背景を染める(凡例・コールフレームの
+        // バッジと同じ割り当てなので、図と本文の対応が色で追える)
+        var hue = moduleHue(n.file);
+        if (hue !== undefined) {
+          rect.style.stroke =
+            "light-dark(hsl(" + hue + " 65% 45%), hsl(" + hue + " 65% 60%))";
+          rect.style.fill =
+            "light-dark(hsl(" + hue + " 65% 50% / 0.12), hsl(" + hue + " 60% 55% / 0.18))";
+        }
+      }
       var text = svgElement("text", {
         x: String(pos.w / 2),
         y: String(pos.h / 2 + 4),
@@ -305,17 +359,13 @@
       text.textContent = escapeText(n.id);
       g.appendChild(rect);
       g.appendChild(text);
+      g.setAttribute("data-node-id", n.id);
 
       var titleParts = [n.id];
       if (n.ref) titleParts.push(n.ref);
       var title = svgElement("title");
       title.textContent = titleParts.join(" — ");
       g.appendChild(title);
-
-      g.addEventListener("click", function (evt) {
-        evt.stopPropagation();
-        onNodeClick(n.id);
-      });
 
       nodeGroup.appendChild(g);
       nodeEls[n.id] = g;
@@ -364,6 +414,12 @@
     var dragStartY = 0;
     var startTx = 0;
     var startTy = 0;
+    // pointerdown時点(setPointerCaptureで後続イベントがsvgへ付け替えられる前)に押された
+    // ノードidを記録しておく。setPointerCaptureはpointerup以降のイベントのtargetをsvg自身に
+    // 付け替えるため、その後生成される"click"イベントも大抵のブラウザでsvgがtargetになり、
+    // 個々のノード要素に付けたclickリスナーは発火しない(ノードクリックが無反応になる主因)。
+    // pointerdown時点ならまだ付け替わっていないので、ここで拾っておく。
+    var pointerDownNodeId = null;
 
     svg.addEventListener("pointerdown", function (evt) {
       dragging = true;
@@ -372,6 +428,8 @@
       dragStartY = evt.clientY;
       startTx = state.tx;
       startTy = state.ty;
+      var nodeEl = evt.target.closest ? evt.target.closest(".callgraph-node") : null;
+      pointerDownNodeId = nodeEl ? nodeEl.getAttribute("data-node-id") : null;
       container.classList.add("callgraph-dragging");
       if (svg.setPointerCapture) {
         try {
@@ -404,6 +462,10 @@
         didDrag = false;
         return;
       }
+      if (pointerDownNodeId) {
+        onNodeClick(pointerDownNodeId);
+        return;
+      }
       clearHighlight();
     });
 
@@ -420,6 +482,13 @@
     }
 
     function onNodeClick(nodeId) {
+      var node = nodesById[nodeId];
+      if (node && node.href) {
+        // 別ページへの直接リンクを持つノード(全体構成図のモジュールノード等)は
+        // ローカルのハイライト/スクロールをせず、そのままページ遷移する。
+        window.location.href = node.href;
+        return;
+      }
       if (state.activeNode === nodeId) {
         clearHighlight();
         return;
@@ -456,8 +525,16 @@
     }
 
     function scrollToHeading(nodeLabel) {
-      var slug = slugify(nodeLabel);
-      var heading = document.getElementById(slug);
+      // 関数連携図のノードidは関数名そのもの(references/flow-map-format.md
+      // 「見出しへの明示的アンカー」節の`{#fn-関数名}`規約)なので、まず`fn-`付きの
+      // 明示的アンカーを探す。無ければ旧来の自動slugify一致(全体構成図の見出し等、
+      // fn-規約が無いノード向け)にフォールバックする。
+      var candidates = ["fn-" + nodeLabel, slugify(nodeLabel)];
+      var heading = null;
+      for (var i = 0; i < candidates.length; i++) {
+        heading = document.getElementById(candidates[i]);
+        if (heading) break;
+      }
       if (!heading) return;
       heading.scrollIntoView({ behavior: "smooth", block: "center" });
       heading.classList.add("callgraph-heading-flash");

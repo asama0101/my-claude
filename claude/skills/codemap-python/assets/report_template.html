@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    /* 「一本道原則」を路線図として可視化するレール型レイアウトの配色トークン。
+       --rail(暖色コッパー)が路線・現在地・リンクの信号色、それ以外は寒色〜中立の
+       構造色。シンタックスハイライト用の --tok-* は --rail と混同しないよう別系統の
+       色相にまとめている(トークン色=「何の種類か」、--rail=「どこを読んでいるか」)。 */
+    --paper: light-dark(#f6f7f9, #10151c);
+    --panel: light-dark(#ffffff, #171e27);
+    --ink: light-dark(#16202b, #e7ecf2);
+    --ink-soft: light-dark(#4b5a68, #93a2b0);
+    --rail: light-dark(#c46a2c, #e08a46);
+    --line: light-dark(#d8dee4, #2a333d);
+    --table-head: light-dark(#eef1f4, #1c232d);
+    --checklist-bg: light-dark(#fffbea, #2a2510);
+    --warn-border: light-dark(#e0b400, #a88300);
+
+    --tok-kw: light-dark(#5b5fc7, #9a9eea);
+    --tok-str: light-dark(#1f7a5c, #6fd3ae);
+    --tok-num: light-dark(#8b4b8c, #c98fcb);
+    --tok-fn: light-dark(#2a5db0, #7fa8e0);
+    --tok-comment: light-dark(#6b7684, #7c8794);
+    --tok-deco: var(--tok-kw);
+
+    /* 後方互換エイリアス: assets/callgraph.js:263 が var(--muted) を文字列として
+       インラインstyleに直接埋め込んでいる。callgraph.js自体は変更しないため、
+       旧変数名をここで維持する(新規CSSは上の新変数名を使う)。 */
+    --bg: var(--paper);
+    --fg: var(--ink);
+    --muted: var(--ink-soft);
+    --border: var(--line);
+    --code-bg: var(--panel);
+    --accent: var(--rail);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+  }
+  .layout {
+    max-width: min(1800px, 98vw);
+    margin: 0 auto;
+  }
+  /* ページヘッダー: パンくず・タイトル・生成日時・現在地ラベルだけの薄いバー。
+     TOCは持たない(左レールに置き換えた)。 */
+  .page-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+  }
+  .crumb { font-size: 0.8rem; }
+  .crumb a { color: var(--ink-soft); text-decoration: none; }
+  .crumb a:hover { color: var(--rail); }
+  .current-step {
+    font-size: 0.78rem;
+    color: var(--rail);
+    font-weight: 600;
+    min-height: 1.1em;
+  }
+  /* コールフレームパンくず(柱4): .page-header 直下にJSが追加する現在地バー。
+     祖先<details>を遡って集めた呼び出し元チェーン(外側→内側)を表示する。
+     チェーンが無い間はJSが display:none にする。 */
+  .frame-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 4px;
+    padding: 3px 8px 5px;
+    font-size: 0.78rem;
+    border-top: 1px dashed var(--line);
+  }
+  .frame-breadcrumb-item {
+    color: var(--ink-soft);
+    text-decoration: none;
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .frame-breadcrumb-item:hover { color: var(--rail); border-bottom-color: var(--rail); }
+  /* モジュール色分けJS(末尾の第3IIFE)が各h4に設定した --mod-h を、対応する
+     h4のidを持つ項目にだけ再利用する(色分け専用の新規ロジックは持たず、既存の
+     割り当て結果を読むだけなので既存JSの動作には影響しない)。 */
+  .frame-breadcrumb-item-colored {
+    color: light-dark(hsl(var(--mod-h, 210) 65% 32%), hsl(var(--mod-h, 210) 70% 76%));
+    background: light-dark(hsl(var(--mod-h, 210) 65% 50% / 0.12), hsl(var(--mod-h, 210) 60% 55% / 0.15));
+    border-bottom: 2px solid light-dark(hsl(var(--mod-h, 210) 60% 45% / 0.6), hsl(var(--mod-h, 210) 60% 60% / 0.55));
+  }
+  .frame-breadcrumb-sep {
+    color: var(--ink-soft);
+    font-size: 0.75rem;
+    opacity: 0.7;
+  }
+  /* body-grid: 左に「路線(レール)」、右に本文。一本道原則(処理フローを頭から
+     読み下す)を、路線図のメタファーで左端に固定表示する。 */
+  .body-grid {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    align-items: start;
+  }
+  nav.rail {
+    position: sticky;
+    top: var(--header-h, 64px);
+    align-self: start;
+    height: calc(100vh - var(--header-h, 64px));
+    overflow-y: auto;
+    padding: 20px 8px 20px 4px;
+    border-right: 1px solid var(--line);
+  }
+  .rail-line {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: relative;
+  }
+  .rail-line::before {
+    content: "";
+    position: absolute;
+    left: 9px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--line);
+  }
+  .rail-station { position: relative; margin: 1px 0; }
+  .rail-station a {
+    display: block;
+    text-decoration: none;
+    color: var(--ink-soft);
+    padding: 3px 6px 3px 28px;
+    border-radius: 4px;
+    font-size: 0.83rem;
+    line-height: 1.4;
+  }
+  .rail-station a:hover { color: var(--rail); }
+  .rail-marker {
+    position: absolute;
+    left: 3px;
+    top: 11px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 2px solid var(--line);
+  }
+  .rail-h2 a {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    font-size: 0.9rem;
+  }
+  .rail-h3 .rail-marker { width: 8px; height: 8px; left: 5px; top: 13px; }
+  .rail-empty { color: var(--ink-soft); font-size: 0.83rem; padding-left: 6px; }
+  /* rail-active: スクロール位置に応じて現在の駅をハイライトする(常時有効なJSが付与)。 */
+  .rail-active .rail-marker { background: var(--rail); border-color: var(--rail); }
+  .rail-active a { color: var(--rail); font-weight: 700; }
+  /* rail-toggle: レールの開閉ボタン(末尾のJSが .body-grid に rail-collapsed を
+     付け外しする)。折りたたむと駅マーカーだけの細い帯になり、ラベルは非表示にする。 */
+  .rail-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.78rem;
+    padding: 0 6px 14px 4px;
+    text-align: left;
+  }
+  .rail-toggle:hover { color: var(--rail); }
+  .rail-toggle-icon { font-size: 0.95rem; line-height: 1; }
+  .body-grid.rail-collapsed { grid-template-columns: 34px minmax(0, 1fr); }
+  .body-grid.rail-collapsed nav.rail { padding: 20px 0; }
+  .body-grid.rail-collapsed .rail-toggle { justify-content: center; padding: 0 0 14px; }
+  .body-grid.rail-collapsed .rail-toggle-label,
+  .body-grid.rail-collapsed .rail-label { display: none; }
+  .body-grid.rail-collapsed .rail-line::before { display: none; }
+  .body-grid.rail-collapsed .rail-station a { padding: 6px 0; }
+  .body-grid.rail-collapsed .rail-marker { position: static; display: block; margin: 0 auto; }
+  main {
+    padding: 24px 48px 80px;
+  }
+  header.report-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 16px;
+    padding: 10px 8px 6px;
+    margin: 0;
+  }
+  header.report-header h1 {
+    font-size: 1.15rem;
+    margin: 0;
+  }
+  header.report-header .meta {
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  /* --header-h は末尾のスクリプトが実測して設定する(アンカージャンプ時に
+     固定ヘッダーの下へ見出しが潜り込まないようにするため) */
+  h1, h2, h3, h4, h5 { scroll-margin-top: calc(var(--header-h, 64px) + 12px); }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-top: 48px; }
+  h3 { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    border-radius: 4px;
+  }
+  code { padding: 0.1em 0.35em; font-size: 0.9em; }
+  pre {
+    padding: 12px 16px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+    font-size: 0.92rem;
+    overflow-x: auto;
+    display: block;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--table-head); }
+  details {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin: 12px 0;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  /* コールフレーム: ネストした details を呼び出しの深さとして視覚化する
+     (flow-map-format.md 4節。深いほど左にボーダー+インデントが積み重なる) */
+  details details {
+    margin-left: 16px;
+    border-left: 3px solid var(--accent);
+  }
+  details[open] > summary {
+    margin-bottom: 8px;
+  }
+  h4 > code {
+    font-size: 0.95em;
+  }
+  /* モジュール色分け: 末尾のスクリプトがコールフレーム見出しの「— file:line」から
+     モジュールパスを抽出し、--mod-h(色相)を設定して以下のスタイルを効かせる */
+  .module-badge {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.7;
+    padding: 0 8px;
+    border-radius: 10px;
+    margin-left: 10px;
+    vertical-align: 2px;
+    white-space: nowrap;
+    color: light-dark(hsl(var(--mod-h, 210) 60% 30%), hsl(var(--mod-h, 210) 70% 78%));
+    background: light-dark(hsl(var(--mod-h, 210) 65% 50% / 0.13), hsl(var(--mod-h, 210) 60% 55% / 0.16));
+    border: 1px solid light-dark(hsl(var(--mod-h, 210) 60% 45% / 0.55), hsl(var(--mod-h, 210) 60% 60% / 0.5));
+  }
+  h4.call-frame-heading {
+    border-left: 4px solid light-dark(hsl(var(--mod-h, 210) 65% 45%), hsl(var(--mod-h, 210) 65% 60%));
+    padding-left: 10px;
+  }
+  details.call-frame {
+    border-left: 4px solid light-dark(hsl(var(--mod-h, 210) 65% 45%), hsl(var(--mod-h, 210) 65% 60%));
+  }
+  a.fn-link {
+    color: light-dark(hsl(var(--mod-h, 210) 70% 36%), hsl(var(--mod-h, 210) 75% 72%));
+    text-decoration-color: light-dark(hsl(var(--mod-h, 210) 65% 45% / 0.6), hsl(var(--mod-h, 210) 65% 60% / 0.6));
+  }
+  .module-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex-basis: 100%;
+    margin: 4px 0 2px;
+  }
+  .module-legend .module-badge { margin-left: 0; }
+  .module-legend-label {
+    font-size: 12px;
+    color: var(--muted);
+    align-self: center;
+    margin-right: 4px;
+  }
+  ul.checklist { list-style: none; padding-left: 0; }
+  ul.checklist li {
+    background: var(--checklist-bg);
+    border-left: 3px solid var(--warn-border);
+    padding: 6px 10px;
+    margin: 6px 0;
+    border-radius: 4px;
+  }
+  blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 12px 0;
+    padding: 4px 14px;
+    color: var(--muted);
+  }
+  /* 用語参照リンク: 下線のみ・別ページ遷移前提にしない。title属性のブラウザ標準
+     ツールチップで要点を出す(scripts/build_report.py の inline() が出力する
+     a.term-ref に対応)。 */
+  a.term-ref {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px dotted var(--rail);
+    cursor: help;
+  }
+  a.term-ref:hover { border-bottom-style: solid; color: var(--rail); }
+  /* 用語集セクション: 索引的に見出しから独立して探せるよう1エントリ1ブロック
+     (scripts/build_report.py の render_glossary_block() が出力する構造に対応)。 */
+  .glossary-list { margin: 16px 0; }
+  .glossary-entry {
+    scroll-margin-top: calc(var(--header-h, 64px) + 12px);
+    padding: 10px 4px;
+    border-bottom: 1px dashed var(--line);
+  }
+  .glossary-entry:target { background: var(--checklist-bg); border-radius: 4px; }
+  .glossary-entry .glossary-term {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 700;
+    margin: 0 0 2px;
+  }
+  .glossary-entry .glossary-summary { margin: 0; color: var(--ink); }
+  .glossary-entry .glossary-detail { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+  @media (max-width: 900px) {
+    .body-grid { grid-template-columns: 1fr; }
+    nav.rail {
+      position: sticky;
+      top: var(--header-h, 56px);
+      width: 100%;
+      height: auto;
+      max-height: 40vh;
+      overflow-y: auto;
+      border-right: none;
+      border-bottom: 1px solid var(--line);
+    }
+    main { padding: 24px 20px 60px; }
+    .line-notes-row { grid-template-columns: 1fr; }
+    .body-grid.rail-collapsed { grid-template-columns: 1fr; }
+    .body-grid.rail-collapsed nav.rail { max-height: 52px; }
+  }
+  /* main内は「文章系要素だけ幅を絞り、コード/図は絞らない」。<details>のネストの
+     深さに関わらず一貫させるため、幅指定は個々の要素セレクタに直接掛ける
+     (親コンテナに max-width を掛けて子で解除する方式は入れ子で崩れやすいため避ける)。 */
+  main :is(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote) {
+    max-width: 920px;
+  }
+  main table {
+    max-width: 920px;
+  }
+  main .line-notes,
+  main .callgraph-wrap {
+    max-width: none;
+  }
+  /* シンタックスハイライト: scripts/build_report.py の render_highlighted_code /
+     highlight_python_block が出力する tok-* クラスに対応する。UIの信号色 --rail とは
+     別系統の色相にしてあり、「どこを読んでいるか(--rail)」と「何の種類のトークンか
+     (--tok-*)」を混同しない。 */
+  .tok-kw { color: var(--tok-kw); font-weight: 600; }
+  .tok-str { color: var(--tok-str); }
+  .tok-num { color: var(--tok-num); }
+  .tok-fn { color: var(--tok-fn); }
+  .tok-comment { color: var(--tok-comment); font-style: italic; }
+  .tok-deco { color: var(--tok-deco); font-weight: 600; text-decoration: underline dotted; text-underline-offset: 3px; }
+  /* line-notes: コード1行+右側の解説を並べる行ごと注釈ブロック。 */
+  .line-notes {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+  .line-notes-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.9fr);
+    gap: 4px 20px;
+    align-items: start;
+    padding: 3px 14px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .line-notes-row:last-child { border-bottom: none; }
+  .line-notes-code {
+    margin: 0;
+    border: none;
+    background: none;
+    padding: 3px 0;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .line-notes-note {
+    font-size: 0.85rem;
+    color: var(--muted);
+    padding: 4px 0;
+  }
+  .line-notes-example {
+    font-size: 0.85rem;
+    color: var(--muted);
+    padding: 4px 0;
+    font-style: italic;
+  }
+  .line-notes-header {
+    border-bottom: 1px solid var(--border);
+  }
+  .line-notes-header-cell {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  /* callgraph: インタラクティブSVG呼び出し図(callgraph.js が描画対象)。 */
+  .callgraph-wrap { margin: 16px 0; }
+  .callgraph-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .callgraph-toolbar input[type="text"] {
+    flex: 1 1 200px;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 0.85rem;
+  }
+  .callgraph-toolbar button {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--code-bg);
+    color: var(--fg);
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .callgraph-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .callgraph {
+    position: relative;
+    width: 100%;
+    height: 480px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg);
+    cursor: grab;
+    touch-action: none;
+  }
+  .callgraph.callgraph-dragging { cursor: grabbing; }
+  .callgraph svg { width: 100%; height: 100%; display: block; }
+  .callgraph-node { cursor: pointer; }
+  .callgraph-node rect { fill: var(--code-bg); stroke: var(--border); stroke-width: 1.2; }
+  .callgraph-node.callgraph-terminal rect { stroke-dasharray: 4 3; }
+  .callgraph-node text { fill: var(--fg); font-size: 12px; }
+  .callgraph-node.callgraph-active rect,
+  .callgraph-node.callgraph-match rect { stroke: var(--accent); stroke-width: 2; }
+  .callgraph-node.callgraph-dim { opacity: 0.25; }
+  .callgraph-edge path { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+  .callgraph-edge.callgraph-active path { stroke: var(--accent); stroke-width: 2; }
+  .callgraph-edge.callgraph-dim { opacity: 0.2; }
+  .callgraph-edge-label rect { fill: var(--bg); opacity: 0.85; }
+  .callgraph-edge-label text { fill: var(--muted); font-size: 10px; }
+  .callgraph-heading-flash { animation: callgraph-flash 1.5s ease-out; border-radius: 4px; }
+  @keyframes callgraph-flash {
+    0% { background: var(--checklist-bg); box-shadow: 0 0 0 3px var(--warn-border); }
+    100% { background: transparent; box-shadow: 0 0 0 0 transparent; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="page-header">
+    <div class="crumb"><a href="index.html">← インデックス</a></div>
+    <header class="report-header">
+      <h1>__TITLE__</h1>
+      <div class="meta">生成日時: __GENERATED_AT__ / 対象: __TARGET__</div>
+    </header>
+    <div class="current-step" id="current-step-label"></div>
+  </div>
+  <div class="body-grid">
+    <script>
+      // 折りたたみ状態の復元をCSS適用前(初回描画前)に同期実行し、開いた状態が
+      // 一瞬表示されてから畳まれる「フラッシュ」を防ぐ。file://直接オープンでは
+      // localStorageが機能しない場合があるが、その場合は既定(展開)のまま。
+      try {
+        if (localStorage.getItem("codemap-rail-collapsed") === "1") {
+          document.currentScript.parentElement.classList.add("rail-collapsed");
+        }
+      } catch (e) {}
+    </script>
+    <nav class="rail" aria-label="読み下しの路線図">
+      <button type="button" class="rail-toggle" aria-expanded="true" aria-label="路線図をたたむ">
+        <span class="rail-toggle-icon" aria-hidden="true">‹</span>
+        <span class="rail-toggle-label">たたむ</span>
+      </button>
+      <ol class="rail-line">
+        __TOC_HTML__
+      </ol>
+    </nav>
+    <main>
+      __BODY_HTML__
+    </main>
+  </div>
+</div>
+__CALLGRAPH_ASSETS__
+<script>
+(function () {
+  "use strict";
+  // 固定ヘッダーの実測高を --header-h に反映する(見出しの scroll-margin-top と
+  // スクロールスパイの基準線に使う)。凡例の追加やリサイズで高さが変わるたびに更新。
+  var pageHeader = document.querySelector(".page-header");
+  function setHeaderVar() {
+    if (!pageHeader) return;
+    document.documentElement.style.setProperty("--header-h", pageHeader.offsetHeight + "px");
+  }
+  setHeaderVar();
+  window.addEventListener("resize", setHeaderVar);
+
+  // レールのスクロールスパイ: callgraphの有無に関わらず常に有効(nav.railは全ページ共通)。
+  // 現在の駅(rail-active)をハイライトし、ヘッダーの現在地ラベルにも反映する。
+  var rail = document.querySelector("nav.rail");
+  if (!rail) return;
+  var currentStepLabel = document.getElementById("current-step-label");
+  var links = Array.prototype.slice.call(rail.querySelectorAll("a"));
+  var headings = [];
+  links.forEach(function (a) {
+    var id = decodeURIComponent((a.getAttribute("href") || "").replace(/^#/, ""));
+    var heading = id ? document.getElementById(id) : null;
+    if (heading) headings.push({ link: a, el: heading });
+  });
+  if (!headings.length) return;
+
+  var ticking = false;
+  function update() {
+    ticking = false;
+    var headerH = pageHeader ? pageHeader.offsetHeight : rail.offsetTop;
+    var pos = window.scrollY + headerH + 24;
+    var current = headings[0];
+    for (var i = 0; i < headings.length; i++) {
+      if (headings[i].el.offsetTop <= pos) current = headings[i];
+    }
+    headings.forEach(function (h) {
+      var station = h.link.closest(".rail-station");
+      if (station) station.classList.toggle("rail-active", h === current);
+    });
+    if (currentStepLabel) {
+      var labelEl = current.link.querySelector(".rail-label");
+      currentStepLabel.textContent = labelEl ? labelEl.textContent : "";
+    }
+  }
+  function onScroll() {
+    if (!ticking) {
+      window.requestAnimationFrame(update);
+      ticking = true;
+    }
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+  update();
+})();
+(function () {
+  "use strict";
+  // レールの折りたたみ開閉。初期状態は body-grid 冒頭の同期スクリプトが
+  // localStorage から復元済み(無ければ展開のまま)なので、ここではボタンの
+  // 見た目をその状態に合わせてから、クリックで切り替える。
+  var bodyGrid = document.querySelector(".body-grid");
+  var toggle = document.querySelector(".rail-toggle");
+  if (!bodyGrid || !toggle) return;
+  var icon = toggle.querySelector(".rail-toggle-icon");
+  var label = toggle.querySelector(".rail-toggle-label");
+  function applyState(collapsed) {
+    bodyGrid.classList.toggle("rail-collapsed", collapsed);
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    toggle.setAttribute("aria-label", collapsed ? "路線図を広げる" : "路線図をたたむ");
+    if (icon) icon.textContent = collapsed ? "›" : "‹";
+    if (label) label.textContent = collapsed ? "広げる" : "たたむ";
+  }
+  applyState(bodyGrid.classList.contains("rail-collapsed"));
+  toggle.addEventListener("click", function () {
+    var collapsed = !bodyGrid.classList.contains("rail-collapsed");
+    applyState(collapsed);
+    try {
+      localStorage.setItem("codemap-rail-collapsed", collapsed ? "1" : "0");
+    } catch (e) {}
+    // レール幅が変わりヘッダー高が変わることは無いが、他IIFEのレイアウト
+    // 依存処理(scroll-spyの現在地判定等)を最新状態で再評価させる。
+    window.dispatchEvent(new Event("resize"));
+  });
+})();
+(function () {
+  "use strict";
+  // モジュール色分け: コールフレーム見出し(h4「`シグネチャ` — `path.py:line`」)から
+  // モジュールパスを抽出し、モジュールごとの色でバッジ・枠線・ページ内リンクを着色する。
+  // 色の割り当ては「ページ内に登場する全モジュール(h4+全callgraphデータ)のソート順に、
+  // 離れた色相のパレットを順番に割り当てる」方式。assets/callgraph.js 側と同一実装
+  // (スクリプト読込順の都合で重複定義。変更時は両方を揃えること)。DOMから決定的に
+  // 計算するので図と本文の色は必ず一致する。
+  var MODULE_HUES = [210, 25, 130, 275, 55, 175, 330, 95, 240, 15, 155, 300];
+  function moduleKey(path) {
+    // 末尾2セグメントに正規化: "src/shaper_db/sync/rules.py" と "sync/rules.py" を同一視
+    return path.split("/").slice(-2).join("/");
+  }
+  var REF_RE = /—\s*(\S+\.py):\d+/;
+  function collectModuleHues() {
+    var keys = {};
+    Array.prototype.slice.call(document.querySelectorAll("main h4")).forEach(function (h4) {
+      var m = REF_RE.exec(h4.textContent || "");
+      if (m) keys[moduleKey(m[1])] = true;
+    });
+    Array.prototype.slice.call(
+      document.querySelectorAll('script[type="application/json"]')
+    ).forEach(function (s) {
+      try {
+        var data = JSON.parse(s.textContent);
+        (data.nodes || []).forEach(function (n) {
+          if (n.file) keys[moduleKey(n.file)] = true;
+        });
+      } catch (e) {}
+    });
+    var map = {};
+    Object.keys(keys).sort().forEach(function (k, i) {
+      map[k] = MODULE_HUES[i % MODULE_HUES.length];
+    });
+    return map;
+  }
+  var hueMap = collectModuleHues();
+  function moduleHue(path) {
+    return hueMap[moduleKey(path)];
+  }
+  var headings = Array.prototype.slice.call(document.querySelectorAll("main h4"));
+  var modules = [];
+  var hueById = {};
+  headings.forEach(function (h4) {
+    var m = REF_RE.exec(h4.textContent || "");
+    if (!m) return;
+    var mod = m[1];
+    var hue = moduleHue(mod);
+    if (hue === undefined) return;
+    h4.classList.add("call-frame-heading");
+    h4.style.setProperty("--mod-h", String(hue));
+    var badge = document.createElement("span");
+    badge.className = "module-badge";
+    badge.style.setProperty("--mod-h", String(hue));
+    badge.textContent = mod.split("/").slice(-2).join("/");
+    badge.title = mod;
+    h4.appendChild(badge);
+    if (modules.indexOf(mod) === -1) modules.push(mod);
+    if (h4.id) hueById[h4.id] = hue;
+    var next = h4.nextElementSibling;
+    if (next && next.tagName === "DETAILS") {
+      next.classList.add("call-frame");
+      next.style.setProperty("--mod-h", String(hue));
+    }
+  });
+  // ページ内の #fn- リンク(line-notes解説欄など)を呼び先モジュールの色に染める
+  Array.prototype.slice.call(document.querySelectorAll('main a[href^="#fn-"]')).forEach(function (a) {
+    var id = decodeURIComponent((a.getAttribute("href") || "").slice(1));
+    if (Object.prototype.hasOwnProperty.call(hueById, id)) {
+      a.classList.add("fn-link");
+      a.style.setProperty("--mod-h", String(hueById[id]));
+    }
+  });
+  // 凡例: 2モジュール以上のフレームがあるページの冒頭に色見本を出す
+  if (modules.length >= 2) {
+    var legend = document.createElement("div");
+    legend.className = "module-legend";
+    var label = document.createElement("span");
+    label.className = "module-legend-label";
+    label.textContent = "モジュール:";
+    legend.appendChild(label);
+    modules.forEach(function (mod) {
+      var chip = document.createElement("span");
+      chip.className = "module-badge";
+      chip.style.setProperty("--mod-h", String(moduleHue(mod)));
+      chip.textContent = mod.split("/").slice(-2).join("/");
+      chip.title = mod;
+      legend.appendChild(chip);
+    });
+    var header = document.querySelector(".report-header");
+    if (header) {
+      header.appendChild(legend);
+      // 凡例の分だけ固定ヘッダーが高くなるので --header-h を再計算させる
+      window.dispatchEvent(new Event("resize"));
+    }
+  }
+})();
+(function () {
+  "use strict";
+  // コールフレームパンくず(柱4): 現在スクロール中のh4見出し(コールフレーム見出し)から
+  // 祖先<details>を遡って呼び出し元チェーンを外側→内側の順で組み立て、.page-header
+  // 直下に表示する。rail scroll-spy(第1IIFE)の「見出しのoffsetTop <= 現在位置」判定と
+  // 同じ考え方を使うが、既存のonScroll/updateには一切触れず独立したscrollリスナーに
+  // する(既存JSを壊すリスクを避けるため)。色分けは第3IIFE(モジュール色分け)が各h4に
+  // 設定済みの --mod-h を読むだけで再利用し、色の割り当て自体は再計算しない。
+  var pageHeader = document.querySelector(".page-header");
+  var headings = Array.prototype.slice.call(document.querySelectorAll("main h4[id]"));
+  if (!pageHeader || !headings.length) return;
+
+  var breadcrumb = document.createElement("div");
+  breadcrumb.className = "frame-breadcrumb";
+  breadcrumb.setAttribute("aria-label", "現在のコールフレーム");
+  breadcrumb.style.display = "none";
+  pageHeader.appendChild(breadcrumb);
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // h4のテキスト(例: "load_config(path) -> Config — config.py:805")から、
+  // パンくずに表示する関数名部分だけを抜き出す(シグネチャの引数・戻り値注釈・
+  // file:line 部分は捨てる)。
+  function frameLabel(h4) {
+    var text = (h4.textContent || "").trim();
+    var sigPart = text.split("—")[0].trim();
+    var m = /^([A-Za-z_][A-Za-z0-9_.]*)/.exec(sigPart);
+    return m ? m[1] : (sigPart || text);
+  }
+
+  // 対象h4から祖先<details>を closest("details") で1つずつ遡り、各detailsの直前の
+  // 兄弟h4(=呼び出し元)を集める。対象h4自身を先頭に含めてから配列を反転し、
+  // 外側→内側の順にする。
+  function chainFor(h4) {
+    var chain = [h4];
+    var node = h4.closest("details");
+    while (node) {
+      var prev = node.previousElementSibling;
+      if (prev && prev.tagName === "H4") chain.push(prev);
+      node = node.parentElement ? node.parentElement.closest("details") : null;
+    }
+    return chain.reverse();
+  }
+
+  function refreshHeaderVar() {
+    document.documentElement.style.setProperty("--header-h", pageHeader.offsetHeight + "px");
+  }
+
+  function render(h4) {
+    var chain = chainFor(h4);
+    breadcrumb.innerHTML = chain.map(function (node) {
+      var hue = node.style.getPropertyValue("--mod-h");
+      var cls = "frame-breadcrumb-item";
+      var styleAttr = "";
+      if (hue) {
+        cls += " frame-breadcrumb-item-colored";
+        styleAttr = ' style="--mod-h:' + hue.trim() + '"';
+      }
+      return '<a class="' + cls + '" href="#' + node.id + '"' + styleAttr + '>' +
+        escapeHtml(frameLabel(node)) + "</a>";
+    }).join('<span class="frame-breadcrumb-sep" aria-hidden="true">›</span>');
+    breadcrumb.style.display = chain.length ? "" : "none";
+  }
+
+  var ticking = false;
+  function update() {
+    ticking = false;
+    var headerH = pageHeader.offsetHeight;
+    var pos = window.scrollY + headerH + 24;
+    var current = null;
+    for (var i = 0; i < headings.length; i++) {
+      if (headings[i].offsetTop <= pos) current = headings[i];
+    }
+    if (current) {
+      render(current);
+    } else {
+      breadcrumb.style.display = "none";
+      breadcrumb.innerHTML = "";
+    }
+    refreshHeaderVar();
+  }
+  function onBreadcrumbScroll() {
+    if (!ticking) {
+      window.requestAnimationFrame(update);
+      ticking = true;
+    }
+  }
+  window.addEventListener("scroll", onBreadcrumbScroll, { passive: true });
+  window.addEventListener("resize", onBreadcrumbScroll);
+  update();
+})();
+</script>
+</body>
+</html>
