@@ -389,7 +389,7 @@
   <h1>設定の解剖台帳
     <span class="sub">CLAUDE.md・Skill・Agent・Reference の参照関係と、TDD 品質防衛のしくみ</span>
   </h1>
-  <p class="header-meta">調査日 2026-07-03・改訂 2026-07-06（9→10 ゲート再設計・agents 12本・hooks 3本へ同期）・改訂 2026-07-25（superpowers統合により全面再設計・10ゲート→CP-A〜F・agents 12本→tdd-generator廃止/tdd-implementer新設）／ 対象 ~/.claude/（リポジトリ claude/ ミラー）</p>
+  <p class="header-meta">調査日 2026-07-03・改訂 2026-07-06（9→10 ゲート再設計・agents 12本・hooks 3本へ同期）・改訂 2026-07-25（superpowers統合により全面再設計・10ゲート→CP-A〜F・agents 12本→tdd-generator廃止/tdd-implementer新設）・改訂 2026-07-26（CP-A〜F 完全自動サイクル化・受け入れ確認は CP-F 後に一本化・GUARDRAIL_HALT 停止シグナル新設・trivial の doc 編集にも doc-verifier 追加）／ 対象 ~/.claude/（リポジトリ claude/ ミラー）</p>
   <div class="kenin" aria-hidden="true"><b>検</b><span>2026.07</span></div>
 </header>
 
@@ -451,7 +451,7 @@
         <tr>
           <td class="center"><b>trivial</b></td>
           <td>数行・既存パターン踏襲・テスト不要（設定/ドキュメント/コメント/誤記）</td>
-          <td><code>trivial-executor</code>（haiku）へ一括委任。Plan モード・reviewer 群は省略可</td>
+          <td><code>trivial-executor</code>（haiku）へ一括委任。Plan モード・reviewer 群は省略可。<b>doc 編集は trivial-executor 実行後に <code>doc-verifier</code> で整合確認</b>する</td>
         </tr>
         <tr>
           <td class="center"><b>small</b></td>
@@ -791,7 +791,7 @@
     </div>
     <div class="fnote">
       <b>新言語は _template.md から拡張する</b>
-      言語プロファイルは現状 pytest のみ。未対応言語では <code>profiles/_template.md</code> から起草し、テスト実行コマンドと合格ログ形式を<b>ユーザー承認後</b>に CP-C を開始する（pytest 前提で進めない）。
+      言語プロファイルは現状 pytest のみ。未対応言語では <code>profiles/_template.md</code> から起草し、テスト実行コマンドと合格ログ形式を<b>ユーザー承認後</b>に CP-C を開始する（pytest 前提で進めない。未確定のまま進めそうになったら <code>GUARDRAIL_HALT: profile_undefined</code> で停止する）。
     </div>
     <div class="fnote">
       <b>UI/UX は独立ゲートを持たない</b>
@@ -829,9 +829,9 @@
         <tr><td><code>review-maintainability</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>保守性・doc 整合（<b>数値基準の単一ソース</b>: 関数50行・ファイル800行・ネスト4）</td></tr>
         <tr><td><code>review-test</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>テスト品質・要件/スキーマ適合・冪等性（テスト観点）</td></tr>
         <tr><td><code>dev-python</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>Python 実装（スタイル・設計パターン・イディオム）</td><td><code>python-style.md</code>・<code>python-fastapi.md</code>・<code>python-rest-api.md</code>・<code>python-testing.md</code></td></tr>
-        <tr><td><code>doc-updater</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>ドキュメント・コードマップの生成/同期（CP-F の実装役）＋ CP-E の CI ワークフロー生成（いずれもユーザー受け入れ後、writing-plans が末尾タスクとして追加した場合に実行）</td><td><code>doc-design.md</code>・<code>doc-writing.md</code>・<code>doc-html.md</code>・<code>doc-source-sync.md</code>・<code>doc-verify.md</code></td></tr>
-        <tr><td><code>doc-verifier</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>doc 整合確認（記載事実 vs ソース）を執筆者と別コンテキストで採点（<b>report 専用・自己承認排除</b>）</td><td><code>doc-verify.md</code></td></tr>
-        <tr><td><code>trivial-executor</code></td><td class="center"><span class="model-chip haiku">haiku</span></td><td>trivial 変更の軽量一括実行。substantial と気づいたら止めて差し戻す</td><td>（なし）</td></tr>
+        <tr><td><code>doc-updater</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>ドキュメント・コードマップの生成/同期（CP-F の実装役）＋ CP-E の CI ワークフロー生成（writing-plans が末尾タスクとして追加した場合に、CP-A〜F の自動サイクルの中で実行。ユーザー受け入れ確認は CP-F 完了後に一度だけ）</td><td><code>doc-design.md</code>・<code>doc-writing.md</code>・<code>doc-html.md</code>・<code>doc-source-sync.md</code>・<code>doc-verify.md</code></td></tr>
+        <tr><td><code>doc-verifier</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>doc 整合確認（記載事実 vs ソース）を執筆者と別コンテキストで採点（<b>report 専用・自己承認排除</b>）。起動元は <code>doc-updater</code>（CP-F）または <code>trivial-executor</code>（trivial の doc 編集）</td><td><code>doc-verify.md</code></td></tr>
+        <tr><td><code>trivial-executor</code></td><td class="center"><span class="model-chip haiku">haiku</span></td><td>trivial 変更の軽量一括実行。substantial と気づいたら止めて差し戻す。doc 編集後は <code>doc-verifier</code> が整合確認する</td><td>（なし）</td></tr>
       </tbody>
     </table>
   </div>
@@ -895,13 +895,6 @@
       </details>
     </div>
 
-    <div class="acceptance">
-      <div class="gate-badge-no">✓</div>
-      <div class="gate-card">
-        <b>ユーザー受け入れ確認</b> — CP-D PASS 後・CP-E/CP-F の前に必ず挟む。<b>例外</b>として、ユーザーが既に承認済みの複数マイルストーン計画で clean PASS のときは、ここで停止せず進捗報告のみで次のマイルストーンへ自動的に進む。この時 <code>tdd-evaluator</code> が<b>受け入れチェックリスト</b>（受入基準＋CP-Dの5次元＋例外処理・権限漏れ・変更影響範囲）を機械的に導出して返し、手動確認を再現可能にする。NG なら修正へ差し戻し、ドキュメントは更新しない。
-      </div>
-    </div>
-
     <div class="gate">
       <div class="gate-badge-no">E</div>
       <details class="gate-card">
@@ -924,6 +917,13 @@
         <div class="gate-crit"><b>Critical:</b> doc-verifier の照合で、裏付けの無い事実主張（実装に無い挙動・根拠の無い数値の記載）が未解消のまま残っている。</div>
         </div>
       </details>
+    </div>
+
+    <div class="acceptance">
+      <div class="gate-badge-no">✓</div>
+      <div class="gate-card">
+        <b>ユーザー受け入れ確認</b> — CP-A→B→C→D→E→F を<b>1サイクルとして自動で通し</b>、受け入れ確認は<b>CP-F 完了後に一度だけ</b>行う。CP-A/B の CONDITIONAL 再評価や CP-C〜F の SDD fix loop は例外処理でなく<b>正規工程</b>として自動で回り、都度のユーザー承認は挟まない — 正常系で人間が止まるのはこの一点のみ。この時 <code>tdd-evaluator</code> が<b>受け入れチェックリスト</b>（受入基準＋CP-Dの5次元＋CP-E/Fの整備状況＋例外処理・権限漏れ・変更影響範囲）を生成して返す。NG なら該当 CP へ差し戻す。複数マイルストーン計画では、マイルストーン単位で CP-F まで自動通しし、各マイルストーンの CP-F 後 1 回の受け入れ確認に一本化する（マイルストーン間の中間確認はしない）。<b>止まるのはガードレール発動時のみ</b>（非自明な要件抜け漏れ・再評価/fix loop 上限到達による FAIL 確定・仕様の曖昧化）— 構造化フォーマットは §6 の <code>GUARDRAIL_HALT</code> を参照。
+      </div>
     </div>
   </div>
 </section>
@@ -956,6 +956,11 @@
     <b class="title">CP-C 以降は SDD 互換の Spec Compliance 形式で判定する</b>
     <p style="font-size:13.5px; color:#3d4a63; margin-top:2px;">PASS/CONDITIONAL/FAIL の判子は使わず、<code>subagent-driven-development</code> の <code>task-reviewer-prompt.md</code> と同型の形式で返す — <code>✅ Spec compliant</code> ／ <code>❌ Issues found</code> ／ <code>⚠️ Cannot verify from diff</code> の3値と、指摘を <b>Critical（Must Fix）／Important（Should Fix）／Minor（Nice to Have）</b> に分ける。tdd-gates 標準の SDD reviewer と違う点は、<b>Critical 判定の根拠を主観でなく <code>checkpoints.md</code> の該当 Critical 行に紐付ける</b>こと。差し戻し・再評価は tdd-gates 独自のカウンタではなく、<b>SDD 純正のリトライ機構</b>（CP-C＝5ラウンド fix loop、CP-D＝Final Review の1修正波+1 scoped re-review）にそのまま従う。</p>
   </div>
+
+  <div class="principle" style="margin-top:22px;">
+    <b class="title">停止シグナル — <code>GUARDRAIL_HALT</code>（ガードレール停止）</b>
+    <p style="font-size:13.5px; color:#3d4a63; margin-top:2px;">前提不足・自動化ループの上限到達による停止は、曖昧な自然文でなく <code>GUARDRAIL_HALT: &lt;reason_code&gt;</code> 形式で構造化する。本文には不足・曖昧な項目（<code>missing/ambiguous</code>）とユーザーが選べる選択肢（<code>options</code>）を必ず列挙する。<b>reason_code は3種のみ</b> — <code>requirement_gap</code>（CP-A の非自明な要件抜け漏れ）／<code>retry_limit_exceeded</code>（CP-A/B の CONDITIONAL 再評価が上限2回に到達してもPASSに届かない）／<code>profile_undefined</code>（対象言語のプロファイルが未確定）。これは「都度の承認待ち」ではない — 正常系の PASS/CONDITIONAL 進行では発火せず、前提が崩れた異常系でのみ発火する（正常系の唯一の停止点は §5 の「ユーザー受け入れ確認」＝CP-F 完了後の一度きり）。</p>
+  </div>
 </section>
 
 <!-- ═══════════ §7 破り方と防ぎ方 ═══════════ -->
@@ -972,7 +977,7 @@
 
     <div class="def-card">
       <p class="def-attack">要件の抜け漏れ — 存在しない要件は誰も検査しない</p>
-      <p class="def-guard">CP-A で evaluator が要件集合の完全性を<b>敵対的に点検</b>し、抜け漏れ候補（未記載・暗黙要件・未対応エッジ）を列挙。真実源はユーザーにあるため、非自明な欠落は自動 FAIL せず <b>Stop &amp; Ask</b> で確認して要件へ反映する。</p>
+      <p class="def-guard">CP-A で evaluator が要件集合の完全性を<b>敵対的に点検</b>し、抜け漏れ候補（未記載・暗黙要件・未対応エッジ）を列挙。真実源はユーザーにあるため、非自明な欠落は自動 FAIL せず <code>GUARDRAIL_HALT: requirement_gap</code> 形式で構造化提示して確認し、要件へ反映する。</p>
       <span class="src">checkpoints.md（CP-A Critical）</span>
     </div>
 
@@ -1038,7 +1043,7 @@
 
     <div class="def-card">
       <p class="def-attack">無限往復 — 差し戻しで粘る</p>
-      <p class="def-guard"><b>CP-A/B のみ</b>: 再評価は上限2回、各再評価で前回指摘の引用と整合を検査し、引用なし・カウンタ不整合は上限到達扱いで FAIL 格上げ。<b>CP-C 以降</b>は tdd-gates 独自の上限を持たず、SDD 純正のリトライ機構（CP-C＝5ラウンド fix loop、CP-D＝Final Review の1修正波+1 scoped re-review）が無限往復を防ぐ。</p>
+      <p class="def-guard"><b>CP-A/B のみ</b>: 再評価は上限2回、各再評価で前回指摘の引用と整合を検査し、引用なし・カウンタ不整合は上限到達扱いで FAIL 格上げ（<code>GUARDRAIL_HALT: retry_limit_exceeded</code> でユーザーに差し戻す）。<b>CP-C 以降</b>は tdd-gates 独自の上限を持たず、SDD 純正のリトライ機構（CP-C＝5ラウンド fix loop、CP-D＝Final Review の1修正波+1 scoped re-review）が無限往復を防ぐ。</p>
       <span class="src">scoring.md</span>
     </div>
 
@@ -1089,7 +1094,8 @@
     <dt>scratchpad</dt><dd>セッションの一時ファイル置き場。reviewer が所見を書き、evaluator が直接 Read する。</dd>
     <dt>frontmatter</dt><dd>エージェント定義ファイル冒頭のメタデータ・制約。</dd>
     <dt>グリーン</dt><dd>CI が成功で完走した状態。push 後の非同期事象。</dd>
-    <dt>Stop &amp; Ask</dt><dd>非自明な要件欠落を自動 FAIL せずユーザーに確認して解消する運び。</dd>
+    <dt>Stop &amp; Ask</dt><dd>非自明な要件欠落を自動 FAIL せずユーザーに確認して解消する運び。構造化フォーマットは <code>GUARDRAIL_HALT</code>。</dd>
+    <dt>GUARDRAIL_HALT</dt><dd>前提不足・自動化ループの上限到達時の停止を <code>GUARDRAIL_HALT: &lt;reason_code&gt;</code> 形式で構造化する仕組み。reason_code は <code>requirement_gap</code>／<code>retry_limit_exceeded</code>／<code>profile_undefined</code> の3種。「都度の承認待ち」ではなく異常系専用の停止点。</dd>
     <dt>プロファイル駆動</dt><dd>具体的なテスト実行コマンド等を言語プロファイルが供給する仕組み。</dd>
     <dt>CP-A〜F</dt><dd>tdd-gates が superpowers のスキルチェーンに寄生させる6つのチェックポイント。CP-A/B は独自 PASS/CONDITIONAL/FAIL、CP-C〜F は SDD 互換の Spec Compliance 形式で判定する。</dd>
     <dt>superpowers</dt><dd>要件定義から完了判断までのスキルチェーンを提供するプラグイン。tdd-gates が背骨として乗るループの実体。</dd>
@@ -1112,13 +1118,14 @@
         <tr><td class="center">2026-07-03</td><td>初版。四層構造・TDD 10ゲート・agents 12本を解説。</td></tr>
         <tr><td class="center">2026-07-06</td><td>9→10ゲート再設計（Gate1/2分割等）に追随。参照関係図の全18エッジをソースと突合・改善6件を反映し、hooks 3本へ同期。</td></tr>
         <tr><td class="center">2026-07-25</td><td>superpowers 統合により tdd-gates が全面再設計（自前の10ゲート駆動ループ → superpowers のスキルチェーンに上乗せする CP-A〜F）されたことを受け、本文を全面更新。四層 → 五層構造（背骨／品質規律レイヤーの分離）、参照関係図2枚を CP対応表・templates/新設6本に合わせて描き直し、agent 一覧の <code>tdd-generator</code>→<code>tdd-implementer</code> 置換、10ゲートのアコーディオンを CP-A〜F の6枚に置換、判定形式の2モード化（CP-A/B の検印 ／ CP-C以降の Spec Compliance）、防衛カードに「SDDの報告信頼前提の上書き」を追加、hooks 表に <code>main-branch-guard.sh</code> を追加。</td></tr>
+        <tr><td class="center">2026-07-26</td><td>CP-A〜F の駆動を「完全自動サイクル」として再定義したことに追随。ユーザー受け入れ確認を CP-D 後から <b>CP-F 完了後の一度きり</b>に一本化し、§5 の受け入れカードを移設・全面書き換え。停止シグナル <code>GUARDRAIL_HALT</code>（<code>requirement_gap</code>／<code>retry_limit_exceeded</code>／<code>profile_undefined</code>）を §6・§7・用語集に新設反映。旧 Gate 体系の残骸（<code>tdd-generator.md</code>／<code>references/gates.md</code>）の削除を確認（本文に既存の言及なし）。trivial の doc 編集に <code>doc-verifier</code> の整合確認が追加されたことを §2・§4 に反映。</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
 <footer>
-  <span>my-claude / claude-config-architecture — 2026-07-03（改訂 2026-07-06・改訂 2026-07-25・未コミット）</span>
+  <span>my-claude / claude-config-architecture — 2026-07-03（改訂 2026-07-06・改訂 2026-07-25・改訂 2026-07-26・未コミット）</span>
   <span>正典: skills/tdd-gates/references/{checkpoints,scoring}.md ・ skills/tdd-gates/templates/ ・ agents/references/ ・ ~/.claude/CLAUDE.md</span>
 </footer>
 
