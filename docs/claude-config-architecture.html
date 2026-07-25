@@ -137,9 +137,12 @@
   .lede { color: var(--muted); font-size: 14px; margin-bottom: 26px; }
 
   /* ───── layer cards (§1) ───── */
-  .layers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-  @media (max-width: 900px) { .layers { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 540px) { .layers { grid-template-columns: 1fr; } }
+  .layers { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  @media (max-width: 1000px) { .layers { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 640px) { .layers { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 420px) { .layers { grid-template-columns: 1fr; } }
+  .layer-card.spine { border-top-color: var(--shu); }
+  .layer-card .role.spine-role { color: var(--indigo); }
   .layer-card {
     background: var(--card);
     border: 1px solid var(--line);
@@ -272,6 +275,7 @@
   .badge.must { background: #FBF1EF; color: var(--shu); border: 1px solid var(--shu); }
   .badge.cond { background: #FAF4E7; color: var(--karashi); border: 1px solid var(--karashi); }
   .badge.small-ok { background: #EFF5F0; color: var(--matsu); border: 1px solid var(--matsu); }
+  .badge.sdd-retry { background: var(--chip-bg); color: var(--indigo); border: 1px solid var(--indigo); font-family: var(--mono); font-weight: 500; letter-spacing: 0.02em; }
   .gate-card p { font-size: 13.5px; color: #3d4a63; }
   .gate-actors { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
   .actor {
@@ -385,47 +389,52 @@
   <h1>設定の解剖台帳
     <span class="sub">CLAUDE.md・Skill・Agent・Reference の参照関係と、TDD 品質防衛のしくみ</span>
   </h1>
-  <p class="header-meta">調査日 2026-07-03・改訂 2026-07-06（9→10 ゲート再設計・agents 12本・hooks 3本へ同期）／ 対象 ~/.claude/（リポジトリ claude/ ミラー・commit 80cda7a 時点）</p>
+  <p class="header-meta">調査日 2026-07-03・改訂 2026-07-06（9→10 ゲート再設計・agents 12本・hooks 3本へ同期）・改訂 2026-07-25（superpowers統合により全面再設計・10ゲート→CP-A〜F・agents 12本→tdd-generator廃止/tdd-implementer新設）／ 対象 ~/.claude/（リポジトリ claude/ ミラー）</p>
   <div class="kenin" aria-hidden="true"><b>検</b><span>2026.07</span></div>
 </header>
 
-<p class="lede">この文書は、~/.claude/ の Claude Code 設定がどんな部品で構成され、なぜ TDD 品質ゲートが必要かを、初読者向けに解説する。読む順は §1 四層構造 → §2 入口の分岐 → §3 参照関係図 → §4 実行役 → §5 ゲート詳細 が分かりやすい。</p>
+<p class="lede">この文書は、~/.claude/ の Claude Code 設定がどんな部品で構成され、なぜ TDD 品質規律レイヤーが必要かを、初読者向けに解説する。読む順は §1 五層構造 → §2 入口の分岐 → §3 参照関係図 → §4 実行役 → §5 チェックポイント詳細 が分かりやすい。</p>
 
-<!-- ═══════════ §1 四層の役割 ═══════════ -->
+<!-- ═══════════ §1 五層の役割 ═══════════ -->
 <section id="layers">
-  <div class="sec-head"><span class="sec-no">第一条</span><h2>四層の役割分担 — 憲法・工程書・実行役・正典</h2></div>
-  <p class="lede">この設定は「誰が・何を・どの順で」を4つの層に分けて持つ。各層は自分の責務だけを記述し、詳細は下の層へ委譲する。同じ定義が二箇所に現れないことが、この構成の背骨。</p>
+  <div class="sec-head"><span class="sec-no">第一条</span><h2>五層の役割分担 — 憲法・背骨・品質規律レイヤー・実行役・正典</h2></div>
+  <p class="lede">この設定は「誰が・何を・どの順で」を5つの層に分けて持つ。各層は自分の責務だけを記述し、詳細は下の層へ委譲する。同じ定義が二箇所に現れないことが、この構成の要。<b>2026-07-25 の全面再設計で最も重要な変化</b>は、駆動ループ（工程の順序そのもの）の所有者が tdd-gates から superpowers のスキルチェーンへ移り、tdd-gates は自前のループを持たない薄い上乗せレイヤーになったこと — 下の「背骨」と「品質規律レイヤー」の2枚がその分離を表す。</p>
 
   <div class="layers">
     <div class="layer-card">
       <p class="role">憲 法</p>
       <h3><code>~/.claude/CLAUDE.md</code></h3>
-      <p>理念・行動規範・確認と禁止・<b>作業の進め方</b>（規模で工程の深さを変える入口分岐）・エージェント/スキル索引。手順の詳細は持たず、正典への委譲だけを書く（例: レビュー体制の詳細は工程書側の正典 gates.md に委譲）。</p>
+      <p>理念・行動規範・確認と禁止・<b>作業の進め方</b>（規模で工程の深さを変える入口分岐）・エージェント/スキル索引。手順の詳細は持たず、正典への委譲だけを書く（例: チェックポイントの詳細は正典 <code>checkpoints.md</code> に委譲）。</p>
+    </div>
+    <div class="layer-card spine">
+      <p class="role spine-role">背 骨</p>
+      <h3>superpowers（プラグイン）</h3>
+      <p><code>brainstorming → writing-plans → (subagent-driven-development｜executing-plans) → finishing-a-development-branch</code>。要件整理・計画・実装・完了判断の<b>駆動ループそのもの</b>を持つ完成されたスキルチェーン。Generator/Evaluator 分離・5ラウンド fix loop・<code>progress.md</code>・モデル格上げをネイティブに備える。</p>
     </div>
     <div class="layer-card">
-      <p class="role">工 程 書</p>
-      <h3>skills（1本 + プラグイン）</h3>
-      <p><code>tdd-gates</code>＝TDD×10ゲートのオーケストレータ（フロー図の正典）。工程の順序と強制力はここが持つ。</p>
+      <p class="role">品質規律レイヤー</p>
+      <h3>skills（1本）</h3>
+      <p><code>tdd-gates</code>＝自前の駆動ループを<b>持たない</b>。背骨の各ステップに寄生するチェックポイント（CP-A〜F）を差し込み、証拠不信の原則・5次元専門レビュアー・0–3点採点語彙＋Critical即FAILを上乗せするだけの薄いレイヤー。</p>
     </div>
     <div class="layer-card">
       <p class="role">実 行 役</p>
       <h3>agents（12本）</h3>
-      <p>planner／tdd-generator／tdd-evaluator／5次元 review-*／dev-python／doc-updater／doc-verifier／trivial-executor。各自は差分となる責務だけを持ち、共通手順は references を読む。</p>
+      <p>planner／tdd-implementer／tdd-evaluator／5次元 review-*／dev-python／doc-updater／doc-verifier／trivial-executor。各自は差分となる責務だけを持ち、共通手順は references を読む。</p>
     </div>
     <div class="layer-card">
       <p class="role">正 典</p>
-      <h3>references（2 系統）</h3>
-      <p><code>agents/references/</code>（11本＝doc-* 5・python-* 4・planner・review）＝深い作法・共通骨格。<code>skills/tdd-gates/references/</code>＝ゲート定義・採点基準・言語プロファイル。定義の「単一の真実源」。</p>
+      <h3>references・templates</h3>
+      <p><code>agents/references/</code>（11本＝doc-* 5・python-* 4・planner・review）＝深い作法・共通骨格。<code>skills/tdd-gates/references/</code>＝CP定義・採点基準・言語プロファイル。<code>skills/tdd-gates/templates/</code>（新設6本）＝ superpowers 側テンプレへの差分追記／差し替えプロンプト。定義の「単一の真実源」。</p>
     </div>
   </div>
 
   <div class="principle">
     <b class="title">単一ソース規約 — 「その定義はどこが正か」を一箇所に固定する</b>
     <ul>
-      <li>ゲート定義・Critical 条件 → <code>skills/tdd-gates/references/gates.md</code>（CLAUDE.md からも正典委譲）</li>
+      <li>CP 定義・Critical 条件 → <code>skills/tdd-gates/references/checkpoints.md</code>（CLAUDE.md からも正典委譲）</li>
       <li>採点閾値・スコアカード形式 → <code>skills/tdd-gates/references/scoring.md</code></li>
-      <li>ゲート順序・フロー図 → <code>skills/tdd-gates/SKILL.md</code>（gates.md は重複掲載しない）</li>
-      <li>行数・ネスト深さ等の数値基準 → <code>review-maintainability</code>（dev-python・planner・gates.md が参照）</li>
+      <li>CP対応表（背骨への寄生地図・駆動順序） → <code>skills/tdd-gates/SKILL.md</code>（checkpoints.md は重複掲載しない）</li>
+      <li>行数・ネスト深さ等の数値基準 → <code>review-maintainability</code>（dev-python・planner・checkpoints.md が参照）</li>
       <li>レビューの共通手順・出力形式 → <code>agents/references/review.md</code>（5本の reviewer が共有）</li>
     </ul>
   </div>
@@ -434,7 +443,7 @@
 <!-- ═══════════ §2 作業の進め方 ═══════════ -->
 <section id="routing">
   <div class="sec-head"><span class="sec-no">第二条</span><h2>作業の進め方 — 規模で工程の深さが決まる</h2></div>
-  <p class="lede">変更規模で最初に分岐し、規模で変えるのは「委任するか否か」ではなく<b>パイプラインの深さ</b>。迷ったら substantial（安全側）に倒す。以降で頻出する「台帳」は、タスクごとに作る監査記録ファイル <code>.tdd-gates/ledger-&lt;slug&gt;.md</code>（詳細は末尾の用語集）。</p>
+  <p class="lede">変更規模で最初に分岐し、規模で変えるのは「委任するか否か」ではなく<b>パイプラインの深さ</b>。迷ったら substantial（安全側）に倒す。旧来の専用「台帳」（<code>.tdd-gates/ledger-&lt;slug&gt;.md</code>）は<b>廃止</b>済み — CP-A／CP-B はスコアカード応答自体が記録として完結し、CP-C 以降は superpowers（SDD／executing-plans）の <code>progress.md</code> に証拠行（RED/GREEN コマンドと出力）を追記する形に統一された（詳細は末尾の用語集）。</p>
   <div class="scroll">
     <table>
       <thead><tr><th>入口区分</th><th>定義</th><th>工程（→ 呼ばれる skill / agent）</th></tr></thead>
@@ -447,17 +456,17 @@
         <tr>
           <td class="center"><b>small</b></td>
           <td>trivial 超だが substantial 未満（差分小・既存テストあり・公開インターフェース不変）</td>
-          <td><code>tdd-gates</code>: Gate 1→4→5（Gate 3/8 の要否は Gate 1 の判定次第。判定根拠は台帳に記録）</td>
+          <td>着手前は substantial と仮置きして <code>tdd-gates</code> に入れる。<b>CP-B</b>（writing-plans の計画品質レビュー時）で <code>tdd-evaluator</code> が4条件（差分≤2ファイル・実装差分≤50行・公開IF不変・既存テスト被覆）を照合し判定。該当すれば <b>CP-C</b>（RED→GREEN 中心）の簡略パイプに降格するが、CP-C の Critical（実失敗ログ）はいかなる場合も省略しない</td>
         </tr>
         <tr>
           <td class="center"><b>substantial</b></td>
           <td>新規ロジック・複数ファイル横断・公開インターフェース変更・非自明なバグ修正</td>
-          <td>Plan モード → <code>tdd-gates</code> フル10ゲート。採点は実装者と別コンテキストで自己承認を排除</td>
+          <td>Plan モード（superpowers の <code>brainstorming → writing-plans</code>）→ <code>tdd-gates</code> の CP-A〜D をフルで通す。採点は実装者と別コンテキストで自己承認を排除</td>
         </tr>
         <tr>
           <td class="center"><b>レビュー単独</b></td>
           <td>フル工程は不要だがレビューだけ独立して欲しい</td>
-          <td>Main が <code>review-*</code> を並列起動 → <code>tdd-evaluator</code> が集約採点</td>
+          <td>Main が <code>review-*</code> を並列起動 → <code>tdd-evaluator</code> が集約採点（reviewer は自分で起動しない）</td>
         </tr>
       </tbody>
     </table>
@@ -467,11 +476,11 @@
 <!-- ═══════════ §3 参照関係図 ═══════════ -->
 <section id="graph">
   <div class="sec-head"><span class="sec-no">第三条</span><h2>参照関係図 — 誰が誰を起動し、誰が何を読むか</h2></div>
-  <p class="lede">図は2枚に分けた。図①は起動フロー（誰が誰を起動するか）、図②は参照フロー（誰がどの正典を読むか）。ノードは上から下へ「憲法 → 工程書 → 実行役 → 正典」。G1・G2 等は §5 の 10 ゲート番号。</p>
+  <p class="lede">図は2枚に分けた。図①は起動フロー（誰が誰を起動するか）、図②は参照フロー（誰がどの正典を読むか）。図①の帯構成が今回の再設計の核心 — 「工程書」ではなく「<b>背骨</b>（superpowers のスキルチェーン）」と「<b>品質規律レイヤー</b>（tdd-gates の CP-A〜F）」の2段になり、CP は背骨の各ステップに寄生するチップとして小さく添えられる（tdd-gates 自身が駆動ループを持つわけではない）。CP-A〜F は §5 のチェックポイント記号。</p>
 
   <div class="diagram-frame">
-  <h3>図① 起動フロー — 誰が誰を起動するか（朱＝Main 起動・実線＝skill 起動）</h3>
-  <svg viewBox="0 0 1180 470" role="img" aria-label="起動フロー: Main と skill が各 agent を起動する関係">
+  <h3>図① 起動フロー — 誰が誰を起動するか（朱＝Main 起動・実線＝背骨/チェックポイントからの起動）</h3>
+  <svg viewBox="0 0 1180 500" role="img" aria-label="起動フロー: Main が背骨（superpowers）を起動し、tdd-gates の CP が背骨の各ステップに寄生して agent を起動する関係">
     <defs>
       <marker id="f1-arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="#2C4A78"/>
@@ -482,17 +491,14 @@
       <marker id="f1-arw-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="#8B94A8"/>
       </marker>
-      <marker id="f1-arw-obs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="#8B94A8"/>
-      </marker>
     </defs>
 
     <!-- band labels -->
-    <text class="t-band" x="14" y="58">憲法</text>
-    <text class="t-band" x="14" y="212">工程書</text>
-    <text class="t-band" x="14" y="420">実行役</text>
+    <text class="t-band" x="14" y="46">憲法</text>
+    <text class="t-band" x="14" y="182">背骨</text>
+    <text class="t-band" x="14" y="410">実行役</text>
 
-    <!-- 憲法 band -->
+    <!-- 帯1: 憲法 -->
     <rect class="node hub" x="270" y="24" width="270" height="58" rx="3"/>
     <text class="t-title inv" x="405" y="49" text-anchor="middle">~/.claude/CLAUDE.md</text>
     <text class="t-sub inv" x="405" y="67" text-anchor="middle">憲法 — 入口分岐の規則</text>
@@ -501,22 +507,58 @@
     <text class="t-title inv" x="735" y="49" text-anchor="middle">Main（親セッション）</text>
     <text class="t-sub inv" x="735" y="67" text-anchor="middle">全 agent の起動主体</text>
 
-    <!-- 工程書 band -->
-    <rect class="node" x="430" y="175" width="320" height="64" rx="3"/>
-    <text class="t-title" x="590" y="201" text-anchor="middle">skills/tdd-gates/SKILL.md</text>
-    <text class="t-sub" x="590" y="221" text-anchor="middle">10ゲート オーケストレータ</text>
+    <!-- 帯2: 背骨（superpowers チェーン・5ステップ） -->
+    <rect class="node" x="20" y="150" width="196" height="56" rx="3"/>
+    <text class="t-title" x="118" y="174" text-anchor="middle" style="font-size:12px">using-superpowers</text>
+    <text class="t-sub" x="118" y="192" text-anchor="middle" style="font-size:9.5px">入口案内・スキル選択</text>
 
-    <rect class="chip-r" x="440" y="141" width="175" height="26" rx="2"/>
-    <text class="t-chip" x="450" y="159">G7 → frontend-design</text>
-    <path class="edge ref" d="M 527 167 L 527 173" marker-end="url(#f1-arw-gray)"/>
+    <rect class="node" x="242" y="150" width="196" height="56" rx="3"/>
+    <text class="t-title" x="340" y="174" text-anchor="middle">brainstorming</text>
+    <text class="t-sub" x="340" y="192" text-anchor="middle" style="font-size:9.5px">要件定義 → spec</text>
 
-    <!-- 実行役 band -->
+    <rect class="node" x="464" y="150" width="196" height="56" rx="3"/>
+    <text class="t-title" x="562" y="174" text-anchor="middle">writing-plans</text>
+    <text class="t-sub" x="562" y="192" text-anchor="middle" style="font-size:9.5px">実装計画 → plan</text>
+
+    <rect class="node" x="686" y="150" width="196" height="56" rx="3"/>
+    <text class="t-title" x="784" y="174" text-anchor="middle" style="font-size:11.5px">SDD ／ executing-plans</text>
+    <text class="t-sub" x="784" y="192" text-anchor="middle" style="font-size:9.5px">実装タスクループ</text>
+
+    <rect class="node" x="908" y="150" width="196" height="56" rx="3"/>
+    <text class="t-title" x="1006" y="174" text-anchor="middle" style="font-size:10.5px">finishing-a-development-branch</text>
+    <text class="t-sub" x="1006" y="192" text-anchor="middle" style="font-size:9.5px">統合・完了判断</text>
+
+    <!-- 背骨チェーンの矢印 -->
+    <path class="edge" d="M 216 178 L 240 178" marker-end="url(#f1-arw)"/>
+    <path class="edge" d="M 438 178 L 462 178" marker-end="url(#f1-arw)"/>
+    <path class="edge" d="M 660 178 L 684 178" marker-end="url(#f1-arw)"/>
+    <path class="edge" d="M 882 178 L 906 178" marker-end="url(#f1-arw)"/>
+
+    <!-- CP チップ（品質規律レイヤーの寄生地点） -->
+    <path class="edge ref" d="M 340 206 L 340 212" marker-end="url(#f1-arw-gray)"/>
+    <rect class="chip-r" x="242" y="214" width="196" height="22" rx="2"/>
+    <text class="t-chip" x="250" y="229" style="font-size:10.5px">CP-A 要件ギャップレビュー</text>
+
+    <path class="edge ref" d="M 562 206 L 562 212" marker-end="url(#f1-arw-gray)"/>
+    <rect class="chip-r" x="464" y="214" width="196" height="22" rx="2"/>
+    <text class="t-chip" x="472" y="229" style="font-size:10.5px">CP-B 計画品質レビュー</text>
+    <rect class="chip-r" x="464" y="240" width="196" height="22" rx="2"/>
+    <text class="t-chip" x="472" y="255" style="font-size:9.5px">CP-E/F 末尾タスクとして追加</text>
+
+    <path class="edge ref" d="M 784 206 L 784 212" marker-end="url(#f1-arw-gray)"/>
+    <rect class="chip-r" x="686" y="214" width="196" height="22" rx="2"/>
+    <text class="t-chip" x="694" y="229" style="font-size:10.5px">CP-C タスク証拠検証</text>
+    <rect class="chip-r" x="686" y="240" width="196" height="22" rx="2"/>
+    <text class="t-chip" x="694" y="255" style="font-size:10.5px">CP-D 最終スコアカード</text>
+    <text class="t-sub" x="694" y="276" style="font-size:9px">条件付き: UI/UX → frontend-design</text>
+
+    <!-- 帯3: 実行役 -->
     <rect class="node" x="70" y="385" width="124" height="60" rx="3"/>
     <text class="t-title" x="132" y="411" text-anchor="middle">planner</text>
     <text class="t-sub" x="132" y="429" text-anchor="middle">計画素材・ADR</text>
 
     <rect class="node" x="206" y="385" width="124" height="60" rx="3"/>
-    <text class="t-title" x="268" y="411" text-anchor="middle">tdd-generator</text>
+    <text class="t-title" x="268" y="411" text-anchor="middle" style="font-size:12.5px">tdd-implementer</text>
     <text class="t-sub" x="268" y="429" text-anchor="middle">RED→GREEN→REF.</text>
 
     <rect class="node" x="342" y="385" width="124" height="60" rx="3"/>
@@ -533,11 +575,11 @@
 
     <rect class="node" x="750" y="385" width="124" height="60" rx="3"/>
     <text class="t-title" x="812" y="411" text-anchor="middle">doc-updater</text>
-    <text class="t-sub" x="812" y="429" text-anchor="middle">doc同期・CI</text>
+    <text class="t-sub" x="812" y="429" text-anchor="middle">doc同期・CI(CP-E)</text>
 
     <rect class="node" x="886" y="385" width="124" height="60" rx="3"/>
     <text class="t-title" x="948" y="411" text-anchor="middle">doc-verifier</text>
-    <text class="t-sub" x="948" y="429" text-anchor="middle">整合確認</text>
+    <text class="t-sub" x="948" y="429" text-anchor="middle">整合確認(CP-F)</text>
 
     <rect class="node" x="1022" y="385" width="124" height="60" rx="3"/>
     <text class="t-title" x="1084" y="411" text-anchor="middle" style="font-size:12px">trivial-executor</text>
@@ -549,63 +591,69 @@
     <text class="t-edge gray-t" x="550" y="36">行動規則</text>
 
     <!-- 朱線: Main 起点の起動 -->
-    <path class="edge route" d="M 730 82 C 700 120, 650 150, 607 173" marker-end="url(#f1-arw-shu)"/>
-    <rect class="lblbg" x="628" y="112" width="152" height="18"/>
-    <text class="t-edge shu-t" x="634" y="125">substantial / small</text>
+    <path class="edge route" d="M 720 82 C 500 108, 200 130, 122 148" marker-end="url(#f1-arw-shu)"/>
+    <rect class="lblbg" x="470" y="100" width="160" height="18"/>
+    <text class="t-edge shu-t" x="476" y="113">substantial / small 入口</text>
 
-    <path class="edge route" d="M 600 82 C 330 150, 410 300, 408 383" marker-end="url(#f1-arw-shu)"/>
-    <rect class="lblbg" x="398" y="284" width="98" height="18"/>
-    <text class="t-edge shu-t" x="404" y="297">レビュー単独</text>
+    <path class="edge route" d="M 700 82 C 600 200, 560 300, 544 383" marker-end="url(#f1-arw-shu)"/>
+    <rect class="lblbg" x="556" y="284" width="98" height="18"/>
+    <text class="t-edge shu-t" x="562" y="297">レビュー単独</text>
 
-    <path class="edge route" d="M 740 82 C 722 210, 690 320, 678 383" marker-end="url(#f1-arw-shu)"/>
+    <path class="edge route" d="M 745 82 C 730 200, 690 300, 678 383" marker-end="url(#f1-arw-shu)"/>
     <rect class="lblbg" x="682" y="232" width="92" height="18"/>
     <text class="t-edge shu-t" x="688" y="245">Python 実装</text>
 
-    <path class="edge route" d="M 752 82 C 852 210, 930 310, 946 383" marker-end="url(#f1-arw-shu)"/>
-    <rect class="lblbg" x="876" y="232" width="70" height="18"/>
-    <text class="t-edge shu-t" x="882" y="245">doc 検証</text>
+    <path class="edge route" d="M 752 82 C 880 200, 950 310, 950 383" marker-end="url(#f1-arw-shu)"/>
+    <rect class="lblbg" x="884" y="232" width="70" height="18"/>
+    <text class="t-edge shu-t" x="890" y="245">doc 検証</text>
 
     <path class="edge route" d="M 762 80 C 930 180, 1058 310, 1084 383" marker-end="url(#f1-arw-shu)"/>
     <rect class="lblbg" x="988" y="210" width="56" height="18"/>
     <text class="t-edge shu-t" x="994" y="223">trivial</text>
 
-    <!-- 実線: SKILL 起点の起動 -->
-    <path class="edge" d="M 558 239 C 400 300, 210 342, 140 383" marker-end="url(#f1-arw)"/>
+    <!-- 実線: CP チップからの起動（役割の差し替え・寄生） -->
+    <path class="edge" d="M 340 236 C 360 300, 390 350, 400 383" marker-end="url(#f1-arw)"/>
     <rect class="lblbg" x="300" y="312" width="60" height="18"/>
-    <text class="t-edge" x="306" y="325">G1・2</text>
+    <text class="t-edge" x="306" y="325">CP-A 検査</text>
 
-    <path class="edge" d="M 574 239 C 470 300, 320 346, 274 383" marker-end="url(#f1-arw)"/>
-    <rect class="lblbg" x="392" y="326" width="52" height="18"/>
-    <text class="t-edge" x="398" y="339">G4–6</text>
+    <path class="edge" d="M 562 236 C 520 300, 450 350, 408 383" marker-end="url(#f1-arw)"/>
+    <rect class="lblbg" x="452" y="326" width="60" height="18"/>
+    <text class="t-edge" x="458" y="339">CP-B 検査</text>
 
-    <path class="edge" d="M 588 239 C 520 300, 428 350, 408 383" marker-end="url(#f1-arw)"/>
-    <rect class="lblbg" x="452" y="342" width="122" height="18"/>
-    <text class="t-edge" x="458" y="355">G1–6・8・9 採点</text>
+    <path class="edge" d="M 784 236 C 640 280, 380 330, 272 383" marker-end="url(#f1-arw)"/>
+    <rect class="lblbg" x="452" y="270" width="106" height="18"/>
+    <text class="t-edge" x="458" y="283">CP-C 実装（差替なし）</text>
 
-    <path class="edge" d="M 596 239 C 566 300, 546 346, 540 383" marker-end="url(#f1-arw)"/>
-    <rect class="lblbg" x="556" y="320" width="118" height="18"/>
-    <text class="t-edge" x="562" y="333">G8／G3条件付</text>
+    <path class="edge" d="M 784 236 C 700 290, 500 340, 408 383" marker-end="url(#f1-arw)"/>
+    <rect class="lblbg" x="556" y="342" width="118" height="18"/>
+    <text class="t-edge" x="562" y="355">CP-C 検証（差替）</text>
 
-    <path class="edge" d="M 610 239 C 720 300, 792 346, 812 383" marker-end="url(#f1-arw)"/>
-    <rect class="lblbg" x="726" y="326" width="82" height="18"/>
-    <text class="t-edge" x="732" y="339">G9／G10</text>
+    <path class="edge" d="M 784 262 C 720 310, 620 350, 544 383" marker-end="url(#f1-arw)"/>
+    <rect class="lblbg" x="726" y="300" width="90" height="18"/>
+    <text class="t-edge" x="732" y="313">CP-D 5本並列</text>
+
+    <path class="edge" d="M 784 262 C 650 320, 500 355, 410 383" marker-end="url(#f1-arw)"/>
+    <rect class="lblbg" x="726" y="326" width="72" height="18"/>
+    <text class="t-edge" x="732" y="339">CP-D 集約</text>
+
+    <path class="edge" d="M 562 262 C 650 310, 750 350, 808 383" marker-end="url(#f1-arw)"/>
+    <rect class="lblbg" x="726" y="352" width="94" height="18"/>
+    <text class="t-edge" x="732" y="365">CP-E/F 実装</text>
   </svg>
   <div class="legend">
     <span class="key"><span class="sw shu-line"></span>朱線＝Main による起動（CLAUDE.md の作業の進め方に従う）</span>
-    <span class="key"><span class="sw"></span>実線＝skill による起動（ゲート番号つき）</span>
-    <span class="key"><span class="sw dash"></span>破線＝行動規則／スキルの参照</span>
+    <span class="key"><span class="sw"></span>実線＝背骨のステップ or CP チップからの起動</span>
+    <span class="key"><span class="sw dash"></span>破線＝行動規則の参照／CP チップの寄生地点</span>
+    <span class="key"><span class="sw chip"></span>白チップ＝tdd-gates の CP（背骨に寄生する品質規律レイヤー）</span>
   </div>
   </div>
 
   <div class="diagram-frame" style="margin-top:18px;">
   <h3>図② 参照フロー — 誰がどの正典を読むか（破線＝Read・点線＝所見の受け渡し）</h3>
-  <svg viewBox="0 0 1180 430" role="img" aria-label="参照フロー: 各 agent が references の正典を Read する関係">
+  <svg viewBox="0 0 1180 520" role="img" aria-label="参照フロー: 品質規律レイヤー(SKILL.md)と実行役 agent が references・templates の正典を Read する関係">
     <defs>
       <marker id="f2-arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="#2C4A78"/>
-      </marker>
-      <marker id="f2-arw-shu" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="#C43C2A"/>
       </marker>
       <marker id="f2-arw-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="#8B94A8"/>
@@ -615,20 +663,27 @@
       </marker>
     </defs>
 
+    <!-- 品質規律レイヤー band: SKILL.md は実行役ではないためこの帯だけ分離する -->
+    <text class="t-band" x="14" y="30">品質規律</text>
+    <rect class="node" x="70" y="8" width="124" height="46" rx="3"/>
+    <text class="t-title" x="132" y="28" text-anchor="middle" style="font-size:12px">SKILL.md</text>
+    <text class="t-sub" x="132" y="43" text-anchor="middle" style="font-size:9px">skills/tdd-gates/</text>
+    <path class="edge ref" d="M 132 54 C 128 160, 120 280, 116 356" marker-end="url(#f2-arw-gray)"/>
+    <rect class="lblbg" x="140" y="308" width="130" height="18"/>
+    <text class="t-edge gray-t" x="146" y="321">checkpoints.md＋templates</text>
+    <path class="edge ref" d="M 150 54 C 260 170, 420 280, 500 356" marker-end="url(#f2-arw-gray)"/>
+
+    <g transform="translate(0,60)">
     <!-- band labels -->
     <text class="t-band" x="14" y="52">実行役</text>
     <text class="t-band" x="14" y="352">正典</text>
 
-    <!-- 実行役 band（上段・8ノード） -->
-    <rect class="node" x="70" y="24" width="124" height="52" rx="3"/>
-    <text class="t-title" x="132" y="45" text-anchor="middle">SKILL.md</text>
-    <text class="t-sub" x="132" y="63" text-anchor="middle">skills/tdd-gates/</text>
-
+    <!-- 実行役 band（上段・7ノード） -->
     <rect class="node" x="206" y="24" width="124" height="52" rx="3"/>
     <text class="t-title" x="268" y="55" text-anchor="middle">planner</text>
 
     <rect class="node" x="342" y="24" width="124" height="52" rx="3"/>
-    <text class="t-title" x="404" y="55" text-anchor="middle">tdd-generator</text>
+    <text class="t-title" x="404" y="55" text-anchor="middle" style="font-size:12.5px">tdd-implementer</text>
 
     <rect class="node" x="478" y="24" width="124" height="52" rx="3"/>
     <text class="t-title" x="540" y="55" text-anchor="middle">tdd-evaluator</text>
@@ -645,34 +700,48 @@
     <rect class="node" x="1022" y="24" width="124" height="52" rx="3"/>
     <text class="t-title" x="1084" y="55" text-anchor="middle">doc-verifier</text>
 
-    <!-- 正典 band（下段・2グループ） -->
-    <rect class="group" x="58" y="298" width="482" height="104" rx="3"/>
-    <text class="t-sub" x="70" y="318" style="font-weight:700; fill:#5A6478;">skills/tdd-gates/references/（ゲート正典）</text>
-    <rect class="chip-r" x="70" y="328" width="220" height="26" rx="2"/>
-    <text class="t-chip" x="80" y="345">gates.md</text>
-    <rect class="chip-r" x="308" y="328" width="220" height="26" rx="2"/>
-    <text class="t-chip" x="318" y="345">scoring.md</text>
-    <rect class="chip-r" x="70" y="362" width="220" height="26" rx="2"/>
-    <text class="t-chip" x="80" y="379">profiles/pytest.md</text>
-    <rect class="chip-r" x="308" y="362" width="220" height="26" rx="2"/>
-    <text class="t-chip" x="318" y="379">profiles/_template.md</text>
+    <!-- 正典 band（下段・3グループ） -->
+    <rect class="group" x="40" y="298" width="350" height="104" rx="3"/>
+    <text class="t-sub" x="52" y="318" style="font-weight:700; fill:#5A6478;">skills/tdd-gates/references/（CP正典）</text>
+    <rect class="chip-r" x="52" y="328" width="155" height="26" rx="2"/>
+    <text class="t-chip" x="60" y="345">checkpoints.md</text>
+    <rect class="chip-r" x="222" y="328" width="155" height="26" rx="2"/>
+    <text class="t-chip" x="230" y="345">scoring.md</text>
+    <rect class="chip-r" x="52" y="362" width="155" height="26" rx="2"/>
+    <text class="t-chip" x="60" y="379" style="font-size:9.5px">profiles/pytest.md</text>
+    <rect class="chip-r" x="222" y="362" width="155" height="26" rx="2"/>
+    <text class="t-chip" x="230" y="379" style="font-size:9px">profiles/_template.md</text>
 
-    <rect class="group" x="560" y="298" width="600" height="104" rx="3"/>
-    <text class="t-sub" x="572" y="318" style="font-weight:700; fill:#5A6478;">agents/references/（共通骨格・11本）</text>
-    <rect class="chip-r" x="572" y="328" width="170" height="26" rx="2"/>
-    <text class="t-chip" x="582" y="345">planner.md</text>
-    <rect class="chip-r" x="756" y="328" width="392" height="26" rx="2"/>
-    <text class="t-chip" x="766" y="345">python-* ×4 — style / fastapi / rest-api / testing</text>
-    <rect class="chip-r" x="572" y="362" width="170" height="26" rx="2"/>
-    <text class="t-chip" x="582" y="379">review.md</text>
-    <rect class="chip-r" x="756" y="362" width="392" height="26" rx="2"/>
-    <text class="t-chip" x="766" y="379">doc-* ×5 — design / writing / verify / html / codemap</text>
+    <rect class="group" x="410" y="298" width="370" height="140" rx="3"/>
+    <text class="t-sub" x="422" y="318" style="font-weight:700; fill:#5A6478;">skills/tdd-gates/templates/（新設6・差分追記/差し替え）</text>
+    <rect class="chip-r" x="422" y="328" width="170" height="26" rx="2"/>
+    <text class="t-chip" x="428" y="345" style="font-size:8.5px">spec-gap-review-addendum.md</text>
+    <rect class="chip-r" x="602" y="328" width="168" height="26" rx="2"/>
+    <text class="t-chip" x="608" y="345" style="font-size:8.5px">plan-quality-review-addendum.md</text>
+    <rect class="chip-r" x="422" y="360" width="170" height="26" rx="2"/>
+    <text class="t-chip" x="428" y="377" style="font-size:8.5px">task-evidence-addendum.md</text>
+    <rect class="chip-r" x="602" y="360" width="168" height="26" rx="2"/>
+    <text class="t-chip" x="608" y="377" style="font-size:8.5px">final-scorecard-review-prompt.md</text>
+    <rect class="chip-r" x="422" y="392" width="170" height="26" rx="2"/>
+    <text class="t-chip" x="428" y="409" style="font-size:8.5px">ci-gate-task-template.md</text>
+    <rect class="chip-r" x="602" y="392" width="168" height="26" rx="2"/>
+    <text class="t-chip" x="608" y="409" style="font-size:8.5px">doc-sync-task-template.md</text>
+
+    <rect class="group" x="810" y="298" width="330" height="104" rx="3"/>
+    <text class="t-sub" x="822" y="318" style="font-weight:700; fill:#5A6478;">agents/references/（共通骨格・11本）</text>
+    <rect class="chip-r" x="822" y="328" width="150" height="26" rx="2"/>
+    <text class="t-chip" x="828" y="345">planner.md</text>
+    <rect class="chip-r" x="984" y="328" width="146" height="26" rx="2"/>
+    <text class="t-chip" x="990" y="345" style="font-size:9.5px">python-* ×4</text>
+    <rect class="chip-r" x="822" y="362" width="150" height="26" rx="2"/>
+    <text class="t-chip" x="828" y="379">review.md</text>
+    <rect class="chip-r" x="984" y="362" width="146" height="26" rx="2"/>
+    <text class="t-chip" x="990" y="379" style="font-size:9.5px">doc-* ×5</text>
 
     <!-- 破線: 正典の参照（Read） -->
-    <path class="edge ref" d="M 132 76 C 132 170, 140 250, 150 296" marker-end="url(#f2-arw-gray)"/>
     <path class="edge ref" d="M 268 76 C 350 170, 550 250, 650 326" marker-end="url(#f2-arw-gray)"/>
-    <rect class="lblbg" x="505" y="248" width="80" height="18"/>
-    <text class="t-edge gray-t" x="511" y="261">planner.md</text>
+    <rect class="lblbg" x="505" y="278" width="80" height="18"/>
+    <text class="t-edge gray-t" x="511" y="291">planner.md</text>
 
     <path class="edge ref" d="M 396 76 C 320 160, 200 260, 152 326" marker-end="url(#f2-arw-gray)"/>
     <path class="edge ref" d="M 412 76 C 560 160, 760 250, 852 326" marker-end="url(#f2-arw-gray)"/>
@@ -680,17 +749,18 @@
     <text class="t-edge gray-t" x="202" y="251">pytest.md＋python-*</text>
 
     <path class="edge ref" d="M 532 76 C 400 160, 220 260, 158 326" marker-end="url(#f2-arw-gray)"/>
-    <path class="edge ref" d="M 548 76 C 480 160, 420 260, 402 326" marker-end="url(#f2-arw-gray)"/>
-    <rect class="lblbg" x="360" y="238" width="128" height="18"/>
-    <text class="t-edge gray-t" x="366" y="251">gates.md＋scoring.md</text>
+    <path class="edge ref" d="M 548 76 C 500 160, 460 260, 450 326" marker-end="url(#f2-arw-gray)"/>
+    <rect class="lblbg" x="360" y="220" width="150" height="18"/>
+    <text class="t-edge gray-t" x="366" y="233">checkpoints.md＋templates</text>
 
     <path class="edge ref" d="M 676 76 C 670 180, 662 260, 658 360" marker-end="url(#f2-arw-gray)"/>
     <rect class="lblbg" x="694" y="248" width="80" height="18"/>
     <text class="t-edge gray-t" x="700" y="261">review.md</text>
 
-    <path class="edge ref" d="M 812 76 C 830 180, 848 260, 856 326" marker-end="url(#f2-arw-gray)"/>
-    <rect class="lblbg" x="820" y="248" width="76" height="18"/>
-    <text class="t-edge gray-t" x="826" y="261">python-*</text>
+    <path class="edge ref" d="M 812 76 C 830 180, 848 260, 890 326" marker-end="url(#f2-arw-gray)"/>
+    <path class="edge ref" d="M 830 76 C 780 180, 680 260, 620 388" marker-end="url(#f2-arw-gray)"/>
+    <rect class="lblbg" x="820" y="248" width="150" height="18"/>
+    <text class="t-edge gray-t" x="826" y="261">python-*／ci-gate雛形</text>
 
     <path class="edge ref" d="M 948 76 C 948 180, 946 260, 946 360" marker-end="url(#f2-arw-gray)"/>
     <path class="edge ref" d="M 1084 76 C 1060 180, 1000 270, 954 360" marker-end="url(#f2-arw-gray)"/>
@@ -703,7 +773,8 @@
     <text class="t-edge gray-t" x="542" y="135">所見（scratchpad 経由）</text>
 
     <!-- 注記 -->
-    <text class="t-sub" x="20" y="420">trivial-executor は参照正典なし。python-testing.md は tdd-generator と dev-python の単一ソース。</text>
+    <text class="t-sub" x="20" y="440">trivial-executor は参照正典なし。python-testing.md は tdd-implementer と dev-python の単一ソース。</text>
+    </g>
   </svg>
   <div class="legend">
     <span class="key"><span class="sw dash"></span>破線＝正典の参照（Read）</span>
@@ -716,15 +787,15 @@
   <div class="fnotes">
     <div class="fnote">
       <b>pytest は意図的に「二枚」ある</b>
-      <code>skills/tdd-gates/references/profiles/pytest.md</code> は薄い「ゲート用グルー」（パス→テスト種別・実行コマンド・合格ログ判定）。深い作法は <code>agents/references/python-testing.md</code> が単一ソースで、グルー側が委譲する。tdd-generator は両方、dev-python は後者のみを読む。
+      <code>skills/tdd-gates/references/profiles/pytest.md</code> は薄い「CP用グルー」（パス→テスト種別・実行コマンド・合格ログ判定）。深い作法は <code>agents/references/python-testing.md</code> が単一ソースで、グルー側が委譲する。tdd-implementer は両方、dev-python は後者のみを読む。
     </div>
     <div class="fnote">
       <b>新言語は _template.md から拡張する</b>
-      言語プロファイルは現状 pytest のみ。未対応言語では <code>profiles/_template.md</code> から起草し、テスト実行コマンドと合格ログ形式を<b>ユーザー承認後</b>にゲート開始する（pytest 前提で進めない）。
+      言語プロファイルは現状 pytest のみ。未対応言語では <code>profiles/_template.md</code> から起草し、テスト実行コマンドと合格ログ形式を<b>ユーザー承認後</b>に CP-C を開始する（pytest 前提で進めない）。
     </div>
     <div class="fnote">
-      <b>Gate 7 だけはエージェントでなくスキルが担う</b>
-      UI/UX レビュー（Gate 7）は <code>frontend-design</code> スキル＋独立サブエージェントの敵対的クロスレビューで行う（図では小チップで表示）。
+      <b>UI/UX は独立ゲートを持たない</b>
+      旧 Gate 7（UI/UX レビュー）は独立チェックポイントとして残らず、<b>CP-C の条件付き検査</b>に統合された。テスト種別が unit 判定でも、対象にテンプレート/ルーティング/ビュー層の変更が含まれれば <code>frontend-design</code> スキル＋敵対的クロスレビューを追加起動する（図①では CP-C チップ脇の注記で表示）。
     </div>
     <div class="fnote">
       <b>tdd-gates を通らない変更でも doc 同期の委任は働く</b>
@@ -732,7 +803,11 @@
     </div>
     <div class="fnote">
       <b>数値基準の横断参照は図に引いていない</b>
-      関数50行・ファイル800行・ネスト4 等の数値基準の正典は <code>review-maintainability</code> で、dev-python・planner・gates.md が参照する（§1 の単一ソース規約）。agent 間の横断エッジは図が混むため、この脚注で代える。
+      関数50行・ファイル800行・ネスト4 等の数値基準の正典は <code>review-maintainability</code> で、dev-python・planner・checkpoints.md が参照する（§1 の単一ソース規約）。agent 間の横断エッジは図が混むため、この脚注で代える。
+    </div>
+    <div class="fnote">
+      <b>条件付き並列レビューとレビュー役の分岐は図に引いていない</b>
+      CP-B の security/perf 敏感タスクに対する条件付き並列（最大2本）、CP-D の review-*5本→tdd-evaluator集約、CP-E（レビュー役=tdd-evaluator）と CP-F（レビュー役=doc-verifier）の使い分けは、図の煩雑化を避けこの脚注で代える。詳細は <code>checkpoints.md</code> 各CP節。
     </div>
   </div>
 </section>
@@ -746,15 +821,15 @@
       <thead><tr><th>agent</th><th>model</th><th>役割</th><th>参照する正典（references）</th></tr></thead>
       <tbody>
         <tr><td><code>planner</code></td><td class="center"><span class="model-chip opus">opus</span></td><td>実装計画の素材づくり・設計判断・ADR 作成（読み取り専用ツールのみ）</td><td><code>planner.md</code></td></tr>
-        <tr><td><code>tdd-generator</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>TDD Generator。RED→GREEN→REFACTOR を実行ログを証拠に遂行</td><td><code>profiles/pytest.md</code>＋<code>python-testing.md</code></td></tr>
-        <tr><td><code>tdd-evaluator</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>TDD Evaluator。所見集約・Critical 即 FAIL 判定・独立再実行（<b>書込ツールなし</b>）</td><td><code>scoring.md</code>＋<code>gates.md</code></td></tr>
+        <tr><td><code>tdd-implementer</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>Generator（実装者ペルソナ）。<code>superpowers:subagent-driven-development</code>／<code>executing-plans</code> から起動され、<code>superpowers:test-driven-development</code> に従い RED→GREEN→REFACTOR を実行し証拠を返す</td><td><code>profiles/pytest.md</code>＋<code>python-testing.md</code></td></tr>
+        <tr><td><code>tdd-evaluator</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>Evaluator。CP-A〜F 全チェックポイントの採点役・所見集約・Critical 即 FAIL 判定・独立再実行（<b>書込ツールなし</b>）</td><td><code>scoring.md</code>＋<code>checkpoints.md</code></td></tr>
         <tr><td><code>review-correctness</code></td><td class="center"><span class="model-chip opus">opus</span></td><td>正確性: バグ・論理エラー・境界値・冪等性（実装面）</td><td rowspan="5"><code>review.md</code>（共通骨格・出力形式。各 reviewer は差分チェックリストのみ保持）</td></tr>
         <tr><td><code>review-security</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>セキュリティ: インジェクション・認証認可・機密・パストラバーサル</td></tr>
         <tr><td><code>review-performance</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>性能: メモリ・DB/I-O 最適化・並列処理</td></tr>
         <tr><td><code>review-maintainability</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>保守性・doc 整合（<b>数値基準の単一ソース</b>: 関数50行・ファイル800行・ネスト4）</td></tr>
         <tr><td><code>review-test</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>テスト品質・要件/スキーマ適合・冪等性（テスト観点）</td></tr>
         <tr><td><code>dev-python</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>Python 実装（スタイル・設計パターン・イディオム）</td><td><code>python-style.md</code>・<code>python-fastapi.md</code>・<code>python-rest-api.md</code>・<code>python-testing.md</code></td></tr>
-        <tr><td><code>doc-updater</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>ドキュメント・コードマップの生成/同期（Gate 10）＋ Gate 9 の CI ワークフロー生成（いずれもユーザー受け入れ後に実行）</td><td><code>doc-design.md</code>・<code>doc-writing.md</code>・<code>doc-codemap.md</code>・<code>doc-html.md</code></td></tr>
+        <tr><td><code>doc-updater</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>ドキュメント・コードマップの生成/同期（CP-F の実装役）＋ CP-E の CI ワークフロー生成（いずれもユーザー受け入れ後、writing-plans が末尾タスクとして追加した場合に実行）</td><td><code>doc-design.md</code>・<code>doc-writing.md</code>・<code>doc-html.md</code>・<code>doc-source-sync.md</code>・<code>doc-verify.md</code></td></tr>
         <tr><td><code>doc-verifier</code></td><td class="center"><span class="model-chip">sonnet</span></td><td>doc 整合確認（記載事実 vs ソース）を執筆者と別コンテキストで採点（<b>report 専用・自己承認排除</b>）</td><td><code>doc-verify.md</code></td></tr>
         <tr><td><code>trivial-executor</code></td><td class="center"><span class="model-chip haiku">haiku</span></td><td>trivial 変更の軽量一括実行。substantial と気づいたら止めて差し戻す</td><td>（なし）</td></tr>
       </tbody>
@@ -764,101 +839,58 @@
 
 <!-- ═══════════ §5 検査ライン ═══════════ -->
 <section id="gates">
-  <div class="sec-head"><span class="sec-no">第五条</span><h2>TDD 10ゲート検査ライン — 順序そのものが防衛</h2></div>
-  <p class="lede">「動くように見えて中身がバグだらけ」を防ぐには、工程を飛ばせないことが第一の防衛になる。大半のゲートは <span style="color:var(--shu); font-weight:700;">Critical 条件</span>を持ち、1つでも未達なら他が満点でも即 FAIL（Gate 7・10 は非該当時にゲートごとスキップされ Critical を持たない）。番号が朱のゲートは Critical が特に要となる工程。</p>
+  <div class="sec-head"><span class="sec-no">第五条</span><h2>チェックポイント CP-A〜F — 背骨に寄生する6つの検査点</h2></div>
+  <p class="lede">「動くように見えて中身がバグだらけ」を防ぐ工程そのもの（駆動ループ・fix loop・進捗記録）は、もう tdd-gates が持たない。<b>superpowers のスキルチェーンが背骨として工程を進め、tdd-gates はその決まった寄生地点にチェックポイント（CP-A〜F）を差し込むだけ</b>。CP-A・CP-B は tdd-gates 独自の PASS/CONDITIONAL/FAIL で判定するが、<b>CP-C 以降は SDD（<code>subagent-driven-development</code>／<code>executing-plans</code>）純正のリトライ機構にそのまま従う</b>（tdd-gates 独自の再評価カウンタは持たない）。カードの <span class="badge sdd-retry">SDD 5ラウンド fix loop</span> のようなチップは、そのCPの差し戻しが tdd-gates 独自ではなく SDD 純正のリトライ機構に従うことを示す。番号が朱の CP は Critical が特に要となる工程。</p>
 
   <div class="gateline">
     <div class="gate critical-gate">
-      <div class="gate-badge-no">1</div>
+      <div class="gate-badge-no">A</div>
       <details class="gate-card">
-        <summary><div class="gate-head"><h3>コンテキスト分析・要件整理</h3><span class="gate-en">CONTEXT</span><span class="badge must">small でも必須</span></div></summary>
+        <summary><div class="gate-head"><h3>要件ギャップレビュー</h3><span class="gate-en">CP-A</span><span class="badge must">brainstorming に寄生</span></div></summary>
         <div class="gate-body">
-        <p>依頼＋既存コード・ドメイン・制約を分析し、要件を抽出・構造化して<b>抜け漏れなく確定</b>する。変更影響範囲の整理・スコープ単一性の確認もここ。small の簡略可否（Gate 3/8 省略等）はこの Gate 1 で判定し台帳に記録する。</p>
-        <div class="gate-actors"><span class="actor">planner 起草</span><span class="actor">tdd-evaluator 採点</span></div>
-        <div class="gate-crit"><b>Critical:</b> 要件の網羅性 — evaluator が<b>抜け漏れ候補を敵対的に列挙</b>し、非自明な欠落はユーザー確認（Stop &amp; Ask）で解消。コンテキスト把握が的確・スコープが単一。</div>
-        </div>
-      </details>
-    </div>
-
-    <div class="gate">
-      <div class="gate-badge-no">2</div>
-      <details class="gate-card">
-        <summary><div class="gate-head"><h3>受入基準・テスト設計</h3><span class="gate-en">SPEC &amp; TEST DESIGN</span><span class="badge must">substantial 必須</span></div></summary>
-        <div class="gate-body">
-        <p>確定した要件を検証可能な受入基準に言語化し、テストシナリオ（正常・異常・境界）へ落とす。想定不具合を列挙し、<b>3層（unit／integration／e2e）</b>のどこで守るか・E2E 要否を判断する。</p>
-        <div class="gate-actors"><span class="actor">planner 起草</span><span class="actor">tdd-evaluator 採点</span></div>
-        <div class="gate-crit"><b>Critical:</b> 受入基準が検証可能で、<b>要件 ↔ 受入基準 ↔ テストシナリオの対応に漏れがない</b>（トレーサビリティ）。</div>
-        </div>
-      </details>
-    </div>
-
-    <div class="gate">
-      <div class="gate-badge-no">3</div>
-      <details class="gate-card">
-        <summary><div class="gate-head"><h3>事前レビュー</h3><span class="gate-en">PRE-REVIEW</span><span class="badge must">substantial 必須</span></div></summary>
-        <div class="gate-body">
-        <p>テストを書く<b>前</b>に、既存コード・DB・セキュリティ（権限漏れ含む）・設計をレビューし、<b>業務ロジックが unit テスト可能に分離されているか</b>を検査する。この段階はテスト・差分がまだ無く review-* の材料が乏しいため、<b>evaluator がレビュアーを兼ねる</b>（実差分への多次元レビューは Gate 8）。セキュリティ/性能に敏感な計画のときだけ該当 reviewer を条件付き並列（最大2本）。</p>
-        <div class="gate-actors"><span class="actor">tdd-evaluator 単独（既定）</span><span class="actor">＋条件付き security／performance（最大2）</span></div>
-        <div class="gate-crit"><b>Critical:</b> 重大セキュリティ欠陥・設計破綻がない。</div>
+        <p>依頼＋既存コード・ドメイン・制約を分析し、要件を抽出・構造化して<b>抜け漏れなく確定</b>する（受入基準の言語化・テスト設計は CP-B）。<code>brainstorming</code> の Spec Self-Review 後・User Review Gate 前に挿入し、土台は superpowers 同梱の <code>spec-document-reviewer-prompt.md</code> への差分追記（<code>templates/spec-gap-review-addendum.md</code>）。</p>
+        <div class="gate-actors"><span class="actor">brainstorming 起草</span><span class="actor">tdd-evaluator 採点</span></div>
+        <div class="gate-crit"><b>Critical:</b> ①コンテキスト把握が的確 ②要件の網羅性 — evaluator が<b>抜け漏れ候補を敵対的に列挙</b>し、非自明な欠落はユーザー確認（Stop &amp; Ask）で解消 ③スコープが単一。</div>
+        <p style="margin-top:8px; font-size:12.5px; color:var(--muted);">判定: tdd-gates 独自 PASS/CONDITIONAL/FAIL（最大2回）。専用台帳は持たず、spec 文書自体（brainstorming が commit）とスコアカード応答が記録になる。</p>
         </div>
       </details>
     </div>
 
     <div class="gate critical-gate">
-      <div class="gate-badge-no">4</div>
+      <div class="gate-badge-no">B</div>
       <details class="gate-card">
-        <summary><div class="gate-head"><h3>RED — 失敗するテストを先に書く</h3><span class="gate-en">RED</span><span class="badge must">small でも必須</span></div></summary>
+        <summary><div class="gate-head"><h3>計画品質レビュー</h3><span class="gate-en">CP-B</span><span class="badge must">writing-plans に寄生</span></div></summary>
         <div class="gate-body">
-        <p>実装コードは一切書かず、テストだけを書いて実行する。この時点のテスト本文（パス＋内容またはハッシュ）を台帳に固定記録し、後のゲートで照合する。実失敗ログの提出はいかなる場合も省略できない。</p>
-        <div class="gate-actors"><span class="actor">tdd-generator</span></div>
-        <div class="gate-crit"><b>Critical:</b> 実行ログで「実際に・意味のある理由で」失敗していること。<code>assert False</code> 等の無条件失敗、<code>collected 0 items</code>、import ERROR で失敗を装うのは無効。</div>
+        <p>CP-A で確定した要件を検証可能な受入基準・テストシナリオへ言語化し、実装着手前の既存コード・セキュリティ・分離リスクを監査する。<code>writing-plans</code> の Self-Review 後・Execution Handoff 前に挿入し、土台は同梱の <code>plan-document-reviewer-prompt.md</code> への差分追記（<code>templates/plan-quality-review-addendum.md</code>）。<b>small/substantial の4条件判定もここで行う</b>（差分≤2ファイル・実装差分≤50行・公開IF不変・既存テスト被覆）。security/perf 敏感タスクには <code>review-security</code>／<code>review-performance</code> を条件付き並列（最大2本）。</p>
+        <div class="gate-actors"><span class="actor">writing-plans 起草</span><span class="actor">tdd-evaluator 採点（既定単独）</span></div>
+        <div class="gate-crit"><b>Critical:</b> 受入基準↔要件↔シナリオのトレーサビリティに漏れがない（各要件に最低1受入基準・各受入基準に最低1シナリオ）／重大セキュリティ欠陥・設計破綻がない。</div>
+        <p style="margin-top:8px; font-size:12.5px; color:var(--muted);">判定: tdd-gates 独自 PASS/CONDITIONAL/FAIL（最大2回）。専用台帳は持たず、plan 文書自体とスコアカード応答が記録になる。</p>
         </div>
       </details>
     </div>
 
     <div class="gate critical-gate">
-      <div class="gate-badge-no">5</div>
+      <div class="gate-badge-no">C</div>
       <details class="gate-card">
-        <summary><div class="gate-head"><h3>GREEN — テストを通す最小限の実装</h3><span class="gate-en">GREEN</span><span class="badge small-ok">small は G4–5 中心の簡略可</span></div></summary>
+        <summary><div class="gate-head"><h3>タスク証拠検証</h3><span class="gate-en">CP-C</span><span class="badge must">SDD/executing-plans に寄生</span><span class="badge sdd-retry">SDD 5ラウンド fix loop</span><span class="badge small-ok">small ルートは簡略可</span></div></summary>
         <div class="gate-body">
-        <p>Gate 4 と同一の Generator を SendMessage で継続し、最小実装で全テストを通す。evaluator が git diff で「テストが検証しない実装分岐（過剰実装）」と「テストの書き換え」を照合する。</p>
-        <div class="gate-actors"><span class="actor">tdd-generator（同一継続）</span></div>
-        <div class="gate-crit"><b>Critical:</b> 全テスト通過の実行ログ＋Gate 4 で固定したテスト本文と差分がないこと。</div>
-        </div>
-      </details>
-    </div>
-
-    <div class="gate">
-      <div class="gate-badge-no">6</div>
-      <details class="gate-card">
-        <summary><div class="gate-head"><h3>REFACTOR — 振る舞い不変で整理</h3><span class="gate-en">REFACTOR</span><span class="badge must">substantial 必須</span></div></summary>
-        <div class="gate-body">
-        <p>重複除去・命名改善のみ。evaluator が git diff でテストファイル不変と「既存テストから到達不能な新機能の混入なし」を確認する（差分カバレッジで裏取り推奨）。</p>
-        <div class="gate-actors"><span class="actor">tdd-generator（同一継続）</span></div>
-        <div class="gate-crit"><b>Critical:</b> 振る舞い不変 — テスト不変のまま全テスト通過。</div>
-        </div>
-      </details>
-    </div>
-
-    <div class="gate">
-      <div class="gate-badge-no">7</div>
-      <details class="gate-card">
-        <summary><div class="gate-head"><h3>UI/UX レビュー</h3><span class="gate-en">UI/UX</span><span class="badge cond">e2e／ビュー層変更時（条件付き）</span></div></summary>
-        <div class="gate-body">
-        <p>AI 臭さの排除・レイアウト・導線を検査。<b>テスト種別が unit と判定されていても、対象にテンプレート/ルーティング/ビュー層の変更が含まれていれば必須化</b>され、その判定による回避はできない。Critical 項目はない（非 E2E かつビュー層変更なしの場合はゲートごとスキップ）。</p>
-        <div class="gate-actors"><span class="actor">frontend-design スキル</span><span class="actor">敵対的クロスレビュー</span></div>
+        <p>RED（失敗するテストを先に書く）→GREEN（最小実装）→REFACTOR（振る舞い不変で整理）の各段階を、実行ログに基づいて検証する。SDD/executing-plans の「### 3. Review the task」で標準ディスパッチされる <code>task-reviewer-prompt.md</code> を <code>tdd-evaluator</code> に差し替える（<code>templates/task-evidence-addendum.md</code>）。実装作業自体は SDD の implementer subagent（<code>tdd-implementer</code>）がそのまま担う。</p>
+        <div class="gate-crit" style="background:#FBF1EF; border-left-color:var(--shu);"><b>最大の付加価値（明示的な上書き）:</b> SDD 標準の <code>task-reviewer-prompt.md</code> には <code>"Do not re-run the suite to confirm their report."</code>（実装者の報告を信頼し再実行しない）とあるが、tdd-gates はこれを<b>明示的に上書き</b>する。<code>tdd-evaluator</code> は RED/GREEN のテスト実行結果を実装者の報告のまま信用せず、必ず自ら再実行して確認する。</div>
+        <div class="gate-actors"><span class="actor">tdd-implementer 実装</span><span class="actor">tdd-evaluator 検証（task-reviewer 差替）</span></div>
+        <div class="gate-crit"><b>Critical:</b> RED＝evaluator が自ら再実行し実際に失敗（無条件失敗・偽装は無効）＋差分がテストファイルのみ。GREEN＝自ら再実行し全緑＋RED時点のテストと同一（assert 骨抜きなし）＋最小実装。REFACTOR＝新機能混入なし・テストファイル不変・全緑。UI/UX はテンプレート/ルーティング/ビュー層変更時に unit 申告でも回避不可で条件付き追加。security/perf は CP-C 自身が判定せず、<b>CP-B が付けたタグ</b>を見て該当タスクにのみ追加起動する。</div>
+        <p style="margin-top:8px; font-size:12.5px; color:var(--muted);">証拠は SDD の <code>progress.md</code> に証拠行（RED/GREEN コマンドと出力）として追記する（tdd-gates 独自の台帳は作らない）。</p>
         </div>
       </details>
     </div>
 
     <div class="gate critical-gate">
-      <div class="gate-badge-no">8</div>
+      <div class="gate-badge-no">D</div>
       <details class="gate-card">
-        <summary><div class="gate-head"><h3>差し戻し判定 — 最終ゲート</h3><span class="gate-en">FINAL REVIEW</span><span class="badge must">substantial 必須</span></div></summary>
+        <summary><div class="gate-head"><h3>最終スコアカード</h3><span class="gate-en">CP-D</span><span class="badge must">SDD Final Review に寄生</span><span class="badge sdd-retry">SDD Final Review（1修正波+1 re-review）</span></div></summary>
         <div class="gate-body">
-        <p>変更差分全体を5次元並列でレビューし、evaluator が集約採点してマージ可否を判定する。ここで review-test が加わり、<b>偽装テスト（assert なし・常に真・実装の写経）の検出</b>が Critical になる。</p>
+        <p>変更差分全体を多次元で採点し、マージ可否を判定する最終ゲート。SDD の「## Final Review」が標準ディスパッチする <code>code-reviewer.md</code> の単独レビューを、<code>review-*</code>5本並列起動＋<code>tdd-evaluator</code>集約に差し替える（<code>templates/final-scorecard-review-prompt.md</code>）。各 reviewer は所見を scratchpad の所見ファイルに直接書き出し、<code>tdd-evaluator</code> がそのファイル群を自ら Read して集約する（Main は所見本文を要約・改変しない）。</p>
         <div class="gate-actors"><span class="actor">correctness</span><span class="actor">security</span><span class="actor">performance</span><span class="actor">maintainability</span><span class="actor">test</span><span class="actor">→ tdd-evaluator 集約</span></div>
-        <div class="gate-crit"><b>Critical:</b> 仕様不適合ゼロ・既存回帰ゼロ・偽装テスト検出ゼロ。</div>
+        <div class="gate-crit"><b>Critical:</b> 仕様不適合ゼロ・既存回帰ゼロ・<b>偽装テスト検出</b>ゼロ（assert なし・常に真・実装の写経。目視に加え<b>ミューテーション検証必須</b> — 徴候があれば該当テスト、無くても代表1件にスモーク）。</div>
         </div>
       </details>
     </div>
@@ -866,29 +898,30 @@
     <div class="acceptance">
       <div class="gate-badge-no">✓</div>
       <div class="gate-card">
-        <b>ユーザー受け入れ確認</b> — Gate 8 PASS 後・Gate 9/10 の前に必ず挟む。<b>例外</b>として、ユーザーが既に承認済みの複数マイルストーン計画で clean PASS のときは、ここで停止せず進捗報告のみで次のマイルストーンへ自動的に進む。この時 evaluator が<b>受け入れチェックリスト</b>（受入基準＋5次元＋例外処理・権限漏れ・変更影響範囲）を生成して台帳に残し、手動確認を再現可能にする。NG なら修正へ差し戻し、ドキュメントは更新しない。
+        <b>ユーザー受け入れ確認</b> — CP-D PASS 後・CP-E/CP-F の前に必ず挟む。<b>例外</b>として、ユーザーが既に承認済みの複数マイルストーン計画で clean PASS のときは、ここで停止せず進捗報告のみで次のマイルストーンへ自動的に進む。この時 <code>tdd-evaluator</code> が<b>受け入れチェックリスト</b>（受入基準＋CP-Dの5次元＋例外処理・権限漏れ・変更影響範囲）を機械的に導出して返し、手動確認を再現可能にする。NG なら修正へ差し戻し、ドキュメントは更新しない。
       </div>
     </div>
 
     <div class="gate">
-      <div class="gate-badge-no">9</div>
+      <div class="gate-badge-no">E</div>
       <details class="gate-card">
-        <summary><div class="gate-head"><h3>CI 品質ゲート整備</h3><span class="gate-en">CI GATE</span><span class="badge cond">CI 運用時のみ</span></div></summary>
+        <summary><div class="gate-head"><h3>CI 品質ゲート整備</h3><span class="gate-en">CP-E</span><span class="badge cond">CI 運用時のみ</span><span class="badge sdd-retry">SDD 通常タスクループ</span></div></summary>
         <div class="gate-body">
-        <p>CI が必須ステージ（lint・typecheck・build・unit・integration・主要 E2E）を自動実行するよう整備・検証する。<b>プロファイル駆動</b> — 具体コマンドは言語プロファイルが供給する。ワークフロー実体は各プロジェクトに生成する（GitHub Actions 既定）。「グリーン」は push 後の非同期事象のため、本ゲートは<b>定義の存在・被覆</b>をゲートする。</p>
-        <div class="gate-actors"><span class="actor">doc-updater 生成</span><span class="actor">tdd-evaluator 採点</span></div>
+        <p>CI が必須ステージ（lint・typecheck・build・unit・integration・主要 E2E）を自動実行するよう整備・検証する。<code>writing-plans</code> が条件を満たせば計画の末尾タスクとして自動追加（<code>templates/ci-gate-task-template.md</code>）し、追加後は CP-C と同じ SDD の通常タスクループに乗る — CP-E 自体は独自のディスパッチ・リトライ機構を持たない。<b>プロファイル駆動</b> — 具体コマンドは言語プロファイルが供給する。「グリーン」は push 後の非同期事象のため、本CPは<b>定義の存在・被覆</b>をゲートする。</p>
+        <div class="gate-actors"><span class="actor">doc-updater 実装</span><span class="actor">tdd-evaluator 採点（CP-Cの仕組みに乗る）</span></div>
         <div class="gate-crit"><b>Critical:</b> 必須ステージ（lint・typecheck・build・unit・integration・主要E2E）がすべて CI 定義に含まれている（preview デプロイは任意のため対象外）。</div>
         </div>
       </details>
     </div>
 
     <div class="gate">
-      <div class="gate-badge-no">10</div>
+      <div class="gate-badge-no">F</div>
       <details class="gate-card">
-        <summary><div class="gate-head"><h3>ドキュメント同期</h3><span class="gate-en">DOC SYNC</span><span class="badge cond">doc 影響なしならスキップ</span></div></summary>
+        <summary><div class="gate-head"><h3>ドキュメント同期</h3><span class="gate-en">CP-F</span><span class="badge cond">doc 影響なしならスキップ</span><span class="badge sdd-retry">SDD 通常タスクループ</span></div></summary>
         <div class="gate-body">
-        <p>README・ガイド・コードマップ・API 仕様を変更内容に同期する。Critical 項目はない（doc 影響がなければゲートごとスキップ）。</p>
-        <div class="gate-actors"><span class="actor">doc-updater</span></div>
+        <p>README・ガイド・コードマップ・API 仕様を変更内容に同期する。CP-E タスクの後、<code>writing-plans</code> が同様に計画末尾へ自動追加するタスク（<code>templates/doc-sync-task-template.md</code>）。実装タスクとしては CP-C と同じ SDD の通常タスクループに乗るが、<b>レビュー役だけが tdd-evaluator ではなく doc-verifier になる</b>（執筆者と検証者の分離を保つため）。</p>
+        <div class="gate-actors"><span class="actor">doc-updater 執筆</span><span class="actor">doc-verifier 整合確認（別コンテキスト）</span></div>
+        <div class="gate-crit"><b>Critical:</b> doc-verifier の照合で、裏付けの無い事実主張（実装に無い挙動・根拠の無い数値の記載）が未解消のまま残っている。</div>
         </div>
       </details>
     </div>
@@ -898,17 +931,19 @@
 <!-- ═══════════ §6 判定と検印 ═══════════ -->
 <section id="verdict">
   <div class="sec-head"><span class="sec-no">第六条</span><h2>判定と検印 — スコア率を Critical が上書きする</h2></div>
-  <p class="lede">各ゲートの採点は tdd-evaluator が scoring.md 準拠で行う。重要なのは、スコア率がどれだけ高くても <b>Critical 1件で即 FAIL</b> になること — 「点数を稼いで欠陥をすり抜ける」経路を断つ。</p>
+  <p class="lede">採点は必ず <code>tdd-evaluator</code> が <code>scoring.md</code> 準拠で行う。重要なのは、スコア率がどれだけ高くても <b>Critical 1件で即 FAIL</b> になること — 「点数を稼いで欠陥をすり抜ける」経路を断つ。<b>この即FAILルールは全CP共通</b>だが、判定の見た目（フォーマット）は2種類に分かれる。</p>
+
+  <p class="lede" style="margin-bottom:10px;"><b>下の3つの判子は CP-A／CP-B にのみ適用</b>される（tdd-gates 独自の PASS/CONDITIONAL/FAIL・最大2回の再評価）。</p>
   <div class="verdicts">
     <div class="verdict">
       <div class="stamp pass" aria-hidden="true"><b>合</b><span>PASS</span></div>
       <h3>PASS</h3>
-      <p>スコア率 <b>80% 以上</b>かつ Critical 全達成。台帳の各 PASS には evaluator <b>自身が再実行した</b>検証コマンドの出力行の添付が必須 — 実行痕跡のない PASS は無効。</p>
+      <p>スコア率 <b>80% 以上</b>かつ Critical 全達成。スコアカードの各 PASS には evaluator <b>自身が再実行した</b>検証コマンドの出力行の添付が必須 — 実行痕跡のない PASS は無効。</p>
     </div>
     <div class="verdict">
       <div class="stamp cond" aria-hidden="true"><b>条</b><span>CONDITIONAL</span></div>
       <h3>CONDITIONAL</h3>
-      <p>スコア率 <b>60–79%</b>。差し戻して再評価するが<b>上限 2 回</b>。再評価では前回スコアカードの指摘を引用し、台帳に記録した再評価回数と整合確認 — 引用なし・カウンタ不整合は上限到達扱い（無限往復の防止）。</p>
+      <p>スコア率 <b>60–79%</b>。差し戻して再評価するが<b>上限 2 回</b>。再評価では前回スコアカードの指摘を1件ずつ引用し解消／部分解消／未解消で判定 — 引用なし・カウンタ不整合は上限到達扱い（無限往復の防止）。</p>
     </div>
     <div class="verdict">
       <div class="stamp fail" aria-hidden="true"><b>否</b><span>FAIL</span></div>
@@ -916,29 +951,40 @@
       <p>スコア率 <b>60% 未満</b>、または <b>Critical 未達</b>（他が満点でも即 FAIL）、または CONDITIONAL 2 回超。工程を差し戻す。</p>
     </div>
   </div>
+
+  <div class="principle" style="margin-top:22px;">
+    <b class="title">CP-C 以降は SDD 互換の Spec Compliance 形式で判定する</b>
+    <p style="font-size:13.5px; color:#3d4a63; margin-top:2px;">PASS/CONDITIONAL/FAIL の判子は使わず、<code>subagent-driven-development</code> の <code>task-reviewer-prompt.md</code> と同型の形式で返す — <code>✅ Spec compliant</code> ／ <code>❌ Issues found</code> ／ <code>⚠️ Cannot verify from diff</code> の3値と、指摘を <b>Critical（Must Fix）／Important（Should Fix）／Minor（Nice to Have）</b> に分ける。tdd-gates 標準の SDD reviewer と違う点は、<b>Critical 判定の根拠を主観でなく <code>checkpoints.md</code> の該当 Critical 行に紐付ける</b>こと。差し戻し・再評価は tdd-gates 独自のカウンタではなく、<b>SDD 純正のリトライ機構</b>（CP-C＝5ラウンド fix loop、CP-D＝Final Review の1修正波+1 scoped re-review）にそのまま従う。</p>
+  </div>
 </section>
 
 <!-- ═══════════ §7 破り方と防ぎ方 ═══════════ -->
 <section id="defense">
-  <div class="sec-head"><span class="sec-no">第七条</span><h2>破り方と防ぎ方 — AI 駆動開発の品質問題への13の防衛</h2></div>
+  <div class="sec-head"><span class="sec-no">第七条</span><h2>破り方と防ぎ方 — AI 駆動開発の品質問題への14の防衛</h2></div>
   <p class="lede">この仕組みは「AI 実装者がどうサボり・どう取り繕うか」を先回りして設計されている。各カードは <b>破り方（起きうる品質問題）→ それを構造的に潰す仕組み</b> の対。</p>
   <div class="defense">
 
+    <div class="def-card" style="border: 1.5px solid var(--shu);">
+      <p class="def-attack">SDD の「報告を信頼する」前提の悪用 — 実装者の自己申告だけで済ませる</p>
+      <p class="def-guard"><b>tdd-gates 最大の付加価値。</b> SDD 標準の <code>task-reviewer-prompt.md</code> には <code>"Do not re-run the suite to confirm their report."</code>（実装者の報告を信頼し再実行しない）と明記されているが、CP-C はこれを<b>明示的に上書き</b>する。<code>tdd-evaluator</code> は RED/GREEN の実行結果を実装者（<code>tdd-implementer</code>）の報告のまま信用せず、必ず自ら Bash で再実行し、自分の目で確認した出力だけを証拠として採点する。</p>
+      <span class="src">checkpoints.md（CP-C）／templates/task-evidence-addendum.md／tdd-evaluator.md</span>
+    </div>
+
     <div class="def-card">
       <p class="def-attack">要件の抜け漏れ — 存在しない要件は誰も検査しない</p>
-      <p class="def-guard">Gate 1 で evaluator が要件集合の完全性を<b>敵対的に点検</b>し、抜け漏れ候補（未記載・暗黙要件・未対応エッジ）を列挙。真実源はユーザーにあるため、非自明な欠落は自動 FAIL せず <b>Stop &amp; Ask</b> で確認して要件へ反映する。</p>
-      <span class="src">gates.md（Gate 1 Critical）</span>
+      <p class="def-guard">CP-A で evaluator が要件集合の完全性を<b>敵対的に点検</b>し、抜け漏れ候補（未記載・暗黙要件・未対応エッジ）を列挙。真実源はユーザーにあるため、非自明な欠落は自動 FAIL せず <b>Stop &amp; Ask</b> で確認して要件へ反映する。</p>
+      <span class="src">checkpoints.md（CP-A Critical）</span>
     </div>
 
     <div class="def-card">
       <p class="def-attack">自己承認 — 実装者が自分で合格を出す</p>
-      <p class="def-guard">Generator（実装）と Evaluator（採点）を<b>必ず別サブエージェント・別コンテキスト</b>で起動。reviewer の所見は scratchpad 経由で evaluator が直接 Read し、<b>Main が要約・改変する経路を外す</b>（当事者が critical 所見を軟化させる余地を消す）。</p>
-      <span class="src">gates.md / SKILL.md / tdd-evaluator.md</span>
+      <p class="def-guard">Generator（<code>tdd-implementer</code>）と Evaluator（<code>tdd-evaluator</code>）を<b>必ず別サブエージェント・別コンテキスト</b>で起動。CP-D の reviewer 所見は scratchpad 経由で evaluator が直接 Read し、<b>Main が要約・改変する経路を外す</b>（当事者が critical 所見を軟化させる余地を消す）。</p>
+      <span class="src">checkpoints.md / SKILL.md / tdd-evaluator.md</span>
     </div>
 
     <div class="def-card">
       <p class="def-attack">口先報告 — 「テストは通るはず」</p>
-      <p class="def-guard"><b>証拠主義</b>: RED / GREEN は実行コマンド＋出力スニペットを台帳に残す。ログのない主張は該当項目 0 点。</p>
+      <p class="def-guard"><b>証拠主義</b>: RED / GREEN は実行コマンド＋出力スニペットを証拠として残す（CP-A/B はスコアカード、CP-C 以降は SDD の <code>progress.md</code>）。ログのない主張は該当項目 0 点。</p>
       <span class="src">SKILL.md / scoring.md</span>
     </div>
 
@@ -957,49 +1003,49 @@
     <div class="def-card">
       <p class="def-attack">RED 偽装 — 形だけ失敗させる</p>
       <p class="def-guard"><code>assert False</code>・トートロジー・例外 raise だけの無条件失敗は Critical 未達。<code>collected 0 items</code> や import ERROR で「失敗した」ことにするのも無効。</p>
-      <span class="src">gates.md / profiles/pytest.md</span>
+      <span class="src">checkpoints.md（CP-C）／profiles/pytest.md</span>
     </div>
 
     <div class="def-card">
       <p class="def-attack">assert 骨抜き — GREEN でテストを弱める</p>
-      <p class="def-guard">Gate 4 時点のテスト本文を<b>台帳に固定記録</b>し、Gate 5・6 で照合。差分があれば Critical 未達。</p>
-      <span class="src">SKILL.md / gates.md / tdd-evaluator.md</span>
+      <p class="def-guard">evaluator が RED 時点で確認したテスト本文と GREEN 時点の <code>git diff</code> を自ら照合し、assert が弱められていないかを検査。差分があれば Critical 未達。</p>
+      <span class="src">checkpoints.md（CP-C）／tdd-evaluator.md</span>
     </div>
 
     <div class="def-card">
       <p class="def-attack">REFACTOR への新機能混入</p>
-      <p class="def-guard">Gate 6 の Critical は<b>振る舞い不変</b>。evaluator が git diff でテスト不変と、既存テストから到達不能な新規の条件分岐・機能追加がないことを確認する。</p>
-      <span class="src">gates.md</span>
+      <p class="def-guard">CP-C REFACTOR の Critical は<b>振る舞い不変</b>。evaluator が git diff でテスト不変と、既存テストから到達不能な新規の条件分岐・機能追加がないことを確認する。</p>
+      <span class="src">checkpoints.md（CP-C）</span>
     </div>
 
     <div class="def-card">
       <p class="def-attack">過剰実装 — テストにない機能の作り込み</p>
-      <p class="def-guard">Gate 5 で evaluator が git diff に<b>テストが検証しない実装分岐がないか</b>（最小性）を確認する。</p>
-      <span class="src">gates.md / tdd-evaluator.md</span>
+      <p class="def-guard">CP-C GREEN で evaluator が git diff に<b>テストが検証しない実装分岐がないか</b>（最小性）を確認する。</p>
+      <span class="src">checkpoints.md（CP-C）／tdd-evaluator.md</span>
     </div>
 
     <div class="def-card">
       <p class="def-attack">形骸化テスト — 常に PASS する飾り</p>
-      <p class="def-guard">Gate 8 に<b>偽装テスト検出の Critical</b>: assert なし・常に真・実装の写経を検出したら即 FAIL。</p>
-      <span class="src">gates.md</span>
+      <p class="def-guard">CP-D に<b>偽装テスト検出の Critical</b>: assert なし・常に真・実装の写経を検出したら即 FAIL。目視に加え<b>ミューテーション検証</b>（バグ注入して落ちるか確認）を、徴候があれば該当テストに、無くても代表1件にスモークで実施する。</p>
+      <span class="src">checkpoints.md（CP-D）</span>
     </div>
 
     <div class="def-card">
       <p class="def-attack">スコア稼ぎ — 点数で欠陥を薄める</p>
-      <p class="def-guard"><b>Critical 即 FAIL</b> がスコア率を上書きする。1 件でも未達なら他が満点でも FAIL。</p>
+      <p class="def-guard"><b>Critical 即 FAIL</b> がスコア率を上書きする。1 件でも未達なら他が満点でも FAIL（全 CP 共通）。</p>
       <span class="src">scoring.md</span>
     </div>
 
     <div class="def-card">
-      <p class="def-attack">無限往復 — CONDITIONAL で粘る</p>
-      <p class="def-guard">再評価は<b>上限 2 回</b>。各再評価で前回指摘の引用と台帳に記録した再評価回数の整合を検査し、引用なし・カウンタリセットは上限到達扱いで FAIL 格上げ。</p>
-      <span class="src">scoring.md / SKILL.md</span>
+      <p class="def-attack">無限往復 — 差し戻しで粘る</p>
+      <p class="def-guard"><b>CP-A/B のみ</b>: 再評価は上限2回、各再評価で前回指摘の引用と整合を検査し、引用なし・カウンタ不整合は上限到達扱いで FAIL 格上げ。<b>CP-C 以降</b>は tdd-gates 独自の上限を持たず、SDD 純正のリトライ機構（CP-C＝5ラウンド fix loop、CP-D＝Final Review の1修正波+1 scoped re-review）が無限往復を防ぐ。</p>
+      <span class="src">scoring.md</span>
     </div>
 
     <div class="def-card">
-      <p class="def-attack">ゲートのバイパス — 監査できない工程</p>
-      <p class="def-guard">タスクごとに一意名の<b>台帳</b>を作り、verdict・スコア率・証拠スニペット・再評価回数・evaluator 再実行出力を記録。工程飛ばしと自己承認を監査証跡で防ぐ。</p>
-      <span class="src">SKILL.md</span>
+      <p class="def-attack">工程のバイパス — 監査できない工程</p>
+      <p class="def-guard">旧来の専用「台帳」（<code>.tdd-gates/ledger-*.md</code>）は廃止。CP-A/B はスコアカード応答自体、CP-C 以降は SDD の <code>progress.md</code> への証拠行追記が記録の正典になり、spec/plan 文書自体も superpowers が git commit する。工程飛ばしと自己承認を、背骨ネイティブの記録機構で防ぐ。</p>
+      <span class="src">SKILL.md／checkpoints.md</span>
     </div>
 
   </div>
@@ -1008,20 +1054,21 @@
 <!-- ═══════════ §8 Hooks ═══════════ -->
 <section id="hooks">
   <div class="sec-head"><span class="sec-no">第八条</span><h2>Hooks — モデルの規律を機械で補強する</h2></div>
-  <p class="lede">ここまでの防衛は「モデルが指示に従う」前提の規律。hooks はその外側で、従わなかった場合も機械的に止める最後の層。現在はすべてブロック型の3本。</p>
+  <p class="lede">ここまでの防衛は「モデルが指示に従う」前提の規律。hooks はその外側で、従わなかった場合も機械的に止める最後の層。現在はすべてブロック型の4本。</p>
   <div class="scroll">
     <table>
       <thead><tr><th>hook</th><th>この仕組みとの関係</th></tr></thead>
       <tbody>
-        <tr><td><code>bash-guard.sh</code></td><td>破壊的コマンド・機密ファイルの読取/持ち出しをブロック（rm はプロジェクト配下の子要素のみ許可）— 禁止事項（憲法）の機械的執行</td></tr>
-        <tr><td><code>workspace-guard.sh</code></td><td>プロジェクト外・hooks/settings への書込をブロック — 作業範囲と自己書換防止の執行</td></tr>
+        <tr><td><code>bash-guard.sh</code></td><td>破壊的コマンド・機密ファイルの読取/持ち出しをブロック（<code>rm</code>/<code>rmdir</code>/<code>unlink</code>/<code>git rm</code> はプロジェクト配下／<code>$CLAUDE_HOME</code>配下／<code>/tmp</code>配下の子要素のみ許可）— 禁止事項（憲法）の機械的執行</td></tr>
+        <tr><td><code>workspace-guard.sh</code></td><td>プロジェクト配下／<code>~/.claude</code> 配下／<code>/tmp</code> 配下以外への Write/Edit をブロック（<code>~/.claude/hooks/</code> とハーネス設定 <code>settings.json</code> は許可の例外・実行前確認は <code>settings.json</code> の <code>permissions.ask</code> 側で担保）— 作業範囲の執行</td></tr>
         <tr><td><code>venv-guard.sh</code></td><td>venv 外への pip install をブロック — 環境汚染の防止</td></tr>
+        <tr><td><code>main-branch-guard.sh</code></td><td>main/master ブランチ上での Write/Edit/MultiEdit/NotebookEdit、および Bash の削除・変更系コマンド（<code>rm</code>/<code>mv</code>/<code>cp</code>/<code>tee</code>/<code>touch</code>/リダイレクト/<code>sed -i</code>/<code>git commit</code>/<code>git rm</code> 等）をブロック（読み取り専用コマンドは対象外）— main 直編集の禁止と、finishing-a-development-branch が担うブランチ運用への誘導</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="closing">
-    <b>要するに —</b> Main が憲法 CLAUDE.md の規則に従って入口を分岐し、tdd-gates（工程書）がゲートの順序を強制し、agent（実行役）は実装と採点を別人格に分け、references（正典）が定義の重複を許さない。その全工程を<span class="accent">台帳と検印（証拠つき PASS / Critical 即 FAIL）</span>が監査し、hooks が外側から機械的に支える。「動くように見える」だけのコードが通り抜ける穴を、層ごとに一つずつ塞いだ構成になっている。
+    <b>要するに —</b> Main が憲法 CLAUDE.md の規則に従って入口を分岐し、superpowers（背骨）が要件定義から完了判断までの駆動ループを進め、tdd-gates（品質規律レイヤー）がその決まった寄生地点にチェックポイントを差し込み、agent（実行役）は実装と採点を別人格に分け、references・templates（正典）が定義の重複を許さない。その全工程を<span class="accent">証拠つき判定（CP-A/B の検印・CP-C以降の Spec Compliance・Critical 即 FAIL）</span>が監査し、hooks が外側から機械的に支える。「動くように見える」だけのコードが通り抜ける穴を、層ごとに一つずつ塞いだ構成になっている。
   </div>
 </section>
 
@@ -1031,10 +1078,10 @@
   <p class="lede">本文はグロスを外して用語をここに集約した。初出で意味が要るものは以下を参照。</p>
   <dl>
     <dt>Main</dt><dd>ユーザーと対話する親セッション（オーケストレータ）。全 agent の起動主体で、<code>~/.claude/CLAUDE.md</code> がその行動規則。</dd>
-    <dt>台帳（ledger）</dt><dd>タスクごとに作る監査記録ファイル <code>.tdd-gates/ledger-&lt;slug&gt;.md</code>。verdict・スコア率・証拠・再評価回数・evaluator 再実行出力を記録する。</dd>
-    <dt>verdict</dt><dd>各ゲートの判定結果。PASS（80%以上＋Critical全達成）／CONDITIONAL（60–79%）／FAIL（60%未満または Critical 未達）。</dd>
+    <dt>台帳（ledger）</dt><dd>旧来は <code>.tdd-gates/ledger-&lt;slug&gt;.md</code> という専用監査記録ファイルだったが<b>廃止</b>済み。CP-A/B は専用台帳を持たず、直近のスコアカード応答自体が記録になる。CP-C 以降は superpowers（SDD／executing-plans）の <code>progress.md</code> が記録の正典。</dd>
+    <dt>verdict</dt><dd>CP-A/B の判定結果。PASS（80%以上＋Critical全達成）／CONDITIONAL（60–79%）／FAIL（60%未満または Critical 未達）。CP-C以降はこの判子を使わず、Spec Compliance 形式（✅/❌/⚠️）で判定する。</dd>
     <dt>Plan モード</dt><dd>実装前に計画だけ立てて承認を得る、Claude Code の読取専用モード。</dd>
-    <dt>Generator／Evaluator</dt><dd>実装役 <code>tdd-generator</code> と採点役 <code>tdd-evaluator</code> の本文中の呼称。</dd>
+    <dt>Generator／Evaluator</dt><dd>実装役 <code>tdd-implementer</code> と採点役 <code>tdd-evaluator</code> の本文中の呼称。</dd>
     <dt>opus／sonnet／haiku</dt><dd>Claude モデルの階層。opus＞sonnet＞haiku の順に高機能・高コスト。</dd>
     <dt>ADR</dt><dd>Architecture Decision Record。設計判断の記録。</dd>
     <dt>3層（unit／integration／e2e）</dt><dd>テスト階層。unit＝業務ロジック、integration＝結合検証（最も厚くする層）、e2e＝最小限の主要導線。</dd>
@@ -1044,60 +1091,35 @@
     <dt>グリーン</dt><dd>CI が成功で完走した状態。push 後の非同期事象。</dd>
     <dt>Stop &amp; Ask</dt><dd>非自明な要件欠落を自動 FAIL せずユーザーに確認して解消する運び。</dd>
     <dt>プロファイル駆動</dt><dd>具体的なテスト実行コマンド等を言語プロファイルが供給する仕組み。</dd>
+    <dt>CP-A〜F</dt><dd>tdd-gates が superpowers のスキルチェーンに寄生させる6つのチェックポイント。CP-A/B は独自 PASS/CONDITIONAL/FAIL、CP-C〜F は SDD 互換の Spec Compliance 形式で判定する。</dd>
+    <dt>superpowers</dt><dd>要件定義から完了判断までのスキルチェーンを提供するプラグイン。tdd-gates が背骨として乗るループの実体。</dd>
+    <dt>SDD（subagent-driven-development）</dt><dd>superpowers のスキルの一つ。Implementer と Task Reviewer の分離・5ラウンド fix loop・<code>progress.md</code>・Final Review をネイティブに持つ実装駆動ループ。</dd>
+    <dt>Iron Law</dt><dd><code>superpowers:test-driven-development</code> の中核原則「NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST」。tdd-gates の規律の根拠。</dd>
+    <dt>brainstorming</dt><dd>要件定義・spec 文書を作る superpowers のスキル。CP-A が寄生する。</dd>
+    <dt>writing-plans</dt><dd>plan 文書（実装計画）を作る superpowers のスキル。CP-B が寄生し、CP-E/CP-F の末尾タスクもここで追加される。</dd>
+    <dt>finishing-a-development-branch</dt><dd>実装完了後の統合方法（マージ／PR／保留）を決める superpowers のスキル。tdd-gates の CP は寄生しない。</dd>
   </dl>
 </section>
 
-<!-- ═══════════ §9 参照関係図の検証と改善余地 ═══════════ -->
-<section id="graph-review">
-  <div class="sec-head"><span class="sec-no">第九条</span><h2>参照関係図の検証と改善余地</h2></div>
-  <p class="lede">第三条（§3）の図が改訂前に持っていた全18エッジを、ソース（SKILL.md・gates.md・各 agent 定義）と1本ずつ突合した。結果は17本が記載どおり正確で、残る1本（doc-verifier が参照する範囲）は §3 内の注記で是正した。検証に続き、下表の改善6件を 2026-07-06 の改訂で図へ反映した（反映後の図は Main ノードと新規エッジを加えた23本構成）。</p>
-  <details class="fold">
-  <summary>改善6件の詳細（検証結果と反映内容）</summary>
-  <div class="fold-body">
+<!-- ═══════════ §9 改訂履歴 ═══════════ -->
+<section id="history">
+  <div class="sec-head"><span class="sec-no">第九条</span><h2>改訂履歴</h2></div>
+  <p class="lede">この文書自体の改訂記録。詳細な監査表は前バージョン（2026-07-06 改訂時点）に譲り、ここでは各改訂の要点のみ列挙する。</p>
   <div class="scroll">
     <table>
-      <thead><tr><th>改善点</th><th>理由・根拠</th><th>反映内容</th></tr></thead>
+      <thead><tr><th>日付</th><th>内容</th></tr></thead>
       <tbody>
-        <tr>
-          <td>Main（親セッション）ノードの不在</td>
-          <td>dev-python と doc-verifier に入エッジがなく「使われない agent」に誤読される。実際の起動元は Main（dev-python は Python 実装時に随時起動、doc-verifier は doc-updater の執筆後に Main が別コンテキストで起動 — <code>doc-updater.md</code>）。</td>
-          <td>最上段に Main ノードを新設し CLAUDE.md はその左へ移動。朱線5本すべての起点を Main とし、dev-python・doc-verifier 行き先の朱線を新設した。</td>
-        </tr>
-        <tr>
-          <td>review-* → tdd-evaluator の所見フローが未描画</td>
-          <td>Gate 3/8 の実データフロー（reviewer が scratchpad の所見ファイルに書き、evaluator がそれを直接 Read する — <code>SKILL.md</code>）に対応する矢印がなく、「レビュー単独（evaluator 集約）」ラベルの実体が図にない。</td>
-          <td>review-* 左辺 → tdd-evaluator 右辺に点線＋専用マーカーで所見フローを追加し、凡例にも「点線＝レビュー所見の受け渡し」を追記した。</td>
-        </tr>
-        <tr>
-          <td>review-maintainability の数値基準（関数50行等）を dev-python・planner・gates.md が参照する横断関係が未描画</td>
-          <td>第一条（§1）の単一ソース規約と図の対応が欠ける。</td>
-          <td>agent 間の横断エッジは追加せず、脚注カード「数値基準の横断参照は図に引いていない」を新設して代えた。</td>
-        </tr>
-        <tr>
-          <td>下段の X 字交差</td>
-          <td>L3 のチップ並び（planner・review・python-*・doc-*）が L2 のノード並びと逆転しており、交差が構造的に発生する。</td>
-          <td>チップ順を planner.md → python-* ×4 → review.md → doc-* ×5 へ並び替え、交差を dev-python↔python-* と review-*↔review.md の1箇所のみに削減した。</td>
-        </tr>
-        <tr>
-          <td>L2 ノードの並び順が第四条（§4）の表（review-* → dev-python → trivial-executor → doc-updater → doc-verifier）と不一致</td>
-          <td>図と表を突き合わせるとき、並び順の食い違いで探し直しが起きる。</td>
-          <td>L2 ノードを planner → tdd-generator → tdd-evaluator → review-* → dev-python → doc-updater → doc-verifier → trivial-executor の順に統一し、§4 の表・§1 の列挙も同順へ揃えた。</td>
-        </tr>
-        <tr>
-          <td>Gate 7 の欠番感</td>
-          <td>図では G7（frontend-design スキル担当）だけ行き先の矢印がなく、脚注頼みになっている。</td>
-          <td>SKILL.md 脇に小チップ「G7 → frontend-design」を追加し、脚注の文言も「図では小チップで表示」へ更新した。</td>
-        </tr>
+        <tr><td class="center">2026-07-03</td><td>初版。四層構造・TDD 10ゲート・agents 12本を解説。</td></tr>
+        <tr><td class="center">2026-07-06</td><td>9→10ゲート再設計（Gate1/2分割等）に追随。参照関係図の全18エッジをソースと突合・改善6件を反映し、hooks 3本へ同期。</td></tr>
+        <tr><td class="center">2026-07-25</td><td>superpowers 統合により tdd-gates が全面再設計（自前の10ゲート駆動ループ → superpowers のスキルチェーンに上乗せする CP-A〜F）されたことを受け、本文を全面更新。四層 → 五層構造（背骨／品質規律レイヤーの分離）、参照関係図2枚を CP対応表・templates/新設6本に合わせて描き直し、agent 一覧の <code>tdd-generator</code>→<code>tdd-implementer</code> 置換、10ゲートのアコーディオンを CP-A〜F の6枚に置換、判定形式の2モード化（CP-A/B の検印 ／ CP-C以降の Spec Compliance）、防衛カードに「SDDの報告信頼前提の上書き」を追加、hooks 表に <code>main-branch-guard.sh</code> を追加。</td></tr>
       </tbody>
     </table>
   </div>
-  </div>
-  </details>
 </section>
 
 <footer>
-  <span>my-claude / claude-config-architecture — 2026-07-03（改訂 2026-07-06・commit 80cda7a）</span>
-  <span>正典: skills/tdd-gates/references/{gates,scoring}.md ・ agents/references/ ・ ~/.claude/CLAUDE.md</span>
+  <span>my-claude / claude-config-architecture — 2026-07-03（改訂 2026-07-06・改訂 2026-07-25・未コミット）</span>
+  <span>正典: skills/tdd-gates/references/{checkpoints,scoring}.md ・ skills/tdd-gates/templates/ ・ agents/references/ ・ ~/.claude/CLAUDE.md</span>
 </footer>
 
 </div>
