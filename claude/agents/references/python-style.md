@@ -14,7 +14,7 @@ Python は可読性を重視する。コードは明快で理解しやすくあ�
 ```python
 ### Good: 明確で読みやすい
 def get_active_users(users: list[User]) -> list[User]:
-    """Return only active users from the provided list."""
+    """指定リストからアクティブなユーザーのみを返す。"""
     return [user for user in users if user.is_active]
 
 
@@ -38,7 +38,7 @@ logging.basicConfig(
 
 ### Bad: 隠れた副作用
 import some_module
-some_module.setup()  # What does this do?
+some_module.setup()  # これは何をする？
 ```
 
 #### 3. EAFP — 許可より謝罪を求めやすく
@@ -101,6 +101,26 @@ docstring・コメントは次の細則に従う。
 """
 ```
 
+### コメント
+
+コメントの「いつ書くか」「WHY か WHAT か」はグローバル `~/.claude/CLAUDE.md` を単一ソースとする。要点は次の通り。
+
+- デフォルトではコメントを書かない。
+- 書くのは WHY が非自明なとき（隠れた制約・非自明な設計判断・特定の不具合の回避策・ライブラリの癖への対処など）のみ。
+- コードを読めば分かる WHAT の言い換え（変数名・関数名で自明な内容の繰り返し）は書かない。
+- 書く場合は1行・簡潔に、日本語で書く（識別子は英語のまま）。
+
+```python
+# Bad: コードをそのまま言い換えただけの WHAT コメント
+# ユーザーを取得する
+user = get_user(id)
+
+# Good: コードだけでは分からない WHY を説明する
+# レート制限 API の一時的な仕様: 404 と 403 を区別しないと情報漏洩になる
+if not user or not user.has_access:
+    raise Http404
+```
+
 ### 型ヒント
 
 #### 基本的な型アノテーション
@@ -115,7 +135,7 @@ def process_user(
     data: Dict[str, Any],
     active: bool = True
 ) -> Optional[User]:
-    """Process a user and return the updated User or None."""
+    """ユーザーを処理し、更新後の User または None を返す。"""
     if not active:
         return None
     return User(user_id, data)
@@ -150,7 +170,7 @@ def parse_json(data: str) -> JSON:
 T = TypeVar('T')
 
 def first(items: list[T]) -> T | None:
-    """Return the first item or None if list is empty."""
+    """先頭要素を返す。リストが空の場合は None を返す。"""
     return items[0] if items else None
 ```
 
@@ -161,10 +181,10 @@ from typing import Protocol
 
 class Renderable(Protocol):
     def render(self) -> str:
-        """Render the object to a string."""
+        """オブジェクトを文字列へレンダリングする。"""
 
 def render_all(items: list[Renderable]) -> str:
-    """Render all items that implement the Renderable protocol."""
+    """Renderable プロトコルを実装する全アイテムをレンダリングする。"""
     return "\n".join(item.render() for item in items)
 ```
 
@@ -189,7 +209,7 @@ def load_config(path: str) -> Config:
         with open(path) as f:
             return Config.from_json(f.read())
     except:
-        return None  # Silent failure!
+        return None  # サイレントに失敗している！
 ```
 
 #### 例外チェーン
@@ -207,15 +227,15 @@ def process_data(data: str) -> Result:
 
 ```python
 class AppError(Exception):
-    """Base exception for all application errors."""
+    """アプリケーション全体の例外の基底クラス。"""
     pass
 
 class ValidationError(AppError):
-    """Raised when input validation fails."""
+    """入力バリデーションが失敗したときに送出される。"""
     pass
 
 class NotFoundError(AppError):
-    """Raised when a requested resource is not found."""
+    """要求されたリソースが見つからないときに送出される。"""
     pass
 
 ### 使用例
@@ -252,7 +272,7 @@ from contextlib import contextmanager
 
 @contextmanager
 def timer(name: str):
-    """Context manager to time a block of code."""
+    """コードブロックの実行時間を計測するコンテキストマネージャー。"""
     start = time.perf_counter()
     yield
     elapsed = time.perf_counter() - start
@@ -279,7 +299,7 @@ class DatabaseTransaction:
             self.connection.commit()
         else:
             self.connection.rollback()
-        return False  # Don't suppress exceptions
+        return False  # 例外を握りつぶさない
 
 ### 使用例
 with DatabaseTransaction(conn):
@@ -328,7 +348,7 @@ total = sum([x * x for x in range(1_000_000)])
 
 ```python
 def read_large_file(path: str) -> Iterator[str]:
-    """Read a large file line by line."""
+    """大きなファイルを1行ずつ読み込む。"""
     with open(path) as f:
         for line in f:
             yield line.strip()
@@ -348,7 +368,7 @@ from datetime import datetime
 
 @dataclass
 class User:
-    """User entity with automatic __init__, __repr__, and __eq__."""
+    """__init__ / __repr__ / __eq__ が自動生成される User エンティティ。"""
     id: str
     name: str
     email: str
@@ -372,10 +392,8 @@ class User:
     age: int
 
     def __post_init__(self):
-        # メールフォーマットの検証
         if "@" not in self.email:
             raise ValueError(f"Invalid email: {self.email}")
-        # 年齢範囲の検証
         if self.age < 0 or self.age > 150:
             raise ValueError(f"Invalid age: {self.age}")
 ```
@@ -386,7 +404,7 @@ class User:
 from typing import NamedTuple
 
 class Point(NamedTuple):
-    """Immutable 2D point."""
+    """イミュータブルな2次元座標。"""
     x: float
     y: float
 
@@ -463,7 +481,7 @@ import functools
 import time
 
 def timer(func: Callable) -> Callable:
-    """Decorator to time function execution."""
+    """関数の実行時間を計測するデコレーター。"""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start = time.perf_counter()
@@ -477,14 +495,14 @@ def timer(func: Callable) -> Callable:
 def slow_function():
     time.sleep(1)
 
-### slow_function() prints: slow_function took 1.0012s
+### slow_function() の出力例: slow_function took 1.0012s
 ```
 
 #### パラメーター付きデコレーター
 
 ```python
 def repeat(times: int):
-    """Decorator to repeat a function multiple times."""
+    """関数を複数回繰り返し実行するデコレーター。"""
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -499,14 +517,14 @@ def repeat(times: int):
 def greet(name: str) -> str:
     return f"Hello, {name}!"
 
-### greet("Alice") returns ["Hello, Alice!", "Hello, Alice!", "Hello, Alice!"]
+### greet("Alice") の戻り値: ["Hello, Alice!", "Hello, Alice!", "Hello, Alice!"]
 ```
 
 #### クラスベースのデコレーター
 
 ```python
 class CountCalls:
-    """Decorator that counts how many times a function is called."""
+    """関数の呼び出し回数を数えるデコレーター。"""
     def __init__(self, func: Callable):
         functools.update_wrapper(self, func)
         self.func = func
@@ -521,7 +539,7 @@ class CountCalls:
 def process():
     pass
 
-### Each call to process() prints the call count
+### process() を呼ぶたびに呼び出し回数が出力される
 ```
 
 ### 並行処理パターン
@@ -533,13 +551,13 @@ import concurrent.futures
 import threading
 
 def fetch_url(url: str) -> str:
-    """Fetch a URL (I/O-bound operation)."""
+    """URL を取得する（I/O バウンドな処理）。"""
     import urllib.request
     with urllib.request.urlopen(url) as response:
         return response.read().decode()
 
 def fetch_all_urls(urls: list[str]) -> dict[str, str]:
-    """Fetch multiple URLs concurrently using threads."""
+    """スレッドを使って複数の URL を並行取得する。"""
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         future_to_url = {executor.submit(fetch_url, url): url for url in urls}
         results = {}
@@ -556,11 +574,11 @@ def fetch_all_urls(urls: list[str]) -> dict[str, str]:
 
 ```python
 def process_data(data: list[int]) -> int:
-    """CPU-intensive computation."""
+    """CPU 負荷の高い計算処理。"""
     return sum(x ** 2 for x in data)
 
 def process_all(datasets: list[list[int]]) -> list[int]:
-    """Process multiple datasets using multiple processes."""
+    """複数プロセスを使って複数データセットを処理する。"""
     with concurrent.futures.ProcessPoolExecutor() as executor:
         results = list(executor.map(process_data, datasets))
     return results
@@ -572,14 +590,14 @@ def process_all(datasets: list[list[int]]) -> list[int]:
 import asyncio
 
 async def fetch_async(url: str) -> str:
-    """Fetch a URL asynchronously."""
+    """URL を非同期に取得する。"""
     import aiohttp
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             return await response.text()
 
 async def fetch_all(urls: list[str]) -> dict[str, str]:
-    """Fetch multiple URLs concurrently."""
+    """複数の URL を並行取得する。"""
     tasks = [fetch_async(url) for url in urls]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     return dict(zip(urls, results))
@@ -651,7 +669,7 @@ from mypackage.utils import format_name
 
 ```python
 ### mypackage/__init__.py
-"""mypackage - A sample Python package."""
+"""mypackage - サンプルの Python パッケージ。"""
 
 __version__ = "1.0.0"
 
@@ -799,7 +817,7 @@ docstring_style = google
 strictness = short
 ```
 
-> pytest の設定（`testpaths`/`addopts` 等）は `agents/references/python-testing.md`「pytest 設定」を単一ソースとする。
+> pytest の設定（`testpaths`/`addopts` 等）は `~/.claude/agents/references/python-testing.md`「pytest 設定」を単一ソースとする。
 
 ### Python イディオム クイックリファレンス
 

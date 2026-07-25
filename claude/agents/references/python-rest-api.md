@@ -159,26 +159,28 @@ Location: /api/v1/users/abc-123
 
 ### レスポンスエンベロープの選択肢
 
-```typescript
-// Option A: data ラッパー付きエンベロープ（公開 API に推奨）
-interface ApiResponse<T> {
-  data: T;
-  meta?: PaginationMeta;
-  links?: PaginationLinks;
-}
+```python
+# Option A: data ラッパー付きエンベロープ（公開 API に推奨）
+class ApiResponse(BaseModel, Generic[T]):
+    data: T
+    meta: PaginationMeta | None = None
+    links: PaginationLinks | None = None
 
-interface ApiError {
-  error: {
-    code: string;
-    message: string;
-    details?: FieldError[];
-  };
-}
 
-// Option B: フラットなレスポンス（シンプル、内部 API に多い）
-// 成功時: リソースをそのまま返す
-// エラー時: error オブジェクトを返す
-// HTTP ステータスコードで区別する
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+    details: list[FieldError] | None = None
+
+
+class ApiError(BaseModel):
+    error: ErrorDetail
+
+
+# Option B: フラットなレスポンス（シンプル、内部 API に多い）
+# 成功時: リソースをそのまま返す
+# エラー時: error オブジェクトを返す
+# HTTP ステータスコードで区別する
 ```
 
 ## ページネーション
@@ -294,20 +296,26 @@ X-API-Key: sk_live_abc123
 
 ### 認可パターン
 
-```typescript
-// リソースレベル: 所有権チェック
-app.get("/api/v1/orders/:id", async (req, res) => {
-  const order = await Order.findById(req.params.id);
-  if (!order) return res.status(404).json({ error: { code: "not_found" } });
-  if (order.userId !== req.user.id) return res.status(403).json({ error: { code: "forbidden" } });
-  return res.json({ data: order });
-});
+```python
+# リソースレベル: 所有権チェック
+@router.get("/api/v1/orders/{order_id}")
+async def get_order(order_id: str, current_user: User = Depends(get_current_user)):
+    order = await Order.find_by_id(order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found"})
+    if order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden"})
+    return {"data": order}
 
-// ロールベース: 権限チェック
-app.delete("/api/v1/users/:id", requireRole("admin"), async (req, res) => {
-  await User.delete(req.params.id);
-  return res.status(204).send();
-});
+
+# ロールベース: 権限チェック
+@router.delete(
+    "/api/v1/users/{user_id}",
+    status_code=204,
+    dependencies=[Depends(require_role("admin"))],
+)
+async def delete_user(user_id: str):
+    await User.delete(user_id)
 ```
 
 ## レート制限
@@ -402,4 +410,4 @@ Accept: application/vnd.myapp.v2+json
 ## 関連参照
 
 - `dev-python` エージェント — Python での実装（`~/.claude/agents/references/python-fastapi.md` に FastAPI 詳細パターン）
-- `tdd-gates` スキル — API エンドポイントのテストを 9 品質ゲートで（`~/.claude/agents/references/python-testing.md` に pytest 詳細パターン）
+- `tdd-gates` スキル — API エンドポイントのテストを品質ゲートで検証する（ゲート数は `tdd-gates` スキル側を単一ソースとする。`~/.claude/agents/references/python-testing.md` に pytest 詳細パターン）

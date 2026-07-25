@@ -44,16 +44,16 @@ pytest --cov=mypackage --cov-report=term-missing --cov-report=html
 import pytest
 
 def test_addition():
-    """Test basic addition."""
+    """基本的な加算をテストする。"""
     assert 2 + 2 == 4
 
 def test_string_uppercase():
-    """Test string uppercasing."""
+    """文字列の大文字変換をテストする。"""
     text = "hello"
     assert text.upper() == "HELLO"
 
 def test_list_append():
-    """Test list append."""
+    """リストへの要素追加をテストする。"""
     items = [1, 2, 3]
     items.append(4)
     assert 4 in items
@@ -70,8 +70,8 @@ assert result == expected
 assert result != unexpected
 
 
-assert result  # Truthy
-assert not result  # Falsy
+assert result  # 真値
+assert not result  # 偽値
 assert result is True  # 厳密に True
 assert result is False  # 厳密に False
 assert result is None  # 厳密に None
@@ -110,11 +110,11 @@ import pytest
 
 @pytest.fixture
 def sample_data():
-    """Fixture providing sample data."""
+    """サンプルデータを提供するフィクスチャ。"""
     return {"name": "Alice", "age": 30}
 
 def test_sample_data(sample_data):
-    """Test using the fixture."""
+    """フィクスチャを使用したテスト。"""
     assert sample_data["name"] == "Alice"
     assert sample_data["age"] == 30
 ```
@@ -124,7 +124,7 @@ def test_sample_data(sample_data):
 ```python
 @pytest.fixture
 def database():
-    """Fixture with setup and teardown."""
+    """セットアップとティアダウンを行うフィクスチャ。"""
     # セットアップ
     db = Database(":memory:")
     db.create_tables()
@@ -136,7 +136,7 @@ def database():
     db.close()
 
 def test_database_query(database):
-    """Test database operations."""
+    """データベース操作をテストする。"""
     result = database.query("SELECT * FROM users")
     assert len(result) > 0
 ```
@@ -172,11 +172,11 @@ def shared_resource():
 ```python
 @pytest.fixture(params=[1, 2, 3])
 def number(request):
-    """Parameterized fixture."""
+    """パラメーター化されたフィクスチャ。"""
     return request.param
 
 def test_numbers(number):
-    """Test runs 3 times, once for each parameter."""
+    """パラメーターごとに3回実行されるテスト。"""
     assert number > 0
 ```
 
@@ -192,7 +192,7 @@ def admin():
     return User(id=2, name="Admin", role="admin")
 
 def test_user_admin_interaction(user, admin):
-    """Test using multiple fixtures."""
+    """複数のフィクスチャを使用したテスト。"""
     assert admin.can_manage(user)
 ```
 
@@ -201,7 +201,7 @@ def test_user_admin_interaction(user, admin):
 ```python
 @pytest.fixture(autouse=True)
 def reset_config():
-    """Automatically runs before every test."""
+    """各テストの前に自動実行される。"""
     Config.reset()
     yield
     Config.cleanup()
@@ -219,14 +219,14 @@ import pytest
 
 @pytest.fixture
 def client():
-    """Shared fixture for all tests."""
+    """全テストで共有するフィクスチャ。"""
     app = create_app(testing=True)
     with app.test_client() as client:
         yield client
 
 @pytest.fixture
 def auth_headers(client):
-    """Generate auth headers for API testing."""
+    """API テスト用の認証ヘッダーを生成する。"""
     response = client.post("/api/login", json={
         "username": "test",
         "password": "test"
@@ -246,7 +246,7 @@ def auth_headers(client):
     ("PyThOn", "PYTHON"),
 ])
 def test_uppercase(input, expected):
-    """Test runs 3 times with different inputs."""
+    """異なる入力で3回実行されるテスト。"""
     assert input.upper() == expected
 ```
 
@@ -260,7 +260,7 @@ def test_uppercase(input, expected):
     (100, 200, 300),
 ])
 def test_add(a, b, expected):
-    """Test addition with multiple inputs."""
+    """複数の入力で加算をテストする。"""
     assert add(a, b) == expected
 ```
 
@@ -273,7 +273,7 @@ def test_add(a, b, expected):
     ("@no-domain.com", False),
 ], ids=["valid-email", "missing-at", "missing-domain"])
 def test_email_validation(input, expected):
-    """Test email validation with readable test IDs."""
+    """読みやすいテスト ID でメールアドレス検証をテストする。"""
     assert is_valid_email(input) is expected
 ```
 
@@ -282,7 +282,7 @@ def test_email_validation(input, expected):
 ```python
 @pytest.fixture(params=["sqlite", "postgresql", "mysql"])
 def db(request):
-    """Test against multiple database backends."""
+    """複数のデータベースバックエンドに対してテストする。"""
     if request.param == "sqlite":
         return Database(":memory:")
     elif request.param == "postgresql":
@@ -291,7 +291,7 @@ def db(request):
         return Database("mysql://localhost/test")
 
 def test_database_operations(db):
-    """Test runs 3 times, once for each database."""
+    """データベースごとに3回実行されるテスト。"""
     result = db.query("SELECT 1")
     assert result is not None
 ```
@@ -354,7 +354,7 @@ from unittest.mock import patch, Mock
 
 @patch("mypackage.external_api_call")
 def test_with_mock(api_call_mock):
-    """Test with mocked external API."""
+    """モック化した外部 API でテストする。"""
     api_call_mock.return_value = {"status": "success"}
 
     result = my_function()
@@ -368,7 +368,7 @@ def test_with_mock(api_call_mock):
 ```python
 @patch("mypackage.Database.connect")
 def test_database_connection(connect_mock):
-    """Test with mocked database connection."""
+    """モック化したデータベース接続でテストする。"""
     connect_mock.return_value = MockConnection()
 
     db = Database()
@@ -382,7 +382,7 @@ def test_database_connection(connect_mock):
 ```python
 @patch("mypackage.api_call")
 def test_api_error_handling(api_call_mock):
-    """Test error handling with mocked exception."""
+    """モック化した例外でエラー処理をテストする。"""
     api_call_mock.side_effect = ConnectionError("Network error")
 
     with pytest.raises(ConnectionError):
@@ -396,7 +396,7 @@ def test_api_error_handling(api_call_mock):
 ```python
 @patch("builtins.open", new_callable=mock_open)
 def test_file_reading(mock_file):
-    """Test file reading with mocked open."""
+    """モック化した open でファイル読み込みをテストする。"""
     mock_file.return_value.read.return_value = "file content"
 
     result = read_file("test.txt")
@@ -410,7 +410,7 @@ def test_file_reading(mock_file):
 ```python
 @patch("mypackage.DBConnection", autospec=True)
 def test_autospec(db_mock):
-    """Test with autospec to catch API misuse."""
+    """autospec で API の誤用を検出するテスト。"""
     db = db_mock.return_value
     db.query("SELECT * FROM users")
 
@@ -424,7 +424,7 @@ def test_autospec(db_mock):
 class TestUserService:
     @patch("mypackage.UserRepository")
     def test_create_user(self, repo_mock):
-        """Test user creation with mocked repository."""
+        """モック化したリポジトリでユーザー作成をテストする。"""
         repo_mock.return_value.save.return_value = User(id=1, name="Alice")
 
         service = UserService(repo_mock.return_value)
@@ -439,14 +439,14 @@ class TestUserService:
 ```python
 @pytest.fixture
 def mock_config():
-    """Create a mock with a property."""
+    """プロパティを持つモックを作成する。"""
     config = Mock()
     type(config).debug = PropertyMock(return_value=True)
     type(config).api_key = PropertyMock(return_value="test-key")
     return config
 
 def test_with_mock_config(mock_config):
-    """Test with mocked config properties."""
+    """モック化した設定プロパティでテストする。"""
     assert mock_config.debug is True
     assert mock_config.api_key == "test-key"
 ```
@@ -486,13 +486,13 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_async_function():
-    """Test async function."""
+    """非同期関数をテストする。"""
     result = await async_add(2, 3)
     assert result == 5
 
 @pytest.mark.asyncio
 async def test_async_with_fixture(async_client):
-    """Test async with async fixture."""
+    """非同期フィクスチャで非同期処理をテストする。"""
     response = await async_client.get("/api/users")
     assert response.status_code == 200
 ```
@@ -502,14 +502,14 @@ async def test_async_with_fixture(async_client):
 ```python
 @pytest.fixture
 async def async_client():
-    """Async fixture providing async test client."""
+    """非同期テストクライアントを提供する非同期フィクスチャ。"""
     app = create_app()
     async with app.test_client() as client:
         yield client
 
 @pytest.mark.asyncio
 async def test_api_endpoint(async_client):
-    """Test using async fixture."""
+    """非同期フィクスチャを使用したテスト。"""
     response = await async_client.get("/api/data")
     assert response.status_code == 200
 ```
@@ -520,7 +520,7 @@ async def test_api_endpoint(async_client):
 @pytest.mark.asyncio
 @patch("mypackage.async_api_call")
 async def test_async_mock(api_call_mock):
-    """Test async function with mock."""
+    """モックを使って非同期関数をテストする。"""
     api_call_mock.return_value = {"status": "ok"}
 
     result = await my_async_function()
@@ -535,12 +535,12 @@ async def test_async_mock(api_call_mock):
 
 ```python
 def test_divide_by_zero():
-    """Test that dividing by zero raises ZeroDivisionError."""
+    """ゼロ除算で ZeroDivisionError が発生することをテストする。"""
     with pytest.raises(ZeroDivisionError):
         divide(10, 0)
 
 def test_custom_exception():
-    """Test custom exception with message."""
+    """メッセージ付きカスタム例外をテストする。"""
     with pytest.raises(ValueError, match="invalid input"):
         validate_input("invalid")
 ```
@@ -549,7 +549,7 @@ def test_custom_exception():
 
 ```python
 def test_exception_with_details():
-    """Test exception with custom attributes."""
+    """カスタム属性を持つ例外をテストする。"""
     with pytest.raises(CustomError) as exc_info:
         raise CustomError("error", code=400)
 
@@ -566,7 +566,7 @@ import tempfile
 import os
 
 def test_file_processing():
-    """Test file processing with temp file."""
+    """一時ファイルを使ったファイル処理をテストする。"""
     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
         f.write("test content")
         temp_path = f.name
@@ -582,7 +582,7 @@ def test_file_processing():
 
 ```python
 def test_with_tmp_path(tmp_path):
-    """Test using pytest's built-in temp path fixture."""
+    """pytest 組み込みの tmp_path フィクスチャを使ったテスト。"""
     test_file = tmp_path / "test.txt"
     test_file.write_text("hello world")
 
@@ -595,7 +595,7 @@ def test_with_tmp_path(tmp_path):
 
 ```python
 def test_with_tmpdir(tmpdir):
-    """Test using pytest's tmpdir fixture."""
+    """pytest の tmpdir フィクスチャを使ったテスト。"""
     test_file = tmpdir.join("test.txt")
     test_file.write("data")
 
@@ -637,12 +637,12 @@ class TestUserService:
         self.service = UserService()
 
     def test_create_user(self):
-        """Test user creation."""
+        """ユーザー作成をテストする。"""
         user = self.service.create_user("Alice")
         assert user.name == "Alice"
 
     def test_delete_user(self):
-        """Test user deletion."""
+        """ユーザー削除をテストする。"""
         user = User(id=1, name="Bob")
         self.service.delete_user(user)
         assert not self.service.user_exists(1)

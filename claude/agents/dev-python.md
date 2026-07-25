@@ -104,6 +104,7 @@ class Point(NamedTuple):
 - docstring 形式チェックには **ruff の D ルール**（`convention="google"`）
 - docstring と実シグネチャの整合には **darglint**
 - （ruff/darglint の具体設定は `references/python-style.md`「Python ツール連携」を単一ソースとする）
+- コメント（`#`）はデフォルトで書かず、WHY が非自明な場合のみ書く（詳細は `references/python-style.md`「コメント」を単一ソースとする）
 
 ```bash
 black .
@@ -149,15 +150,15 @@ darglint mypackage/
 
 #### リポジトリパターン
 
-`Protocol` を使って一貫したインターフェースの後ろにデータアクセスをカプセル化する。ビジネスロジックは抽象インターフェースに依存し、ストレージの実装には依存しない — データソースの切り替えが容易になり、モックを使ったテストが簡単になる。
+データアクセス層を抽象インターフェースの背後に隠し、ビジネスロジックをストレージ実装から独立させる（詳細: `references/python-style.md`「設計パターン」）。
 
 #### APIレスポンス形式
 
-すべてのAPIレスポンスに一貫したエンベロープ（`ApiResponse` / `PaginatedResponse`）を使用する。
+API レスポンスは共通のエンベロープ型で統一し、成功/失敗やページネーション情報を一貫した形で返す（詳細: `references/python-style.md`「設計パターン」）。
 
 ### DTOとしてのデータクラス
 
-境界をまたぐリクエスト・入力は軽量なデータクラス DTO で表現する。
+モジュール境界を越えるリクエスト・入力は、軽量なデータクラスの DTO に詰めて受け渡す（詳細: `references/python-style.md`「設計パターン」）。
 
 ### コンテキストマネージャーとジェネレーター
 
@@ -169,7 +170,9 @@ darglint mypackage/
 
 本体には中核（汎用 Python のコーディングスタイル・設計パターン）のみを置く。網羅的なコード例カタログや特定フレームワーク・領域の規約は肥大化を避けるため外部ファイルに分離した。必要時に Read して参照すること:
 
-- 汎用 Python 詳細パターン（型ヒント・エラーハンドリング・コンテキストマネージャ・内包表記・データクラス・デコレータ・並行処理・パッケージ構成・メモリ最適化・イディオム）: `~/.claude/agents/references/python-style.md`
-- FastAPI を使う場合の実装規約・詳細パターン（アプリファクトリ・Pydantic・依存性注入・非同期・エラーハンドリング・OpenAPI・設定管理・テスト）: `~/.claude/agents/references/python-fastapi.md`
-- REST API を設計する場合の設計パターン（リソース命名・ステータスコード・ページネーション・エラーレスポンス・バージョニング）: `~/.claude/agents/references/python-rest-api.md`
-- テストを書く場合の pytest 詳細作法（fixture 初期化/クリーンアップ・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定）: `~/.claude/agents/references/python-testing.md`（テスト作法の単一ソース。tdd-generator も同ファイルを参照）
+| 利用場面 | 参照ファイル |
+|---------|------------|
+| 汎用 Python 詳細パターン（型ヒント・エラーハンドリング・コンテキストマネージャ・内包表記・データクラス・デコレータ・並行処理・パッケージ構成・メモリ最適化・イディオム） | `~/.claude/agents/references/python-style.md` |
+| FastAPI を使う場合の実装規約・詳細パターン（アプリファクトリ・Pydantic・依存性注入・非同期・エラーハンドリング・OpenAPI・設定管理・テスト） | `~/.claude/agents/references/python-fastapi.md` |
+| REST API を設計する場合の設計パターン（リソース命名・ステータスコード・ページネーション・エラーレスポンス・バージョニング） | `~/.claude/agents/references/python-rest-api.md` |
+| テストを書く場合の pytest 詳細作法（fixture 初期化/クリーンアップ・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定） | `~/.claude/agents/references/python-testing.md`（テスト作法の単一ソース。tdd-generator も同ファイルを参照） |
