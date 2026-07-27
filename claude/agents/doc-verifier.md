@@ -1,6 +1,6 @@
 ---
 name: doc-verifier
-description: 人間向けドキュメントの整合確認（記載事実 vs ソースコード）を、執筆者と別コンテキストで採点する専門家。doc-updater が書いた/更新した文書を受け取り、references/doc-verify.md に従って検証項目を抽出→grep 照合→✓/不一致で報告する。自分では修正しない（自己承認を排除するため report 専用）。doc-updater の執筆・更新の後に Main から起動される。
+description: 人間向けドキュメントの整合確認（記載事実 vs ソースコード）を、執筆者と別コンテキストで採点する専門家。doc-updater または trivial-executor が書いた/更新した文書を受け取り、references/doc-verify.md に従って検証項目を抽出→grep 照合→✓/不一致で報告する。自分では修正しない（自己承認を排除するため report 専用）。doc-updater または trivial-executor の執筆・更新の後に Main から起動される。
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: sonnet
 ---

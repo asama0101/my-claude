@@ -28,6 +28,7 @@ model: sonnet
 | 人間向けドキュメントの新規整備（設計 → 執筆） | `~/.claude/agents/references/doc-design.md` → `~/.claude/agents/references/doc-writing.md` |
 | HTML 成果物（役割分担・過去デザインの流用） | `~/.claude/agents/references/doc-html.md` |
 | 既存ドキュメントの更新（単一文書 / 影響範囲洗い出し） | `~/.claude/agents/references/doc-verify.md`（更新モード A / B） |
+| CI ワークフロー定義の生成・更新（CP-E） | `~/.claude/skills/tdd-gates/references/profiles/`（CIステージ定義）・`~/.claude/skills/tdd-gates/templates/ci-gate-task-template.md` |
 
 ## 整合確認は doc-verifier に委譲する
 

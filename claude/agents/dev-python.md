@@ -175,4 +175,4 @@ API レスポンスは共通のエンベロープ型で統一し、成功/失敗
 | 汎用 Python 詳細パターン（型ヒント・エラーハンドリング・コンテキストマネージャ・内包表記・データクラス・デコレータ・並行処理・パッケージ構成・メモリ最適化・イディオム） | `~/.claude/agents/references/python-style.md` |
 | FastAPI を使う場合の実装規約・詳細パターン（アプリファクトリ・Pydantic・依存性注入・非同期・エラーハンドリング・OpenAPI・設定管理・テスト） | `~/.claude/agents/references/python-fastapi.md` |
 | REST API を設計する場合の設計パターン（リソース命名・ステータスコード・ページネーション・エラーレスポンス・バージョニング） | `~/.claude/agents/references/python-rest-api.md` |
-| テストを書く場合の pytest 詳細作法（fixture 初期化/クリーンアップ・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定） | `~/.claude/agents/references/python-testing.md`（テスト作法の単一ソース。tdd-generator も同ファイルを参照） |
+| テストを書く場合の pytest 詳細作法（fixture 初期化/クリーンアップ・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定） | `~/.claude/agents/references/python-testing.md`（テスト作法の単一ソース。tdd-implementer も同ファイルを参照） |

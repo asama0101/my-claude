@@ -6,7 +6,7 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 
 | パス | 内容 |
 |---|---|
-| `claude/` | `~/.claude/` のミラー（hooks / skills / agents / settings.json / CLAUDE.md / statusline-command.sh） |
+| `claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
 | `scripts/sync.sh` | `~/.claude/` → `claude/` への同期（commit + push 自動） |
 | `scripts/install.sh` | `claude/` → `~/.claude/` への展開（別環境セットアップ） |
 | `docs/` | 過去の計画・仕様の記録 |
@@ -50,3 +50,5 @@ bash scripts/sync.sh   # ~/.claude/ → claude/ へ同期し commit + push（自
 - **settings.json**: Claude Code は settings.json 内で `$HOME` を展開しないため、repo 上は プレースホルダ `__CLAUDE_HOME__` を置く。`install.sh` が展開先の絶対パスへ実体化し、`sync.sh` が逆変換で戻す。
 
 この順変換（install）と逆変換（sync）が対になっているため、`install` ↔ `sync` を繰り返してもパス表現はブレない。
+
+- **agents・rules・assets など**: ハードコードされた絶対パスを含まないため、パス変換処理は不要。

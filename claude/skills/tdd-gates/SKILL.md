@@ -1,83 +1,62 @@
 ---
 name: tdd-gates
 description: |
-  TDD × 10品質ゲートのオーケストレータ。AI駆動開発の品質問題（動くように見えて中身がバグだらけ・テストの形骸化・RED未確認・自己承認）を、ゲート順序の強制と Critical即FAIL＋証拠要求の採点で構造的に潰す。substantial な実装（新機能・バグ修正・非自明な変更）で使う。
+  superpowers のスキルチェーン（brainstorming → writing-plans → subagent-driven-development/executing-plans → finishing-a-development-branch）に上乗せする品質規律レイヤー。AI駆動開発の品質問題（動くように見えて中身がバグだらけ・テストの形骸化・RED未確認・自己承認）を、superpowers の各ステップに差し込むチェックポイント（CP-A〜F）と、Critical即FAIL＋証拠要求の採点語彙で構造的に潰す。substantial な実装（新機能・バグ修正・非自明な変更）で使う。
 
-  以下のような発言・状況で起動すること:「TDDで実装して」「テストファーストで」「品質ゲートを回して」「gate を回して」「新機能を実装して（テスト付きで）」「バグを直して（回帰テスト付きで）」。substantial なコード変更の着手時に積極的に起動する。trivial（数行・設定/ドキュメント）は使わず単一軽量 Agent に委任する（比例ルール）。
+  以下のような発言・状況で起動すること:「TDDで実装して」「テストファーストで」「品質ゲートを回して」「チェックポイントを回して」「新機能を実装して（テスト付きで）」「バグを直して（回帰テスト付きで）」。substantial なコード変更の着手時に積極的に起動する。trivial（数行・設定/ドキュメント）は使わず単一軽量 Agent に委任する（比例ルール）。
 ---
 
-# TDD 10品質ゲート・オーケストレータ
+# TDD 品質規律レイヤー（superpowers 拡張）
 
-あなた（Main）は**オーケストレータ**に徹する。自分でテストや実装を書かず、各ゲートを担当ロールのサブエージェントへ委任し、順序と合否を強制し、台帳に証拠を残す。
+あなた（Main）は、superpowers のスキルチェーンを背骨として使う。tdd-gates は自前の駆動ループを持たない。チェーンの各ステップに寄生してチェックポイント（CP-A〜F）を差し込み、「証拠不信の原則」「5次元専門レビュアー」「0–3点採点語彙・Critical即FAIL」を、そのステップの担当エージェントに上乗せするだけの薄いレイヤーである。
 
-**中核原則**: superpowers の Iron Law「NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST」を規律の根拠とする（`superpowers:test-driven-development` を原則レイヤとして参照）。本スキルはその工程を**強制**する層。
+**中核原則**: superpowers の Iron Law「NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST」を規律の根拠とする（`superpowers:test-driven-development` が実行手順の正典）。tdd-gates はこれを**検証**する層——特に CP-C では、SDD の `task-reviewer-prompt.md` にある "Do not re-run the suite to confirm their report." を明示的に上書きし、evaluator が実装者の報告を鵜呑みにせず自ら再実行する（詳細は `references/checkpoints.md` CP-C節）。
 
 ## 起動時にやること（チェックリスト）
 
-各項目を todo 化して順に実施する。**進捗は `TaskCreate`/`TaskUpdate` で可視化**し（ゲート／マイルストーンごとにタスクを作り、着手時 in_progress・完了時 completed に更新）、ユーザーが進捗を追えるようにする。
+各項目をtodo化して順に実施する。
 
-1. **プロファイル確定**: 対象言語のプロファイルを1つ選ぶ（Python は `references/profiles/pytest.md`）。パス→テスト種別の対応表を読み、対象ファイルのテスト種別（unit/integration/e2e）を判定して**ユーザーに確認**する。**Gate9(CI) を回すなら、プロファイルの「CI ステージ」定義（lint/typecheck/build/unit/integration/主要E2E の具体コマンド）も確認する**。
-   - **対象言語のプロファイルが無い場合**（現状は pytest の1本のみ）は、`references/profiles/_template.md` から新規プロファイルを起草する。テスト実行コマンドと合格ログ形式を**ユーザーに承認してもらってから**ゲートを開始する（未定義のまま pytest 前提で進めない）。
-   - **確定したプロファイルのパスは、generator / evaluator を起動するたびにプロンプトへ必ず明記して渡す**（台帳パスも同様。エージェント側での推測は禁止）。
-2. **台帳を作成**: 対象プロジェクトのリポジトリルート直下に `.tdd-gates/ledger-<タスクスラッグ>.md` を作る（タスクごとに一意名にして、複数タスクの並列実装でも衝突させない。`.tdd-gates/` は `.gitignore` への追加を推奨し、未登録ならユーザーに提案する）。ここに各ゲートの verdict・スコア率・証拠スニペット・CONDITIONAL 再評価回数を記録していく。これはゲートのバイパスと自己承認を防ぐ監査証跡で、scratchpad と違いセッションが切れても消えない。**セッションをまたいで再開する場合は、既存台帳を Read し、記録済みの verdict の続きから再開する**。台帳には次を必須で残す:
-   - **各 PASS には、その採点を行った tdd-evaluator が自ら再実行した検証コマンドの出力行を添付**する。evaluator の実行痕跡が無い PASS は無効（未実施扱い）とし、次ゲートへ進めない。
-   - **Gate4(RED) 時点でテストファイルの内容（パス＋本文 or ハッシュ）を固定記録**し、Gate5・Gate6 で照合する（assert 骨抜き検知）。
-   - **ベースライン記録**: 台帳作成直後・Gate 開始前に、プロファイル定義の全体テストコマンドを1回実行し、既存の failed/error のテストID一覧をベースラインとして台帳に記録する（全緑ならその旨を記録）。**ベースラインの既存赤テストを Generator が無断で修正・skip 化することは禁止**（扱いが必要ならユーザーに確認する）。
-3. **ゲートを順に駆動**（下記）。
+1. **プロファイル確定**: 対象言語のプロファイルを1つ選ぶ（Python は `references/profiles/pytest.md`）。パス→テスト種別の対応表を読み、対象ファイルのテスト種別（unit/integration/e2e）を判定して**ユーザーに確認**する。**CP-E（CI）を回すなら、プロファイルの「CI ステージ」定義（lint/typecheck/build/unit/integration/主要E2E の具体コマンド）も確認する**。
+   - **対象言語のプロファイルが無い場合**（現状は pytest の1本のみ）は、`references/profiles/_template.md` から新規プロファイルを起草する。テスト実行コマンドと合格ログ形式を**ユーザーに承認してもらってから**開始する（未定義のまま pytest 前提で進めない。停止時は `references/scoring.md`「停止シグナル」の `profile_undefined` 形式で提示する）。
+   - **確定したプロファイルのパスは、各チェックポイントのレビュアーを起動するたびにプロンプトへ必ず明記して渡す**（エージェント側での推測は禁止）。
+2. **証拠の記録先（成果物は必ずファイル化する）**: CP-A・CP-B は独自の PASS/CONDITIONAL/FAIL（最大2回の再評価）で完結し、専用の台帳は持たない。ただし `tdd-evaluator` は Bash 書き込みを持たないため、**Main が Quality Gate Report を対象 spec/plan 文書の末尾に追記してから git commit する**（brainstorming/writing-plans が既に commit する文書に相乗りし、新規の台帳ファイルは作らない）。チャット報告のみで終わらせない。**CP-C 以降は SDD（`subagent-driven-development` または `executing-plans`）の `progress.md` に証拠行（RED/GREEN コマンドと出力）を追記する形に統一**し、**CP-D の集約スコアカードも Main が `progress.md` に書き出す**。tdd-gates 独自の台帳（旧 `.tdd-gates/ledger-*.md`）は作らない。
+3. **superpowers チェーンを起動**: `superpowers:using-superpowers` の案内どおり `brainstorming` から入り、下記 CP対応表に従って各ステップのレビュアーを差し替える。CP-C 以降のタスク単位の todo は SDD/executing-plans が自前で作成するため、tdd-gates 側で重複して作らない。
 
-## ゲート駆動ループ
+## CP対応表（superpowers チェーンへの寄生地図）
 
-`references/gates.md` の定義と `references/scoring.md` の採点で、次の順に進める:
+| CP | 内容（旧ゲート） | 上乗せ先 | 担当 | リトライ機構 |
+|---|---|---|---|---|
+| CP-A 要件ギャップレビュー（旧1） | brainstorming の Spec Self-Review 後・User Review Gate 前に独立エージェントの敵対的検査を挿入。土台は `spec-document-reviewer-prompt.md` への差分追記 | `tdd-evaluator` | tdd-gates独自 PASS/CONDITIONAL/FAIL・最大2回 |
+| CP-B 計画品質レビュー（旧2+3） | writing-plans の Self-Review 後・Execution Handoff 前。土台は `plan-document-reviewer-prompt.md` への差分追記（トレーサビリティ表・3層戦略・small/substantial判定・業務ロジック分離監査を追加） | `tdd-evaluator` | 同上・最大2回 |
+| CP-C タスク証拠検証（旧4-7） | SDD/executing-plans の task-reviewer ディスパッチを差し替え（汎用reviewerでなく`tdd-evaluator`）。UI/UX・security/perfは条件付き追加 | `tdd-evaluator` | SDD純正の5ラウンドfix loopをそのまま使用（独自カウンタは持たない） |
+| CP-D 最終スコアカード（旧8） | SDD Final Review の `code-reviewer.md` を差し替え | `review-*`5本並列→`tdd-evaluator`集約（ミューテーション検証必須） | SDD純正のFinal Review（1修正波+1 scoped re-review） |
+| CP-E CI品質ゲート整備（旧9・条件付き） | writing-plans が条件を満たせば末尾タスクとして自動追加 | 実装=`doc-updater`、レビュー=`tdd-evaluator` | SDD純正の5ラウンドloop |
+| CP-F ドキュメント同期（旧10・条件付き） | 同上、CI整備タスクの後 | 実装=`doc-updater`、レビュー=`doc-verifier` | SDD純正の5ラウンドloop |
 
-```
-Gate1(コンテキスト分析・要件整理) → Gate2(受入基準・テスト設計) → Gate3(事前レビュー)
-  → Gate4(RED) → Gate5(GREEN) → Gate6(REFACTOR)
-  → [e2e またはビュー層変更なら Gate7(UI/UX)] → Gate8(差し戻し判定)
-  → 受け入れ確認(＋受け入れチェックリスト生成) → [CI運用なら Gate9(CI品質ゲート整備)] → [doc影響あれば Gate10(ドキュメント同期)] → 完了
-```
+各CPの目的・Critical基準・証拠要件の正典は `references/checkpoints.md`。採点形式（CP-A/B用と CP-C〜F用の2モード）の正典は `references/scoring.md`。
 
-各ゲートで:
-1. **担当ロールへ委任**（下表）。Generator と Evaluator は必ず別サブエージェントで起動する（分離原則の正典は `references/gates.md` 冒頭）。
-2. **証拠を受け取り採点**: Evaluator ゲートは `tdd-evaluator` が `scoring.md` でスコアカード化。
-3. **合否で分岐**（閾値・Critical即FAIL・再評価上限の正本は `references/scoring.md`）:
-   - **PASS**（≥80% かつ Critical 達成）→ 台帳に記録して次ゲート。
-   - **CONDITIONAL**（60–79%）→ 指摘を Generator に戻して修正 → 再評価。**最大2回**。台帳の再評価カウンタを増やす。
-   - **FAIL**（<60% または Critical 未達、あるいは CONDITIONAL 2回で未達）→ **停止してユーザーに差し戻す**。勝手に先へ進めない。
+## 比例ルール（trivial / small / substantial）
 
-### ロール委任表
+- **trivial**（数行・既存パターン踏襲・テスト不要）: tdd-gates を使わず単一の軽量 Agent（`trivial-executor`）に一括委任する。
+- **small**（差分≤2ファイル・実装差分≤50行・公開IF不変・既存テストが被覆）: **判定主体は CP-B**（writing-plans の計画品質レビュー時に `tdd-evaluator` が `git diff --stat` 見込みと既存テスト一覧で4条件を照合する）。該当すれば CP-C のうち RED→GREEN 相当だけの簡略ルートを取ってよいが、CP-C の Critical（実失敗ログ）はいかなる場合も省略しない。
+- **substantial**（新規ロジック・複数ファイル横断・公開IF変更・非自明なバグ修正）: CP-A〜D をフルで通す。CP-B（計画品質レビュー）・CP-D（最終スコアカード）は省略不可（唯一の実レビュー層のため）。
 
-| ゲート | 委任先 | 起動方法 |
-|--------|--------|----------|
-| 1 コンテキスト分析・要件整理 | `planner` が起草 → `tdd-evaluator` が rubric で採点（要件網羅の抜け漏れ候補は Stop&Ask） | 起草＋採点 |
-| 2 受入基準・テスト設計 | `planner` が起草 → `tdd-evaluator` が rubric で採点（PASS で次へ） | 起草＋採点 |
-| 3 事前レビュー | `tdd-evaluator` が単独で採点（既定）。セキュリティ/性能敏感な計画のみ該当 reviewer を条件付き並列起動（規則の正典は gates.md） | 単独（条件付き並列） |
-| 4 RED / 5 GREEN / 6 REFACTOR | `tdd-generator` | **同一 Generator を `SendMessage` で継続**（RED→GREEN→REFACTOR は同じ文脈。毎回新規起動で対象ファイルを読み直させない）。採点は各段階とも `tdd-evaluator` に委任（実装者との分離は維持） |
-| 7 UI/UX（e2e またはビュー層変更時） | `frontend-design` スキル＋敵対的クロスレビュー | 条件付き |
-| 8 差し戻し判定 | `review-*` を**並列**起動 → `tdd-evaluator` が集約スコアカード | 並列＋集約 |
-| 9 CI品質ゲート整備（CI運用時） | ワークフロー生成は `doc-updater` に委任（profile の CI ステージコマンド駆動）→ `tdd-evaluator` が必須ステージ被覆を採点 | 条件付き・生成＋採点 |
-| 10 doc同期（影響時） | `doc-updater` が執筆 → `doc-verifier` が別コンテキストで記載事実 vs ソースを照合（不一致は差し戻し。委任時の不発明制約と Critical は gates.md Gate10 が正典） | 条件付き・執筆＋検証 |
-
-- **Gate8（および Gate3 で条件付き reviewer を起動した場合）の並列集約**: Main が review-* を並列起動し、**各 reviewer には所見を scratchpad の所見ファイルに直接書き出させる**（例 `reviews/<タスクスラッグ>-<gate>-<dimension>.md`。並列実装時の衝突を防ぐためタスクスラッグを必ず含める）。`tdd-evaluator` はその所見ファイル群を**自ら Read** して集約採点し、Critical即FAIL を判定する（review-* は所見のみ、tdd-evaluator が点数化）。**Main は所見本文を要約・改変せず、経路から外れる**——工程当事者である Main が Critical 所見を軟化させて自己承認するのを防ぐため。各ゲートの reviewer 構成・本数の正典は `references/gates.md`。
-- **採点の継続**: `tdd-evaluator` も1本のスレッドを `SendMessage` で全ゲート継続してよい（scoring.md・台帳・差分の再読み込みコストを避ける）。Generator との分離が保たれていれば自己承認排除は損なわれない。
+数値基準の正典はグローバル CLAUDE.md 作業ルーティング表 small 行。
 
 ## 重要ルール
 
-- **証拠主義**: 「テストは通るはず」「多分失敗する」は無効。RED/GREEN は必ず**実行ログ**を証拠として台帳に残す（`scoring.md` の証拠フォーマット）。
-- **Critical即FAIL**: スコアが高くても Critical 未達なら即 FAIL。特に Gate4 は「実際に失敗したログ」が無ければ通さない。
-- **オーケストレータのコンテキスト衛生**: Main は生ログ全文を抱えない。各サブエージェントには結論・スコア・証拠スニペット・`file:line` だけを蒸留して返させ、台帳に要点を残す。
-- **並列実装は worktree 分離必須**: 複数タスクを並列で実装する場合は `git worktree` 等で作業ツリーをタスクごとに分離する（同一ワーキングツリーでは evaluator の `git diff`・全体テスト実行に他タスクの差分が混入し、証拠が汚染されるため）。
-- **段階導入の限界**:
-  - Gate4–5(RED→GREEN) だけへの簡略（small ルート）は、次の4条件を**すべて**満たす場合に限る（数値基準の正典はグローバル CLAUDE.md 作業ルーティング表 small 行）: ①差分 2 ファイル以下 ②実装差分 50 行以下（テストを除く） ③公開インターフェース不変 ④既存テストが変更対象範囲を被覆。1つでも外れたら substantial としてフル工程。
-  - **substantial では Gate3(事前レビュー)・Gate8(差し戻し判定) を省略不可**（唯一の実レビュー層のため）。
-  - 簡略の可否は **tdd-evaluator が Gate1 採点時に上記4条件を証拠（`git diff --stat`・既存テスト一覧）と照合して判定**する。planner は該当見込みを計画書に申告するのみで承認主体ではない。判定根拠は台帳に記録する。
-  - Gate4 の Critical（実失敗ログ）はいかなる場合も省略しない。
-- **仕様変更時の巻き戻し**: ユーザー起因の仕様変更が入ったら、①台帳に「仕様変更」エントリ（日時・変更内容・ユーザー指示の要旨）を記録し、②影響するテストは Gate4 からやり直す（Gate4 固定テスト記録を更新し、更新理由を台帳に残す）。③evaluator は台帳の仕様変更エントリと照合し、正当なテスト変更と assert 骨抜きを区別する。
-- **Gate8 → 受け入れ確認 → Gate9(CI) → Gate10(doc)**: Gate8 PASS 後、Gate9(CI品質ゲート整備)・Gate10(doc同期) に進む前に**ユーザーの受け入れ確認を取る**（グローバル CLAUDE.md「実装後の受け入れ→ドキュメント更新」準拠）。NG なら修正へ戻る。この受け入れ確認の際、`tdd-evaluator` が**受け入れチェックリスト**（受入基準＋Gate8 の5次元＋例外処理・権限漏れ・変更影響範囲）を生成して台帳に保存し、ユーザーの手動確認を再現可能にする。
-  - **承認粒度（複数マイルストーン計画の例外）**: **ユーザーが既に承認した計画**が複数マイルストーンに分かれ、その各マイルストーンで本スキルを回している場合は、**clean PASS（FAIL も未解決 CONDITIONAL も無い）の Gate8 では、受け入れ確認で停止しない**。進捗だけ報告して次のマイルストーンへ自動で進む。ユーザーに確認・判断を求めて止まるのは **FAIL / CONDITIONAL 未解決 / 仕様が曖昧（Stop&Ask）/ 最終成果物** の時だけ。単一タスク（1計画＝1実装）や計画外の変更では、従来どおり Gate8 後に受け入れ確認を取る。
+- **証拠主義**: 「テストは通るはず」「多分失敗する」は無効。RED/GREEN は必ず実行ログを証拠として `progress.md`（CP-C以降）またはスコアカード（CP-A/B）に残す（`references/scoring.md` の証拠フォーマット）。
+- **Critical即FAIL**: スコアが高くても Critical 未達なら即 FAIL。特に CP-C の RED は「実際に失敗したログ」が無ければ通さない。
+- **Main のコンテキスト衛生**: Main は生ログ全文を抱えない。各サブエージェントには結論・スコア・証拠スニペット・`file:line` だけを蒸留して返させる。
+- **並列実装・worktree分離**: SDD の Setup（`superpowers:using-git-worktrees`）にそのまま従う。tdd-gates 独自の追加要求はない。
+- **仕様変更時の巻き戻し**: ユーザー起因の仕様変更が入ったら、① CP-C以降なら `progress.md` に「仕様変更」エントリ（日時・変更内容・ユーザー指示の要旨）を記録し、② 影響するテストは CP-C の RED からやり直す。③ `tdd-evaluator` はこのエントリと照合し、正当なテスト変更と assert 骨抜きを区別する。
+- **CP-A〜Fを1サイクルとして自動で通し、受け入れ確認は最後に一度だけ**: CP-A→B→C→D→E→F まで、CONDITIONAL再評価や SDD の fix loop を正規工程として自動で回し、人間の都度承認を挟まない（正常系の停止点はここにしかない）。CP-F 完了後に一度だけユーザーの受け入れ確認を取る（グローバル CLAUDE.md「実装後の受け入れ→ドキュメント更新」準拠。CI整備・doc同期まで完了した状態で提示できるため判断材料が揃う）。この受け入れ確認の際、`tdd-evaluator` が受け入れチェックリスト（受入基準＋CP-Dの5次元＋CP-E/Fの整備状況＋例外処理・権限漏れ・変更影響範囲）を生成する。NG なら該当CPへ差し戻す。
+  - **止まるのはガードレール発動時のみ**: 非自明な要件の抜け漏れ（CP-A/B）・再評価/fix loop 上限到達による FAIL 確定・仕様の曖昧化。構造化フォーマットは `references/scoring.md`「停止シグナル（GUARDRAIL_HALT）」参照。これは「都度の承認待ち」とは別物であり正常系フローを止めない。複数マイルストーン計画では、マイルストーン単位で CP-F まで自動通しし、各マイルストーンの CP-F 後 1 回の受け入れ確認に一本化する（マイルストーン間の中間確認はしない）。
 
 ## 参照ファイル
 
-- `references/gates.md` — 10ゲートの内容・Critical・証拠要件・順序。
-- `references/scoring.md` — 0–3採点・80%/60–79%・Critical即FAIL・CONDITIONAL上限・証拠/スコアカード形式。
+- `references/checkpoints.md` — CP-A〜F の目的・上乗せ先・担当・Critical・証拠要件。
+- `references/scoring.md` — 0–3採点・80%/60–79%・Critical即FAIL・CONDITIONAL上限・CP-A/B用とCP-C〜F用の2モードのスコアカード形式。
+- `templates/*.md` — 各CPが差分追記／差し替えるプロンプトテンプレート（`spec-gap-review-addendum.md`・`plan-quality-review-addendum.md`・`task-evidence-addendum.md`・`final-scorecard-review-prompt.md`・`ci-gate-task-template.md`・`doc-sync-task-template.md`）。
 - `references/profiles/pytest.md` — Python/pytest のパス判定・実行コマンド・合格ログ形式（深い作法は agents/references/python-testing.md へ委譲）。
 - `references/profiles/_template.md` — 新言語追加用スケルトン。
