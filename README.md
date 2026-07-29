@@ -40,6 +40,30 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 | `html-template-import` | 既存の HTML ドキュメントをテンプレートライブラリ（`~/.claude/assets/html-templates/`）へ取り込み、カタログに登録する |
 | `tdd-gates` | superpowers のスキルチェーンに品質規律を上乗せする TDD 品質ゲート（チェックポイント CP-A〜F・証拠主義・Critical 即 FAIL） |
 
+## claude/ 配下のその他のファイル
+
+`claude/agents/`・`claude/skills/` 以外の主なファイル・ディレクトリ：
+
+| パス | 内容 |
+|---|---|
+| `claude/hooks/` | Claude Code のツール呼び出しを検査する PreToolUse フックスクリプト（4本。詳細は下表） |
+| `claude/assets/html-templates/` | 過去に作成した HTML 成果物の流用元テンプレート・ライブラリ。`INDEX.md` がカタログ（name・特徴・用途・path の表）、`report-light.html` が現在唯一登録済みのテンプレート。登録は `html-template-import` スキルが担う |
+| `claude/rules/` | 現状空のディレクトリ。将来ルールファイルを置く想定の場所 |
+| `claude/settings.json` | Claude Code の設定ファイル（permissions・hooks 登録・model 等） |
+| `claude/CLAUDE.md` | リポジトリ直下の `CLAUDE.md`（本ファイル）とは別物。`~/.claude/CLAUDE.md`（ユーザーのグローバル指示ファイル）のミラー |
+| `claude/statusline-command.sh` | ステータスライン表示用スクリプト（コンテキスト使用率・モデル名・ブランチ名などを色分け表示） |
+
+### hooks の一覧
+
+| Hook | 効果 |
+|---|---|
+| `bash-guard.sh` | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink`/`git rm` はプロジェクト配下／`$CLAUDE_HOME` 配下／`/tmp` 配下の子要素のみ許可（各ゾーンのルート自体は不可）。非 rm 削除（`find -delete`・`shutil.rmtree`・`rsync --delete`）は無条件ブロック。機密ファイル（`.env`/`.ssh`/鍵）の読取/持ち出しもブロック |
+| `workspace-guard.sh` | プロジェクト配下／`~/.claude` 配下／`/tmp` 配下以外への Write/Edit をブロック。`~/.claude/hooks/` とハーネス設定（`settings.json`）は許可。Bash の `/var/tmp` リダイレクト・プロジェクト外宛先の cp/tee/mv も保守的にブロック |
+| `venv-guard.sh` | venv 外への `pip install` 等をブロック（文字列一致で誤検知しうる） |
+| `main-branch-guard.sh` | main/master ブランチ上での Write/Edit/MultiEdit/NotebookEdit、および Bash の削除・変更系コマンド（`rm`/`mv`/`cp`/`tee`/`touch`/リダイレクト/`sed -i`/`git commit`/`git rm` 等）をブロック。読み取り専用コマンドは対象外 |
+
+> いずれのスクリプトも jq が無い環境では判定不能として fail-close（安全側にブロック）する。詳細は各スクリプト内のコメント、またはリポジトリ直下 `CLAUDE.md` の「Hooks（enforcement の正典）」表を参照。
+
 ## 別環境でのセットアップ（初回）
 
 ```bash
