@@ -11,6 +11,35 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 | `scripts/install.sh` | `claude/` → `~/.claude/` への展開（別環境セットアップ） |
 | `docs/` | 過去の計画・仕様の記録 |
 
+## サブエージェント
+
+`claude/agents/*.md` が定義するサブエージェント（`references/` 配下は実装の詳細参照用で対象外）：
+
+| 名前 | 役割 |
+|---|---|
+| `dev-python` | Python コードのスタイル・設計パターン・イディオムを担当する実装専門家 |
+| `doc-updater` | ドキュメントの新規作成・構成設計、および既存ドキュメントのソースコードとの同期更新 |
+| `doc-verifier` | ドキュメントの記載事実とソースコードの整合を、執筆者と別コンテキストで確認（採点専用・自身では修正しない） |
+| `planner` | 機能実装・アーキテクチャ変更・複雑なリファクタリングの実装計画を作成 |
+| `review-correctness` | バグ・論理エラー・エラーハンドリング・境界値・冪等性のレビュー |
+| `review-maintainability` | 保守性（命名・構造・複雑さ・DRY/YAGNI）とドキュメント整合性のレビュー |
+| `review-performance` | アルゴリズム計算量・メモリ効率・DB/並列処理最適化のレビュー |
+| `review-security` | インジェクション・認証・機密情報漏洩・パストラバーサルのレビュー |
+| `review-test` | テストのカバレッジ・品質・仕様適合性のレビュー |
+| `tdd-evaluator` | `tdd-gates` の採点役。実装者と別コンテキストで証拠に基づき合否判定する |
+| `tdd-implementer` | TDD 規律（RED→GREEN→REFACTOR）に従いテストと実装を書く実行者 |
+| `trivial-executor` | 数行程度の trivial 変更（設定/ドキュメント/コメント/誤記）を軽量実行（haiku） |
+
+## スキル
+
+`claude/skills/*/` が定義するスキル：
+
+| 名前 | 役割 |
+|---|---|
+| `codemap-python` | Python コードの処理フローを一本道で読み下せる HTML レビュー地図（インデックス＋フローページ）を生成する |
+| `html-template-import` | 既存の HTML ドキュメントをテンプレートライブラリ（`~/.claude/assets/html-templates/`）へ取り込み、カタログに登録する |
+| `tdd-gates` | superpowers のスキルチェーンに品質規律を上乗せする TDD 品質ゲート（チェックポイント CP-A〜F・証拠主義・Critical 即 FAIL） |
+
 ## 別環境でのセットアップ（初回）
 
 ```bash
