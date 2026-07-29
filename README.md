@@ -52,3 +52,13 @@ bash scripts/sync.sh   # ~/.claude/ → claude/ へ同期し commit + push（自
 この順変換（install）と逆変換（sync）が対になっているため、`install` ↔ `sync` を繰り返してもパス表現はブレない。
 
 - **agents・rules・assets など**: ハードコードされた絶対パスを含まないため、パス変換処理は不要。
+
+## Gotchas（運用上の注意点）
+
+- **`claude/` フォルダを直接編集しない**：`sync.sh` で `~/.claude/` 内容が上書きされる。設定変更は必ず `~/.claude/` 側で行い、その後 `bash scripts/sync.sh` で同期する。
+  
+- **`scripts/sync.sh` は commit + push まで自動実行する**：実行前に余計な差分がないか確認を。不要な設定ファイルやログが含まれていないことを確認してから実行すること。
+
+- **`install.sh` は環境固有資産に触れない**：`projects/`・`sessions/`・`logs/`・`settings.local.json` 等はホワイトリスト方式で展開対象外。差分のある既存ファイルのみ `~/.claude/backups/install-<timestamp>/` へ退避してから上書きされる（差分がなければバックアップは作られない）。
+
+- **`install.sh` は rsync に依存しない**：別環境での依存を最小化するため `cp`・`cmp`・`find` のみで実装。一方 `sync.sh` は rsync を使用する非対称設計。
