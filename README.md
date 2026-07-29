@@ -57,7 +57,7 @@ bash scripts/sync.sh   # ~/.claude/ → claude/ へ同期し commit + push（自
 
 - **`claude/` フォルダを直接編集しない**：`sync.sh` で `~/.claude/` 内容が上書きされる。設定変更は必ず `~/.claude/` 側で行い、その後 `bash scripts/sync.sh` で同期する。
   
-- **`scripts/sync.sh` は commit + push まで自動実行する**：実行前に余計な差分がないか確認を。不要な設定ファイルやログが含まれていないことを確認してから実行すること。
+- **`scripts/sync.sh` は commit + push まで自動実行する**：実行前に余計な差分がないか確認すること。
 
 - **`install.sh` は環境固有資産に触れない**：`projects/`・`sessions/`・`logs/`・`settings.local.json` 等はホワイトリスト方式で展開対象外。差分のある既存ファイルのみ `~/.claude/backups/install-<timestamp>/` へ退避してから上書きされる（差分がなければバックアップは作られない）。
 
