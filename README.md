@@ -50,7 +50,7 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 | `claude/assets/html-templates/` | 過去に作成した HTML 成果物の流用元テンプレート・ライブラリ。`INDEX.md` がカタログ（name・特徴・用途・path の表）、`report-light.html` が現在唯一登録済みのテンプレート。登録は `html-template-import` スキルが担う |
 | `claude/rules/` | 現状空のディレクトリ。将来ルールファイルを置く想定の場所 |
 | `claude/settings.json` | Claude Code の設定ファイル（permissions・hooks 登録・model 等） |
-| `claude/CLAUDE.md` | リポジトリ直下の `CLAUDE.md`（本ファイル）とは別物。`~/.claude/CLAUDE.md`（ユーザーのグローバル指示ファイル）のミラー |
+| `claude/CLAUDE.md` | リポジトリ直下の `CLAUDE.md` とは別物。`~/.claude/CLAUDE.md`（ユーザーのグローバル指示ファイル）のミラー |
 | `claude/statusline-command.sh` | ステータスライン表示用スクリプト（コンテキスト使用率・モデル名・ブランチ名などを色分け表示） |
 
 ### hooks の一覧
