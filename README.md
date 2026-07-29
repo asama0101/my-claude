@@ -2,6 +2,15 @@
 
 Claude Code のユーザーグローバル設定（`~/.claude/`）をバージョン管理し、**別環境（別ユーザー・別マシン）でクローンして再現**するためのリポジトリ。
 
+## ディレクトリ構成
+
+| パス | 内容 |
+|---|---|
+| `claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
+| `scripts/sync.sh` | `~/.claude/` → `claude/` への同期（commit + push 自動） |
+| `scripts/install.sh` | `claude/` → `~/.claude/` への展開（別環境セットアップ） |
+| `docs/` | 過去の計画・仕様の記録 |
+
 ## claude/ フォルダについて
 
 `claude/` は `~/.claude/` のミラーであり、以下を含む：
@@ -16,15 +25,6 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 | `claude/settings.json` | Claude Code の設定ファイル（詳細は後述「settings.json」を参照） |
 | `claude/CLAUDE.md` | リポジトリ直下の `CLAUDE.md` とは別物。`~/.claude/CLAUDE.md`（ユーザーのグローバル指示ファイル）のミラー |
 | `claude/statusline-command.sh` | ステータスライン表示用スクリプト（コンテキスト使用率・モデル名・ブランチ名などを色分け表示） |
-
-## ディレクトリ構成
-
-| パス | 内容 |
-|---|---|
-| `claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
-| `scripts/sync.sh` | `~/.claude/` → `claude/` への同期（commit + push 自動） |
-| `scripts/install.sh` | `claude/` → `~/.claude/` への展開（別環境セットアップ） |
-| `docs/` | 過去の計画・仕様の記録 |
 
 ## サブエージェント
 
