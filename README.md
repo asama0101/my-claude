@@ -2,6 +2,21 @@
 
 Claude Code のユーザーグローバル設定（`~/.claude/`）をバージョン管理し、**別環境（別ユーザー・別マシン）でクローンして再現**するためのリポジトリ。
 
+## claude/ フォルダについて
+
+`claude/` は `~/.claude/` のミラーであり、以下を含む：
+
+| パス | 概要 |
+|---|---|
+| `claude/agents/` | サブエージェント定義（詳細は後述「サブエージェント」を参照） |
+| `claude/skills/` | スキル定義（詳細は後述「スキル」を参照） |
+| `claude/hooks/` | ツール呼び出しを検査する PreToolUse フックスクリプト（詳細は後述「hooks」を参照） |
+| `claude/assets/` | HTML 成果物の流用元テンプレート・ライブラリ（詳細は後述「assets」を参照） |
+| `claude/rules/` | ルールファイルの置き場所（現状空。詳細は後述「rules」を参照） |
+| `claude/settings.json` | Claude Code の設定ファイル（詳細は後述「settings.json」を参照） |
+| `claude/CLAUDE.md` | リポジトリ直下の `CLAUDE.md` とは別物。`~/.claude/CLAUDE.md`（ユーザーのグローバル指示ファイル）のミラー |
+| `claude/statusline-command.sh` | ステータスライン表示用スクリプト（コンテキスト使用率・モデル名・ブランチ名などを色分け表示） |
+
 ## ディレクトリ構成
 
 | パス | 内容 |
@@ -40,21 +55,29 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 | `html-template-import` | 既存の HTML ドキュメントをテンプレートライブラリ（`~/.claude/assets/html-templates/`）へ取り込み、カタログに登録する |
 | `tdd-gates` | superpowers のスキルチェーンに品質規律を上乗せする TDD 品質ゲート（チェックポイント CP-A〜F・証拠主義・Critical 即 FAIL） |
 
-## claude/ 配下のその他のファイル
+## hooks
 
-`claude/agents/`・`claude/skills/` 以外の全ファイル・ディレクトリ：
+| Hook | 効果 |
+|---|---|
+| `bash-guard.sh` | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink`/`git rm` はプロジェクト配下／`$CLAUDE_HOME` 配下／`/tmp` 配下の子要素のみ許可（各ゾーンのルート自体は不可）。非 rm 削除（`find -delete`・`shutil.rmtree`・`rsync --delete`）は無条件ブロック。機密ファイル（`.env`/`.ssh`/鍵）の読取/持ち出しもブロック |
+| `workspace-guard.sh` | プロジェクト配下／`~/.claude` 配下／`/tmp` 配下以外への Write/Edit をブロック。`~/.claude/hooks/` とハーネス設定（`settings.json`）は許可。Bash の `/var/tmp` リダイレクト・プロジェクト外宛先の cp/tee/mv も保守的にブロック |
+| `venv-guard.sh` | venv 外への `pip install`/`pip uninstall`（`pip`/`pip3`/`python -m pip` 経由）・`uv add`/`uv pip install` をブロック（文字列一致で誤検知しうる） |
+| `main-branch-guard.sh` | main/master ブランチ上での Write/Edit/MultiEdit/NotebookEdit、および Bash の削除・変更系コマンド（`rm`/`rmdir`/`unlink`/`git rm`/`git commit`/リダイレクト書き込み/`tee`/`cp`/`mv`/`touch`/`sed -i`）をブロック。読み取り専用コマンドは対象外 |
+
+> いずれのスクリプトも jq が無い環境では判定不能として fail-close（安全側にブロック）する。詳細は各スクリプト内のコメント、またはリポジトリ直下 `CLAUDE.md` の「Hooks（enforcement の正典）」表を参照。
+
+## assets
 
 | パス | 内容 |
 |---|---|
-| `claude/hooks/` | Claude Code のツール呼び出しを検査する PreToolUse フックスクリプト（4本。詳細は下表「hooks の一覧」） |
 | `claude/assets/html-templates/INDEX.md` | 過去に作成した HTML 成果物の流用元テンプレート・ライブラリのカタログファイル（name・特徴・用途・path の表）。登録は `html-template-import` スキルが担い、手作業では編集しない |
 | `claude/assets/html-templates/report-light.html` | 現在カタログに唯一登録済みのテンプレート本体。トーン=light・レイアウト種別=report（和風監査台帳）。用途は構造監査・設計解説・多章立ての長文レポート |
-| `claude/rules/` | 現状空のディレクトリ。将来ルールファイルを置く想定の場所 |
-| `claude/settings.json` | Claude Code の設定ファイル。トップレベルキーは13個（`$schema`・`permissions`・`model`・`hooks`・`statusLine`・`enabledPlugins`・`effortLevel`・`tui`・`skipWorkflowUsageWarning`・`remoteControlAtStartup`・`inputNeededNotifEnabled`・`agentPushNotifEnabled`・`skipAutoPermissionPrompt`。詳細は下表「settings.json のトップレベルキー」） |
-| `claude/CLAUDE.md` | リポジトリ直下の `CLAUDE.md` とは別物。`~/.claude/CLAUDE.md`（ユーザーのグローバル指示ファイル）のミラー |
-| `claude/statusline-command.sh` | ステータスライン表示用スクリプト（コンテキスト使用率・モデル名・ブランチ名などを色分け表示） |
 
-### settings.json のトップレベルキー
+## rules
+
+`claude/rules/` は現状空のディレクトリ。将来ルールファイルを置く想定の場所。
+
+## settings.json
 
 | キー | 説明 |
 |---|---|
@@ -71,17 +94,6 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 | `inputNeededNotifEnabled` | Remote Control 接続時、権限確認や質問への入力待ちが発生した際にスマートフォンへプッシュ通知するかどうか |
 | `agentPushNotifEnabled` | Remote Control 接続時、長時間タスク完了時などに Claude から能動的にプッシュ通知を送ることを許可するかどうか |
 | `skipAutoPermissionPrompt` | 値は `true`。schemastore の公開スキーマには未収録のため詳細は未規定。キー名からは自動権限確認プロンプトのスキップに関する設定と推測されるに留まる |
-
-### hooks の一覧
-
-| Hook | 効果 |
-|---|---|
-| `bash-guard.sh` | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink`/`git rm` はプロジェクト配下／`$CLAUDE_HOME` 配下／`/tmp` 配下の子要素のみ許可（各ゾーンのルート自体は不可）。非 rm 削除（`find -delete`・`shutil.rmtree`・`rsync --delete`）は無条件ブロック。機密ファイル（`.env`/`.ssh`/鍵）の読取/持ち出しもブロック |
-| `workspace-guard.sh` | プロジェクト配下／`~/.claude` 配下／`/tmp` 配下以外への Write/Edit をブロック。`~/.claude/hooks/` とハーネス設定（`settings.json`）は許可。Bash の `/var/tmp` リダイレクト・プロジェクト外宛先の cp/tee/mv も保守的にブロック |
-| `venv-guard.sh` | venv 外への `pip install`/`pip uninstall`（`pip`/`pip3`/`python -m pip` 経由）・`uv add`/`uv pip install` をブロック（文字列一致で誤検知しうる） |
-| `main-branch-guard.sh` | main/master ブランチ上での Write/Edit/MultiEdit/NotebookEdit、および Bash の削除・変更系コマンド（`rm`/`rmdir`/`unlink`/`git rm`/`git commit`/リダイレクト書き込み/`tee`/`cp`/`mv`/`touch`/`sed -i`）をブロック。読み取り専用コマンドは対象外 |
-
-> いずれのスクリプトも jq が無い環境では判定不能として fail-close（安全側にブロック）する。詳細は各スクリプト内のコメント、またはリポジトリ直下 `CLAUDE.md` の「Hooks（enforcement の正典）」表を参照。
 
 ## 別環境でのセットアップ（初回）
 
