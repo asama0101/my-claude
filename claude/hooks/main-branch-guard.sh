@@ -55,7 +55,7 @@ case "$TOOL" in
       '\b(rm|rmdir|unlink)\b'                       # 削除
       '\bgit\s+rm\b'                                 # git rm
       '\bgit\s+commit\b'                             # git commit（--amend含む）
-      '(^|[[:space:]])>>?[[:space:]]*[^[:space:]]'   # リダイレクト書き込み
+      '>>?(?!&)[[:space:]]*[^[:space:]]'             # リダイレクト書き込み（先頭境界不要。2>&1等のfd複製は除外）
       '\btee\b'
       '\bcp\b'
       '\bmv\b'

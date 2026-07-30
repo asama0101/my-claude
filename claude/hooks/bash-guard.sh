@@ -6,6 +6,13 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 PROJECT_DIR=$(pwd)
 CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
+# ── 難読化正規化（判定用。実行はしない）──────────────
+# クォート分割('r''m')・バックスラッシュエスケープ(r\m)・${IFS}/$IFS空白代替
+# (kill${IFS}-9)で BLOCKED_PATTERNS の前提(コマンド名がそのまま文字列に現れる)
+# が崩れるのを防ぐため、除去・置換のみ行った正規化版を作る。コマンド置換
+# ($()/``)や変数展開は評価しない単純なテキスト変換のため安全。
+NORMALIZED=$(printf '%s' "$COMMAND" | tr -d "\"'\\\\" | sed -E 's/\$\{?IFS\}?/ /g')
+
 BLOCKED_PATTERNS=(
   # ── ディスク・デバイス破壊 ──────────────────────
   'dd\s+if=.*of=/dev/sd'           # ディスク上書き
@@ -95,6 +102,7 @@ BLOCKED_PATTERNS=(
 
   # ── 機密ファイル読取・持ち出し ──────────────────
   '(cat|less|more|head|tail|base64|xxd|od|strings)\s+.*(\.env(\.|\s|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|$)|\.key(\s|$)|authorized_keys|\.netrc|credentials)'
+  '(python3?|perl|ruby|node)\s+(-c|-e)\s+.*(\.env(\.|\s|['"'"'")]|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|['"'"'")]|$)|\.key(\s|['"'"'")]|$)|authorized_keys|\.netrc|credentials)'
 )
 
 for pattern in "${BLOCKED_PATTERNS[@]}"; do
@@ -105,6 +113,20 @@ for pattern in "${BLOCKED_PATTERNS[@]}"; do
     exit 2
   fi
 done
+
+# ── 正規化後の危険パターン再判定（難読化バイパス対策）──────────────
+# クォート分割/バックスラッシュ/${IFS}等で上のBLOCKED_PATTERNSを回避しようとした
+# 場合、正規化後の文字列に対して同じパターン(+rm系catch-all)を再評価しブロックする。
+if [ "$NORMALIZED" != "$COMMAND" ]; then
+  for pattern in "${BLOCKED_PATTERNS[@]}" '\b(rm|rmdir|unlink)(\s|$)'; do
+    if printf '%s' "$NORMALIZED" | grep -qiP "$pattern"; then
+      echo "❌ BLOCKED: $COMMAND" >&2
+      echo "   クォート分割/バックスラッシュ/\${IFS}等の難読化を検知し、正規化後に危険パターンへ一致しました: $pattern" >&2
+      echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
+      exit 2
+    fi
+  done
+fi
 
 # ── 削除系コマンドの難読化（変数展開・コマンド置換）遮断 ────────────
 # 削除語（rm/rmdir/unlink）を含み、かつ $展開 または

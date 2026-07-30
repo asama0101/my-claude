@@ -4,7 +4,7 @@
 # (/tmp/claude-*/配下)以外へのファイル作成・編集をブロックする。
 # Write/Edit/MultiEdit/NotebookEdit: 対象 file_path が許可ゾーン外なら exit 2。
 # Bash: /var/tmp・および /tmp/claude-*/以外の /tmp 配下へのリダイレクト(> / >>)＋
-#       cp/tee/mv のプロジェクト外宛先を保守的にブロック。
+#       cp/tee/mv/curl/wget のプロジェクト外宛先を保守的にブロック。
 #
 # 許可ゾーン:
 #   1) プロジェクトルート($PROJECT_DIR=pwd)配下
@@ -16,7 +16,7 @@
 #      /tmp配下ディレクトリ、/var/tmp は対象外）
 #
 # 既知の限界: Bash のファイル書き込み全検出は不可能なため /var/tmp・/tmp(claude-*以外)
-# リダイレクト＋ cp/tee/mv の主要経路のみ検査（完全検出ではない）。
+# リダイレクト＋ cp/tee/mv/curl/wget の主要経路のみ検査（完全検出ではない）。
 # 文字列中に "> /var/tmp/" 等を含むコマンド(grep 等)は誤ブロックされ得る。
 # その場合は Read ツールで回避すること（bash-guard.sh / venv-guard.sh と同種の制約）。
 
@@ -41,10 +41,14 @@ is_allowed() {
   esac
 }
 
-# cp/tee/mv 宛先の外部判定（保守的）。
+# cp/tee/mv/curl/wget 宛先の外部判定（保守的）。
 # 絶対パスのみ検査し、相対/判定不能はブロックしない。
 is_ext_dest() {
   local path="$1" abs
+  case "$path" in
+    \~/*) path="$HOME/${path#\~/}" ;;  # ~/... を $HOME 基準の絶対パスへ展開（~はcaseパターン解析時に
+    \~) path="$HOME" ;;                # チルダ展開されるため \~ でエスケープ必須）
+  esac
   case "$path" in
     /*) ;;         # 明確な絶対パスのみを検査対象とする
     *) return 1 ;; # 相対パス等は保守的にスルー（ブロックしない）
@@ -91,7 +95,7 @@ case "$TOOL" in
       exit 2
     fi
 
-    # ── cp/tee/mv のプロジェクト外書き込みを保守的にブロック ──────────────
+    # ── cp/tee/mv/curl/wget のプロジェクト外書き込みを保守的にブロック ──────────────
     # 主要経路のみ・完全検出ではない（複雑な引数・エイリアス等は検出外）。
     # 明確な外部絶対パス宛先($HOME 直下や許可ゾーン外の絶対パス)のみを対象とする。
     # コマンド置換を含むセグメントは宛先を確定できないため保守的にスルーする。
@@ -105,14 +109,36 @@ case "$TOOL" in
       c="$1"
       case "$c" in
         cp | mv)
-          for last in "$@"; do :; done   # 最終引数を宛先とみなす
-          is_ext_dest "$last" && ext_hit="$last"
+          target="" prev=""
+          for tok in "$@"; do
+            case "$prev" in -t) target="$tok" ;; esac
+            case "$tok" in --target-directory=*) target="${tok#--target-directory=}" ;; esac
+            prev="$tok"
+            last="$tok"
+          done
+          if [ -n "$target" ]; then
+            is_ext_dest "$target" && ext_hit="$target"
+          else
+            is_ext_dest "$last" && ext_hit="$last"  # -t/--target-directory 未指定時は最終引数を宛先とみなす
+          fi
           ;;
         tee)
           shift
           for tok in "$@"; do
             case "$tok" in -*) continue ;; esac
             is_ext_dest "$tok" && { ext_hit="$tok"; break; }
+          done
+          ;;
+        curl | wget)
+          prev=""
+          for tok in "$@"; do
+            case "$prev" in
+              -o | -O | --output | --output-document) is_ext_dest "$tok" && { ext_hit="$tok"; break; } ;;
+            esac
+            case "$tok" in
+              --output=* | --output-document=*) v="${tok#*=}"; is_ext_dest "$v" && { ext_hit="$v"; break; } ;;
+            esac
+            prev="$tok"
           done
           ;;
       esac
@@ -122,7 +148,7 @@ $SEGMENTS
 EOF
     set +f
     if [ -n "$ext_hit" ]; then
-      echo "❌ BLOCKED: プロジェクト外への cp/tee/mv 書き込み: $ext_hit" >&2
+      echo "❌ BLOCKED: プロジェクト外への cp/tee/mv/curl/wget 書き込み: $ext_hit" >&2
       echo "   宛先がプロジェクト配下・$CLAUDE_HOME 配下・/tmp/claude-*/配下(セッション用ディレクトリ)" >&2
       echo "   のいずれでもありません。" >&2
       echo "   ※主要経路のみの保守的検査です。誤検知時は宛先をプロジェクト配下にするか手動実行してください。" >&2
