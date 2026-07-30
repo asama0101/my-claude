@@ -29,6 +29,7 @@ model: sonnet
 | HTML 成果物（役割分担・過去デザインの流用） | `~/.claude/agents/references/doc-html.md` |
 | 既存ドキュメントの更新（単一文書 / 影響範囲洗い出し） | `~/.claude/agents/references/doc-verify.md`（更新モード A / B） |
 | CI ワークフロー定義の生成・更新（CP-E） | `~/.claude/skills/tdd-gates/references/profiles/`（CIステージ定義）・`~/.claude/skills/tdd-gates/templates/ci-gate-task-template.md` |
+| ドキュメント同期（CP-F、プロファイル対象カテゴリ） | `~/.claude/skills/tdd-gates/references/profiles/docs-*.md`（対象カテゴリ・生成条件）→ 新規カテゴリの初回生成は `~/.claude/agents/references/doc-design.md`「文書カテゴリ別 目次テンプレート」節、既存更新は `doc-verify.md` 更新モードA/B |
 
 ## 整合確認は doc-verifier に委譲する
 
