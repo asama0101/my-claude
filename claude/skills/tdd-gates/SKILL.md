@@ -59,7 +59,7 @@ description: |
 - `references/checkpoints.md` — CP-A〜F の目的・上乗せ先・担当・Critical・証拠要件。
 - `references/scoring.md` — 0–3採点・80%/60–79%・Critical即FAIL・CONDITIONAL上限・CP-A/B用とCP-C〜F用の2モードのスコアカード形式。
 - `templates/*.md` — 各CPが差分追記／差し替えるプロンプトテンプレート（`spec-gap-review-addendum.md`・`plan-quality-review-addendum.md`・`task-evidence-addendum.md`・`final-scorecard-review-prompt.md`・`ci-gate-task-template.md`・`doc-sync-task-template.md`）。
-- `references/profiles/pytest.md` — Python/pytest のパス判定・実行コマンド・合格ログ形式（深い作法は agents/references/python-testing.md へ委譲）。
+- `references/profiles/pytest.md` — Python/pytest のパス判定・実行コマンド・合格ログ形式（深い作法は agents/references/python/testing.md へ委譲）。
 - `references/profiles/_template.md` — 新言語追加用スケルトン。
 - `references/profiles/docs-generic.md` — CP-Fが対象とするドキュメントカテゴリの既定セットと生成条件（README/ガイド/API仕様[+データスキーマ・IF定義書]は常時、セキュリティ設計書・リリースノートは条件付き）。
 - `references/profiles/docs-network-tool.md` — SSH/Telnet通信・ネットワーク機器連携等のドメイン向け追加カテゴリ（検証環境トポロジー・差分マップ／監視・アラート定義書／ランブック、すべて条件付き）。`docs-generic.md`を継承。

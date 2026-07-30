@@ -22,7 +22,7 @@ model: sonnet
 
 - **PEP 8** 規約に従う
 - すべての関数シグネチャに**型アノテーション**を使用する
-- docstring は **Google スタイル**（Args/Returns/Raises セクション）で書く。**日本語**・**簡潔**（1文を run-on にしない）とし、**長いモジュール docstring は箇条書き**で構造化する（詳細は `references/python-style.md`）
+- docstring は **Google スタイル**（Args/Returns/Raises セクション）で書く。**日本語**・**簡潔**（1文を run-on にしない）とし、**長いモジュール docstring は箇条書き**で構造化する（詳細は `references/python/style.md`）
 
 ### 基本原則
 
@@ -103,8 +103,8 @@ class Point(NamedTuple):
 - リンティングには **ruff**
 - docstring 形式チェックには **ruff の D ルール**（`convention="google"`）
 - docstring と実シグネチャの整合には **darglint**
-- （ruff/darglint の具体設定は `references/python-style.md`「Python ツール連携」を単一ソースとする）
-- コメント（`#`）はデフォルトで書かず、WHY が非自明な場合のみ書く（詳細は `references/python-style.md`「コメント」を単一ソースとする）
+- （ruff/darglint の具体設定は `references/python/style.md`「Python ツール連携」を単一ソースとする）
+- コメント（`#`）はデフォルトで書かず、WHY が非自明な場合のみ書く（詳細は `references/python/style.md`「コメント」を単一ソースとする）
 
 ```bash
 black .
@@ -150,15 +150,15 @@ darglint mypackage/
 
 #### リポジトリパターン
 
-データアクセス層を抽象インターフェースの背後に隠し、ビジネスロジックをストレージ実装から独立させる（詳細: `references/python-style.md`「設計パターン」）。
+データアクセス層を抽象インターフェースの背後に隠し、ビジネスロジックをストレージ実装から独立させる（詳細: `references/python/style.md`「設計パターン」）。
 
 #### APIレスポンス形式
 
-API レスポンスは共通のエンベロープ型で統一し、成功/失敗やページネーション情報を一貫した形で返す（詳細: `references/python-style.md`「設計パターン」）。
+API レスポンスは共通のエンベロープ型で統一し、成功/失敗やページネーション情報を一貫した形で返す（詳細: `references/python/style.md`「設計パターン」）。
 
 ### DTOとしてのデータクラス
 
-モジュール境界を越えるリクエスト・入力は、軽量なデータクラスの DTO に詰めて受け渡す（詳細: `references/python-style.md`「設計パターン」）。
+モジュール境界を越えるリクエスト・入力は、軽量なデータクラスの DTO に詰めて受け渡す（詳細: `references/python/style.md`「設計パターン」）。
 
 ### コンテキストマネージャーとジェネレーター
 
@@ -172,7 +172,7 @@ API レスポンスは共通のエンベロープ型で統一し、成功/失敗
 
 | 利用場面 | 参照ファイル |
 |---------|------------|
-| 汎用 Python 詳細パターン（型ヒント・エラーハンドリング・コンテキストマネージャ・内包表記・データクラス・デコレータ・並行処理・パッケージ構成・メモリ最適化・イディオム） | `~/.claude/agents/references/python-style.md` |
-| FastAPI を使う場合の実装規約・詳細パターン（アプリファクトリ・Pydantic・依存性注入・非同期・エラーハンドリング・OpenAPI・設定管理・テスト） | `~/.claude/agents/references/python-fastapi.md` |
-| REST API を設計する場合の設計パターン（リソース命名・ステータスコード・ページネーション・エラーレスポンス・バージョニング） | `~/.claude/agents/references/python-rest-api.md` |
-| テストを書く場合の pytest 詳細作法（fixture 初期化/クリーンアップ・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定） | `~/.claude/agents/references/python-testing.md`（テスト作法の単一ソース。tdd-implementer も同ファイルを参照） |
+| 汎用 Python 詳細パターン（型ヒント・エラーハンドリング・コンテキストマネージャ・内包表記・データクラス・デコレータ・並行処理・パッケージ構成・メモリ最適化・イディオム） | `~/.claude/agents/references/python/style.md` |
+| FastAPI を使う場合の実装規約・詳細パターン（アプリファクトリ・Pydantic・依存性注入・非同期・エラーハンドリング・OpenAPI・設定管理・テスト） | `~/.claude/agents/references/python/fastapi.md` |
+| REST API を設計する場合の設計パターン（リソース命名・ステータスコード・ページネーション・エラーレスポンス・バージョニング） | `~/.claude/agents/references/python/rest-api.md` |
+| テストを書く場合の pytest 詳細作法（fixture 初期化/クリーンアップ・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定） | `~/.claude/agents/references/python/testing.md`（テスト作法の単一ソース。tdd-implementer も同ファイルを参照） |

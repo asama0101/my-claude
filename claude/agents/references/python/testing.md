@@ -675,27 +675,9 @@ class TestUserService:
 
 ### よくあるパターン
 
-#### API エンドポイントのテスト（FastAPI/Flask）
+#### FastAPI テスト
 
-```python
-@pytest.fixture
-def client():
-    app = create_app(testing=True)
-    return app.test_client()
-
-def test_get_user(client):
-    response = client.get("/api/users/1")
-    assert response.status_code == 200
-    assert response.json["id"] == 1
-
-def test_create_user(client):
-    response = client.post("/api/users", json={
-        "name": "Alice",
-        "email": "alice@example.com"
-    })
-    assert response.status_code == 201
-    assert response.json["name"] == "Alice"
-```
+FastAPI のテスト方法（`dependency_overrides` による DI 差し替え等）は `~/.claude/agents/references/python/fastapi.md` 「テスト」節を参照。
 
 #### データベース操作のテスト
 

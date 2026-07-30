@@ -26,7 +26,7 @@ scratchpad/reviews/<タスクスラッグ>-cp-d-<dimension>.md
 
 ## 手順2: 集約（tdd-evaluator が実施）
 
-Main は `tdd-evaluator` を起動し、上記5ファイルのパス一覧を渡す。`tdd-evaluator` は次を行う。
+Main は `tdd-evaluator` を起動し、上記5ファイルのパス一覧を渡す。その際 description は `"CP-D: Aggregate and score 5 review files"` とする。`tdd-evaluator` は次を行う。
 
 1. 5ファイルすべてを自ら Read する（Main による要約・選別を経由しない）。
 2. 所見ファイル数が5本と一致するか照合する。不足があれば採点せず、不足次元を明記して Main に差し戻す。

@@ -12,7 +12,7 @@ description: |
 
 - 保存先: `~/.claude/assets/html-templates/`
 - カタログ（単一ソース）: `~/.claude/assets/html-templates/INDEX.md`
-- 判断フロー・流用側の使い方: `~/.claude/agents/references/doc-html.md`
+- 判断フロー・流用側の使い方: `~/.claude/agents/references/doc/html.md`
 
 ## 手順
 

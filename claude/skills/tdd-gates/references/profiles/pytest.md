@@ -1,7 +1,7 @@
 # 言語プロファイル: Python / pytest
 
 tdd-gates のゲートを Python プロジェクトで駆動するための**ゲート用グルー**（薄い層）。
-fixture・AAA・parametrize・非同期・モック等の**深い pytest 作法は `~/.claude/agents/references/python-testing.md` を Read**（重複させない）。
+fixture・AAA・parametrize・非同期・モック等の**深い pytest 作法は `~/.claude/agents/references/python/testing.md` を Read**（重複させない）。
 
 ## テスト種別 → ランナー / パスパターン判定
 
@@ -14,7 +14,7 @@ fixture・AAA・parametrize・非同期・モック等の**深い pytest 作法�
 | ブラウザ UI を伴うフロー | e2e | **Playwright(-python)** | `tests/e2e/test_*.py` |
 
 - e2e（ブラウザ）判定、またはテンプレート/ルーティング/ビュー層に変更がある場合は CP-C(UI/UX) を有効化する（unit 申告でも回避不可。条件の正典は `checkpoints.md` CP-C）。
-- **Python パッケージのレイアウトは src を既定**とする（正典: `~/.claude/agents/references/python-style.md` §パッケージ構成）。flat の repo は**その旨を `CLAUDE.md` に宣言**したうえで、この対応表のパス（`src/**/*.py` 等）を各 repo の `CLAUDE.md`／`pytest.ini`／`pyproject.toml` に合わせて読み替える。
+- **Python パッケージのレイアウトは src を既定**とする（正典: `~/.claude/agents/references/python/style.md` §パッケージ構成）。flat の repo は**その旨を `CLAUDE.md` に宣言**したうえで、この対応表のパス（`src/**/*.py` 等）を各 repo の `CLAUDE.md`／`pytest.ini`／`pyproject.toml` に合わせて読み替える。
 
 ## 実行コマンド
 
@@ -71,5 +71,5 @@ CP-E が CI ワークフローで被覆すべき必須ステージと、この�
 
 ## 参照委譲
 
-- 深い pytest 作法（fixture の初期化/クリーンアップ必須・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定）: `~/.claude/agents/references/python-testing.md` を Read すること。
-- CP-C(REFACTOR) の整理では `~/.claude/agents/references/python-style.md`（実装スタイル・設計パターン）を Read すること（CP-C(GREEN) は最小実装原則を優先し、参照しない）。
+- 深い pytest 作法（fixture の初期化/クリーンアップ必須・AAA・命名・parametrize・マーカー・モック/パッチ・非同期 httpx・例外・設定）: `~/.claude/agents/references/python/testing.md` を Read すること。
+- CP-C(REFACTOR) の整理では `~/.claude/agents/references/python/style.md`（実装スタイル・設計パターン）を Read すること（CP-C(GREEN) は最小実装原則を優先し、参照しない）。

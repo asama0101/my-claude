@@ -817,7 +817,7 @@ docstring_style = google
 strictness = short
 ```
 
-> pytest の設定（`testpaths`/`addopts` 等）は `~/.claude/agents/references/python-testing.md`「pytest 設定」を単一ソースとする。
+> pytest の設定（`testpaths`/`addopts` 等）は `~/.claude/agents/references/python/testing.md`「pytest 設定」を単一ソースとする。
 
 ### Python イディオム クイックリファレンス
 

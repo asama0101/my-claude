@@ -2,7 +2,7 @@
 
 > doc-updater エージェント用のオンデマンド参照ファイル（エージェント定義ではない）。
 > コードから生成するドキュメント（README・ガイド・API ドキュメント）を、実際のコードの状態に同期する手順。
-> 人間向けドキュメントの新規整備は [doc-design.md] → [doc-writing.md]、整合確認は [doc-verify.md] を参照。
+> 人間向けドキュメントの新規整備は [design.md] → [writing.md]、整合確認は [verify.md] を参照。
 
 ---
 
