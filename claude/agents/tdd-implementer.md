@@ -18,6 +18,7 @@ model: sonnet
 - 対象 repo の `CLAUDE.md`（Gotchas・テスト規約）を Read。
 - ディスパッチ元が指定した言語プロファイル（`~/.claude/skills/tdd-gates/references/profiles/` 配下）を Read（パス→テスト種別・実行コマンド・合格ログ形式の対応表）。**指定が無ければ推測せず、ディスパッチ元に要求する**。テスト実行は常にそのプロファイル定義の実行コマンドを使う。
 - 深いテスト作法はプロファイルの「参照委譲」節に従って該当ファイルを Read する（例: pytest プロファイルなら `~/.claude/agents/references/python/testing.md` — fixture 初期化/クリーンアップ必須・AAA・命名・parametrize・非同期 httpx・モック）。
+- Python を実装する場合は `~/.claude/agents/dev-python.md` のコーディングスタイル（命名規則・docstring形式・エラー処理範囲・イミュータビリティ範囲等）に従う。
 
 ## 返却フォーマット
 

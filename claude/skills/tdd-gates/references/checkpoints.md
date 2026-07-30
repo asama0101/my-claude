@@ -9,7 +9,7 @@ CP-A〜F。駆動順序の正典は SKILL.md「CP対応表」（重複掲載し�
 
 - **Planner役**（CP-A/B）= superpowers の `brainstorming`／`writing-plans` が文書を起草する。`planner` エージェントが補助してよい。
 - **Generator/Implementer役**（CP-C）= SDD の implementer subagent（`implementer-prompt.md` で起動）。tdd-gates 独自の生成役は持たない（`tdd-implementer` エージェントが SDD の report 契約に合わせて実装を担う）。
-- **Evaluator役**（全CP共通）= `tdd-evaluator`。SDD が標準で使う汎用 task reviewer / final code-reviewer を、CP単位で `tdd-evaluator`（または CP-D の review-*5本＋集約、CP-F の doc-verifier）に差し替える。
+- **Evaluator役**（全CP共通）= `tdd-evaluator`。SDD が標準で使う汎用 task reviewer / final code-reviewer を、CP単位で `tdd-evaluator`（または CP-D の review-*5本＋集約、CP-F の doc-verifier・review-doc-readability）に差し替える。
 
 分離原則（正典）: 実装した本人（Implementer）が採点してはならない。CP-C 以降はこれを SDD の仕組みがそのまま担保し、tdd-gates は reviewer 役の中身だけを差し替える。
 
@@ -99,15 +99,16 @@ CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否�
 ## CP-F: ドキュメント同期（旧Gate10・条件付き・CI整備タスクの後に追加）
 
 - **スキップ条件**: リファクタのみ等、選択したドキュメントプロファイルの全カテゴリが非該当ならスキップ。
-- **ドキュメントプロファイル確定**: プロジェクトが使うドキュメントプロファイル（既定 `references/profiles/docs-generic.md`。SSH/Telnet通信・ネットワーク機器連携・監視/アラート等のツールは `references/profiles/docs-network-tool.md`）は、CP-E同様プロジェクト側で宣言済みのものを使う（宣言場所はSKILL.md起動時チェックリスト項目1参照）。確定したプロファイルのパスは、CP-Fタスクのdoc-updater/doc-verifier起動時に必ず明記して渡す。
-- **上乗せ先**: CP-Eタスクの後、`writing-plans`が同様に計画末尾へ自動追加するタスク（`templates/doc-sync-task-template.md`、Phase2）。実装タスクとしてはCP-Cと同じSDDの通常タスクループに乗るが、**レビュー役だけがCP-C/Eのtdd-evaluatorではなくdoc-verifierになる点が異なる**（執筆者と検証者の分離を保つため）。
+- **ドキュメントプロファイル確定**: プロジェクトが使うドキュメントプロファイル（既定 `references/profiles/docs-generic.md`。SSH/Telnet通信・ネットワーク機器連携・監視/アラート等のツールは `references/profiles/docs-network-tool.md`）は、CP-E同様プロジェクト側で宣言済みのものを使う（宣言場所はSKILL.md起動時チェックリスト項目1参照）。確定したプロファイルのパスは、CP-Fタスクのdoc-updater/doc-verifier/review-doc-readability起動時に必ず明記して渡す。
+- **上乗せ先**: CP-Eタスクの後、`writing-plans`が同様に計画末尾へ自動追加するタスク（`templates/doc-sync-task-template.md`、Phase2）。実装タスクとしてはCP-Cと同じSDDの通常タスクループに乗るが、**レビュー役だけがCP-C/Eのtdd-evaluatorではなくdoc-verifier・review-doc-readabilityになる点が異なる**（執筆者と検証者の分離を保つため）。
 - **内容**: `doc-updater`で、選択したドキュメントプロファイルの「対象カテゴリ」表（README・ガイド・API仕様は常時、セキュリティ設計書・リリースノート・（network-tool時）検証環境トポロジー・監視アラート定義書・ランブックは各カテゴリのトリガー条件に該当する場合のみ）に沿って変更に同期。AI臭い定型表現を検出・修正。各カテゴリの該当可否はdiffの根拠`file:line`で判定し、根拠を示せないカテゴリは生成しない（無条件生成の禁止）。
-- **手段（執筆・検証の分離）**: `doc-updater`が執筆・更新→Mainが**別コンテキストで`doc-verifier`を起動**し、記載事実（数値・コマンド・スキーマ・挙動）をソースと照合させる。不一致は`doc-updater`へ差し戻して修正させ、再検証では前回不一致を1件ずつ解消／部分解消／未解消で判定する。
+- **手段（執筆・検証の分離）**: `doc-updater`が執筆・更新→Mainが**別コンテキストで`doc-verifier`と`review-doc-readability`を並列起動**する（事実照合と構成・可読性判定は独立した観点のため並列化する。CLAUDE.mdの並列化原則）。`doc-verifier`は記載事実（数値・コマンド・スキーマ・挙動）をソースと照合し、`review-doc-readability`は`references/doc/writing.md`の基準（要約先出し・段落設計・箇条書き/表/図の使い分け・見出し階層）に照らして構成・可読性を判定する。不一致・要改善はいずれも`doc-updater`へ差し戻して修正させ、再検証では前回指摘を1件ずつ解消／部分解消／未解消で判定する。
 - **不発明制約（委任指示の定型文）**: `doc-updater`への委任プロンプトには「ソースに根拠の無い数値・目標値・事実を発明しない。導出できる事実のみ記載し、根拠が無い項目は『未規定』と明示する」を必ず含める。`doc-verifier`には「文書に新規登場した数値・事実の裏取り（発明された値の検出）」を照合観点として指示する。
 - **Critical**:
   - doc-verifierの照合で、裏付けの無い事実主張（実装に無い挙動・根拠の無い数値の記載）が未解消のまま残っている。
+  - review-doc-readabilityの判定で、writing.mdの基準（要約先出し・段落設計・見出し階層等）を満たさない「要改善」が未解消のまま残っている。
   - カテゴリ選定の誤り: トリガー条件に該当するのに生成対象から漏れているカテゴリがある（欠落）、または該当しないのに生成している（過剰生成・無条件生成の混入）。判定はプロファイルのカテゴリ表とdiffの`file:line`照合による。
-- **証拠**: 更新差分＋doc-verifierの照合結果（✓/不一致の表）＋カテゴリ選定根拠（該当/非該当の判定表とdiff `file:line`）。
+- **証拠**: 更新差分＋doc-verifierの照合結果（✓/不一致の表）＋review-doc-readabilityの判定結果（✓/要改善の表）＋カテゴリ選定根拠（該当/非該当の判定表とdiff `file:line`）。
 
 ---
 

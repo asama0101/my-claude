@@ -31,11 +31,11 @@ model: sonnet
 | CI ワークフロー定義の生成・更新（CP-E） | `~/.claude/skills/tdd-gates/references/profiles/`（CIステージ定義）・`~/.claude/skills/tdd-gates/templates/ci-gate-task-template.md` |
 | ドキュメント同期（CP-F、プロファイル対象カテゴリ） | `~/.claude/skills/tdd-gates/references/profiles/docs-*.md`（対象カテゴリ・生成条件）→ 新規カテゴリの初回生成は `~/.claude/agents/references/doc/design.md`「文書カテゴリ別 目次テンプレート」節、既存更新は `doc/verify.md` 更新モードA/B |
 
-## 整合確認は doc-verifier に委譲する
+## 整合確認・可読性確認は doc-verifier / review-doc-readability に委譲する
 
-人間向けドキュメントを書いた後の**整合確認（記載事実 vs ソースの照合）は doc-updater 自身では確定させない**。自分の書いた文書を自分で採点すると自己承認になり、不一致を見逃す。
+人間向けドキュメントを書いた後の**整合確認（記載事実 vs ソースの照合）・構成/可読性の判定は doc-updater 自身では確定させない**。自分の書いた文書を自分で採点すると自己承認になり、不一致や読みにくさを見逃す。
 
 - 執筆が終わったら、その旨を Main に返す。
-- Main が別コンテキストで `doc-verifier` を起動し、`references/doc/verify.md` に従って照合させる（tdd の generator/evaluator と同型）。
-- doc-verifier が報告した不一致は Main 経由で doc-updater に差し戻され、doc-updater が修正する。
-- 単一文書更新・影響範囲更新（更新モード A/B）でも、更新箇所の整合確認は doc-verifier に回す。
+- Main が別コンテキストで `doc-verifier`（事実照合）と `review-doc-readability`（構成・可読性）を**並列起動**する（両者は独立した観点であり、CLAUDE.md の並列化原則に従う）。`doc-verifier` は `references/doc/verify.md` に、`review-doc-readability` は `references/doc/writing.md` 2-4〜2-6節に従って判定する（tdd の generator/evaluator と同型）。
+- doc-verifier の不一致・review-doc-readability の要改善は、いずれも Main 経由で doc-updater に差し戻され、doc-updater が修正する。
+- 単一文書更新・影響範囲更新（更新モード A/B）でも、更新箇所の整合確認・可読性確認は両者に回す。
