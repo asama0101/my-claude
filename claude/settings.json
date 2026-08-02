@@ -59,7 +59,7 @@
       "Edit(**/.claude/settings.json)",
       "Edit(**/.claude/settings.local.json)"
     ],
-    "defaultMode": "plan",
+    "defaultMode": "auto",
     "disableBypassPermissionsMode": "disable"
   },
   "model": "sonnet",

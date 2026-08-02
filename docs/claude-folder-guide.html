@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>~/.claude 引きガイド — Claude Code 設定フォルダ目録</title>
+<style>
+  :root {
+    --paper: #F1F0E8;
+    --card: #FBFAF5;
+    --ink: #23303B;
+    --line: #D8D3C4;
+    --accent: #6B8F71;
+    --accent2: #40566B;
+    --serif: "Hiragino Mincho ProN", "Yu Mincho", serif;
+    --sans: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    --mono: "SF Mono", "Courier New", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1B1F1C;
+      --card: #242924;
+      --ink: #E8E4D8;
+      --line: #3A3F38;
+      --accent: #8FB89A;
+      --accent2: #7FA0BE;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto !important; }
+    * { animation: none !important; transition: none !important; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  a { color: var(--accent2); }
+  code, .mono { font-family: var(--mono); }
+  code {
+    background: rgba(120,120,100,0.14);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.88em;
+    word-break: break-all;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent2);
+    outline-offset: 2px;
+  }
+
+  /* ───────── layout ───────── */
+  .layout {
+    display: flex;
+    align-items: flex-start;
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+  .sidebar {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    width: 300px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+  }
+  .search-wrap {
+    padding: 18px 16px 12px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .search-wrap input[type="search"] {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    border-radius: 3px;
+  }
+  .search-hint {
+    margin: 8px 2px 0;
+    font-size: 11.5px;
+    color: var(--ink);
+    opacity: 0.55;
+  }
+  .nav-scroll {
+    overflow-y: auto;
+    padding: 10px 10px 40px;
+    flex: 1;
+  }
+  .nav-group { margin-bottom: 2px; }
+  .nav-cat, .nav-solo {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--ink);
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 13.5px;
+    padding: 9px 6px;
+    cursor: pointer;
+    text-decoration: none;
+    border-radius: 2px;
+  }
+  .nav-cat:hover, .nav-solo:hover { background: rgba(120,120,100,0.10); }
+  .nav-cat .tab, .nav-solo .tab {
+    width: 4px;
+    height: 15px;
+    flex-shrink: 0;
+    background: var(--accent);
+  }
+  .nav-cat .tab.alt, .nav-solo .tab.alt { background: var(--accent2); }
+  .nav-cat .count { font-weight: 400; opacity: 0.6; font-size: 12px; }
+  .nav-items {
+    list-style: none;
+    margin: 2px 0 8px 11px;
+    padding: 0 0 0 12px;
+    border-left: 1px dashed var(--line);
+  }
+  .nav-items li.nav-subhead {
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    opacity: 0.55;
+    padding: 6px 8px 2px;
+    text-transform: none;
+  }
+  .nav-items li a {
+    display: block;
+    padding: 3px 8px;
+    font-size: 13px;
+    color: var(--ink);
+    text-decoration: none;
+    opacity: 0.8;
+    border-radius: 2px;
+  }
+  .nav-items li a:hover { opacity: 1; background: rgba(120,120,100,0.10); }
+  .nav-items li a.active {
+    color: var(--accent2);
+    font-weight: 700;
+    opacity: 1;
+  }
+  .nav-cat.active { color: var(--accent2); }
+  .nav-empty {
+    padding: 10px;
+    font-size: 12.5px;
+    opacity: 0.6;
+    display: none;
+  }
+
+  .content {
+    flex: 1;
+    min-width: 0;
+    padding: 40px 48px 100px;
+  }
+  .section { margin-bottom: 56px; scroll-margin-top: 18px; }
+  .section h2 {
+    font-family: var(--serif);
+    font-size: 22px;
+    margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section h2 .tab {
+    width: 5px;
+    height: 20px;
+    background: var(--accent);
+    display: inline-block;
+  }
+  .section h2 .tab.alt { background: var(--accent2); }
+  .section-lede {
+    margin: 0 0 22px;
+    font-size: 14px;
+    opacity: 0.8;
+    max-width: 62em;
+  }
+  .prose p { margin: 0 0 14px; max-width: 62em; }
+
+  .tree {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 18px 20px;
+    font-size: 13px;
+    line-height: 1.9;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .tree .lbl { color: var(--accent2); }
+  .tree .dim { opacity: 0.6; }
+
+  /* ───────── index cards ───────── */
+  .cards { display: flex; flex-direction: column; gap: 22px; }
+  .card {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--line);
+    padding: 20px 22px 18px 30px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    scroll-margin-top: 18px;
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    width: 22px;
+    height: 22px;
+    background: var(--paper);
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+  }
+  .card .callno {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 2px 9px;
+    border-radius: 2px;
+  }
+  .card .card-title {
+    font-family: var(--serif);
+    font-size: 18.5px;
+    margin: 2px 90px 10px 0;
+  }
+  .card .card-rule { border-top: 1px solid var(--line); margin: 0 0 12px; }
+  .card .card-note {
+    font-size: 12.5px;
+    opacity: 0.7;
+    margin: -4px 0 10px;
+    font-style: italic;
+  }
+  .card .card-desc { margin: 0 0 10px; font-size: 14.5px; }
+  .card .card-when { margin: 0 0 8px; font-size: 14px; }
+  .card .card-when strong, .card .card-path strong, .card .card-related strong { font-weight: 700; }
+  .card .card-path { margin: 0 0 6px; font-size: 13.5px; }
+  .card .card-related { margin: 0; font-size: 13px; color: var(--accent2); }
+  .card .card-model {
+    display: inline-block;
+    font-size: 11.5px;
+    font-family: var(--mono);
+    color: var(--accent2);
+    border: 1px solid var(--line);
+    padding: 1px 7px;
+    border-radius: 2px;
+    margin: 0 0 10px;
+  }
+
+  footer {
+    max-width: 62em;
+    margin-top: 40px;
+    padding-top: 18px;
+    border-top: 3px double var(--line);
+    font-size: 12.5px;
+    opacity: 0.75;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .cards-empty {
+    font-size: 14px;
+    opacity: 0.7;
+    padding: 14px 16px;
+    border: 1px dashed var(--line);
+    margin: 0 0 28px;
+    max-width: 62em;
+  }
+
+  /* ───────── mobile nav toggle / overlay ───────── */
+  .nav-toggle {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 60;
+    padding: 8px 14px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 13px;
+    border-radius: 3px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .overlay { display: none; }
+
+  @media (max-width: 760px) {
+    .nav-toggle { display: block; }
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      width: 84%;
+      max-width: 320px;
+      transform: translateX(-102%);
+      transition: transform 0.22s ease;
+      z-index: 65;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.25);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.42);
+      z-index: 62;
+    }
+    .overlay.show { display: block; }
+    .content { padding: 72px 18px 70px; }
+    .card .callno {
+      position: static;
+      display: inline-block;
+      margin: 0 0 10px;
+    }
+    .card .card-title { margin: 0 0 10px 0; }
+  }
+</style>
+</head>
+<body>
+
+<h1 class="visually-hidden">~/.claude 引きガイド — Claude Code 設定フォルダ目録</h1>
+
+<button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar">☰ 目次</button>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="カテゴリ目次">
+    <div class="search-wrap">
+      <input type="search" id="searchInput" placeholder="名前・説明で検索…" aria-label="名前・説明で検索">
+      <div class="search-hint">名前 / 説明文に部分一致する項目のみ表示</div>
+    </div>
+    <div class="nav-scroll" id="navScroll">
+
+      <div class="nav-group" data-nofilter="true">
+        <a href="#sec-intro" class="nav-solo" data-target="sec-intro"><span class="tab"></span>はじめに</a>
+      </div>
+      <div class="nav-group" data-nofilter="true">
+        <a href="#sec-dirmap" class="nav-solo" data-target="sec-dirmap"><span class="tab alt"></span>全体マップ</a>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-cat" data-target="sec-cfg"><span class="tab"></span>設定ファイル<span class="count">(4)</span></button>
+        <ul class="nav-items">
+          <li><a href="#CFG-01" data-target="CFG-01">CLAUDE.md</a></li>
+          <li><a href="#CFG-02" data-target="CFG-02">settings.json</a></li>
+          <li><a href="#CFG-03" data-target="CFG-03">settings.local.json</a></li>
+          <li><a href="#CFG-04" data-target="CFG-04">statusline-command.sh</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-cat" data-target="sec-hooks"><span class="tab alt"></span>Hooks<span class="count">(4)</span></button>
+        <ul class="nav-items">
+          <li><a href="#HK-01" data-target="HK-01">bash-guard.sh</a></li>
+          <li><a href="#HK-02" data-target="HK-02">venv-guard.sh</a></li>
+          <li><a href="#HK-03" data-target="HK-03">workspace-guard.sh</a></li>
+          <li><a href="#HK-04" data-target="HK-04">main-branch-guard.sh</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-cat" data-target="sec-agents"><span class="tab"></span>Agents<span class="count">(13)</span></button>
+        <ul class="nav-items">
+          <li><a href="#AG-01" data-target="AG-01">dev-python</a></li>
+          <li><a href="#AG-02" data-target="AG-02">doc-updater</a></li>
+          <li><a href="#AG-03" data-target="AG-03">doc-verifier</a></li>
+          <li><a href="#AG-04" data-target="AG-04">planner</a></li>
+          <li><a href="#AG-05" data-target="AG-05">review-correctness</a></li>
+          <li><a href="#AG-06" data-target="AG-06">review-doc-readability</a></li>
+          <li><a href="#AG-07" data-target="AG-07">review-maintainability</a></li>
+          <li><a href="#AG-08" data-target="AG-08">review-performance</a></li>
+          <li><a href="#AG-09" data-target="AG-09">review-security</a></li>
+          <li><a href="#AG-10" data-target="AG-10">review-test</a></li>
+          <li><a href="#AG-11" data-target="AG-11">tdd-evaluator</a></li>
+          <li><a href="#AG-12" data-target="AG-12">tdd-implementer</a></li>
+          <li><a href="#AG-13" data-target="AG-13">trivial-executor</a></li>
+          <li><a href="#AG-REF" data-target="AG-REF">共通参照資料</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-cat" data-target="sec-skl"><span class="tab alt"></span>ローカルSkills<span class="count">(3)</span></button>
+        <ul class="nav-items">
+          <li><a href="#SKL-01" data-target="SKL-01">codemap-python</a></li>
+          <li><a href="#SKL-02" data-target="SKL-02">html-template-import</a></li>
+          <li><a href="#SKL-03" data-target="SKL-03">tdd-gates</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-cat" data-target="sec-plugins"><span class="tab"></span>プラグインSkills<span class="count">(18)</span></button>
+        <ul class="nav-items">
+          <li class="nav-subhead">superpowers</li>
+          <li><a href="#SP-01" data-target="SP-01">brainstorming</a></li>
+          <li><a href="#SP-02" data-target="SP-02">dispatching-parallel-agents</a></li>
+          <li><a href="#SP-03" data-target="SP-03">executing-plans</a></li>
+          <li><a href="#SP-04" data-target="SP-04">finishing-a-development-branch</a></li>
+          <li><a href="#SP-05" data-target="SP-05">receiving-code-review</a></li>
+          <li><a href="#SP-06" data-target="SP-06">requesting-code-review</a></li>
+          <li><a href="#SP-07" data-target="SP-07">subagent-driven-development</a></li>
+          <li><a href="#SP-08" data-target="SP-08">systematic-debugging</a></li>
+          <li><a href="#SP-09" data-target="SP-09">test-driven-development</a></li>
+          <li><a href="#SP-10" data-target="SP-10">using-git-worktrees</a></li>
+          <li><a href="#SP-11" data-target="SP-11">using-superpowers</a></li>
+          <li><a href="#SP-12" data-target="SP-12">verification-before-completion</a></li>
+          <li><a href="#SP-13" data-target="SP-13">writing-plans</a></li>
+          <li><a href="#SP-14" data-target="SP-14">writing-skills</a></li>
+          <li class="nav-subhead">frontend-design</li>
+          <li><a href="#SF-01" data-target="SF-01">frontend-design</a></li>
+          <li class="nav-subhead">skill-creator</li>
+          <li><a href="#SC-01" data-target="SC-01">skill-creator</a></li>
+          <li class="nav-subhead">claude-md-management</li>
+          <li><a href="#SM-01" data-target="SM-01">/revise-claude-md</a></li>
+          <li><a href="#SM-02" data-target="SM-02">claude-md-improver</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-cat" data-target="sec-builtin"><span class="tab alt"></span>組み込みSkills<span class="count">(15)</span></button>
+        <ul class="nav-items">
+          <li><a href="#BLT-01" data-target="BLT-01">dataviz</a></li>
+          <li><a href="#BLT-02" data-target="BLT-02">artifact-design</a></li>
+          <li><a href="#BLT-03" data-target="BLT-03">artifact-capabilities</a></li>
+          <li><a href="#BLT-04" data-target="BLT-04">update-config</a></li>
+          <li><a href="#BLT-05" data-target="BLT-05">keybindings-help</a></li>
+          <li><a href="#BLT-06" data-target="BLT-06">simplify</a></li>
+          <li><a href="#BLT-07" data-target="BLT-07">fewer-permission-prompts</a></li>
+          <li><a href="#BLT-08" data-target="BLT-08">loop</a></li>
+          <li><a href="#BLT-09" data-target="BLT-09">schedule</a></li>
+          <li><a href="#BLT-10" data-target="BLT-10">claude-api</a></li>
+          <li><a href="#BLT-11" data-target="BLT-11">claude-in-chrome</a></li>
+          <li><a href="#BLT-12" data-target="BLT-12">run</a></li>
+          <li><a href="#BLT-13" data-target="BLT-13">init</a></li>
+          <li><a href="#BLT-14" data-target="BLT-14">review</a></li>
+          <li><a href="#BLT-15" data-target="BLT-15">security-review</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-cat" data-target="sec-mcp"><span class="tab"></span>MCP連携<span class="count">(1)</span></button>
+        <ul class="nav-items">
+          <li><a href="#MCP-01" data-target="MCP-01">context7</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-cat" data-target="sec-assets"><span class="tab alt"></span>Assets<span class="count">(1)</span></button>
+        <ul class="nav-items">
+          <li><a href="#AST-01" data-target="AST-01">report-light テンプレート</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-empty" id="navEmpty">一致する項目がありません</div>
+    </div>
+  </nav>
+
+  <div class="overlay" id="overlay"></div>
+
+  <main class="content" id="content">
+
+    <p class="cards-empty" id="cardsEmpty" hidden>該当する項目がありません。検索語を変えてお試しください。</p>
+
+    <section class="section" id="sec-intro">
+      <h2>はじめに</h2>
+      <div class="prose">
+        <p><code>~/.claude</code>（実体は <code>/home/asama/.claude</code>）は、Claude Code の全プロジェクト共通の設定フォルダである。グローバル指示（<code>CLAUDE.md</code>）・権限とフックの設定（<code>settings.json</code>）・破壊的操作を防ぐガードスクリプト（<code>hooks/</code>）・タスクごとに使い分けるサブエージェント定義（<code>agents/</code>）・自作の補助スキル（<code>skills/</code>）・有効化済みの公式プラグイン（<code>plugins/</code>）・HTML成果物の流用元テンプレート（<code>assets/</code>）が置かれており、Claude Code の挙動そのものを規定している。</p>
+        <p>本ガイドは、このフォルダの中身を「用語集」「カタログ」として引くための自己完結 HTML である。Claude Code を操作しながら別タブで開き、「この agent / skill / hook は何のためにあり、いつ使われるか」を検索・ナビで素早く参照する用途を想定している。アーキテクチャ全体の設計思想・構成要素間の関係を解説する文書ではない（それは別文書 <code>claude-config-architecture.html</code> の役割であり、本ガイドとは目的が異なる）。</p>
+        <p>使い方: 左ペイン上部の検索ボックスに名前や説明文の一部を入力すると、一致しない項目が左ナビ・右のカード双方から絞り込まれる。左ナビの項目をクリックすると右側の該当カードへスムーズスクロールし、スクロール中は現在地のナビ項目が自動でハイライトされる。狭い画面では左ナビは左上の「☰ 目次」ボタンで開閉するオーバーレイに切り替わる。</p>
+      </div>
+    </section>
+
+    <section class="section" id="sec-dirmap">
+      <h2>ディレクトリ全体マップ</h2>
+      <p class="section-lede"><code>/home/asama/.claude</code> 直下の一覧（<code>ls -la</code> 確認済み）。個別に触れるもの → 各セクションへのリンクつき。ランタイム専用ディレクトリは触らなくてよい。</p>
+      <div class="tree">.claude/
+├─ <span class="lbl">agents/</span>                 サブエージェント定義13種 + references/（共通参照資料）→ Agents節
+├─ <span class="lbl">assets/</span>                 HTML流用テンプレート置き場（html-templates/）→ Assets節
+├─ <span class="lbl">hooks/</span>                  PreToolUseガードスクリプト4本 → Hooks節
+├─ <span class="lbl">rules/</span>                  現状空（未使用）
+├─ <span class="lbl">skills/</span>                 ローカルSkill 3種 → ローカルSkills節
+├─ <span class="lbl">plugins/</span>                プラグイン本体・キャッシュ・有効化状態
+│                       （cache/・marketplaces/・installed_plugins.json 等。
+│                        Claude Code 自身が管理し手動編集しない）
+├─ <span class="lbl">CLAUDE.md</span>               グローバル指示 → CFG-01
+├─ <span class="lbl">settings.json</span>           権限・フック・モデル等の設定 → CFG-02
+├─ <span class="lbl">settings.local.json</span>     ローカル上書き設定（現状空） → CFG-03
+└─ <span class="lbl">statusline-command.sh</span>   ステータスライン表示コマンド → CFG-04
+
+<span class="dim">（以下はいずれも Claude Code 実行時に自動生成・管理されるランタイム専用ディレクトリ。
+ セッション履歴・一時ファイル・バックアップ・ジョブキュー等であり、手動で参照・編集する必要はない）
+ backups/ cache/ commands/(空) daemon/ debug/ downloads/ file-history/
+ jobs/ logs/ paste-cache/ plans/ projects/ remote/ session-env/
+ sessions/ shell-snapshots/ tasks/
+ （ほか .credentials.json・daemon.log・history.jsonl・stats-cache.json 等の
+  実行時ファイルも直下にあるが同様に対象外）</span></div>
+    </section>
+
+    <section class="section" id="sec-cfg">
+      <h2><span class="tab"></span>設定ファイル</h2>
+      <div class="cards">
+
+        <article class="card" id="CFG-01">
+          <span class="callno">CFG-01</span>
+          <h3 class="card-title">CLAUDE.md（グローバル）</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">全プロジェクトに適用されるグローバル指示。「理念」（根本解決・影響最小化・コンテキスト衛生）、「行動規範」（結論先行・即行動・進捗の実証・客観性・スコープ規律・境界・ターン終了・長時間運用・言語・再計画）、「確認と禁止」、「作業の進め方」（trivial / small / substantial の比例ルール表と手順）、「リファレンス」（エージェント一覧・スキル一覧）、「Hooks（enforcement の正典）」の構成。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 全セッションで常時適用される前提知識。動作方針に疑問が生じたらまずここを確認する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/CLAUDE.md</code></p>
+          <p class="card-related"><strong>関連:</strong> 比例ルール表は SKL-03（tdd-gates）と対応。Hooks 表は HK-01〜04 の実体と対応。</p>
+        </article>
+
+        <article class="card" id="CFG-02">
+          <span class="callno">CFG-02</span>
+          <h3 class="card-title">settings.json</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">トップレベルキーは <code>$schema, permissions, model, hooks, statusLine, enabledPlugins, effortLevel, tui, skipWorkflowUsageWarning, remoteControlAtStartup, inputNeededNotifEnabled, agentPushNotifEnabled, skipAutoPermissionPrompt</code>。<code>permissions</code> は <code>allow</code>/<code>deny</code>/<code>ask</code> の3リスト＋<code>defaultMode: "plan"</code>＋<code>disableBypassPermissionsMode: "disable"</code>。<code>deny</code> は秘密鍵・認証情報ファイルの読み書きと <code>/etc</code> 等システム領域への Edit を禁止。<code>ask</code> は <code>git push</code>/<code>git reset --hard</code> 等の破壊的 git 操作と、<code>hooks/</code>・<code>settings.json</code> 自体の編集を確認対象にする。<code>hooks.PreToolUse</code> は4フック（HK-01〜04）を登録。<code>model: "sonnet"</code>。<code>enabledPlugins</code> は5プラグインを有効化。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 権限・フック・モデル・有効プラグインの設定を確認・変更するとき。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/settings.json</code></p>
+          <p class="card-related"><strong>関連:</strong> <code>hooks</code> キーは HK-01〜04、<code>enabledPlugins</code> はプラグインSkillsセクションに対応。</p>
+        </article>
+
+        <article class="card" id="CFG-03">
+          <span class="callno">CFG-03</span>
+          <h3 class="card-title">settings.local.json</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">中身は <code>{}</code>（空オブジェクト）。<code>settings.json</code> の値をマシン・ユーザー固有に上書きするためのローカル設定ファイル。現状は上書き設定なしの空状態。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> そのマシン・ユーザー固有の一時的な権限追加等が必要になったとき。環境固有資産のため、設定管理リポジトリの同期対象からは除外される。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/settings.local.json</code></p>
+        </article>
+
+        <article class="card" id="CFG-04">
+          <span class="callno">CFG-04</span>
+          <h3 class="card-title">statusline-command.sh</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">ステータスライン表示用シェルスクリプト。<code>jq</code> で入力 JSON（cwd・モデル名・effort・コンテキスト使用率・git ブランチ・5時間/週次レート制限・累計コスト）を解析し、ディレクトリ・ブランチ（OSC8 でハイパーリンク化）・モデル/effort・コンテキスト使用率バー・レート制限バー（閾値で緑/黄/赤に色分けし、リセットまでの残り時間つき）・累計コストを1行に整形して出力する。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 直接使うことはない。<code>settings.json</code> の <code>statusLine.command</code> から自動的に呼ばれ、Claude Code 画面下部に常時表示される。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/statusline-command.sh</code></p>
+        </article>
+
+      </div>
+    </section>
+
+    <section class="section" id="sec-hooks">
+      <h2><span class="tab alt"></span>Hooks</h2>
+      <p class="section-lede">いずれも <code>PreToolUse</code> で発火する fail-close 設計（<code>jq</code> 不在時は解析不能として一律ブロック）。<code>settings.json</code> の <code>hooks.PreToolUse</code> で、<code>bash-guard.sh</code>/<code>venv-guard.sh</code> は Bash マッチャに、<code>workspace-guard.sh</code>/<code>main-branch-guard.sh</code> は <code>Write|Edit|MultiEdit|NotebookEdit|Bash</code> マッチャに登録されている。</p>
+      <div class="cards">
+
+        <article class="card" id="HK-01">
+          <span class="callno">HK-01</span>
+          <h3 class="card-title">bash-guard.sh</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">Bash 実行前ガード。ディスク破壊・強制再フォーマット（<code>dd</code>/<code>mkfs</code>）、権限破壊（<code>chmod 000</code> 等）、プロセス/システム停止（<code>kill -9 -1</code>・fork爆弾・<code>shutdown</code>系）、危険なリモート実行（<code>curl | bash</code>）、システムファイル破壊、DB破壊、グローバルパッケージのインストール/一括アンインストール、迂回削除（<code>find -delete</code>・<code>shutil.rmtree</code>・<code>rsync --delete</code>）、<code>.ssh</code>/シェル設定書き換え、機密ファイル（<code>.env</code>/秘密鍵等）の読み取りを正規表現でブロックする。クォート分割・バックスラッシュ・<code>${IFS}</code> 等の難読化は正規化して再判定する。<code>rm</code>/<code>rmdir</code>/<code>unlink</code>/<code>git rm</code> は、プロジェクト配下・<code>$CLAUDE_HOME</code> 配下・<code>/tmp</code> 配下の子要素のみ許可（各ゾーンのルート自体・変数展開やコマンド置換を含む対象は不許可）。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 常時自動発火（Bash ツール実行前）。ブロックされたら自分で回避せず、ユーザーに <code>! &lt;コマンド&gt;</code> 形式で実行を依頼する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/hooks/bash-guard.sh</code></p>
+        </article>
+
+        <article class="card" id="HK-02">
+          <span class="callno">HK-02</span>
+          <h3 class="card-title">venv-guard.sh</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">Bash 実行前ガード。<code>pip install</code>/<code>uninstall</code>・<code>python -m pip</code>・<code>uv add</code>/<code>uv pip install</code> が、<code>VIRTUAL_ENV</code> 未設定またはプロジェクト外の venv の場合にブロックする。venv バイナリを直接指定（<code>.venv/bin/pip install ...</code>）している場合は許可。<code>uv</code> 系はプロジェクト配下に <code>.venv</code> が存在するかで判定する。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 常時自動発火。venv 外へのグローバルインストールを防ぎたいとき。誤検知は文字列一致由来のため Read で回避する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/hooks/venv-guard.sh</code></p>
+        </article>
+
+        <article class="card" id="HK-03">
+          <span class="callno">HK-03</span>
+          <h3 class="card-title">workspace-guard.sh</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc"><code>Write</code>/<code>Edit</code>/<code>MultiEdit</code>/<code>NotebookEdit</code>/<code>Bash</code> への実行前ガード。書き込み許可ゾーンは「プロジェクト配下」「<code>~/.claude</code> 配下（<code>hooks/</code>・<code>settings.json</code> を含む。設定管理ワークフロー自体が編集を要するため自己防御なし）」「<code>/tmp/claude-*/</code> 配下（セッション用一時ディレクトリ）」の3つのみ。Bash では <code>/var/tmp</code> や <code>/tmp/claude-*/</code> 以外の <code>/tmp</code> 配下へのリダイレクト、および <code>cp</code>/<code>tee</code>/<code>mv</code>/<code>curl</code>/<code>wget</code> のプロジェクト外絶対パス宛先を保守的にブロックする（コマンド置換を含むセグメントは判定不能としてスルー）。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 常時自動発火。誤検知（grep 等の read-only コマンドが文字列中に <code>&gt; /var/tmp/</code> 等を含む場合）は Read ツールで回避する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/hooks/workspace-guard.sh</code></p>
+        </article>
+
+        <article class="card" id="HK-04">
+          <span class="callno">HK-04</span>
+          <h3 class="card-title">main-branch-guard.sh</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">main/master ブランチ上での <code>Write</code>/<code>Edit</code>/<code>MultiEdit</code>/<code>NotebookEdit</code>、および Bash の削除・変更系コマンド（<code>rm</code>/<code>rmdir</code>/<code>unlink</code>/<code>git rm</code>/<code>git commit</code>/リダイレクト書き込み/<code>tee</code>/<code>cp</code>/<code>mv</code>/<code>touch</code>/<code>sed -i</code> 等）をブロックする。対象ファイルの git ブランチ（Write/Edit系）または cwd の git ブランチ（Bash系）が main/master ならブロック。<code>git status</code>/<code>cat</code>/<code>ls</code>/<code>grep</code> 等の読み取り専用コマンドは対象外。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 常時自動発火。ブロックされたら <code>git checkout -b &lt;branch&gt;</code> でブランチを作成してから再試行する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/hooks/main-branch-guard.sh</code></p>
+        </article>
+
+      </div>
+    </section>
+
+    <section class="section" id="sec-agents">
+      <h2><span class="tab"></span>Agents</h2>
+      <div class="cards">
+
+        <article class="card" id="AG-01">
+          <span class="callno">AG-01</span>
+          <h3 class="card-title">dev-python</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">Python 開発の専門家。コーディングスタイル・設計パターン・イディオムを担当。PEP 8・全関数への型アノテーション・Google スタイル docstring（日本語）・KISS/DRY/YAGNI・モジュール境界を越えるデータのイミュータビリティ・black/isort/ruff/darglint によるフォーマット/リントを規定する。詳細パターン（型ヒント・FastAPI・REST API 設計・pytest 作法）は <code>references/python/</code> 配下にオンデマンド分離。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> Python コードを新規実装・リファクタリングするとき。汎用 <code>claude</code> エージェントで代替しない。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/dev-python.md</code></p>
+        </article>
+
+        <article class="card" id="AG-02">
+          <span class="callno">AG-02</span>
+          <h3 class="card-title">doc-updater</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">ドキュメントの新規作成・構成設計と、既存ドキュメントの同期更新を担う専門家。人間向けドキュメント（システム概要・運用手順・設計文書）の設計→執筆、README・ガイドのソース同期を担当する。事実は必ずソースから取得し推測で書かない（不発明制約：根拠のない数値は「未規定」と明示）。タスク種別に応じ <code>references/doc/</code> 配下（source-sync / design / writing / verify / html）を必要時にオンデマンドで Read する。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> ドキュメントの新規整備・構成設計・既存 README/ガイド/API 仕様の更新のいずれでも積極的に活用。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/doc-updater.md</code></p>
+          <p class="card-related"><strong>関連:</strong> 整合確認は AG-03（doc-verifier）、構成・可読性確認は AG-06（review-doc-readability）に委譲する（自分では確定させない）。</p>
+        </article>
+
+        <article class="card" id="AG-03">
+          <span class="callno">AG-03</span>
+          <h3 class="card-title">doc-verifier</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">人間向けドキュメントの整合確認（記載事実 vs ソースコード）を、執筆者と別コンテキストで採点する専門家。文書から検証可能な事実（定数・閾値・ログメッセージ・CLI オプション・スキーマ等）を抽出し、<code>grep</code> 等でソースと1件ずつ照合して ✓/不一致で報告する。<code>Write</code>/<code>Edit</code> を持たないのは意図的で、自己承認を排除するため修正はしない（report 専用）。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> doc-updater または trivial-executor のドキュメント執筆・更新の後、Main から起動される。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/doc-verifier.md</code></p>
+        </article>
+
+        <article class="card" id="AG-04">
+          <span class="callno">AG-04</span>
+          <h3 class="card-title">planner</h3>
+          <span class="card-model">モデル: opus</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">複雑な機能実装・アーキテクチャ変更・複雑なリファクタリングの計画専門家。要件分析→アーキテクチャレビュー→ステップ分解→実装順序の決定に加え、非自明な設計判断はメリット/デメリット/代替案/決定を文書化する。フェーズ分割（最小限の価値→コア体験→エッジケース→最適化）も担当。読取専用ツールのみを持ち、最終計画は Main が組む前提の素材提供役。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 機能実装・アーキテクチャ変更・複雑なリファクタリングのリクエスト時に自動的に起動する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/planner.md</code></p>
+        </article>
+
+        <article class="card" id="AG-05">
+          <span class="callno">AG-05</span>
+          <h3 class="card-title">review-correctness</h3>
+          <span class="card-model">モデル: opus</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">正確性・バグ検出に特化したレビュアー。冪等性の破壊・記録前の破壊的操作・トランザクション境界・TOCTOU（CRITICAL）、条件式の誤り・オフバイワン・例外の握り潰し・リソースリーク（HIGH）、境界値・並行/再入（MEDIUM）を検査する。バグ・ロジックの正しさのみ担当し性能・セキュリティは担当外。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> substantial なコード変更後。他の review-* と Main が並列起動する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/review-correctness.md</code></p>
+        </article>
+
+        <article class="card" id="AG-06">
+          <span class="callno">AG-06</span>
+          <h3 class="card-title">review-doc-readability</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">人間向け Markdown 文書の構成・可読性を、執筆者と別コンテキストで採点する専門家。要約先出し・段落設計・箇条書きvs散文・表vs図vs本文・見出し階層・読者適合の6観点を ✓/要改善で判定する。記載事実がソースと一致するかは AG-03（doc-verifier）の担当で本エージェントは扱わない。対象は Markdown のみ（HTML成果物の視覚デザインは対象外）。修正はしない（report 専用）。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> doc-updater/trivial-executor の執筆・更新の後、Main から doc-verifier と並列起動される。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/review-doc-readability.md</code></p>
+        </article>
+
+        <article class="card" id="AG-07">
+          <span class="callno">AG-07</span>
+          <h3 class="card-title">review-maintainability</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">保守性・読みやすさとドキュメント整合性（docstring・CLAUDE.md・仕様書との一致）に特化したレビュアー。関数50行超/ファイル800行超/ネスト4レベル超という数値基準の単一の真実源を持つ（dev-python・planner 等はここを参照する）。命名・DRY/YAGNI・型ヒント・docstring品質・デッドコードも検査し、CLAUDE.md/仕様書の更新要否をサマリーに追加する唯一の reviewer。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> substantial なコード変更後、他の review-* と並列起動。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/review-maintainability.md</code></p>
+        </article>
+
+        <article class="card" id="AG-08">
+          <span class="callno">AG-08</span>
+          <h3 class="card-title">review-performance</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">性能特化のレビュアー。全件メモリ保持・N+1/ループ内 I/O・大量書き込みの非効率（CRITICAL）、計算量の悪化・メモリ効率・DB/I/O 最適化（HIGH）、並列処理効率（MEDIUM）を検査する。アルゴリズム計算量・メモリ使用量・DB I/O 効率・データフレーム最適化・並列処理のみ担当。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> substantial なコード変更後、他の review-* と並列起動。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/review-performance.md</code></p>
+        </article>
+
+        <article class="card" id="AG-09">
+          <span class="callno">AG-09</span>
+          <h3 class="card-title">review-security</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">セキュリティ特化のレビュアー。ハードコードされた認証情報・インジェクション・機密のログ出力（CRITICAL）、パストラバーサル・入力検証の欠如・認可の欠落（HIGH）、エラー詳細の漏洩（MEDIUM）を検査する。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> substantial なコード変更後、他の review-* と並列起動。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/review-security.md</code></p>
+        </article>
+
+        <article class="card" id="AG-10">
+          <span class="callno">AG-10</span>
+          <h3 class="card-title">review-test</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">テスト品質・要件適合に特化したレビュアー。常に PASS するテスト・仕様との乖離（CRITICAL）、新規コードパス未テスト・実装詳細への依存（HIGH）、時刻/環境依存（MEDIUM）を検査する。カバレッジ影響をサマリーに追加する。仕様書更新要否の提案は AG-07（review-maintainability）に一元化されているため出さない。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> substantial なコード変更後、他の review-* と並列起動。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/review-test.md</code></p>
+        </article>
+
+        <article class="card" id="AG-11">
+          <span class="callno">AG-11</span>
+          <h3 class="card-title">tdd-evaluator</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">tdd-gates（品質規律レイヤー）の Evaluator（採点役）。CP-A〜F 全チェックポイントの採点を担う——CP-A/B は brainstorming/writing-plans の文書を敵対的に検査、CP-C は実装者の報告を自ら再実行して検証、CP-D は review-*5本の所見を集約しミューテーション検証込みで最終スコアカード化、CP-E は CI 定義の被覆を採点する。0〜3点採点＋Critical即FAIL判定。自分ではコードを書かず、Bash は検証専用（ファイルを変更するコマンドは使わない）。TDD 文脈外でも単独起動して汎用スコアードレビュアーとして使える。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> tdd-gates の採点全般、またはレビュー単独で起動したいとき。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/tdd-evaluator.md</code></p>
+        </article>
+
+        <article class="card" id="AG-12">
+          <span class="callno">AG-12</span>
+          <h3 class="card-title">tdd-implementer</h3>
+          <span class="card-model">モデル: sonnet</span>
+          <div class="card-rule"></div>
+          <p class="card-desc"><code>superpowers:subagent-driven-development</code>（または <code>executing-plans</code>）から起動される implementer サブエージェント。<code>superpowers:test-driven-development</code> の RED→GREEN→REFACTOR 規律を強制するペルソナとして1タスク分のテストと実装を書く。採点はしない（採点は別コンテキストの AG-11 tdd-evaluator が行う）。汎用 general-purpose subagent の代わりに implementer 役として使う。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> tdd-gates/SDD のタスク実行フェーズで自動起動される。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/tdd-implementer.md</code></p>
+        </article>
+
+        <article class="card" id="AG-13">
+          <span class="callno">AG-13</span>
+          <h3 class="card-title">trivial-executor</h3>
+          <span class="card-model">モデル: haiku</span>
+          <div class="card-rule"></div>
+          <p class="card-desc">trivial 変更（数行・既存パターン踏襲・テスト不要）の軽量実行担当。設定/ドキュメント/コメント/明白な誤記の修正、事前確定した機械的編集を一括処理する。対象外（新規ロジック・非自明なバグ修正・公開IF変更・設計判断が要るもの）と気づいたら、勝手に進めずその旨を報告して止まる。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 比例ルールの trivial ルートで Main から一括委任されるとき。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/trivial-executor.md</code></p>
+          <p class="card-related"><strong>関連:</strong> doc 編集後は AG-03（doc-verifier）で整合確認する。</p>
+        </article>
+
+        <article class="card" id="AG-REF">
+          <span class="callno">AG-REF</span>
+          <h3 class="card-title">共通参照資料（agents/references/）</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">各エージェント本体には中核ロジックのみを置き、詳細パターン・例集・共通手順はオンデマンド参照ファイルとして <code>agents/references/</code> 配下に分離している。内訳は <code>planner.md</code>（ADRテンプレート・詳細計画例／AG-04用）、<code>review.md</code>（review-*5本の共通レビュー手順／AG-05・07〜10用）、<code>doc/source-sync.md</code>・<code>design.md</code>・<code>writing.md</code>・<code>verify.md</code>・<code>html.md</code>（doc-updater・doc-verifierのフェーズ別詳細／AG-02・03・06用）、<code>python/style.md</code>・<code>fastapi.md</code>・<code>rest-api.md</code>・<code>testing.md</code>（dev-python・tdd-implementerのフレームワーク別詳細／AG-01・12用）の計11ファイル。エージェント定義そのものではなく個別カード化しない。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 該当エージェントが該当タスクに着手する際、本体から必要時にオンデマンドで Read する（全部を事前ロードしない）。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/agents/references/</code></p>
+        </article>
+
+      </div>
+    </section>
+
+    <section class="section" id="sec-skl">
+      <h2><span class="tab alt"></span>ローカルSkills</h2>
+      <div class="cards">
+
+        <article class="card" id="SKL-01">
+          <span class="callno">SKL-01</span>
+          <h3 class="card-title">codemap-python</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">Python コードを人間がレビューする準備として、処理フロー（エントリポイントから終わりまでの実行の流れ）を一本道で読み下せる HTML レポート一式（インデックス＋フローページ群）を生成するスキル。呼び出し先のコードをモジュール境界を越えて呼び出し箇所にその場でネスト展開し、1行ごとの解説＋具体的な動作例を添える。仕様書/要件との対応表も同じレポートに含む。バグ判定はしない（判定は review-correctness 等の役割）。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 「このコードを初めて読むので地図がほしい」「PR/diffのレビュー準備をして」「処理の流れを追いたい」「構造を整理して」等の発言時。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/skills/codemap-python/SKILL.md</code></p>
+        </article>
+
+        <article class="card" id="SKL-02">
+          <span class="callno">SKL-02</span>
+          <h3 class="card-title">html-template-import</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">既存の HTML ドキュメントを流用元ライブラリ（<code>~/.claude/assets/html-templates/</code>）へ取り込むスキル。HTML を解析してトーン（dark/light）・レイアウト種別を要約し、<code>&lt;内容&gt;-&lt;トーン&gt;.html</code> の規約名でコピーし、カタログ <code>INDEX.md</code> に1行登録する。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 「このHTMLをテンプレとして保存」「既存のHTMLを流用元に取り込んで」「作ったHTMLを再利用できるように登録」等の発言時。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/skills/html-template-import/SKILL.md</code></p>
+          <p class="card-related"><strong>関連:</strong> AST-01（Assets：report-light テンプレート）はこのスキルで登録されたもの。</p>
+        </article>
+
+        <article class="card" id="SKL-03">
+          <span class="callno">SKL-03</span>
+          <h3 class="card-title">tdd-gates</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">superpowers のスキルチェーン（brainstorming→writing-plans→subagent-driven-development/executing-plans→finishing-a-development-branch）に上乗せする品質規律レイヤー。CP-A〜F のチェックポイントと、Critical即FAIL＋証拠要求の採点語彙をチェーンの各ステップに差し込む。自前の駆動ループは持たず、既存チェーンに寄生する薄いレイヤー。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 「TDDで実装して」「品質ゲートを回して」「新機能を実装して（テスト付きで）」等の発言時、substantial なコード変更の着手時に積極起動する。trivial は使わず AG-13（trivial-executor）に一括委任する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/skills/tdd-gates/SKILL.md</code></p>
+          <p class="card-related"><strong>関連:</strong> AG-11（tdd-evaluator）・AG-12（tdd-implementer）を駆動する。</p>
+        </article>
+
+      </div>
+    </section>
+
+    <section class="section" id="sec-plugins">
+      <h2><span class="tab"></span>プラグインSkills</h2>
+      <p class="section-lede">有効化済みプラグイン5本（<code>settings.json</code> の <code>enabledPlugins</code>）が提供するスキル群・スラッシュコマンド。実体はキャッシュ配下 <code>~/.claude/plugins/cache/claude-plugins-official/&lt;プラグイン名&gt;/&lt;バージョン&gt;/skills/&lt;スキル名&gt;/SKILL.md</code>。</p>
+
+      <h3 style="font-family:var(--serif);font-size:16px;margin:0 0 10px;">superpowers</h3>
+      <p class="section-lede">バージョンディレクトリが複数（<code>6.1.1</code>・<code>6.2.0</code> 等）併存しており、有効化・使用バージョンの解決は <code>settings.json</code> の <code>enabledPlugins</code> と Claude Code 本体側の管理による（本ガイド作成時点でどちらが実際に使われているかは未規定）。</p>
+      <div class="cards">
+
+        <article class="card" id="SP-01">
+          <span class="callno">SP-01</span>
+          <h3 class="card-title">brainstorming</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">アイデアを設計に発展させる対話型スキル。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 実装前に必須。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/brainstorming/</code></p>
+        </article>
+
+        <article class="card" id="SP-02">
+          <span class="callno">SP-02</span>
+          <h3 class="card-title">dispatching-parallel-agents</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">独立したタスクをサブエージェントへ並行に振り分ける手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 独立した2つ以上のタスクを並行処理する時に使用。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/dispatching-parallel-agents/</code></p>
+        </article>
+
+        <article class="card" id="SP-03">
+          <span class="callno">SP-03</span>
+          <h3 class="card-title">executing-plans</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">別セッションで書かれた実装計画を、レビューチェックポイントつきで実行する手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> レビューチェックポイント付きで別セッションの実装計画を実行する時。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/executing-plans/</code></p>
+        </article>
+
+        <article class="card" id="SP-04">
+          <span class="callno">SP-04</span>
+          <h3 class="card-title">finishing-a-development-branch</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">実装完了後の開発ブランチの統合方法を決定する手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 実装完了・テスト通過後の統合方法決定。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/finishing-a-development-branch/</code></p>
+        </article>
+
+        <article class="card" id="SP-05">
+          <span class="callno">SP-05</span>
+          <h3 class="card-title">receiving-code-review</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">受け取ったレビュー指摘を鵜呑みにせず技術的に検証する手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> レビュー指摘を受けた時、鵜呑みにせず技術的に検証する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/receiving-code-review/</code></p>
+        </article>
+
+        <article class="card" id="SP-06">
+          <span class="callno">SP-06</span>
+          <h3 class="card-title">requesting-code-review</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">要件充足を確認するためのコードレビュー依頼手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> タスク完了時・大機能実装時・マージ前の要件充足確認。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/requesting-code-review/</code></p>
+        </article>
+
+        <article class="card" id="SP-07">
+          <span class="callno">SP-07</span>
+          <h3 class="card-title">subagent-driven-development</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">現在のセッション内でサブエージェントに実装計画を分担実行させる手順（SDD）。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 現在のセッション内で独立タスクの実装計画を実行。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/subagent-driven-development/</code></p>
+          <p class="card-related"><strong>関連:</strong> SKL-03（tdd-gates）がこのチェーンに寄生する。</p>
+        </article>
+
+        <article class="card" id="SP-08">
+          <span class="callno">SP-08</span>
+          <h3 class="card-title">systematic-debugging</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">バグ・テスト失敗・想定外挙動を体系的に切り分けるデバッグ手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> バグ・テスト失敗・想定外挙動に遭遇したら修正提案前に使用。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/systematic-debugging/</code></p>
+        </article>
+
+        <article class="card" id="SP-09">
+          <span class="callno">SP-09</span>
+          <h3 class="card-title">test-driven-development</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">RED→GREEN→REFACTOR の TDD 実行手順の正典。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 機能/バグ修正の実装前、実装コードを書く前に使用。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/test-driven-development/</code></p>
+          <p class="card-related"><strong>関連:</strong> AG-12（tdd-implementer）が実行手順としてこのスキルに従う。</p>
+        </article>
+
+        <article class="card" id="SP-10">
+          <span class="callno">SP-10</span>
+          <h3 class="card-title">using-git-worktrees</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">現ワークスペースから隔離した git worktree で作業する手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 現ワークスペースから隔離された作業が必要な機能開発の開始時。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/using-git-worktrees/</code></p>
+        </article>
+
+        <article class="card" id="SP-11">
+          <span class="callno">SP-11</span>
+          <h3 class="card-title">using-superpowers</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">superpowers 配下のスキルの発見と使用方法を確立する入口スキル。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 会話開始時に必須、スキルの発見と使用方法を確立。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/using-superpowers/</code></p>
+        </article>
+
+        <article class="card" id="SP-12">
+          <span class="callno">SP-12</span>
+          <h3 class="card-title">verification-before-completion</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">完了・修正済み・通過の主張前に検証コマンドを実行することを強制する手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 完了・修正済み・通過と主張する前に検証コマンドを実行。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/verification-before-completion/</code></p>
+        </article>
+
+        <article class="card" id="SP-13">
+          <span class="callno">SP-13</span>
+          <h3 class="card-title">writing-plans</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">仕様・要件が揃った複数ステップタスクの実装計画を書く手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 仕様や要件が揃った複数ステップタスクをコードに触る前に計画する時。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/writing-plans/</code></p>
+        </article>
+
+        <article class="card" id="SP-14">
+          <span class="callno">SP-14</span>
+          <h3 class="card-title">writing-skills</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">新しいスキルの作成・既存スキルの編集を、プロセス文書に対する TDD として行う手順。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 新しいスキルを作成するとき、既存スキルを編集するとき、デプロイ前にスキルの動作を検証するとき。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/superpowers/&lt;version&gt;/skills/writing-skills/</code></p>
+          <p class="card-related"><strong>関連:</strong> SC-01（skill-creator）もスキル新規作成・改善を担うが、こちらは superpowers チェーン側の手順。</p>
+        </article>
+
+      </div>
+
+      <h3 style="font-family:var(--serif);font-size:16px;margin:32px 0 10px;">frontend-design</h3>
+      <div class="cards">
+        <article class="card" id="SF-01">
+          <span class="callno">SF-01</span>
+          <h3 class="card-title">frontend-design</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">新規UI構築・既存UIの見た目刷新の際の審美的方向性・タイポグラフィ・独自性のあるデザイン判断のガイダンス。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> UI・Webページ・HTML成果物・スライド等をデザイン・生成・変更するとき（CLAUDE.mdで必須使用と規定されている）。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/frontend-design/unknown/skills/frontend-design/</code></p>
+        </article>
+      </div>
+
+      <h3 style="font-family:var(--serif);font-size:16px;margin:32px 0 10px;">skill-creator</h3>
+      <div class="cards">
+        <article class="card" id="SC-01">
+          <span class="callno">SC-01</span>
+          <h3 class="card-title">skill-creator</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">スキルの新規作成・既存スキルの編集/改善・スキル性能の評価。ゼロからのスキル作成、評価実行、スキル説明文の最適化に使用。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 新しいスキルを作る、既存スキルを直す/評価するとき。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/skill-creator/unknown/skills/skill-creator/</code></p>
+        </article>
+      </div>
+
+      <h3 style="font-family:var(--serif);font-size:16px;margin:32px 0 10px;">claude-md-management</h3>
+      <div class="cards">
+
+        <article class="card" id="SM-01">
+          <span class="callno">SM-01</span>
+          <h3 class="card-title">/revise-claude-md</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体はスキルではなくスラッシュコマンド（<code>commands/revise-claude-md.md</code>、<code>allowed-tools: Read, Edit, Glob</code>）。同プラグイン配下に Skill としての実体は無い。</p>
+          <p class="card-desc">このセッションで得た学び（使用した/発見したBashコマンド・コードスタイル・テスト手法・環境固有の癖・注意点）をレビューし、CLAUDE.md を更新する。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> このセッションで得た学びを CLAUDE.md に反映・更新したいとき。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0/commands/revise-claude-md.md</code></p>
+        </article>
+
+        <article class="card" id="SM-02">
+          <span class="callno">SM-02</span>
+          <h3 class="card-title">claude-md-improver</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc">リポジトリ内の CLAUDE.md を監査・改善する Skill。CLAUDE.md ファイルをすべて走査し、テンプレートと照合して品質評価レポートを出力したうえで、対象箇所を更新する。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> CLAUDE.md のチェック・監査・更新・改善を依頼された時。「CLAUDE.md maintenance」「project memory optimization」等の言及時も対象。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0/skills/claude-md-improver/SKILL.md</code></p>
+        </article>
+
+      </div>
+    </section>
+
+    <section class="section" id="sec-builtin">
+      <h2><span class="tab alt"></span>組み込みSkills</h2>
+      <p class="section-lede"><code>~/.claude</code> にファイル実体は無く、いずれも Claude Code 本体が提供する機能（各カードにもその旨を明記）。</p>
+      <div class="cards">
+
+        <article class="card" id="BLT-01">
+          <span class="callno">BLT-01</span>
+          <h3 class="card-title">dataviz</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">チャート・グラフ・ダッシュボード等データ可視化を作る前に必ず使用。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> データ可視化を作成する前。</p>
+        </article>
+
+        <article class="card" id="BLT-02">
+          <span class="callno">BLT-02</span>
+          <h3 class="card-title">artifact-design</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">Artifact作成時のデザイン指針。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> Artifact を作成するとき。</p>
+        </article>
+
+        <article class="card" id="BLT-03">
+          <span class="callno">BLT-03</span>
+          <h3 class="card-title">artifact-capabilities</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">公開Artifactページに付与できるランタイム機能。ライブデータ・共有状態・自己更新など。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 公開 Artifact にランタイム機能を持たせたいとき。</p>
+        </article>
+
+        <article class="card" id="BLT-04">
+          <span class="callno">BLT-04</span>
+          <h3 class="card-title">update-config</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">settings.json/settings.local.jsonの設定変更、フック設定、権限設定、環境変数設定。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> CFG-02/03 やフック・権限・環境変数を変更したいとき。</p>
+          <p class="card-related"><strong>関連:</strong> CFG-02（settings.json）・CFG-03（settings.local.json）。</p>
+        </article>
+
+        <article class="card" id="BLT-05">
+          <span class="callno">BLT-05</span>
+          <h3 class="card-title">keybindings-help</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">キーボードショートカットのカスタマイズ・再割り当て。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> ショートカットを変更・確認したいとき。</p>
+        </article>
+
+        <article class="card" id="BLT-06">
+          <span class="callno">BLT-06</span>
+          <h3 class="card-title">simplify</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">変更したコードの再利用性・簡潔性・効率のレビューと適用。バグ探しはしない。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 変更コードの簡潔化を図りたいとき（バグ探しの用途ではない）。</p>
+        </article>
+
+        <article class="card" id="BLT-07">
+          <span class="callno">BLT-07</span>
+          <h3 class="card-title">fewer-permission-prompts</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">トランスクリプトを走査し許可プロンプトを減らすallowlistを追加。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 同じ確認プロンプトを繰り返し求められて煩わしいとき。</p>
+        </article>
+
+        <article class="card" id="BLT-08">
+          <span class="callno">BLT-08</span>
+          <h3 class="card-title">loop</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">プロンプトやスラッシュコマンドを一定間隔で繰り返し実行。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 同じ処理を定期的に繰り返したいとき。</p>
+        </article>
+
+        <article class="card" id="BLT-09">
+          <span class="callno">BLT-09</span>
+          <h3 class="card-title">schedule</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">cronスケジュールで動くクラウドエージェント/ルーティンの作成・管理。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 定期実行のクラウドルーティンを組みたいとき。</p>
+        </article>
+
+        <article class="card" id="BLT-10">
+          <span class="callno">BLT-10</span>
+          <h3 class="card-title">claude-api</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">Claude API/Anthropic SDKのモデルID・価格・パラメータ・ストリーミング・ツール利用・MCP・エージェント・キャッシュ等のリファレンス。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> Claude API/Anthropic SDK自体の仕様を調べたいとき。</p>
+          <p class="card-related"><strong>関連:</strong> ライブラリ・SDK一般の最新ドキュメントは MCP-01（context7）を使う。</p>
+        </article>
+
+        <article class="card" id="BLT-11">
+          <span class="callno">BLT-11</span>
+          <h3 class="card-title">claude-in-chrome</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">Chromeブラウザを自動操作。クリック・フォーム入力・スクリーンショット・コンソールログ読み取り。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> ブラウザ操作の自動化・動作確認が必要なとき。</p>
+        </article>
+
+        <article class="card" id="BLT-12">
+          <span class="callno">BLT-12</span>
+          <h3 class="card-title">run</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">プロジェクトのアプリを起動して動作確認・スクリーンショット撮影。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 実装したアプリの動作を実際に確認したいとき。</p>
+        </article>
+
+        <article class="card" id="BLT-13">
+          <span class="callno">BLT-13</span>
+          <h3 class="card-title">init</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">新規CLAUDE.mdの初期化・コードベースのドキュメント化。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> プロジェクトに CLAUDE.md がまだ無いとき。</p>
+        </article>
+
+        <article class="card" id="BLT-14">
+          <span class="callno">BLT-14</span>
+          <h3 class="card-title">review</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">GitHub Pull Requestのレビュー。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> GitHub上のPRをレビューしたいとき。</p>
+        </article>
+
+        <article class="card" id="BLT-15">
+          <span class="callno">BLT-15</span>
+          <h3 class="card-title">security-review</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: Claude Code 本体組み込み（~/.claude にファイルなし）</p>
+          <p class="card-desc">現在のブランチの保留中の変更に対するセキュリティレビュー。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> ブランチ上の未マージ変更をセキュリティ観点で点検したいとき。</p>
+          <p class="card-related"><strong>関連:</strong> コード差分の常設セキュリティレビューは AG-09（review-security）が担当。</p>
+        </article>
+
+      </div>
+    </section>
+
+    <section class="section" id="sec-mcp">
+      <h2><span class="tab"></span>MCP連携</h2>
+      <div class="cards">
+        <article class="card" id="MCP-01">
+          <span class="callno">MCP-01</span>
+          <h3 class="card-title">context7</h3>
+          <div class="card-rule"></div>
+          <p class="card-note">実体: <code>~/.claude</code> にファイルは無く、MCP サーバとして提供される。</p>
+          <p class="card-desc">ライブラリ・フレームワーク・SDK・API・CLI ツールに関する質問時に、記憶に頼らず最新ドキュメントを取得するための MCP 連携。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> ライブラリ・SDK・APIの質問時、<code>resolve-library-id</code> → <code>query-docs</code> の順で必ず使用する（CLAUDE.mdで必須指定）。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="sec-assets">
+      <h2><span class="tab alt"></span>Assets</h2>
+      <div class="cards">
+        <article class="card" id="AST-01">
+          <span class="callno">AST-01</span>
+          <h3 class="card-title">report-light テンプレート</h3>
+          <div class="card-rule"></div>
+          <p class="card-desc"><code>~/.claude/assets/html-templates/INDEX.md</code> が管理するカタログの現行エントリ。<code>report-light.html</code> は light・report 系（和風監査台帳）で、明朝体見出し＋「第一条」縦ラベル＋朱の検印スタンプ、カードグリッド、スクロール表、2枚組の凡例つき SVG 関係図、縦ライン式タイムライン＋各段アコーディオン（<code>details</code>）、末尾に用語集（<code>dl</code>・2カラム）という構造・CSS特徴を持つ。用途は構造監査・設計解説・多章立ての長文レポート。</p>
+          <p class="card-when"><strong>いつ使うか:</strong> 新規 HTML 成果物を作る前に doc-updater がまず <code>INDEX.md</code> を確認し、トーン・レイアウトが合致すればこのテンプレを流用する（Skill非依存で構造・CSSを土台に内容を差し替える）。合致するテンプレが無ければ frontend-design（SF-01）で新規デザインする。新しく作った HTML を再利用可能にしたい場合は SKL-02（html-template-import）でこのカタログへ登録する。</p>
+          <p class="card-path"><strong>path:</strong> <code>~/.claude/assets/html-templates/report-light.html</code>（カタログ: <code>~/.claude/assets/html-templates/INDEX.md</code>）</p>
+        </article>
+      </div>
+    </section>
+
+    <footer>
+      本ガイドは作成時点（2026-07-30）の構成に基づく。プラグインは <code>superpowers 6.2.0</code> 等、時間経過で内容がずれる可能性がある。実ファイルとの乖離に気づいた場合はソース（各 <code>*.md</code>／<code>settings.json</code>／<code>hooks/*.sh</code>）を直接確認すること。
+    </footer>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var searchInput = document.getElementById("searchInput");
+  var navScroll = document.getElementById("navScroll");
+  var navEmpty = document.getElementById("navEmpty");
+  var cardsEmpty = document.getElementById("cardsEmpty");
+  var navToggle = document.getElementById("navToggle");
+  var sidebar = document.getElementById("sidebar");
+  var overlay = document.getElementById("overlay");
+
+  var navGroups = Array.prototype.slice.call(navScroll.querySelectorAll(".nav-group"));
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".card"));
+
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* 画面に見えているテキスト（タイトル・説明文・いつ使うか・path等）を検索対象にする */
+  function visibleTextOf(id) {
+    var el = document.getElementById(id);
+    return el ? el.textContent.toLowerCase() : "";
+  }
+
+  /* ── 検索フィルタ（ナビ・カードとも「画面に見えているテキスト」に一致） ── */
+  function applyFilter() {
+    var q = searchInput.value.trim().toLowerCase();
+    var anyFilterableGroupVisible = false; // data-nofilter グループは判定対象外(はじめに/全体マップ)
+
+    navGroups.forEach(function (group) {
+      if (group.dataset.nofilter === "true") {
+        group.style.display = "";
+        return;
+      }
+      var items = Array.prototype.slice.call(group.querySelectorAll(".nav-items > li:not(.nav-subhead)"));
+      var subheads = Array.prototype.slice.call(group.querySelectorAll(".nav-items > li.nav-subhead"));
+      var groupHasMatch = false;
+      items.forEach(function (li) {
+        var link = li.querySelector("a[data-target]");
+        var targetId = link ? link.getAttribute("data-target") : null;
+        var text = targetId ? visibleTextOf(targetId) : (li.textContent || "").toLowerCase();
+        var match = !q || text.indexOf(q) !== -1;
+        li.style.display = match ? "" : "none";
+        if (match) groupHasMatch = true;
+      });
+      // サブ見出し(例: プラグイン名)は、配下に可視項目が1件も無ければ一緒に隠す
+      subheads.forEach(function (subhead) {
+        var hasVisibleSibling = false;
+        var sib = subhead.nextElementSibling;
+        while (sib && !sib.classList.contains("nav-subhead")) {
+          if (sib.style.display !== "none") { hasVisibleSibling = true; break; }
+          sib = sib.nextElementSibling;
+        }
+        subhead.style.display = hasVisibleSibling ? "" : "none";
+      });
+      group.style.display = groupHasMatch ? "" : "none";
+      if (groupHasMatch) anyFilterableGroupVisible = true;
+    });
+
+    var anyCardVisible = false;
+    cards.forEach(function (card) {
+      var text = card.textContent.toLowerCase();
+      var match = !q || text.indexOf(q) !== -1;
+      card.hidden = !match;
+      if (match) anyCardVisible = true;
+    });
+
+    navEmpty.style.display = (q && !anyFilterableGroupVisible) ? "block" : "none";
+    if (cardsEmpty) {
+      cardsEmpty.hidden = !(q && !anyCardVisible);
+    }
+  }
+
+  searchInput.addEventListener("input", applyFilter);
+
+  /* ── ナビクリックでスムーズスクロール ── */
+  function onNavClick(e) {
+    var el = e.currentTarget;
+    var targetId = el.getAttribute("data-target");
+    var target = document.getElementById(targetId);
+    if (!target) return;
+    e.preventDefault();
+    target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    if (window.innerWidth <= 760) {
+      closeSidebar();
+    }
+  }
+
+  Array.prototype.slice.call(navScroll.querySelectorAll("[data-target]")).forEach(function (el) {
+    el.addEventListener("click", onNavClick);
+  });
+
+  /* ── モバイル: サイドバー開閉 ── */
+  function openSidebar() {
+    sidebar.classList.add("open");
+    overlay.classList.add("show");
+    navToggle.setAttribute("aria-expanded", "true");
+  }
+  function closeSidebar() {
+    sidebar.classList.remove("open");
+    overlay.classList.remove("show");
+    navToggle.setAttribute("aria-expanded", "false");
+  }
+  navToggle.addEventListener("click", function () {
+    if (sidebar.classList.contains("open")) {
+      closeSidebar();
+    } else {
+      openSidebar();
+    }
+  });
+  overlay.addEventListener("click", closeSidebar);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && sidebar.classList.contains("open")) {
+      closeSidebar();
+      navToggle.focus();
+    }
+  });
+
+  /* ── スクロール位置に応じたナビハイライト ── */
+  var allNavLinks = Array.prototype.slice.call(navScroll.querySelectorAll("a[data-target], button.nav-cat[data-target]"));
+  var observedIds = [];
+  allNavLinks.forEach(function (link) {
+    var id = link.getAttribute("data-target");
+    if (observedIds.indexOf(id) === -1) observedIds.push(id);
+  });
+
+  var currentActive = null;
+  function setActive(id) {
+    if (id === currentActive) return;
+    currentActive = id;
+    allNavLinks.forEach(function (link) {
+      var isMatch = link.getAttribute("data-target") === id;
+      link.classList.toggle("active", isMatch);
+      if (isMatch) {
+        link.setAttribute("aria-current", "true");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+  }
+
+  if ("IntersectionObserver" in window) {
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            setActive(entry.target.id);
+          }
+        });
+      },
+      { root: null, rootMargin: "-35% 0px -55% 0px", threshold: 0 }
+    );
+    observedIds.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+  }
+
+  applyFilter();
+})();
+</script>
+
+</body>
+</html>
