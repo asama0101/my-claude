@@ -1,17 +1,22 @@
-# tdd-gates 軽量化設計（CP-C証拠取得の圧縮＋evaluatorモデル階層化）
+# tdd-gates 軽量化設計（CP-C証拠取得の圧縮＋evaluatorモデル階層化＋CP-D本数の条件付き化）
 
 ## 背景・動機
 
 `tdd-gates`（`~/.claude/skills/tdd-gates/`）はsuperpowersチェーン（brainstorming→writing-plans→SDD→finishing）に寄生する品質規律レイヤーで、CP-A〜Fの6チェックポイントを持つ。substantialなタスクでは全チェックポイントを通すため、トークン消費・所要時間（wall-clock）の両面で処理が重いという懸念がユーザーから提起された。
 
-構造を分析した結果、コストの主因はCP-Cにあると判断した。CP-A/B/Dは1回きりの実行だが、CP-Cは**SDDのタスク単位で繰り返される**。1タスクにつき`tdd-evaluator`が全体テストスイートを最大2回（GREEN確認・REFACTOR確認）自力再実行し、これがプラン内のタスク数だけ倍加する。さらに`tdd-evaluator`のモデルは`model: sonnet`に固定されており、タスクの複雑度に関わらず一律のモデル階層で評価が行われている。
+構造を分析した結果、コストの主因は2つある。
+
+1. **CP-C（SDDのタスク単位で繰り返される）**: CP-A/B/Dは1回きりの実行だが、CP-Cはタスクごとに走る。1タスクにつき`tdd-evaluator`が全体テストスイートを最大2回（GREEN確認・REFACTOR確認）自力再実行し、これがプラン内のタスク数だけ倍加する。さらに`tdd-evaluator`のモデルは`model: sonnet`に固定されており、タスクの複雑度に関わらず一律のモデル階層で評価が行われている。
+2. **CP-D（1回きりだが常に最大本数）**: 差分の性質（security/perf敏感かどうか）に関わらず、常に`review-*`5次元を並列起動している。CP-Bは既にsecurity/perf敏感かどうかを判定しているにもかかわらず、CP-Dはその判定結果を使わず一律5本を起動する。
 
 ## スコープ
 
-- **対象**: CP-C（および同じSDDタスクループに乗るCP-E）における証拠取得手順とevaluatorのモデル選択。
+- **対象**:
+  - CP-C（および同じSDDタスクループに乗るCP-E）における証拠取得手順とevaluatorのモデル選択。
+  - CP-Dにおける`review-*`起動本数（CP-Bのsecurity/perf敏感フラグに応じた条件付き化）。
 - **対象外**:
   - CP-A/B（1回きりの実行で乗数効果が無く、要件抜け漏れ検出という高度な判断を要するため現行モデル・現行証拠要件を維持）
-  - CP-D（「唯一の実レビュー層」として過去に意図的に現状維持と決定した経緯があり、本設計では変更しない）
+  - CP-Dの集約ロジック・ミューテーション検証義務（代表1件スモーク必須等）: 起動本数のみ条件付き化し、集約評価者(`tdd-evaluator`)の役割・証拠基準・Critical判定基準は変更しない。
   - 真の並列実行（タスクの並列dispatch）: `subagent-driven-development`が明示的に「Never dispatch multiple implementation subagents in parallel (conflicts)」と定めており、この制約はtdd-gates側の変更では解消できない。サブプロジェクト単位の分割によるworktree並列は別の大きな構造変更であり、本設計のスコープ外とする。
 
 ## 変更1: CP-C証拠取得の圧縮
@@ -43,25 +48,16 @@ evaluatorが自らgit diffを取得して空であることを独立に確認す
 
 ## 変更2: evaluatorモデル階層化
 
-CP-C（および同じタスクループに乗るCP-E）で`tdd-evaluator`をディスパッチする際、Mainが既に持っている情報（CP-Bのsmall-route判定・security/perf敏感フラグ）を使ってモデルを指定する。新たな判定ロジックは追加せず、既存の判定結果を再利用する。
+CP-C（および同じタスクループに乗るCP-E）で`tdd-evaluator`をディスパッチする際、Mainが既に持っている情報（CP-Bのsmall-route判定）を使ってモデルを指定する。新たな判定ロジックは追加せず、既存の判定結果を再利用する。2段階のみとし、security/perf敏感タスクへの特別な昇格は行わない（判断の複雑さに応じたモデル選定はsmall-route/非small-routeの二値で十分と判断）。
 
 | タスクの状態 | モデル | 理由 |
 |---|---|---|
 | CP-Bでsmall-route該当と判定済み（≤2ファイル・≤50行・公開IF不変・既存テスト被覆） | 廉価モデル（haiku） | 判断の複雑さが構造的に低いことをCP-Bが既に厳密に検証済み |
-| 上記以外の通常タスク | 現行のsonnet（変更なし） | 標準的な判断品質を維持 |
-| CP-Bでsecurity/perf敏感と印付けされたタスク | 上位モデル（opus） | 偽装テスト検知・assert骨抜き検知など繊細な判断が必要な場面でグレードを上げる |
-
-### 優先順位
-
-small-route該当かつsecurity/perf敏感の両方に該当するタスク（例: 差分は小さいが認証ロジックに触れる）は、security/perf敏感を優先し`opus`を指定する。
+| 上記以外の全タスク（security/perf敏感タスクを含む） | 現行のsonnet（変更なし） | 標準的な判断品質を維持。security/perf敏感タスクはCP-B・CP-Cのsecurity/perf追加レビュー起動（`task-evidence-addendum.md`差分5）で担保されるため、evaluator本体のモデルを上げる必要はない |
 
 ### 適用しないもの
 
-CP-A/B・CP-D（理由は「スコープ」節参照）。
-
-### トレードオフ
-
-small-routeタスクでの偽装テスト検知・assert骨抜き検知の精度が、廉価モデルにより理論上わずかに下がる可能性がある。ただしsmall-route自体が「既存テストが変更対象範囲を被覆」を要件としているため、そもそも新規assertの複雑度が低いタスクに限定される。
+CP-A/B（1回きりのため対象外）、CP-Dの集約評価者呼び出し（1回きりのため対象外・現行sonnet維持）。
 
 ### 影響ファイル
 
@@ -69,12 +65,33 @@ small-routeタスクでの偽装テスト検知・assert骨抜き検知の精度
 - `task-evidence-addendum.md`（`[MODEL]`プレースホルダの埋め方に階層化ルールへの参照を追加）
 - `ci-gate-task-template.md`（CP-Eが同じルールに乗ることを一言追記）
 
+## 変更3: CP-D起動本数の条件付き化
+
+CP-Dで`review-*`をディスパッチする際、CP-Bが既に判定済みのsecurity/perf敏感フラグを再利用し、起動本数を可変にする。
+
+- **常時起動（3本）**: `review-correctness`／`review-test`／`review-maintainability`。差分の性質を問わず必要な観点であるため据え置く。
+- **条件付き起動**: `review-security`（CP-Bでsecurity敏感と判定された場合のみ）／`review-performance`（CP-Bでperf敏感と判定された場合のみ）。
+
+CP-Bで両方とも非該当と判定されたタスクはCP-Dが3本、片方該当なら4本、両方該当なら従来通り5本になる。判定はCP-Bの既存フラグをそのまま参照するだけで、新たな基準は設けない。
+
+### 影響ファイル
+
+- `checkpoints.md`（CP-D「担当」行を条件付き起動の記述に修正）
+- `SKILL.md`（CP対応表のCP-D「担当」列を修正）
+- `final-scorecard-review-prompt.md`（起動本数が可変であることと、その根拠[CP-Bのフラグ]をMainがどう伝えるかを追記）
+- `tdd-evaluator.md`（「所見の充足チェック」節: 既定本数を「CP-D=5本固定」から「CP-D=CP-Bのフラグに基づく可変本数（3〜5本、Mainが起動時に指定した本数と照合）」に修正）
+
+### トレードオフ
+
+security/perfと無関係と判定された変更では、CP-Dの時点でsecurity/perf観点のレビューが一切通らない。ただしCP-B（計画段階）とCP-C（タスク単位、`task-evidence-addendum.md`差分5）でも同じフラグに基づく条件付きレビューが既に走っているため、正しく非該当と判定されている限り観点の欠落にはならない。CP-Bのsecurity/perf敏感判定そのものの精度が本設計全体の前提になる（既存の判定ロジックであり、本設計では変更しない）。
+
 ## 検証方針
 
 本設計はトークン数・所要時間を自動計測する仕組みを持たない。成功の判定基準は定性的なものとする。
 
 - タスクあたりのフルスイート再実行回数が、リファクタ差分の無いタスクで2回→1回に減っていること（`checkpoints.md`・`task-evidence-addendum.md`の記述で確認）。
 - small-routeタスクのCP-C evaluatorディスパッチが`haiku`を指定していること（実運用のディスパッチ例で確認）。
+- security/perf非該当タスクのCP-D起動本数が3本になっていること（実運用のディスパッチ例で確認）。
 - 既存のCritical即FAIL・証拠不信の原則（貼付ログ不信・自力再実行・ミューテーション検証義務）が一切緩んでいないこと。
 
 ## 実装上の注意（次工程への申し送り）
