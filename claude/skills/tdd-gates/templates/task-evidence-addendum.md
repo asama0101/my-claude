@@ -2,7 +2,7 @@
 
 **土台テンプレ**: `~/.claude/plugins/cache/claude-plugins-official/superpowers/6.2.0/skills/subagent-driven-development/task-reviewer-prompt.md`
 
-このファイルは土台テンプレの本文を複製しない。SDD（または executing-plans）が「### 3. Review the task」でディスパッチする task-reviewer プロンプトを、Main は土台テンプレを Read した上で以下の差分を適用してから `tdd-evaluator` に差し替えて渡す。
+このファイルは土台テンプレの本文を複製しない。SDDが「### 3. Review the task」でディスパッチする task-reviewer プロンプトを、Main は土台テンプレを Read した上で以下の差分を適用してから `tdd-evaluator` に差し替えて渡す。
 
 ## 適用手順
 
@@ -25,7 +25,7 @@
 
 > ## Tests（tdd-gates による上書き）
 >
-> 実装者（SDD implementer）が報告した RED 失敗ログ・GREEN 通過ログを、**そのままでは信用しない**。あなた（`tdd-evaluator`）自身が対象テストを Bash で再実行し、実際に失敗（RED 時点）・実際に通過（GREEN 時点）することを自分の目で確認する。再現できないログ、対象テストパスが申告と一致しないログは Critical 未達（0点）として扱う。実行コマンド・失敗/通過の判定基準は対象言語プロファイル（例 `references/profiles/pytest.md` の「Critical 証拠ルール」）に従う。
+> 実装者（SDD implementer）が報告した RED 失敗ログ・GREEN 通過ログを、**そのままでは信用しない**。あなた（`tdd-evaluator`）自身が対象テストを Bash で再実行し、実際に失敗（RED 時点）・実際に通過（GREEN 時点）することを自分の目で確認する。**RED は対象テストのみの再実行で足り、フルスイート実行は不要**。再現できないログ、対象テストパスが申告と一致しないログは Critical 未達（0点）として扱う。実行コマンド・失敗/通過の判定基準は対象言語プロファイル（例 `references/profiles/pytest.md` の「Critical 証拠ルール」）に従う。**REFACTOR確認**は、GREEN確定コミット〜現在HEADの`git diff`を自ら取得し、差分が空ならGREENの全緑結果を援用してフルスイート再実行を省略してよい。差分があれば通常通りテストファイル不変の確認＋フルスイート再実行を行う。
 
 ## 差分3: 追加セクション「assert 骨抜き検知」
 
@@ -55,6 +55,7 @@
 
 土台テンプレの `[MODEL]`・`[BRIEF_FILE]`・`[GLOBAL_CONSTRAINTS]`・`[REPORT_FILE]`・`[BASE_SHA]`・`[HEAD_SHA]`・`[DIFF_FILE]` に加えて:
 
+- `[MODEL]`: CP-Bのsmall-route判定結果に基づき指定する（small-route該当→`haiku`、それ以外→`sonnet`。判定ルールは`checkpoints.md`CP-C「evaluatorモデル階層化」を参照）
 - 対象言語プロファイルのパス（Critical 証拠ルールの参照先として必須明記）
 - テスト種別（unit/integration/e2e）の判定結果（CP-C 内 UI/UX 追加検査の要否に直結）
 - CP-B での security/perf 印付け結果（該当タスクのみ）

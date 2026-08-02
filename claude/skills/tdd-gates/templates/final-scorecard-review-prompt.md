@@ -2,19 +2,16 @@
 
 **土台テンプレ**: `~/.claude/plugins/cache/claude-plugins-official/superpowers/6.2.0/skills/requesting-code-review/code-reviewer.md`
 
-SDD の「## Final Review」は既定で `code-reviewer.md` を単独ディスパッチする。CP-D はこの単独ディスパッチを、**review-* 5本の並列起動 + `tdd-evaluator` 集約**に丸ごと差し替える。本ファイルは土台テンプレの本文を複製せず、差し替え後の手順のみを記述する（各 reviewer の詳細チェックリストは `~/.claude/agents/review-*.md` と `~/.claude/agents/references/review.md` が正典）。
+SDD の「## Final Review」は既定で `code-reviewer.md` を単独ディスパッチする。CP-D はこの単独ディスパッチを、**review-*（条件付き3〜5本）の並列起動 + `tdd-evaluator` 集約**に丸ごと差し替える。本ファイルは土台テンプレの本文を複製せず、差し替え後の手順のみを記述する（各 reviewer の詳細チェックリストは `~/.claude/agents/review-*.md` と `~/.claude/agents/references/review.md` が正典）。
 
 ## 手順1: 並列ディスパッチ（Main が実施）
 
-`superpowers:dispatching-parallel-agents` の機構に従い、次の5エージェントを**同一メッセージ内で並列**に起動する。逐次起動しない。
+`superpowers:dispatching-parallel-agents` の機構に従い、次のエージェントを**同一メッセージ内で並列**に起動する。逐次起動しない。
 
-- `review-correctness`
-- `review-security`
-- `review-performance`
-- `review-test`
-- `review-maintainability`
+- **常時起動**: `review-correctness` / `review-test` / `review-maintainability`
+- **条件付き起動**（CP-Bのsecurity/perf敏感フラグに基づく）: `review-security`（security敏感と判定された場合のみ）／`review-performance`（perf敏感と判定された場合のみ）
 
-各エージェントへの指示に、対象の `[BASE_SHA]`・`[HEAD_SHA]`（土台テンプレと同じプレースホルダ）と、**所見の書き出し先ファイルパス**を明記する。
+起動本数は3〜5本になる。各エージェントへの指示に、対象の `[BASE_SHA]`・`[HEAD_SHA]`（土台テンプレと同じプレースホルダ）と、**所見の書き出し先ファイルパス**を明記する。
 
 ```
 scratchpad/reviews/<タスクスラッグ>-cp-d-<dimension>.md
@@ -26,11 +23,11 @@ scratchpad/reviews/<タスクスラッグ>-cp-d-<dimension>.md
 
 ## 手順2: 集約（tdd-evaluator が実施）
 
-Main は `tdd-evaluator` を起動し、上記5ファイルのパス一覧を渡す。その際 description は `"CP-D: Aggregate and score 5 review files"` とする。`tdd-evaluator` は次を行う。
+Main は `tdd-evaluator` を起動し、上記の起動された全ファイル（3〜5本）のパス一覧を渡す。その際 description は `"CP-D: Aggregate and score review files"` とする。`tdd-evaluator` は次を行う。
 
-1. 5ファイルすべてを自ら Read する（Main による要約・選別を経由しない）。
-2. 所見ファイル数が5本と一致するか照合する。不足があれば採点せず、不足次元を明記して Main に差し戻す。
-3. `~/.claude/skills/tdd-gates/references/scoring.md`「スコアカード出力形式（CP-C〜F用）」の Spec Compliance 形式に集約する。5次元（正確性／セキュリティ／性能／テスト品質／保守性）それぞれの所見を反映する。
+1. 渡されたファイルすべてを自ら Read する（Main による要約・選別を経由しない）。
+2. 所見ファイル数がMainから伝えられた起動本数（3〜5本）と一致するか照合する。不足があれば採点せず、不足次元を明記して Main に差し戻す。
+3. `~/.claude/skills/tdd-gates/references/scoring.md`「スコアカード出力形式（CP-C〜F用）」の Spec Compliance 形式に集約する。起動した次元（常時: 正確性／テスト品質／保守性。条件付き: セキュリティ／性能）それぞれの所見を反映する。
 4. Critical 判定基準は `~/.claude/skills/tdd-gates/references/checkpoints.md` CP-D の Critical 行（仕様不適合／既存回帰／偽装テスト検出）に従う。
 5. 集約後のスコアカードは Main が `progress.md` にも書き出す（`tdd-evaluator` は Bash 書き込みを持たないため。チャット報告のみで終わらせない）。
 
@@ -48,7 +45,7 @@ Main は `tdd-evaluator` を起動し、上記5ファイルのパス一覧を渡
 
 ## リトライ機構
 
-SDD 純正の Final Review（1修正波 + 1 scoped re-review、adjudicate residuals）にそのまま従う。tdd-gates 独自の再評価カウンタは持たない。修正波のディスパッチ先も `review-*` 5本ではなく、指摘された次元の実装者（SDD implementer）への差し戻しである点は SDD 標準と同じ。
+SDD 純正の Final Review（1修正波 + 1 scoped re-review、adjudicate residuals）にそのまま従う。tdd-gates 独自の再評価カウンタは持たない。修正波のディスパッチ先も起動した `review-*` 群ではなく、指摘された次元の実装者（SDD implementer）への差し戻しである点は SDD 標準と同じ。
 
 ## Main が埋めるプレースホルダ
 

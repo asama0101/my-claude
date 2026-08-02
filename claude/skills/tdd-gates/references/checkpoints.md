@@ -9,7 +9,7 @@ CP-A〜F。駆動順序の正典は SKILL.md「CP対応表」（重複掲載し�
 
 - **Planner役**（CP-A/B）= superpowers の `brainstorming`／`writing-plans` が文書を起草する。`planner` エージェントが補助してよい。
 - **Generator/Implementer役**（CP-C）= SDD の implementer subagent（`implementer-prompt.md` で起動）。tdd-gates 独自の生成役は持たない（`tdd-implementer` エージェントが SDD の report 契約に合わせて実装を担う）。
-- **Evaluator役**（全CP共通）= `tdd-evaluator`。SDD が標準で使う汎用 task reviewer / final code-reviewer を、CP単位で `tdd-evaluator`（または CP-D の review-*5本＋集約、CP-F の doc-verifier・review-doc-readability）に差し替える。
+- **Evaluator役**（全CP共通）= `tdd-evaluator`。SDD が標準で使う汎用 task reviewer / final code-reviewer を、CP単位で `tdd-evaluator`（または CP-D の review-*条件付き3〜5本＋集約、CP-F の doc-verifier・review-doc-readability）に差し替える。
 
 分離原則（正典）: 実装した本人（Implementer）が採点してはならない。CP-C 以降はこれを SDD の仕組みがそのまま担保し、tdd-gates は reviewer 役の中身だけを差し替える。
 
@@ -41,7 +41,7 @@ CP-A〜F。駆動順序の正典は SKILL.md「CP対応表」（重複掲載し�
 - **担当**: `tdd-evaluator`（既定は単独）。計画がセキュリティ敏感（認証・入力処理・機密データ）または性能敏感（大量データ・ホットパス）な場合のみ、`review-security`／`review-performance` を条件付きで並列起動する（最大2本）。
 - **small route判定はここで行う**: `tdd-evaluator` が `git diff --stat` 見込みと既存テスト一覧を証拠に、次の4条件を照合する——①差分2ファイル以下 ②実装差分50行以下（テスト除く）③公開インターフェース不変 ④既存テストが変更対象範囲を被覆。1つでも外れたら substantial としてフル工程。`planner` は該当見込みを計画書に申告するのみで承認主体ではない。
 - **Critical**: 受入基準↔要件↔シナリオのトレーサビリティに漏れがない（各要件に最低1受入基準・各受入基準に最低1シナリオ）／重大セキュリティ欠陥・設計破綻がない。
-- **採点項目**: 受入基準の明確さ・検証可能性／シナリオ網羅（正常・異常・境界）／テスト種別の妥当性・3層割り当て／トレーサビリティ／既存構造の把握／セキュリティ観点（権限漏れ含む）／業務ロジックの分離（unitテスト可能性）／ファイルサイズ・責務分割（`review-maintainability` の基準に従う）。
+- **採点項目**: 受入基準の明確さ・検証可能性／シナリオ網羅（正常・異常・境界）／テスト種別の妥当性・3層割り当て／トレーサビリティ／既存構造の把握／セキュリティ観点（権限漏れ含む）／業務ロジックの分離（unitテスト可能性）／ファイルサイズ・責務分割（`review-maintainability` の基準に従う）／タスク粒度の妥当性（過剰分割・過小分割の検査、`templates/plan-quality-review-addendum.md`差分7）。
 - **証拠**: 対応表（要件ID↔受入基準↔テストシナリオ↔対象ファイル↔テスト種別/層）＋レビュー所見。
 - **判定**: tdd-gates独自の PASS/CONDITIONAL/FAIL（最大2回、`scoring.md`）。専用台帳は持たない——plan文書自体とスコアカード応答が記録になる（Mainがplan文書に追記してcommitする。詳細はSKILL.md「証拠の記録先」）。
 
@@ -55,14 +55,14 @@ CP-A〜F。駆動順序の正典は SKILL.md「CP対応表」（重複掲載し�
 
 CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否を明示判断して最小化する。層別の実行コマンドは言語プロファイル（`profiles/*.md`）に定義。
 
-## CP-C: タスク証拠検証（旧Gate4-7・SDD/executing-plans に寄生）
+## CP-C: タスク証拠検証（旧Gate4-7・SDD に寄生）
 
 - **目的**: RED（失敗するテストを先に書く）→GREEN（最小実装）→REFACTOR（振る舞い不変で整理）の各段階を、実行ログに基づいて検証する。UI/UXは条件付き。
-- **上乗せ先**: `subagent-driven-development`（または `executing-plans`）の「### 3. Review the task」ステップ。SDDが標準ディスパッチする `task-reviewer-prompt.md` を、tdd-gates版アドオン（`templates/task-evidence-addendum.md`、Phase2）を追記したプロンプトに差し替える。
+- **上乗せ先**: `subagent-driven-development`の「### 3. Review the task」ステップ。SDDが標準ディスパッチする `task-reviewer-prompt.md` を、tdd-gates版アドオン（`templates/task-evidence-addendum.md`、Phase2）を追記したプロンプトに差し替える。`executing-plans`は独立レビュアーへのdispatchステップを持たず、実装者と評価者の分離が成立しないため対象外（サブエージェントへのアクセスが無い場合のフォールバックとして位置づけられており、その場合`tdd-evaluator`のdispatch自体が不可能）。
 - **明示的な上書き（重要）**: SDDの `task-reviewer-prompt.md` にある **"Do not re-run the suite to confirm their report."**（実装者の報告を信頼し、再実行しない）は、tdd-gatesが乗る場面では**明示的に上書きする**。`tdd-evaluator` は RED/GREEN のテスト実行結果を実装者（SDD implementer）の報告のまま信用せず、**自ら再実行して確認する**。証拠不信の原則はtdd-gates最大の付加価値であり、ここが唯一 SDD の既定動作と正面から矛盾する箇所。
 - **担当**: `tdd-evaluator`（SDDの通常task reviewerを差し替え）。実装作業自体はSDDのimplementer subagentがそのまま担う——tdd-gates独自の生成役は持たない。
 - **RED の Critical（即FAIL）**:
-  - `tdd-evaluator` が自ら再実行し、テストが実際に失敗する（プロファイルの失敗ログ形式に一致）。「おそらく失敗する」は0点。
+  - `tdd-evaluator` が**対象テストのみ**（フルスイート不要）を自ら再実行し、テストが実際に失敗する（プロファイルの失敗ログ形式に一致）。「おそらく失敗する」は0点。
   - assertが対象の振る舞いを具体的に検証している（`assert False`/`assert True`/例外raiseだけ/トートロジー等の無条件失敗はCritical未達）。
   - evaluatorが自ら取得した `git diff` で、変更がテストファイルのみであること。
 - **GREEN の Critical（即FAIL）**:
@@ -70,26 +70,28 @@ CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否�
   - RED時点で固定したテストと同一で、assertを弱めていない。
   - 最小実装である（テスト非対応の実装branchを作り込んでいない）。
 - **REFACTOR の Critical（即FAIL）**:
-  - 新機能・新しい振る舞いを追加していない。`tdd-evaluator`が`git diff`を取得し、テストファイルとテスト設定ファイルが不変（skip/xfail等の実行除外追加を含め変更なし）かつ既存テストが到達しない新規branchが加わっていないことを確認する。
+  - `tdd-evaluator`がGREEN確定コミット〜現在HEADの`git diff`を自ら取得する。**差分が空なら**GREENで確認済みの全緑結果を援用し、以下のフルスイート再実行を**省略**してよい（軽量化。`references/profiles/*.md`「CP-C証拠ルール」参照）。**差分がある場合**は以下を通常通り検証する。
+  - 新機能・新しい振る舞いを追加していない。テストファイルとテスト設定ファイルが不変（skip/xfail等の実行除外追加を含め変更なし）かつ既存テストが到達しない新規branchが加わっていないことを確認する。
   - リファクタ後もプロファイル定義のテスト実行コマンドで全緑。
 - **UI/UX条件付き検査**: テスト種別がe2e（ブラウザ）、または**テンプレート/ルーティング/ビュー層に変更がある場合**（unit申告でも回避不可）、`frontend-design`スキル＋敵対的クロスレビューを追加で必須化する。最大3ラウンド（確認→修正）。ブラウザ不可環境は静的解析で代替。
+- **evaluatorモデル階層化（軽量化）**: `tdd-evaluator`をディスパッチするモデルは、CP-Bが確定したsmall-route判定を再利用する。small-route該当タスクは`haiku`、それ以外の全タスク（security/perf敏感タスクを含む）は現行の`sonnet`を指定する。CP-E（同じタスクループに乗る）も同じ規則に従う。新たな判定ロジックは追加しない。
 - **リトライ機構**: **SDD純正の5ラウンドfix loopをそのまま使用**（独自カウンタ・独自CONDITIONALは持たない）。出力形式はSDD互換のSpec Compliance形式（`scoring.md`のCP-C〜F用）。
 - **証拠**: RED失敗ログ／GREEN通過ログ（全既存テスト緑を含む）／REFACTOR後の緑ログ／（UI/UX該当時）スクショ・静的解析結果。SDDの `progress.md` に証拠行として追記する。
 
 ## CP-D: 最終スコアカード（旧Gate8・SDD Final Review に寄生）
 
 - **目的**: 変更差分全体を多次元で採点し、マージ可否を判定する最終ゲート。
-- **上乗せ先**: SDDの「## Final Review」。`requesting-code-review/code-reviewer.md`の単独ディスパッチを、review-*5本並列起動＋`tdd-evaluator`集約に差し替える（`templates/final-scorecard-review-prompt.md`、Phase2）。
-- **担当**: Mainが`review-*`5次元（correctness/security/performance/test/maintainability）を**並列起動**し、`tdd-evaluator`が1枚のスコアカードに集約＋Critical判定。**各reviewerには所見をscratchpadの所見ファイルに直接書き出させ**（例`reviews/<タスクスラッグ>-cp-d-<dimension>.md`）、`tdd-evaluator`がそのファイル群を自らReadして集約採点する（review-*は所見のみ、tdd-evaluatorが点数化）。Mainは所見本文を要約・改変せず経路から外れる。
+- **上乗せ先**: SDDの「## Final Review」。`requesting-code-review/code-reviewer.md`の単独ディスパッチを、review-*条件付き3〜5本並列起動＋`tdd-evaluator`集約に差し替える（`templates/final-scorecard-review-prompt.md`、Phase2）。
+- **担当**: MainがCP-Bのsecurity/perf敏感フラグに基づき`review-*`を**条件付き並列起動**する——`review-correctness`／`review-test`／`review-maintainability`は常時起動、`review-security`／`review-performance`はCP-Bで該当と判定された場合のみ追加起動（計3〜5本）。`tdd-evaluator`が1枚のスコアカードに集約＋Critical判定。**各reviewerには所見をscratchpadの所見ファイルに直接書き出させ**（例`reviews/<タスクスラッグ>-cp-d-<dimension>.md`）、`tdd-evaluator`がそのファイル群を自らReadして集約採点する（review-*は所見のみ、tdd-evaluatorが点数化）。Mainは所見本文を要約・改変せず経路から外れる。
 - **Critical（即FAIL）**: 仕様不適合／既存回帰／**偽装テスト検出**（assertなし・常に真・実装の写経。検出は目視に加えミューテーション検証を実施——徴候があれば必須・無くても代表1テストにスモーク）。
-- **採点項目**: 5次元それぞれ（正確性／セキュリティ／性能／テスト品質／保守性）。
+- **採点項目**: 起動した次元それぞれ（常時: 正確性／テスト品質／保守性。条件付き: セキュリティ／性能）。
 - **リトライ機構**: **SDD純正のFinal Review**（1修正波+1 scoped re-review、adjudicate residuals）。tdd-gates独自の再評価カウンタは持たない。
 - **証拠**: 集約スコアカード（review-*所見に裏付け）。Mainが`progress.md`にも書き出す（チャット報告のみで終わらせない。詳細はSKILL.md「証拠の記録先」）。
 
 ## CP-E: CI品質ゲート整備（旧Gate9・条件付き・writing-plansが末尾タスクとして追加）
 
 - **スキップ条件**: CIを運用しないプロジェクトは、plan文書にスキップ理由を記して丸ごとスキップする。
-- **上乗せ先**: `writing-plans`が条件を満たせば、計画の末尾タスクとして自動追加する（`templates/ci-gate-task-template.md`、Phase2。writing-plansの Task Structure 形式に沿う）。追加後はCP-Cと同じ仕組み（SDD/executing-plansの通常タスクループ）に乗る——CP-Eは「タスクの中身」を規定するだけで、独自のディスパッチ・リトライ機構は持たない。
+- **上乗せ先**: `writing-plans`が条件を満たせば、計画の末尾タスクとして自動追加する（`templates/ci-gate-task-template.md`、Phase2。writing-plansの Task Structure 形式に沿う）。追加後はCP-Cと同じ仕組み（SDDの通常タスクループ）に乗る——CP-Eは「タスクの中身」を規定するだけで、独自のディスパッチ・リトライ機構は持たない。
 - **内容**: プロジェクトのCIが次のステージを自動実行するよう整備・検証する。**必須ステージ（抽象・言語非依存）**: lint／typecheck／build／unit test／integration test／主要E2E。**任意**: preview環境デプロイ（web系のみ・既定off）。
 - **担当**: 実装は`doc-updater`（各ステージの具体コマンドは言語プロファイル`profiles/*.md`が供給。CIプロバイダはGitHub Actionsを既定としprofileで差し替え可。ワークフロー実体は各プロジェクトに生成）。レビューはCP-Cの仕組みに乗った`tdd-evaluator`が必須ステージの被覆を採点する。
 - **同期性の限界**: 「CIがグリーン」はpush後の非同期事象。本CPはCI定義の存在・被覆をゲートし、green-on-pushはマージ後のenforcement前提として記録する（エージェントループ内でgreenを待たない）。
@@ -114,7 +116,7 @@ CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否�
 
 ## 文書・設計成果物の敵対レビューパターン（オプション）
 
-要件定義書・設計文書・計画書など**文書・設計成果物**の品質を問うとき（CP-Aの要件整理レビュー・CP-Fの大規模doc整備・TDD文脈外の文書レビュー）は、次元別チェックリスト（コード用のreview-*5次元）の代わりに**命題駆動の敵対レビュー**を使ってよい。**コード差分のCP-Dはこのパターンで置き換えない**（review-*5次元のチェックリストが確立済みのため現行維持）。
+要件定義書・設計文書・計画書など**文書・設計成果物**の品質を問うとき（CP-Aの要件整理レビュー・CP-Fの大規模doc整備・TDD文脈外の文書レビュー）は、次元別チェックリスト（コード用のreview-*、条件付き3〜5次元）の代わりに**命題駆動の敵対レビュー**を使ってよい。**コード差分のCP-Dはこのパターンで置き換えない**（review-*の次元別チェックリストが確立済みのため現行維持）。
 
 - **相補的な逆方向2命題**: 「過剰の立証」と「欠落の立証」の対になる命題を立て、それぞれ独立エージェントに検察官スタンスで立証させる（例:「この文書は要件定義書を名乗る設計書である」×「要件定義書として必須の要素を欠いている」）。過剰系と欠落系で挟むと、次元分割では出ない被覆が得られる。
 - **正例・負例ペアのルーブリック埋め込み**: 各命題のプロンプトに具体例で判定基準を与える（例:「flush→fsync→renameの手順は設計／書きかけが読者に見えないことは要件」）。あわせて**境界事例は安易に断ぜず理由付きで判定させ、「弁護側に譲った事例」も報告させる**（`agents/references/review.md`の過剰指摘抑制と同旨）。

@@ -2,7 +2,7 @@
 
 **土台**: `~/.claude/plugins/cache/claude-plugins-official/superpowers/6.2.0/skills/writing-plans/SKILL.md`「## Task Structure」形式。
 
-writing-plans が CP-E の条件（CI を運用するプロジェクト）を満たすと判定した場合、計画書の末尾タスクとして以下の雛形をそのまま追加する。追加後は CP-C と同じ SDD/executing-plans の通常タスクループに乗る——CP-E は「タスクの中身」を規定するだけで、独自のディスパッチ・リトライ機構は持たない。
+writing-plans が CP-E の条件（CI を運用するプロジェクト）を満たすと判定した場合、計画書の末尾タスクとして以下の雛形をそのまま追加する。追加後は CP-C と同じ SDD の通常タスクループに乗る——CP-E は「タスクの中身」を規定するだけで、独自のディスパッチ・リトライ機構は持たない。
 
 **CI 運用時のみ条件付きで追加されるタスクである**（CI を運用しないプロジェクトは plan 文書にスキップ理由を記して丸ごとスキップする。`checkpoints.md` CP-E「スキップ条件」参照）。
 
@@ -22,7 +22,7 @@ writing-plans が CP-E の条件（CI を運用するプロジェクト）を満
 - Produces: CI ワークフロー定義（後続タスク・レビューが被覆確認に使う）
 
 **実装役**: `doc-updater`
-**レビュー役**: `tdd-evaluator`（CP-C の仕組みに乗り、必須ステージの被覆を採点する）
+**レビュー役**: `tdd-evaluator`（CP-C の仕組みに乗り、必須ステージの被覆を採点する。ディスパッチモデルはCP-Cと同じ階層化ルール[`checkpoints.md`CP-C「evaluatorモデル階層化」]に従う）
 
 - [ ] **Step 1: 対象言語プロファイルの CI ステージ定義を確認**
 
