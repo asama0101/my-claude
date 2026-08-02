@@ -1,5 +1,5 @@
 /*
- * callgraph.js — python-review-map の callgraph フェンスブロックをインタラクティブSVGとして描画する。
+ * callgraph.js — codemap の callgraph フェンスブロックをインタラクティブSVGとして描画する。
  *
  * 外部依存ゼロ・ネットワークアクセスゼロ。file:// で直接開いても動く素朴な非モジュールスクリプト。
  * ページ全体で1回だけ読み込まれ、複数の .callgraph コンテナをそれぞれ独立した状態で描画する。
@@ -29,7 +29,7 @@
   }
   function collectModuleHues() {
     var keys = {};
-    var re = /—\s*(\S+\.py):\d+/;
+    var re = /—\s*(\S+\.\w+):\d+/;
     Array.prototype.slice.call(document.querySelectorAll("main h4")).forEach(function (h4) {
       var m = re.exec(h4.textContent || "");
       if (m) keys[moduleKey(m[1])] = true;

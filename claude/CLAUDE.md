@@ -85,7 +85,7 @@
 
 スキル:
 - **tdd-gates**（ローカル）: TDD品質ゲート（CP-A〜F）のオーケストレータ。substantial 実装で使え。
-- **codemap-python**（ローカル）: Python コードの処理フローを一本道で読み下せる HTML レポートを生成。レビュー前の構造把握に使え。
+- **codemap**（ローカル）: 言語非依存でコードの処理フローを一本道で読み下せる HTML レポートを生成（気になる点・確認事項も含む）。レビュー前の構造把握に使え。
 - **html-template-import**（ローカル）: 既存 HTML を流用元ライブラリ（`~/.claude/assets/html-templates/`）へ取り込む。
 - プラグイン群（superpowers/context7/frontend-design 等）は有効化済み。
 - **context7 は必ず使用せよ**: ライブラリ・SDK・API の質問時（`resolve-library-id` → `query-docs` の順）。

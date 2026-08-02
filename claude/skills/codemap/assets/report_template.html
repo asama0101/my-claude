@@ -612,7 +612,7 @@ __CALLGRAPH_ASSETS__
 })();
 (function () {
   "use strict";
-  // モジュール色分け: コールフレーム見出し(h4「`シグネチャ` — `path.py:line`」)から
+  // モジュール色分け: コールフレーム見出し(h4「`シグネチャ` — `path.ext:line`」)から
   // モジュールパスを抽出し、モジュールごとの色でバッジ・枠線・ページ内リンクを着色する。
   // 色の割り当ては「ページ内に登場する全モジュール(h4+全callgraphデータ)のソート順に、
   // 離れた色相のパレットを順番に割り当てる」方式。assets/callgraph.js 側と同一実装
@@ -623,7 +623,7 @@ __CALLGRAPH_ASSETS__
     // 末尾2セグメントに正規化: "src/shaper_db/sync/rules.py" と "sync/rules.py" を同一視
     return path.split("/").slice(-2).join("/");
   }
-  var REF_RE = /—\s*(\S+\.py):\d+/;
+  var REF_RE = /—\s*(\S+\.\w+):\d+/;
   function collectModuleHues() {
     var keys = {};
     Array.prototype.slice.call(document.querySelectorAll("main h4")).forEach(function (h4) {
@@ -731,7 +731,8 @@ __CALLGRAPH_ASSETS__
     });
   }
 
-  // h4のテキスト(例: "load_config(path) -> Config — config.py:805")から、
+  // h4のテキスト(例: "load_config(path) -> Config — config.py:805" や
+  // "loadConfig(path) -> Config — config.go:120")から、
   // パンくずに表示する関数名部分だけを抜き出す(シグネチャの引数・戻り値注釈・
   // file:line 部分は捨てる)。
   function frameLabel(h4) {

@@ -107,6 +107,7 @@ class Point(NamedTuple):
 - docstring と実シグネチャの整合には **darglint**
 - （ruff/darglint の具体設定は `references/python/style.md`「Python ツール連携」を単一ソースとする）
 - コメント（`#`）はデフォルトで書かず、WHY が非自明な場合のみ書く（詳細は `references/python/style.md`「コメント」を単一ソースとする）
+- コメントを書く場合は日本語で書け。予約語・API名・ライブラリ名等のキーワードは英語のままでよい。
 
 ```bash
 black .

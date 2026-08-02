@@ -63,7 +63,7 @@ def get_value(dictionary: dict, key: str, default: Any = None) -> Any:
 
 ### docstring（Google スタイル）
 
-public な関数・クラスの docstring は Google Python Style Guide に従い、要約行のあとに `Args` / `Returns` / `Raises` セクションを置く。単純な関数は1行要約のみでよい。
+すべての関数・クラスの docstring は Google Python Style Guide に従い、要約行のあとに `Args` / `Returns` / `Raises` セクションを記載する。セクションの内容に該当しない場合（引数がない、`None` のみ返す、例外を送出しない等）はそのセクション自体を省略してよい。1行要約のみで済ませることは認めない。
 
 ```python
 def fetch_user(user_id: str, *, include_deleted: bool = False) -> User:

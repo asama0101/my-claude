@@ -12,6 +12,15 @@ italic/link。本文中の`[[term]]`(表示テキストを変えるなら`[[term
 優先し、`--glossary-in`で読み込んだ他ページの定義があればそちらへリンクする)。想定外の
 記法は素の段落として出力する。
 
+シンタックスハイライトは言語非依存。通常のフェンス付きコードブロックは
+```<言語名>```(例: ```go・```rust・```python)の言語名で判定する。`line-notes`
+フェンスは言語名を持たないため、`line-notes:<言語名>`(例: ```line-notes:javascript```)
+の形でコロン区切りの言語指定を付けられる(省略時はハイライトなしでそのまま表示)。
+Pythonのみ`tokenize`モジュールによる厳密な解析を行い、それ以外の`LANG_SPECS`収録言語
+(javascript/typescript/go/rust/java/csharp/c/cpp/ruby/php/bash等)はキーワード集合と
+コメント記法に基づく正規表現ベースのベストエフォート判定になる(文字列/式の込み入った
+入れ子までは正確に判定しない)。未収録の言語はハイライトなしの素のエスケープ表示。
+
 使い方:
     python3 build_report.py --input report.md --output report.html \
         --title "shaper-db transform/ レビュー地図" --target "src/shaper_db/transform/"
@@ -64,7 +73,209 @@ FALLBACK_TOKEN_RE = re.compile(
     re.VERBOSE,
 )
 
+# Python以外の言語向け・正規表現ベースのベストエフォートハイライト定義。
+# 各エントリはキーワード集合(kw判定)・行コメント記号・ブロックコメントの開始/終了記号を持つ。
+# Pythonのように厳密な構文解析はしない(コメント/文字列/数値/キーワード/呼び出し名の判定のみ)。
+LANG_SPECS: dict[str, dict] = {
+    "javascript": {
+        "keywords": frozenset(
+            "var let const function return if else for while do break continue switch case "
+            "default try catch finally throw new delete typeof instanceof in of class extends "
+            "super this import export from as async await yield static get set null undefined "
+            "true false void debugger with".split()
+        ),
+        "line_comment": "//",
+        "block_comment": ("/*", "*/"),
+    },
+    "go": {
+        "keywords": frozenset(
+            "func package import var const type struct interface map chan go defer select "
+            "switch case default if else for range return break continue fallthrough goto".split()
+        ),
+        "line_comment": "//",
+        "block_comment": ("/*", "*/"),
+    },
+    "rust": {
+        "keywords": frozenset(
+            "fn let mut const static struct enum impl trait pub use mod match if else for while "
+            "loop break continue return self Self super crate as where dyn async await move ref "
+            "unsafe in true false".split()
+        ),
+        "line_comment": "//",
+        "block_comment": ("/*", "*/"),
+    },
+    "java": {
+        "keywords": frozenset(
+            "public private protected class interface extends implements static final void int "
+            "long short byte char boolean float double new return if else for while do switch "
+            "case default break continue try catch finally throw throws import package this "
+            "super null true false abstract synchronized volatile transient enum instanceof".split()
+        ),
+        "line_comment": "//",
+        "block_comment": ("/*", "*/"),
+    },
+    "csharp": {
+        "keywords": frozenset(
+            "public private protected class interface extends implements static final void int "
+            "long short byte char bool float double new return if else for while do switch case "
+            "default break continue try catch finally throw import namespace using this base "
+            "null true false abstract override virtual readonly const sealed partial get set "
+            "async await foreach in is as typeof var string".split()
+        ),
+        "line_comment": "//",
+        "block_comment": ("/*", "*/"),
+    },
+    "c": {
+        "keywords": frozenset(
+            "int char float double void struct union enum typedef static const extern if else "
+            "for while do switch case default break continue return sizeof goto unsigned signed "
+            "long short volatile register auto".split()
+        ),
+        "line_comment": "//",
+        "block_comment": ("/*", "*/"),
+    },
+    "cpp": {
+        "keywords": frozenset(
+            "int char float double void struct union enum typedef static const extern if else "
+            "for while do switch case default break continue return sizeof goto unsigned signed "
+            "long short volatile register auto class public private protected virtual namespace "
+            "new delete this try catch throw template typename using operator friend inline "
+            "explicit nullptr true false bool override final constexpr".split()
+        ),
+        "line_comment": "//",
+        "block_comment": ("/*", "*/"),
+    },
+    "ruby": {
+        "keywords": frozenset(
+            "def end if elsif else unless while until for in do class module begin rescue ensure "
+            "raise return yield self nil true false require require_relative attr_accessor "
+            "attr_reader attr_writer case when break next redo retry then and or not".split()
+        ),
+        "line_comment": "#",
+        "block_comment": None,
+    },
+    "php": {
+        "keywords": frozenset(
+            "function return if else elseif foreach for while do switch case default break "
+            "continue class interface extends implements public private protected static new "
+            "try catch finally throw namespace use require require_once include include_once "
+            "echo print null true false array global const abstract final trait".split()
+        ),
+        "line_comment": "//",
+        "block_comment": ("/*", "*/"),
+    },
+    "bash": {
+        "keywords": frozenset(
+            "if then else elif fi for while until do done case esac function return exit break "
+            "continue local export readonly declare in select time".split()
+        ),
+        "line_comment": "#",
+        "block_comment": None,
+    },
+}
+LANG_SPECS["typescript"] = {
+    "keywords": LANG_SPECS["javascript"]["keywords"]
+    | frozenset(
+        "interface type enum implements private public protected readonly namespace declare "
+        "abstract keyof infer satisfies".split()
+    ),
+    "line_comment": "//",
+    "block_comment": ("/*", "*/"),
+}
+# フェンスの言語タグ表記ゆれ(短縮形・別名)を LANG_SPECS のキーへ正規化する。
+LANG_ALIASES: dict[str, str] = {
+    "py": "python",
+    "js": "javascript",
+    "jsx": "javascript",
+    "mjs": "javascript",
+    "cjs": "javascript",
+    "ts": "typescript",
+    "tsx": "typescript",
+    "golang": "go",
+    "rs": "rust",
+    "cs": "csharp",
+    "c++": "cpp",
+    "cxx": "cpp",
+    "cc": "cpp",
+    "rb": "ruby",
+    "sh": "bash",
+    "shell": "bash",
+    "zsh": "bash",
+}
+
+
+def normalize_lang(lang: str | None) -> str | None:
+    """フェンスの言語タグを LANG_SPECS/"python" のキーへ正規化する(未知の値はそのまま返す)。"""
+    if not lang:
+        return None
+    return LANG_ALIASES.get(lang, lang)
+
+
+def _generic_spans(code: str, spec: dict) -> list[tuple[int, int, str]]:
+    """Python以外の言語向けの簡易(正規表現走査ベース)ハイライト。
+
+    `tokenize`相当の厳密な構文解析はしない — コメント/文字列/数値/キーワード/呼び出し名の
+    ベストエフォート判定に留める(テンプレートリテラルの入れ子等は誤判定しうる)。
+    """
+    keywords: frozenset = spec["keywords"]
+    line_comment: str | None = spec.get("line_comment")
+    block_comment: tuple[str, str] | None = spec.get("block_comment")
+
+    spans: list[tuple[int, int, str]] = []
+    i = 0
+    n = len(code)
+    while i < n:
+        if block_comment and code.startswith(block_comment[0], i):
+            end = code.find(block_comment[1], i + len(block_comment[0]))
+            end = (end + len(block_comment[1])) if end != -1 else n
+            spans.append((i, end, "comment"))
+            i = end
+            continue
+        if line_comment and code.startswith(line_comment, i):
+            spans.append((i, n, "comment"))
+            break
+        ch = code[i]
+        if ch in "\"'`":
+            quote = ch
+            j = i + 1
+            while j < n and code[j] != quote:
+                if code[j] == "\\" and j + 1 < n:
+                    j += 1
+                j += 1
+            j = min(j + 1, n)
+            spans.append((i, j, "str"))
+            i = j
+            continue
+        if ch.isdigit():
+            j = i
+            while j < n and (code[j].isalnum() or code[j] in "._"):
+                j += 1
+            spans.append((i, j, "num"))
+            i = j
+            continue
+        if ch.isalpha() or ch == "_":
+            j = i
+            while j < n and (code[j].isalnum() or code[j] == "_"):
+                j += 1
+            word = code[i:j]
+            if word in keywords:
+                spans.append((i, j, "kw"))
+            else:
+                k = j
+                while k < n and code[k] in " \t":
+                    k += 1
+                if k < n and code[k] == "(":
+                    spans.append((i, j, "fn"))
+            i = j
+            continue
+        i += 1
+    return spans
+
+
 INLINE_CODE_RE = re.compile(r"`([^`]+)`")
+# INLINE_CODE_RE によって生成された `<code>...</code>` 区間を検出する(非貪欲マッチ)。
+# `[[term]]` 解決等、コードスパンの中身を対象外にしたい後続処理向け。
+CODE_SPAN_HTML_RE = re.compile(r"<code>.*?</code>")
 BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 ITALIC_RE = re.compile(r"(?<!\*)\*([^*\n]+)\*(?!\*)")
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
@@ -255,26 +466,61 @@ def _render_spans(code: str, spans: list[tuple[int, int, str]]) -> str:
     return "".join(out)
 
 
-def render_highlighted_code(code: str) -> str:
-    """1行のPythonコード文字列(line-notesのコード列)をハイライト済みHTMLにする
-    (html.escape済み、そのまま`<pre><code>`に差し込んでよい)。"""
-    spans = _tokenize_spans(code)
-    if spans is None:
-        spans = _fallback_spans(code)
-    return _render_spans(code, spans)
+def render_highlighted_code(code: str, lang: str | None = None) -> str:
+    """1行のコード文字列(line-notesのコード列)をハイライト済みHTMLにする
+    (html.escape済み、そのまま`<pre><code>`に差し込んでよい)。
 
-
-def highlight_python_block(code: str) -> str:
-    """複数行の ```python``` フェンス全体をハイライトする(html.escape済み)。
-
-    まずブロック全体をtokenizeし、成功すればそのまま使う(この方が複数行にまたがる
-    文字列等も正しく扱える)。失敗したら1行ずつ`render_highlighted_code`にフォール
-    バックして結合する。
+    `lang="python"`のときは`tokenize`による厳密ハイライト(不完全な断片はPython用の
+    正規表現フォールバック)。`LANG_SPECS`収録の他言語は正規表現ベースのベストエフォート
+    ハイライト。未収録/lang未指定はハイライトなし(素のエスケープ表示)。
     """
-    spans = _tokenize_spans(code)
-    if spans is not None:
+    if lang == "python":
+        spans = _tokenize_spans(code)
+        if spans is None:
+            spans = _fallback_spans(code)
         return _render_spans(code, spans)
-    return "\n".join(render_highlighted_code(line) for line in code.split("\n"))
+    spec = LANG_SPECS.get(lang) if lang else None
+    if spec is None:
+        return html.escape(code)
+    return _render_spans(code, _generic_spans(code, spec))
+
+
+def highlight_code_block(code: str, lang: str | None = None) -> str:
+    """複数行のフェンス付きコードブロック全体をハイライトする(html.escape済み)。
+
+    `lang="python"`はブロック全体をtokenizeし、成功すればそのまま使う(この方が複数行に
+    またがる文字列等も正しく扱える)。失敗したら1行ずつ`render_highlighted_code`に
+    フォールバックして結合する。それ以外の言語は行ごとに`render_highlighted_code`へ委譲する
+    (`_generic_spans`は1行単位の走査のため複数行にまたがる文字列は正しく扱えない)。
+    """
+    if lang == "python":
+        spans = _tokenize_spans(code)
+        if spans is not None:
+            return _render_spans(code, spans)
+    return "\n".join(render_highlighted_code(line, lang) for line in code.split("\n"))
+
+
+def _sub_outside_code_spans(pattern: re.Pattern, repl, text: str) -> str:
+    """`<code>...</code>`区間を除いた部分にだけ`pattern.sub(repl, ...)`を適用する。
+
+    インラインコードスパンの中身はMarkdown標準通り他の記法として解釈しない
+    (`` `[[term]]` `` のようなTOML/JSON構文の引用が用語集リンクとして誤解決されるのを防ぐ)。
+
+    Args:
+        pattern: 適用する正規表現。
+        repl: `re.sub`に渡す置換関数または置換文字列。
+        text: 対象文字列(`<code>...</code>`を含みうる)。
+
+    Returns:
+        コードスパンの外側だけ`pattern`を適用した文字列。
+    """
+    parts = CODE_SPAN_HTML_RE.split(text)
+    code_spans = CODE_SPAN_HTML_RE.findall(text)
+    pieces = [pattern.sub(repl, parts[0])]
+    for code_span, part in zip(code_spans, parts[1:]):
+        pieces.append(code_span)
+        pieces.append(pattern.sub(repl, part))
+    return "".join(pieces)
 
 
 def inline(text: str, glossary: dict | None = None) -> str:
@@ -292,7 +538,7 @@ def inline(text: str, glossary: dict | None = None) -> str:
         title_attr = html.escape(entry["summary"], quote=True)
         return f'<a class="term-ref" href="{entry["href"]}" title="{title_attr}">{alias}</a>'
 
-    text = TERM_REF_RE.sub(_term_ref, text)
+    text = _sub_outside_code_spans(TERM_REF_RE, _term_ref, text)
     text = LINK_RE.sub(lambda m: f'<a href="{m.group(2)}">{m.group(1)}</a>', text)
     return text
 
@@ -490,12 +736,15 @@ def render_callgraph_block(code_lines: list[str], graph_id: str) -> str:
     return "\n".join(out)
 
 
-def render_line_notes_block(code_lines: list[str], glossary: dict | None = None) -> str:
+def render_line_notes_block(
+    code_lines: list[str], glossary: dict | None = None, lang: str | None = None
+) -> str:
     """line-notes ブロック1つ分(コード1行+解説+例を並べた行の集まり)のHTMLを組み立てる。
 
     1行は `<コード> ::: <解説>[ ::: <例>]` の形式。区切りが無い/1個だけの行は
     解説・例のうち無い側を空欄として扱う(比例原則で省いた行、または区切り文字が
-    コード側にしか無い稀なケースへのフォールバック)。
+    コード側にしか無い稀なケースへのフォールバック)。`lang`はフェンスの
+    `line-notes:<言語名>` 指定から渡される(省略時はハイライトなし)。
     """
     out = ['<div class="line-notes">']
     out.append(
@@ -510,7 +759,7 @@ def render_line_notes_block(code_lines: list[str], glossary: dict | None = None)
         code_part = parts[0]
         note_part = parts[1] if len(parts) > 1 else ""
         example_part = parts[2] if len(parts) > 2 else ""
-        code_html = render_highlighted_code(code_part) if code_part else "&nbsp;"
+        code_html = render_highlighted_code(code_part, lang) if code_part else "&nbsp;"
         note_html = inline(note_part.strip(), glossary) if note_part.strip() else "&nbsp;"
         example_html = (
             inline(example_part.strip(), glossary) if example_part.strip() else "&nbsp;"
@@ -657,26 +906,29 @@ def markdown_to_html(md_text: str, incoming_glossary: dict | None = None) -> tup
             flush_list()
             fence = line.strip()[:3]
             lang = line.strip().lstrip("`").strip()
+            # line-notesフェンスは `line-notes:<言語名>` の形でコード言語を付けられる
+            # (例: ```line-notes:go)。それ以外のフェンス(callgraph/glossary/通常コード)には
+            # コロン記法は無いため、fence_lang はほとんどの場合 lang とそのまま一致する。
+            fence_lang, _, code_lang = lang.partition(":")
             code_lines = []
             i += 1
             while i < n and not lines[i].strip().startswith(fence):
                 code_lines.append(lines[i])
                 i += 1
             i += 1
-            if lang == "callgraph":
+            if fence_lang == "callgraph":
                 graph_count += 1
                 has_callgraph = True
                 body.append(render_callgraph_block(code_lines, f"graph-{graph_count}"))
-            elif lang == "line-notes":
-                body.append(render_line_notes_block(code_lines, resolved))
-            elif lang == "glossary":
+            elif fence_lang == "line-notes":
+                body.append(
+                    render_line_notes_block(code_lines, resolved, normalize_lang(code_lang))
+                )
+            elif fence_lang == "glossary":
                 body.append(render_glossary_block(parse_glossary_block(code_lines)))
             else:
                 block_text = "\n".join(code_lines)
-                if lang in ("python", "py"):
-                    code_escaped = highlight_python_block(block_text)
-                else:
-                    code_escaped = html.escape(block_text)
+                code_escaped = highlight_code_block(block_text, normalize_lang(lang))
                 lang_cls = f' class="language-{lang}"' if lang else ""
                 body.append(f"<pre><code{lang_cls}>{code_escaped}</code></pre>")
             continue
