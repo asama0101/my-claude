@@ -9,7 +9,7 @@ CP-A〜F。駆動順序の正典は SKILL.md「CP対応表」（重複掲載し�
 
 - **Planner役**（CP-A/B）= superpowers の `brainstorming`／`writing-plans` が文書を起草する。`planner` エージェントが補助してよい。
 - **Generator/Implementer役**（CP-C）= SDD の implementer subagent（`implementer-prompt.md` で起動）。tdd-gates 独自の生成役は持たない（`tdd-implementer` エージェントが SDD の report 契約に合わせて実装を担う）。
-- **Evaluator役**（全CP共通）= `tdd-evaluator`。SDD が標準で使う汎用 task reviewer / final code-reviewer を、CP単位で `tdd-evaluator`（または CP-D の review-*条件付き3〜5本＋集約、CP-F の doc-verifier・review-doc-readability）に差し替える。
+- **Evaluator役**（全CP共通）= `tdd-evaluator`。SDD が標準で使う汎用 task reviewer / final code-reviewer を、CP単位で `tdd-evaluator`（または CP-D の review-*条件付き2〜5本＋集約、CP-F の doc-verifier・review-doc-readability）に差し替える。
 
 分離原則（正典）: 実装した本人（Implementer）が採点してはならない。CP-C 以降はこれを SDD の仕組みがそのまま担保し、tdd-gates は reviewer 役の中身だけを差し替える。
 
@@ -81,10 +81,10 @@ CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否�
 ## CP-D: 最終スコアカード（旧Gate8・SDD Final Review に寄生）
 
 - **目的**: 変更差分全体を多次元で採点し、マージ可否を判定する最終ゲート。
-- **上乗せ先**: SDDの「## Final Review」。`requesting-code-review/code-reviewer.md`の単独ディスパッチを、review-*条件付き3〜5本並列起動＋`tdd-evaluator`集約に差し替える（`templates/final-scorecard-review-prompt.md`、Phase2）。
-- **担当**: MainがCP-Bのsecurity/perf敏感フラグに基づき`review-*`を**条件付き並列起動**する——`review-correctness`／`review-test`／`review-maintainability`は常時起動、`review-security`／`review-performance`はCP-Bで該当と判定された場合のみ追加起動（計3〜5本）。`tdd-evaluator`が1枚のスコアカードに集約＋Critical判定。**各reviewerには所見をscratchpadの所見ファイルに直接書き出させ**（例`reviews/<タスクスラッグ>-cp-d-<dimension>.md`）、`tdd-evaluator`がそのファイル群を自らReadして集約採点する（review-*は所見のみ、tdd-evaluatorが点数化）。Mainは所見本文を要約・改変せず経路から外れる。
+- **上乗せ先**: SDDの「## Final Review」。`requesting-code-review/code-reviewer.md`の単独ディスパッチを、review-*条件付き2〜5本並列起動＋`tdd-evaluator`集約に差し替える（`templates/final-scorecard-review-prompt.md`、Phase2）。
+- **担当**: MainがCP-Bの構造変更フラグ・security/perf敏感フラグに基づき`review-*`を**条件付き並列起動**する——`review-correctness`／`review-test`は常時起動、`review-maintainability`はCP-Bで構造変更ありと判定された場合のみ、`review-security`／`review-performance`はCP-Bで該当と判定された場合のみ追加起動（計2〜5本）。`tdd-evaluator`が1枚のスコアカードに集約＋Critical判定。**各reviewerには所見をscratchpadの所見ファイルに直接書き出させ**（例`reviews/<タスクスラッグ>-cp-d-<dimension>.md`）、`tdd-evaluator`がそのファイル群を自らReadして集約採点する（review-*は所見のみ、tdd-evaluatorが点数化）。Mainは所見本文を要約・改変せず経路から外れる。
 - **Critical（即FAIL）**: 仕様不適合／既存回帰／**偽装テスト検出**（assertなし・常に真・実装の写経。検出は目視に加えミューテーション検証を実施——徴候があれば必須・無くても代表1テストにスモーク）。
-- **採点項目**: 起動した次元それぞれ（常時: 正確性／テスト品質／保守性。条件付き: セキュリティ／性能）。
+- **採点項目**: 起動した次元それぞれ（常時: 正確性／テスト品質。条件付き: 保守性／セキュリティ／性能）。
 - **リトライ機構**: **SDD純正のFinal Review**（1修正波+1 scoped re-review、adjudicate residuals）。tdd-gates独自の再評価カウンタは持たない。
 - **証拠**: 集約スコアカード（review-*所見に裏付け）。Mainが`progress.md`にも書き出す（チャット報告のみで終わらせない。詳細はSKILL.md「証拠の記録先」）。
 
@@ -116,7 +116,7 @@ CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否�
 
 ## 文書・設計成果物の敵対レビューパターン（オプション）
 
-要件定義書・設計文書・計画書など**文書・設計成果物**の品質を問うとき（CP-Aの要件整理レビュー・CP-Fの大規模doc整備・TDD文脈外の文書レビュー）は、次元別チェックリスト（コード用のreview-*、条件付き3〜5次元）の代わりに**命題駆動の敵対レビュー**を使ってよい。**コード差分のCP-Dはこのパターンで置き換えない**（review-*の次元別チェックリストが確立済みのため現行維持）。
+要件定義書・設計文書・計画書など**文書・設計成果物**の品質を問うとき（CP-Aの要件整理レビュー・CP-Fの大規模doc整備・TDD文脈外の文書レビュー）は、次元別チェックリスト（コード用のreview-*、条件付き2〜5次元）の代わりに**命題駆動の敵対レビュー**を使ってよい。**コード差分のCP-Dはこのパターンで置き換えない**（review-*の次元別チェックリストが確立済みのため現行維持）。
 
 - **相補的な逆方向2命題**: 「過剰の立証」と「欠落の立証」の対になる命題を立て、それぞれ独立エージェントに検察官スタンスで立証させる（例:「この文書は要件定義書を名乗る設計書である」×「要件定義書として必須の要素を欠いている」）。過剰系と欠落系で挟むと、次元分割では出ない被覆が得られる。
 - **正例・負例ペアのルーブリック埋め込み**: 各命題のプロンプトに具体例で判定基準を与える（例:「flush→fsync→renameの手順は設計／書きかけが読者に見えないことは要件」）。あわせて**境界事例は安易に断ぜず理由付きで判定させ、「弁護側に譲った事例」も報告させる**（`agents/references/review.md`の過剰指摘抑制と同旨）。

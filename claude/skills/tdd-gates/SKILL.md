@@ -30,7 +30,7 @@ description: |
 | CP-A 要件ギャップレビュー（旧1） | brainstorming の Spec Self-Review 後・User Review Gate 前に独立エージェントの敵対的検査を挿入。土台は `spec-document-reviewer-prompt.md` への差分追記 | `tdd-evaluator` | tdd-gates独自 PASS/CONDITIONAL/FAIL・最大2回 |
 | CP-B 計画品質レビュー（旧2+3） | writing-plans の Self-Review 後・Execution Handoff 前。土台は `plan-document-reviewer-prompt.md` への差分追記（トレーサビリティ表・3層戦略・small/substantial判定・業務ロジック分離監査を追加） | `tdd-evaluator` | 同上・最大2回 |
 | CP-C タスク証拠検証（旧4-7） | SDD の task-reviewer ディスパッチを差し替え（汎用reviewerでなく`tdd-evaluator`）。UI/UX・security/perfは条件付き追加 | `tdd-evaluator` | SDD純正の5ラウンドfix loopをそのまま使用（独自カウンタは持たない） |
-| CP-D 最終スコアカード（旧8） | SDD Final Review の `code-reviewer.md` を差し替え | `review-*`条件付き3〜5本並列→`tdd-evaluator`集約（ミューテーション検証必須） | SDD純正のFinal Review（1修正波+1 scoped re-review） |
+| CP-D 最終スコアカード（旧8） | SDD Final Review の `code-reviewer.md` を差し替え | `review-*`条件付き2〜5本並列→`tdd-evaluator`集約（ミューテーション検証必須） | SDD純正のFinal Review（1修正波+1 scoped re-review） |
 | CP-E CI品質ゲート整備（旧9・条件付き） | writing-plans が条件を満たせば末尾タスクとして自動追加 | 実装=`doc-updater`、レビュー=`tdd-evaluator` | SDD純正の5ラウンドloop |
 | CP-F ドキュメント同期（旧10・条件付き） | 同上、CI整備タスクの後。選択したドキュメントプロファイルのカテゴリ表を参照し、トリガー条件該当カテゴリのみ対象 | 実装=`doc-updater`、レビュー=`doc-verifier` | SDD純正の5ラウンドloop |
 
@@ -51,7 +51,7 @@ description: |
 - **Main のコンテキスト衛生**: Main は生ログ全文を抱えない。各サブエージェントには結論・スコア・証拠スニペット・`file:line` だけを蒸留して返させる。
 - **並列実装・worktree分離**: SDD の Setup（`superpowers:using-git-worktrees`）にそのまま従う。tdd-gates 独自の追加要求はない。
 - **仕様変更時の巻き戻し**: ユーザー起因の仕様変更が入ったら、① CP-C以降なら `progress.md` に「仕様変更」エントリ（日時・変更内容・ユーザー指示の要旨）を記録し、② 影響するテストは CP-C の RED からやり直す。③ `tdd-evaluator` はこのエントリと照合し、正当なテスト変更と assert 骨抜きを区別する。
-- **CP-A〜Fを1サイクルとして自動で通し、受け入れ確認は最後に一度だけ**: CP-A→B→C→D→E→F まで、CONDITIONAL再評価や SDD の fix loop を正規工程として自動で回し、人間の都度承認を挟まない（正常系の停止点はここにしかない）。CP-F 完了後に一度だけユーザーの受け入れ確認を取る（グローバル CLAUDE.md「実装後の受け入れ→ドキュメント更新」準拠。CI整備・doc同期まで完了した状態で提示できるため判断材料が揃う）。この受け入れ確認の際、`tdd-evaluator` が受け入れチェックリスト（受入基準＋CP-Dの実施次元（3〜5本）＋CP-E/Fの整備状況＋例外処理・権限漏れ・変更影響範囲）を生成する。NG なら該当CPへ差し戻す。
+- **CP-A〜Fを1サイクルとして自動で通し、受け入れ確認は最後に一度だけ**: CP-A→B→C→D→E→F まで、CONDITIONAL再評価や SDD の fix loop を正規工程として自動で回し、人間の都度承認を挟まない（正常系の停止点はここにしかない）。CP-F 完了後に一度だけユーザーの受け入れ確認を取る（グローバル CLAUDE.md「実装後の受け入れ→ドキュメント更新」準拠。CI整備・doc同期まで完了した状態で提示できるため判断材料が揃う）。この受け入れ確認の際、`tdd-evaluator` が受け入れチェックリスト（受入基準＋CP-Dの実施次元（2〜5本）＋CP-E/Fの整備状況＋例外処理・権限漏れ・変更影響範囲）を生成する。NG なら該当CPへ差し戻す。
   - **止まるのはガードレール発動時のみ**: 非自明な要件の抜け漏れ（CP-A/B）・再評価/fix loop 上限到達による FAIL 確定・仕様の曖昧化。構造化フォーマットは `references/scoring.md`「停止シグナル（GUARDRAIL_HALT）」参照。これは「都度の承認待ち」とは別物であり正常系フローを止めない。複数マイルストーン計画では、マイルストーン単位で CP-F まで自動通しし、各マイルストーンの CP-F 後 1 回の受け入れ確認に一本化する（マイルストーン間の中間確認はしない）。
 
 ## 参照ファイル
