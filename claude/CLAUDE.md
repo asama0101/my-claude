@@ -71,23 +71,9 @@
 
 ## リファレンス
 
-エージェント（`~/.claude/agents/`。詳細は各 `*.md`。reviewer 構成・本数は `~/.claude/skills/tdd-gates/references/checkpoints.md` が正典）:
-- `planner`: 実装計画の素材（分解・依存・順序）＋設計判断・トレードオフ・ADR。最終計画は Main が組む。
-- `tdd-implementer`: `superpowers:test-driven-development` に従い RED→GREEN→REFACTOR を実行し証拠を返す実装者ペルソナ。`superpowers:subagent-driven-development`／`executing-plans` から起動される。
-- `tdd-evaluator`: review-* を集約採点し Critical 即 FAIL 判定。tdd-gates 採点全般／レビュー単独で起動。
-- `review-correctness`／`review-performance`／`review-security`／`review-maintainability`: 1次元レビュー（正確性／性能／セキュリティ／保守性・doc 整合）。
-- `review-test`: テスト品質・要件適合（カバレッジ・仕様適合・冪等性）。
-- `dev-python`: Python 実装（スタイル・設計・イディオム）。
-- `trivial-executor`: trivial 変更の軽量実行（haiku）。設定/doc/コメント/誤記/機械的編集。
-- `doc-updater`: doc の新規作成・構成設計＋コードマップ・既存 doc 更新。
-- `doc-verifier`: doc の整合確認（記載事実 vs ソース）を別コンテキストで採点（report 専用）。
-- `Explore`／`Plan`: ビルトイン Agent（読取専用の探索／実装計画の設計）。`~/.claude/agents/` には無い。
+エージェント（`~/.claude/agents/`。詳細は各 `*.md`。reviewer 構成・本数は `~/.claude/skills/tdd-gates/references/checkpoints.md` が正典）
 
-スキル:
-- **tdd-gates**（ローカル）: TDD品質ゲート（CP-A〜F）のオーケストレータ。substantial 実装で使え。
-- **codemap**（ローカル）: 言語非依存でコードの処理フローを一本道で読み下せる HTML レポートを生成（気になる点・確認事項も含む）。レビュー前の構造把握に使え。
-- **html-template-import**（ローカル）: 既存 HTML を流用元ライブラリ（`~/.claude/assets/html-templates/`）へ取り込む。
-- プラグイン群（superpowers/context7/frontend-design 等）は有効化済み。
+スキル（ローカル: tdd-gates／codemap／html-template-import。詳細は各 SKILL.md。プラグイン群は有効化済み）:
 - **context7 は必ず使用せよ**: ライブラリ・SDK・API の質問時（`resolve-library-id` → `query-docs` の順）。
 - **frontend-design は必ず使用せよ**: UI・Web ページ・HTML 成果物・スライド等をデザイン・生成・変更するとき。
 - **HTML 成果物**: 独立サブエージェントで敵対的クロスレビュー→修正→再レビューを通せ。ブラウザ不可なら静的解析で代替せよ。

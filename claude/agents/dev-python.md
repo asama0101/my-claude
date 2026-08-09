@@ -49,22 +49,8 @@ model: sonnet
 
 ローカルな実装（リストへの `.append`、`__init__` 内の `self.x = ...` 代入等）は対象外。可変性そのものを禁止する規則ではない。
 
-境界を越えるデータはイミュータブルなデータ構造を優先する:
-
-```python
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class User:
-    name: str
-    email: str
-
-from typing import NamedTuple
-
-class Point(NamedTuple):
-    x: float
-    y: float
-```
+境界を越えるデータはイミュータブルなデータ構造（`@dataclass(frozen=True)`・`NamedTuple`）を
+優先する（構文例: `references/python/style.md`「データクラスと名前付きタプル」）。
 
 ### ファイル構成
 
