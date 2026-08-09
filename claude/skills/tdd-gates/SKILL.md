@@ -21,7 +21,7 @@ description: |
    - **確定したプロファイルのパスは、各チェックポイントのレビュアーを起動するたびにプロンプトへ必ず明記して渡す**（エージェント側での推測は禁止）。
    - **CP-F（ドキュメント同期）を回すなら、ドキュメントプロファイルも確定する**: プロジェクトの `CLAUDE.md` に宣言があればそれに従う（例「ドキュメントプロファイル: docs-network-tool」）。宣言が無ければ既定の `references/profiles/docs-generic.md` を使ってよいかユーザーに一言確認する（言語プロファイルと異なり`docs-generic`は安全な既定値のため `profile_undefined` 停止は発火しない）。プロファイルが無いドメインは `references/profiles/_template-docs.md` から起草しユーザー承認を得る。
 2. **証拠の記録先（成果物は必ずファイル化する）**: CP-A・CP-B は独自の PASS/CONDITIONAL/FAIL（最大2回の再評価）で完結し、専用の台帳は持たない。ただし `tdd-evaluator` は Bash 書き込みを持たないため、**Main が Quality Gate Report を対象 spec/plan 文書の末尾に追記してから git commit する**（brainstorming/writing-plans が既に commit する文書に相乗りし、新規の台帳ファイルは作らない）。チャット報告のみで終わらせない。**CP-C 以降は SDD（`subagent-driven-development`）の `progress.md` に証拠行（RED/GREEN コマンドと出力）を追記する形に統一**し、**CP-D の集約スコアカードも Main が `progress.md` に書き出す**。tdd-gates 独自の台帳（旧 `.tdd-gates/ledger-*.md`）は作らない。
-3. **superpowers チェーンを起動**: `superpowers:using-superpowers` の案内どおり `brainstorming` から入り、下記 CP対応表に従って各ステップのレビュアーを差し替える。CP-C 以降のタスク単位の todo は SDD が自前で作成するため、tdd-gates 側で重複して作らない。
+3. **superpowers チェーンを起動**: `superpowers:using-superpowers` の案内どおり `brainstorming` から入り、下記 CP対応表に従って各ステップのレビュアーを差し替える。CP-C 以降のタスク単位の todo は SDD が自前で作成するため、tdd-gates 側で重複して作らない。**brainstormingを経由せず既存のspec/plan文書から再開する場合**（別セッションでCP-A承認済みの場合等）は、対象spec文書のcommit日時以降に参照範囲のコードへ変更が入っていないか`git log`で確認し、変更があれば一言ユーザーに確認する（CP-A再実行ではなく差分有無の軽量チェック）。
 
 ## CP対応表（superpowers チェーンへの寄生地図）
 
@@ -42,6 +42,8 @@ description: |
 - **small**（差分≤2ファイル・実装差分≤50行・公開IF不変・既存テストが被覆）: **判定主体は CP-B**（writing-plans の計画品質レビュー時に `tdd-evaluator` が `git diff --stat` 見込みと既存テスト一覧で4条件を照合する）。該当すれば CP-C のうち RED→GREEN 相当だけの簡略ルートを取ってよいが、CP-C の Critical（実失敗ログ）はいかなる場合も省略しない。
 - **substantial**（新規ロジック・複数ファイル横断・公開IF変更・非自明なバグ修正）: CP-A〜D をフルで通す。CP-B（計画品質レビュー）・CP-D（最終スコアカード）は省略不可（唯一の実レビュー層のため）。
 
+**trivial/small判定に迷う場合**: グローバル CLAUDE.md「変更規模で工程の深さを変えよ。迷えば substantial 扱いにせよ」の原則をそのまま適用する。trivial誤判定はbrainstorming自体のスキップ＝CP-Aの要件ギャップレビューが丸ごと素通りされることを意味するため、この原則の遵守は特に重要である。
+
 数値基準の正典はグローバル CLAUDE.md 作業ルーティング表 small 行。
 
 ## 重要ルール
@@ -50,7 +52,7 @@ description: |
 - **Critical即FAIL**: スコアが高くても Critical 未達なら即 FAIL。特に CP-C の RED は「実際に失敗したログ」が無ければ通さない。
 - **Main のコンテキスト衛生**: Main は生ログ全文を抱えない。各サブエージェントには結論・スコア・証拠スニペット・`file:line` だけを蒸留して返させる。
 - **並列実装・worktree分離**: SDD の Setup（`superpowers:using-git-worktrees`）にそのまま従う。tdd-gates 独自の追加要求はない。
-- **仕様変更時の巻き戻し**: ユーザー起因の仕様変更が入ったら、① CP-C以降なら `progress.md` に「仕様変更」エントリ（日時・変更内容・ユーザー指示の要旨）を記録し、② 影響するテストは CP-C の RED からやり直す。③ `tdd-evaluator` はこのエントリと照合し、正当なテスト変更と assert 骨抜きを区別する。
+- **仕様変更時の巻き戻し**: ユーザー起因の仕様変更が入ったら、① CP-C以降なら `progress.md` に「仕様変更」エントリ（日時・変更内容・ユーザー指示の要旨）を記録し、② 影響するテストは CP-C の RED からやり直す。③ `tdd-evaluator` はこのエントリと照合し、正当なテスト変更と assert 骨抜きを区別する。④ 変更が実装詳細でなく**要件レベル**（受け入れ基準そのものが変わる）の場合は、Mainが変更後の要件を一行で再言語化しユーザーに確認を取る（独立エージェントによる再検証ではなくMain自身の軽量確認に留める）。
 - **CP-A〜Fを1サイクルとして自動で通し、受け入れ確認は最後に一度だけ**: CP-A→B→C→D→E→F まで、CONDITIONAL再評価や SDD の fix loop を正規工程として自動で回し、人間の都度承認を挟まない（正常系の停止点はここにしかない）。CP-F 完了後に一度だけユーザーの受け入れ確認を取る（グローバル CLAUDE.md「実装後の受け入れ→ドキュメント更新」準拠。CI整備・doc同期まで完了した状態で提示できるため判断材料が揃う）。この受け入れ確認の際、`tdd-evaluator` が受け入れチェックリスト（受入基準＋CP-Dの実施次元（2〜5本）＋CP-E/Fの整備状況＋例外処理・権限漏れ・変更影響範囲）を生成する。NG なら該当CPへ差し戻す。
   - **止まるのはガードレール発動時のみ**: 非自明な要件の抜け漏れ（CP-A/B）・再評価/fix loop 上限到達による FAIL 確定・仕様の曖昧化。構造化フォーマットは `references/scoring.md`「停止シグナル（GUARDRAIL_HALT）」参照。これは「都度の承認待ち」とは別物であり正常系フローを止めない。複数マイルストーン計画では、マイルストーン単位で CP-F まで自動通しし、各マイルストーンの CP-F 後 1 回の受け入れ確認に一本化する（マイルストーン間の中間確認はしない）。
 
