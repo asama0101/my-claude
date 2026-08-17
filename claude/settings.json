@@ -6,7 +6,8 @@
   "permissions": {
     "allow": [
       "Read(./**)",
-      "Edit(./**)"
+      "Edit(./**)",
+      "WebFetch(domain:code.claude.com)"
     ],
     "deny": [
       "Read(**/.env)",

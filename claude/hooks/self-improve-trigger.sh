@@ -10,8 +10,12 @@
 #
 # ループガード（2層）:
 # 1. stop_hook_active が true の場合（＝このStop hook自身のブロックで継続させたターン）は無条件で exit 0。
-# 2. state.json.last_handled_session_id が今回の session_id と一致する場合、
+# 2. state.json.handled_session_ids（配列、直近20件）に今回の session_id が含まれる場合、
 #    既に Tier2 が処理済みなのでシグナルがあっても再ブロックしない。
+#    単一値（last_handled_session_id）ではなく配列にしているのは、マシン上で複数の
+#    Main セッションが同時に稼働するケースに対応するため。単一値だと片方の Tier2 完了が
+#    もう片方の「処理済み」記録を上書きしてしまい、セッション同士が互いを再ブロックし合う
+#    （flock だけでは解決しない設計上の問題だった）。
 #
 # 排他制御: state.json はマシン上の全セッションが共有するグローバルファイルであり、
 # 複数セッションが同時にStopするとread-modify-writeが競合してロストアップデートが起きる
@@ -54,7 +58,8 @@ if [ "$LAST_COUNTED" != "$SESSION_ID" ]; then
     "$STATE_FILE" > "$tmp_count" && mv "$tmp_count" "$STATE_FILE"
 fi
 
-LAST_HANDLED=$(jq -r '.last_handled_session_id // empty' "$STATE_FILE")
+ALREADY_HANDLED=$(jq --arg sid "$SESSION_ID" \
+  '[(.handled_session_ids // [])[] | select(. == $sid)] | length > 0' "$STATE_FILE")
 NOW=$(date +%s)
 
 # last_checked_at 更新はどの分岐でも最後に行う
@@ -64,7 +69,7 @@ update_checked_at() {
   jq --argjson t "$NOW" '.last_checked_at = $t' "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
 }
 
-if [ "$LAST_HANDLED" = "$SESSION_ID" ]; then
+if [ "$ALREADY_HANDLED" = "true" ]; then
   update_checked_at
   exit 0
 fi

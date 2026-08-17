@@ -35,6 +35,12 @@ description: |
 5. **state.json の更新**（必ず最後に実行、jq で patch）:
    - `last_reviewed_model` を今回のモデルIDへ更新
    - `session_count_since_full_audit`: 累積閾値到達シグナルで起動した場合のみ `0` にリセットし `last_full_audit_at` を現在epoch秒に更新する（Tier1が session_id ごとに1回だけ加算するため、Tier2 側での `+1` は行わない）
-   - `last_handled_session_id` を今回の `session_id` に更新（Tier1のループガード用）
+   - `handled_session_ids`（Tier1のループガード用の配列）に今回の `session_id` を**追記**する。**上書きしないこと**——マシン上で複数のMainセッションが同時に稼働することがあり、単一値で上書きすると他セッションの処理済み記録を消してしまい、セッション同士が互いを再ブロックし合う（実際に発生した不具合）。
+     ```
+     jq --arg sid "$SESSION_ID" \
+       '.handled_session_ids = ((.handled_session_ids // []) - [$sid] + [$sid] | .[-20:])' \
+       state.json
+     ```
+     （直近20件で切り詰め、同じIDの重複は除去）
 
 6. **報告**: 「適用した内容」「ロールバックした内容（あれば）」「提案のみに留めた内容（あれば）」「claude-md-improver のスコア（CLAUDE.mdを触った場合）」を簡潔にユーザーへ報告する。git操作は一切行わないことを明記する。

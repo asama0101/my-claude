@@ -18,7 +18,7 @@ reset_state() {
   "session_count_since_full_audit": 0,
   "last_full_audit_at": 0,
   "last_checked_at": 0,
-  "last_handled_session_id": "",
+  "handled_session_ids": [],
   "last_counted_session_id": "",
   "pending_improver_suggestions": []
 }
@@ -74,9 +74,9 @@ reset_state
 touch "$MEMORY_DIR/feedback-example.md"
 run_hook "s5" "$PROJECT_DIR/clean.jsonl"; assert_exit 2 "$?" "memory更新検知"
 
-# 6. 同一セッションで既にTier2処理済み（last_handled_session_id一致）→ シグナルがあっても exit 0
+# 6. 同一セッションで既にTier2処理済み（handled_session_idsに含まれる）→ シグナルがあっても exit 0
 reset_state
-jq '.last_handled_session_id = "s6"' "$STATE_DIR/self-improvement.json" > "$STATE_DIR/tmp.json" && mv "$STATE_DIR/tmp.json" "$STATE_DIR/self-improvement.json"
+jq '.handled_session_ids = ["s6"]' "$STATE_DIR/self-improvement.json" > "$STATE_DIR/tmp.json" && mv "$STATE_DIR/tmp.json" "$STATE_DIR/self-improvement.json"
 run_hook "s6" "$PROJECT_DIR/incident.jsonl"; assert_exit 0 "$?" "ループガード（処理済みセッション）"
 
 # 7. 新規セッションIDで初回実行 → session_count_since_full_audit が1増える
@@ -120,6 +120,15 @@ else
   echo "FAIL: 同時実行でもカウントがロストしない (expected $CONCURRENCY, got $COUNT_AFTER_RACE)"
   FAIL=1
 fi
+
+# 11. 複数セッションのTier2完了記録が互いを上書きしない（handled_session_idsが単一値でなく集合であること）
+#     旧実装（last_handled_session_id単一値）だと、セッションBのTier2完了でセッションAの
+#     「処理済み」記録が消え、Aが再ブロックされてしまっていた（実運用で観測された不具合）。
+reset_state
+jq '.handled_session_ids = ["sA"]' "$STATE_DIR/self-improvement.json" > "$STATE_DIR/tmp.json" && mv "$STATE_DIR/tmp.json" "$STATE_DIR/self-improvement.json"
+# セッションBのTier2完了を模擬（sAを消さずsBを追記）
+jq '.handled_session_ids = ((.handled_session_ids // []) - ["sB"] + ["sB"] | .[-20:])' "$STATE_DIR/self-improvement.json" > "$STATE_DIR/tmp.json" && mv "$STATE_DIR/tmp.json" "$STATE_DIR/self-improvement.json"
+run_hook "sA" "$PROJECT_DIR/incident.jsonl"; assert_exit 0 "$?" "セッションBのTier2完了後もセッションAの処理済み記録が残る"
 
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }
