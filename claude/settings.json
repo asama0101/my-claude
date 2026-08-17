@@ -1,10 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "CLAUDE_CODE_DISABLE_MOUSE": "1"
+  },
   "permissions": {
     "allow": [
       "Read(./**)",
-      "Edit(./**)",
-      "Bash(*)"
+      "Edit(./**)"
     ],
     "deny": [
       "Read(**/.env)",
@@ -63,9 +65,6 @@
     "disableBypassPermissionsMode": "disable"
   },
   "model": "sonnet",
-  "env": {
-    "CLAUDE_CODE_DISABLE_MOUSE": "1"
-  },
   "hooks": {
     "PreToolUse": [
       {
@@ -103,9 +102,12 @@
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true
+  },
+  "skillOverrides": {
+    "html-template-import": "off",
+    "codemap": "off"
   },
   "effortLevel": "high",
   "tui": "fullscreen",
@@ -113,5 +115,33 @@
   "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: None configured",
+      "**Repository visibility**: PUBLIC — asama0101/my-claude (github.com)",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: None configured",
+      "**Default / protected branches**: default branch unknown (origin/HEAD unset); no rulesets or protected branches listed via gh",
+      "**CI/CD deploy targets**: None configured",
+      "**Network posture**: None configured",
+      "**Source control**: The trusted repo (asama0101/my-claude on github.com) and its origin remote only — no additional orgs configured",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment (hyphen/underscore/dot-delimited — e.g. matches `prod-db`, not `producer`)",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development (Claude Code configuration management — this repo mirrors and syncs `~/.claude/` settings)",
+      "**Trusted repo**: asama0101/my-claude (github.com, PUBLIC) — the working directory's repo and its origin remote; since it is public, only this repo's own work is OK to push here, and secrets/sensitive data are never cleared into it by visibility alone",
+      "**Org-specific CLIs**: None configured",
+      "**routine under this repo's `scripts/` prefix**: `sync.sh` (commits+pushes `~/.claude/` → `claude/`) and `install.sh` (expands `claude/` → `~/.claude/`) are repo-defined workflows, not org-wide CLIs"
+    ]
+  }
 }
