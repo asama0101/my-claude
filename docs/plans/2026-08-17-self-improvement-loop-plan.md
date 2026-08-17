@@ -96,7 +96,10 @@ SCRATCH=$(mktemp -d)
 FAKE_HOME="$SCRATCH/home"
 PROJECT_DIR="$FAKE_HOME/proj"
 STATE_DIR="$FAKE_HOME/.claude/state"
-MEMORY_DIR="$FAKE_HOME/.claude/projects/-scratch-home-proj/memory"
+# フック本体と同じスラッグ化ロジック（cwdの "/" を "-" に置換）でMEMORY_DIRを算出する。
+# ハードコードすると mktemp -d が生成する実パスとズレて偽陰性になるため必ず動的に計算すること。
+SLUG=$(printf '%s' "$PROJECT_DIR" | sed 's/\//-/g')
+MEMORY_DIR="$FAKE_HOME/.claude/projects/$SLUG/memory"
 mkdir -p "$STATE_DIR" "$MEMORY_DIR" "$PROJECT_DIR"
 
 reset_state() {
@@ -295,9 +298,13 @@ Expected: `PreToolUse` のみが存在し `Stop` キーは無い
 
 - [ ] **Step 2: Stop hook を追加**
 
+**重要**: 稼働中の `~/.claude/settings.json` は `__CLAUDE_HOME__` プレースホルダを使わない（それは `<repo>/claude/settings.json` ミラー専用で、`sync.sh` が変換する）。実機で確認済みの通り、稼働中ファイルには展開済みの絶対パス（例: `/home/asama/.claude/hooks/bash-guard.sh`）を書く。`$HOME` という文字列をそのまま jq フィルタに埋め込むと展開されずリテラル文字列 `$HOME` が書き込まれてしまうため、シェル変数展開してから `--arg` で渡すこと。
+
 ```bash
+HOOK_PATH="$HOME/.claude/hooks/self-improve-trigger.sh"
 TMP=$(mktemp)
-jq '.hooks.Stop = [{"hooks": [{"type": "command", "command": "$HOME/.claude/hooks/self-improve-trigger.sh"}]}]' \
+jq --arg cmd "$HOOK_PATH" \
+  '.hooks.Stop = [{"hooks": [{"type": "command", "command": $cmd}]}]' \
   "$HOME/.claude/settings.json" > "$TMP" && mv "$TMP" "$HOME/.claude/settings.json"
 ```
 
@@ -306,10 +313,10 @@ jq '.hooks.Stop = [{"hooks": [{"type": "command", "command": "$HOME/.claude/hook
 Run: `jq empty "$HOME/.claude/settings.json" && echo OK`
 Expected: `OK`
 
-- [ ] **Step 4: 追加内容を確認**
+- [ ] **Step 4: 追加内容を確認（絶対パスで書き込まれていること）**
 
 Run: `jq '.hooks.Stop' "$HOME/.claude/settings.json"`
-Expected: `self-improve-trigger.sh` を command に持つエントリが1件表示される
+Expected: `command` の値が `$HOME` などの変数名を含まない、展開済みの絶対パス（例: `/home/<user>/.claude/hooks/self-improve-trigger.sh`）で1件表示される
 
 ---
 
