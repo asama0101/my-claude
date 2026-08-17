@@ -12,8 +12,9 @@
 #
 # 既知の限界: scripts/sync.sh のようなラッパースクリプトの呼び出し自体は、Bash
 # に渡る文字列がスクリプト名のみで内部コマンドが見えないため検知できない。
-# リダイレクト検知は文字列中に "> " 等を含む read-only コマンド（grep等）を
-# 誤検知しうる（bash-guard.sh / workspace-guard.sh と同種の制約。回避は Read）。
+# リダイレクト検知は `2>/dev/null` 等の破棄リダイレクトは除外済みだが、それ以外の
+# 文字列中に "> " を含む read-only コマンド（grep等）は誤検知しうる
+# （bash-guard.sh / workspace-guard.sh と同種の制約。回避は Read）。
 
 command -v jq >/dev/null 2>&1 || { echo "❌ main-branch-guard: jq not found, failing closed" >&2; exit 2; }
 
@@ -55,7 +56,7 @@ case "$TOOL" in
       '\b(rm|rmdir|unlink)\b'                       # 削除
       '\bgit\s+rm\b'                                 # git rm
       '\bgit\s+commit\b'                             # git commit（--amend含む）
-      '>>?(?!&)[[:space:]]*[^[:space:]]'             # リダイレクト書き込み（先頭境界不要。2>&1等のfd複製は除外）
+      '>>?(?!&)[[:space:]]*(?!/dev/null\b)[^[:space:]]' # リダイレクト書き込み（先頭境界不要。2>&1等のfd複製・/dev/null宛の破棄は除外）
       '\btee\b'
       '\bcp\b'
       '\bmv\b'

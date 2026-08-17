@@ -69,3 +69,4 @@ Hooks（enforcement の正典）:
 | workspace-guard.sh | プロジェクト配下／`~/.claude` 配下／`/tmp` 配下以外への Write/Edit をブロック。<br>`~/.claude/hooks/` とハーネス設定（settings.json）は許可（実行前確認は settings.json の `permissions.ask` 側で担保）。<br>Bash の `/var/tmp` リダイレクト・プロジェクト外宛先の cp/tee/mv も保守的にブロック。誤検知時は Read で回避せよ |
 | venv-guard.sh | venv 外への `pip install` 等をブロック。文字列一致で誤検知しうる。回避は Read |
 | main-branch-guard.sh | main/master ブランチ上での Write/Edit/MultiEdit/NotebookEdit、および Bash の削除・変更系コマンド（`rm`/`mv`/`cp`/`tee`/`touch`/リダイレクト/`sed -i`/`git commit`/`git rm` 等）をブロック。<br>読み取り専用コマンドは対象外。ブロック時は `git checkout -b <branch>` でブランチを作成してから再試行せよ |
+| self-improve-trigger.sh | Stop hook。transcriptの`is_error:true`出現・モデル世代不一致等をTier1として粗く検知し exit 2 でブロック、`self-improvement-loop`スキル起動を促す。<br>粗い検知のため誤検知あり: `is_error:true`は原因を区別せず安全ガードの正常ブロックも一律検知対象。モデル不一致はSDD/tdd-gatesの意図的なサブエージェント多段モデル運用（transcript内の最後の`model`フィールドを拾うため）でも発生しうる。裏取りはTier2（`self-improvement-loop`スキル）が担う |
