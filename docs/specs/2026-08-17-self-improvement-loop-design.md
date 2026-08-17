@@ -94,6 +94,15 @@ hooks/settings.json は trivial 自動適用の対象外（常に提案止まり
   - substantial 検出 → 提案のみで終了、の経路
   - hooks/settings.json 変更が trivial 判定にならず常に提案止まりになることの確認
 
+## 実装後の修正（最終レビューで発見）
+
+Task2実装時、`session_count_since_full_audit` の**インクリメント処理が漏れ**、Tier1は値を読んで閾値判定するだけになっていた（Tier2側の`+1`はTier2自体が他シグナルの便乗でしか起動しないため、クリーンなセッションが何回続いてもカウンタが増えず「累積傾向」シグナルが恒久的に発火しない不具合）。
+
+さらに、単純に「Tier1が毎回+1」で直すと問題がある: Stop hookは**セッション終了時ではなくターンごとに発火する**ため、1セッション内で複数回カウントされ過大計上になる。正しい修正は、`state.json` に `last_counted_session_id` を追加し、**session_idごとに1回だけ**カウントする重複排除を入れること:
+
+- Tier1は`SESSION_ID`取得後、ループガード判定より前に「`last_counted_session_id`と一致しなければ`session_count_since_full_audit`を+1し`last_counted_session_id`を更新」を行う（シグナル判定の結果(REASONS)に関わらず、そのセッションで初めてTier1が走った時点で1回だけ計上）
+- Tier2（SKILL.md手順5）の`+1`指示は削除し、「累積閾値到達で起動した場合のみ0にリセットしlast_full_audit_atを更新」のみ残す（二重計上防止）
+
 ## 確認済み事項
 
 - `scripts/sync.sh`/`scripts/install.sh` はいずれもホワイトリスト方式（`FILE_TARGETS`/`DIR_TARGETS`・`FILE_ITEMS`/`DIR_ITEMS`）で、明示的に列挙した項目しか対象にしない。`~/.claude/state/` はこのリストに含めない限り自動的に対象外になるため、除外のための追加実装は不要
