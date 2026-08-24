@@ -398,6 +398,33 @@ class User:
             raise ValueError(f"Invalid age: {self.age}")
 ```
 
+#### frozenなデータクラス（イミュータブルな値オブジェクト・DTO）
+
+モジュール境界を越えて受け渡すデータ（DTO・値オブジェクト・設定値）は `frozen=True` で不変にし、呼び出し元から受け取ったオブジェクトを書き換えて返さない設計にする。
+
+```python
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class Money:
+    """イミュータブルな金額の値オブジェクト。"""
+    amount: int
+    currency: str
+
+    def __post_init__(self) -> None:
+        if self.amount < 0:
+            raise ValueError(f"Invalid amount: {self.amount}")
+
+    def add(self, other: "Money") -> "Money":
+        if self.currency != other.currency:
+            raise ValueError(f"Currency mismatch: {self.currency} vs {other.currency}")
+        return Money(self.amount + other.amount, self.currency)
+
+### 使用例: フィールドの再代入は dataclasses.FrozenInstanceError になる
+price = Money(1000, "JPY")
+# price.amount = 2000  # FrozenInstanceError
+```
+
 #### 名前付きタプル
 
 ```python
@@ -435,7 +462,7 @@ class UserRepository(Protocol):
 
 #### APIレスポンス形式（エンベロープ）
 
-すべてのAPIレスポンスに一貫したエンベロープを使用する。
+Generic 型を使うと、レスポンスの型安全なラッパーをデータクラスで表現できる。成否は `success` フィールドではなく HTTP ステータスコードで表現し、成功時のエンベロープと失敗時のエンベロープはモデルを分ける（設計根拠・Option A/B の比較・`ApiError` モデルは `~/.claude/agents/references/python/rest-api.md`「レスポンスエンベロープの選択肢」を単一ソースとする）。
 
 ```python
 from dataclasses import dataclass
@@ -443,15 +470,14 @@ from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
-@dataclass
+@dataclass(frozen=True)
 class ApiResponse(Generic[T]):
-    success: bool
-    data: T | None = None
-    error: str | None = None
+    """成功レスポンス用エンベロープ（成否は HTTP ステータスコードで表現する）。"""
+    data: T
 
-@dataclass
+@dataclass(frozen=True)
 class PaginatedResponse(Generic[T]):
-    success: bool
+    """ページネーション付きコレクションレスポンス用エンベロープ。"""
     data: list[T]
     total: int
     page: int
@@ -460,12 +486,12 @@ class PaginatedResponse(Generic[T]):
 
 #### DTOとしてのデータクラス
 
-境界をまたぐ入力・リクエストは軽量な DTO（データクラス）で表現する。
+境界をまたぐ入力・リクエストは軽量な DTO（データクラス）で表現する。DTO はイミュータブルにする（`frozen=True`、構文は上記「frozenなデータクラス」節を参照）。
 
 ```python
 from dataclasses import dataclass
 
-@dataclass
+@dataclass(frozen=True)
 class CreateUserRequest:
     name: str
     email: str

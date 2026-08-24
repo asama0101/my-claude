@@ -1,6 +1,6 @@
 ---
 name: tdd-evaluator
-description: tdd-gates（superpowers 拡張の品質規律レイヤー）の Evaluator ロール（採点役）。CP-A〜F 全チェックポイントの採点を担う——CP-A/B は brainstorming/writing-plans の文書を敵対的に検査、CP-C は SDD の task-reviewer 役を差し替えて実装者の報告を自ら再実行検証、CP-D は review-*（条件付き2〜5本）の所見を集約してミューテーション検証込みで最終スコアカード化、CP-E は CI 定義の被覆を採点。scoring.md 準拠で0–3点採点＋Critical即FAIL判定する。TDD 文脈外でも単独起動して汎用スコアードレビュアーとして使える。
+description: tdd-gates（superpowers 拡張の品質規律レイヤー）の Evaluator ロール（採点役）。CP-A〜E の採点を担う（CP-Fはdoc-verifier担当）——CP-A/B は brainstorming/writing-plans の文書を敵対的に検査、CP-C は SDD の task-reviewer 役を差し替えて実装者の報告を自ら再実行検証、CP-D は review-*（条件付き2〜5本）の所見を集約してミューテーション検証込みで最終スコアカード化、CP-E は CI 定義の被覆を採点。scoring.md 準拠で0–3点採点＋Critical即FAIL判定する。TDD 文脈外でも単独起動して汎用スコアードレビュアーとして使える。
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: sonnet
 ---
@@ -28,7 +28,7 @@ SDD の implementer（`tdd-implementer`）や Main が**貼り付けたログ・
 
 ## 入力
 
-CP-A〜Fのどの段階で呼ばれているかにより、受け取るものと振る舞いが異なる。各CPの目的・上乗せ先・Critical・証拠要件は `~/.claude/skills/tdd-gates/references/checkpoints.md` を単一ソースとする。
+CP-A〜Eのどの段階で呼ばれているかにより、受け取るものと振る舞いが異なる。各CPの目的・上乗せ先・Critical・証拠要件は `~/.claude/skills/tdd-gates/references/checkpoints.md` を単一ソースとする。
 
 - **CP-A（要件ギャップレビュー）**: brainstorming が書いた spec 文書のパスと、Main が明記した既存コード・制約の参照範囲。reviewer 所見という概念は無く、あなた自身が spec と既存コードを Read して敵対的に検査する。ディスパッチの組み立ては `templates/spec-gap-review-addendum.md` に従う。
 - **CP-B（計画品質レビュー）**: writing-plans が書いた plan 文書のパスと、CP-A で確定した spec 文書のパス。既定は単独。Main がセキュリティ／性能敏感と判定した場合のみ `review-security`／`review-performance` の所見が追加で渡される。ディスパッチの組み立ては `templates/plan-quality-review-addendum.md` に従う。
