@@ -39,7 +39,7 @@ CP-A〜F。駆動順序の正典は SKILL.md「CP対応表」（重複掲載し�
 - **目的**: CP-Aで確定した要件を検証可能な受入基準・テストシナリオへ言語化し（旧Gate2）、実装着手前の既存コード・セキュリティ・分離リスクを監査する（旧Gate3）。
 - **上乗せ先**: `superpowers:writing-plans`（SKILL.md「## Self-Review」の直後、「## Execution Handoff」の直前）。土台は `writing-plans/plan-document-reviewer-prompt.md` への差分追記（`templates/plan-quality-review-addendum.md`、Phase2。トレーサビリティ表・3層戦略・small/substantial判定・業務ロジック分離監査を追加）。
 - **担当**: `tdd-evaluator`（既定は単独）。計画がセキュリティ敏感（認証・入力処理・機密データ）または性能敏感（大量データ・ホットパス）な場合のみ、`review-security`／`review-performance` を条件付きで並列起動する（最大2本）。
-- **small route判定はここで行う**: `tdd-evaluator` が `git diff --stat` 見込みと既存テスト一覧を証拠に、次の4条件を照合する——①差分2ファイル以下 ②実装差分50行以下（テスト除く）③公開インターフェース不変 ④既存テストが変更対象範囲を被覆。1つでも外れたら substantial としてフル工程。`planner` は該当見込みを計画書に申告するのみで承認主体ではない。
+- **small route判定はここで行う**: `tdd-evaluator` が `git diff --stat` 見込みと既存テスト一覧を証拠に、次の4条件（数値基準の正典はグローバル CLAUDE.md 作業ルーティング表 small 行）を照合する——①差分ファイル数の上限 ②実装差分行数の上限（テスト除く）③公開インターフェース不変 ④既存テストが変更対象範囲を被覆。1つでも外れたら substantial としてフル工程。`planner` は該当見込みを計画書に申告するのみで承認主体ではない。
 - **Critical**: 受入基準↔要件↔シナリオのトレーサビリティに漏れがない（各要件に最低1受入基準・各受入基準に最低1シナリオ）／重大セキュリティ欠陥・設計破綻がない。
 - **採点項目**: 受入基準の明確さ・検証可能性／シナリオ網羅（正常・異常・境界）／テスト種別の妥当性・3層割り当て／トレーサビリティ／既存構造の把握／セキュリティ観点（権限漏れ含む）／業務ロジックの分離（unitテスト可能性）／ファイルサイズ・責務分割（`review-maintainability` の基準に従う）／タスク粒度の妥当性（過剰分割・過小分割の検査、`templates/plan-quality-review-addendum.md`差分7）。
 - **証拠**: 対応表（要件ID↔受入基準↔テストシナリオ↔対象ファイル↔テスト種別/層）＋レビュー所見。

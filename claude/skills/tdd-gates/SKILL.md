@@ -17,7 +17,7 @@ description: |
 各項目をtodo化して順に実施する。
 
 1. **プロファイル確定**: 対象言語のプロファイルを1つ選ぶ（Python は `references/profiles/pytest.md`）。パス→テスト種別の対応表を読み、対象ファイルのテスト種別（unit/integration/e2e）を判定して**ユーザーに確認**する。**CP-E（CI）を回すなら、プロファイルの「CI ステージ」定義（lint/typecheck/build/unit/integration/主要E2E の具体コマンド）も確認する**。
-   - **対象言語のプロファイルが無い場合**（現状は pytest の1本のみ）は、`references/profiles/_template.md` から新規プロファイルを起草する。テスト実行コマンドと合格ログ形式を**ユーザーに承認してもらってから**開始する（未定義のまま pytest 前提で進めない。停止時は `references/scoring.md`「停止シグナル」の `profile_undefined` 形式で提示する）。
+   - **対象言語のプロファイルが無い場合**（現状は pytest／browser-manual-e2e の2本）は、`references/profiles/_template.md` から新規プロファイルを起草する。テスト実行コマンドと合格ログ形式を**ユーザーに承認してもらってから**開始する（未定義のまま pytest 前提で進めない。停止時は `references/scoring.md`「停止シグナル」の `profile_undefined` 形式で提示する）。
    - **確定したプロファイルのパスは、各チェックポイントのレビュアーを起動するたびにプロンプトへ必ず明記して渡す**（エージェント側での推測は禁止）。
    - **CP-F（ドキュメント同期）を回すなら、ドキュメントプロファイルも確定する**: プロジェクトの `CLAUDE.md` に宣言があればそれに従う（例「ドキュメントプロファイル: docs-network-tool」）。宣言が無ければ既定の `references/profiles/docs-generic.md` を使ってよいかユーザーに一言確認する（言語プロファイルと異なり`docs-generic`は安全な既定値のため `profile_undefined` 停止は発火しない）。プロファイルが無いドメインは `references/profiles/_template-docs.md` から起草しユーザー承認を得る。
 2. **証拠の記録先（成果物は必ずファイル化する）**: CP-A・CP-B は独自の PASS/CONDITIONAL/FAIL（最大2回の再評価）で完結し、専用の台帳は持たない。ただし `tdd-evaluator` は Bash 書き込みを持たないため、**Main が Quality Gate Report を対象 spec/plan 文書の末尾に追記してから git commit する**（brainstorming/writing-plans が既に commit する文書に相乗りし、新規の台帳ファイルは作らない）。チャット報告のみで終わらせない。**CP-C 以降は SDD（`subagent-driven-development`）の `progress.md` に証拠行（RED/GREEN コマンドと出力）を追記する形に統一**し、**CP-D の集約スコアカードも Main が `progress.md` に書き出す**。tdd-gates 独自の台帳（旧 `.tdd-gates/ledger-*.md`）は作らない。
@@ -39,7 +39,7 @@ description: |
 ## 比例ルール（trivial / small / substantial）
 
 - **trivial**（数行・既存パターン踏襲・テスト不要）: tdd-gates を使わず単一の軽量 Agent（`trivial-executor`）に一括委任する。
-- **small**（差分≤2ファイル・実装差分≤50行・公開IF不変・既存テストが被覆）: **判定主体は CP-B**（writing-plans の計画品質レビュー時に `tdd-evaluator` が `git diff --stat` 見込みと既存テスト一覧で4条件を照合する）。該当すれば CP-C のうち RED→GREEN 相当だけの簡略ルートを取ってよいが、CP-C の Critical（実失敗ログ）はいかなる場合も省略しない。
+- **small**（数値基準の正典はグローバル CLAUDE.md 作業ルーティング表 small 行）: **判定主体は CP-B**（writing-plans の計画品質レビュー時に `tdd-evaluator` が `git diff --stat` 見込みと既存テスト一覧で4条件を照合する）。該当すれば CP-C のうち RED→GREEN 相当だけの簡略ルートを取ってよいが、CP-C の Critical（実失敗ログ）はいかなる場合も省略しない。
 - **substantial**（新規ロジック・複数ファイル横断・公開IF変更・非自明なバグ修正）: CP-A〜D をフルで通す。CP-B（計画品質レビュー）・CP-D（最終スコアカード）は省略不可（唯一の実レビュー層のため）。
 
 **trivial/small判定に迷う場合**: グローバル CLAUDE.md「変更規模で工程の深さを変えよ。迷えば substantial 扱いにせよ」の原則をそのまま適用する。trivial誤判定はbrainstorming自体のスキップ＝CP-Aの要件ギャップレビューが丸ごと素通りされることを意味するため、この原則の遵守は特に重要である。
@@ -62,6 +62,7 @@ description: |
 - `references/scoring.md` — 0–3採点・80%/60–79%・Critical即FAIL・CONDITIONAL上限・CP-A/B用とCP-C〜F用の2モードのスコアカード形式。
 - `templates/*.md` — 各CPが差分追記／差し替えるプロンプトテンプレート（`spec-gap-review-addendum.md`・`plan-quality-review-addendum.md`・`task-evidence-addendum.md`・`final-scorecard-review-prompt.md`・`ci-gate-task-template.md`・`doc-sync-task-template.md`）。
 - `references/profiles/pytest.md` — Python/pytest のパス判定・実行コマンド・合格ログ形式（深い作法は agents/references/python/testing.md へ委譲）。
+- `references/profiles/browser-manual-e2e.md` — ビルド/自動テストランナーを持たない単一HTMLファイルアプリ向け。全レイヤーをe2eとして扱い、claude-in-chromeで手動E2Eの証拠を取る。
 - `references/profiles/_template.md` — 新言語追加用スケルトン。
 - `references/profiles/docs-generic.md` — CP-Fが対象とするドキュメントカテゴリの既定セットと生成条件（README/ガイド/API仕様[+データスキーマ・IF定義書]は常時、セキュリティ設計書・リリースノートは条件付き）。
 - `references/profiles/docs-network-tool.md` — SSH/Telnet通信・ネットワーク機器連携等のドメイン向け追加カテゴリ（検証環境トポロジー・差分マップ／監視・アラート定義書／ランブック、すべて条件付き）。`docs-generic.md`を継承。
