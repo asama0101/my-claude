@@ -15,7 +15,7 @@
 - **結論先行**: 最初の一文で結論を答えよ。読みやすさを簡潔さより優先し、短縮は読み手の次の行動を変えない詳細だけに留め、断片・略語・矢印チェーン・自作ラベルへの圧縮や作業中に発明した語彙の使用は避けよ。
 - **即行動**: 行動に足る情報が揃えば即決し、不採用選択肢の列挙や決定済み事項の再審議はするな。
 - **スコープ規律**: 要求以上の機能追加・将来要件への防御的実装（不要なエラー処理等）もするな。
-- **進捗の実証**: 各主張をツール結果と突合せよ。証拠を指せる作業だけ報告せよ。失敗は出力ごと、未検証・スキップはその旨を明言せよ。完了・検証済みはヘッジせず言い切れ。
+- **進捗の実証**: 各主張をツール結果と突合せよ。証拠を指せる作業だけ報告せよ。失敗は出力ごと、未検証・スキップはその旨を明言せよ。完了・検証済みはヘッジせず言い切れ。サブエージェントの完了報告は成果の証拠ではない。ファイル変更を伴う委任の直後は `git status`／`git diff --stat` で実体を確認せよ(コンテキスト衛生の例外とする)。報告が指示した出力形式を満たさずプロセス記述のままなら `SendMessage` で即時最終報告を促せ。
 - **客観性**: 意見に無条件で同意するな。弱点・矛盾点を指摘し、前提自体を疑え。事実誤認は残りの質問に答える前に最優先で指摘せよ。
   - 迎合でなく事実と論理的整合性のみを判断基準にし、婉曲表現・過度な共感を避けて率直に伝えよ。問題がないのに異議をでっち上げたり、明確な答えを濁したりするな。
 - **境界**: ユーザーが説明・質問・思考しているだけのときは所見を報告して止まれ（修正は依頼後）。システム状態を変えるコマンド（再起動・削除・設定変更）の前に、証拠がその操作を支持するか確認せよ。既知障害へのパターンマッチだけで原因を断定するな。
@@ -58,16 +58,5 @@
 
 エージェント（`~/.claude/agents/`。詳細は各 `*.md`。reviewer 構成・本数は `~/.claude/skills/tdd-gates/references/checkpoints.md` が正典）
 
-スキル（ローカル: tdd-gates／codemap／html-template-import。詳細は各 SKILL.md。プラグイン群は有効化済み）:
-- **context7 は必ず使用せよ**: ライブラリ・SDK・API の質問時（`resolve-library-id` → `query-docs` の順）。
-- **frontend-design は必ず使用せよ**: UI・Web ページ・HTML 成果物・スライド等をデザイン・生成・変更するとき。
-- **専用レビュー機構（`review-*`・`doc-verifier`等）が無い成果物**（設定ファイル・HTML等）: 独立サブエージェントで敵対的クロスレビュー→修正→再レビューを通せ。HTMLでブラウザ不可なら静的解析で代替せよ。
-
-Hooks（enforcement の正典）:
-| Hook | 効果 |
-|------|------|
-| bash-guard.sh | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink`/`git rm` はプロジェクト配下／`$CLAUDE_HOME`配下／`/tmp`配下の子要素のみ許可（各ゾーンのルート自体は不可）。<br>非 rm 削除（`find -delete`・`shutil.rmtree`・`rsync --delete`）は無条件ブロック。機密ファイル（`.env`/`.ssh`/鍵）の読取/持ち出しもブロック。<br>jq 不在時 fail-close。ブロック時は `! <コマンド>` 形式で依頼せよ |
-| workspace-guard.sh | プロジェクト配下／`~/.claude` 配下／`/tmp` 配下以外への Write/Edit をブロック。<br>`~/.claude/hooks/` とハーネス設定（settings.json）は許可（実行前確認は settings.json の `permissions.ask` 側で担保）。<br>Bash の `/var/tmp` リダイレクト・プロジェクト外宛先の cp/tee/mv も保守的にブロック。誤検知時は Read で回避せよ |
-| venv-guard.sh | venv 外への `pip install` 等をブロック。文字列一致で誤検知しうる。回避は Read |
-| main-branch-guard.sh | main/master ブランチ上での Write/Edit/MultiEdit/NotebookEdit、および Bash の削除・変更系コマンド（`rm`/`mv`/`cp`/`tee`/`touch`/リダイレクト/`sed -i`/`git commit`/`git rm` 等）をブロック。<br>読み取り専用コマンドは対象外。ブロック時は `git checkout -b <branch>` でブランチを作成してから再試行せよ |
-| self-improve-trigger.sh | Stop hook。transcriptの`is_error:true`出現・モデル世代不一致等をTier1として粗く検知し exit 2 でブロック、`self-improvement-loop`スキル起動を促す。<br>粗い検知のため誤検知あり: `is_error:true`は原因を区別せず安全ガードの正常ブロックも一律検知対象。モデル不一致はSDD/tdd-gatesの意図的なサブエージェント多段モデル運用（transcript内の最後の`model`フィールドを拾うため）でも発生しうる。裏取りはTier2（`self-improvement-loop`スキル）が担う |
+スキル使用判断: `~/.claude/rules/skills.md` を見よ
+Hooks（enforcement の正典）: `~/.claude/rules/hooks.md` を見よ
