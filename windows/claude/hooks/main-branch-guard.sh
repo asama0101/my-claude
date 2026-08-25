@@ -42,7 +42,9 @@ TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
 get_branch() {
   local dir="$1"
   git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo ""; return; }
-  git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null
+  local ref
+  ref=$(git -C "$dir" symbolic-ref -q HEAD 2>/dev/null)
+  printf '%s\n' "${ref#refs/heads/}"
 }
 
 is_protected() {
@@ -60,10 +62,10 @@ warn_if_stale() {
   local remote_ref="origin/${branch}"
   git -C "$dir" rev-parse --verify -q "$remote_ref" >/dev/null 2>&1 || return 0
   local local_sha remote_sha
-  local_sha=$(git -C "$dir" rev-parse "$branch" 2>/dev/null) || return 0
+  local_sha=$(git -C "$dir" rev-parse "refs/heads/$branch" 2>/dev/null) || return 0
   remote_sha=$(git -C "$dir" rev-parse "$remote_ref" 2>/dev/null) || return 0
   [ "$local_sha" = "$remote_sha" ] && return 0
-  git -C "$dir" merge-base --is-ancestor "$branch" "$remote_ref" 2>/dev/null || return 0
+  git -C "$dir" merge-base --is-ancestor "refs/heads/$branch" "$remote_ref" 2>/dev/null || return 0
   echo "⚠️  ローカルの${branch}が${remote_ref}より遅れています。先に 'git pull' を実行してから上記のブランチ作成をしてください。" >&2
 }
 

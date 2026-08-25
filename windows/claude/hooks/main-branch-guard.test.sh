@@ -157,5 +157,21 @@ git -C "$R7" commit -q --allow-empty -m local_ahead
 run_write "$R7/f7.txt" "$R7"; assert_exit 2 "$?" "TS7: local ahead -> exit2"
 assert_warn 0 "$LAST_STDERR" "TS7: 警告なし（local ahead）"
 
+# TS8. レフ名曖昧: mainという名のタグが同時に存在する状態で `git rev-parse --abbrev-ref HEAD` が
+# `heads/main` を返してしまい is_protected に一致しない不具合の回帰防止 → exit 2
+R8=$(new_repo repo_ts8)
+git -C "$R8" tag main
+run_bash 'rm out.txt' "$R8"; assert_exit 2 "$?" "TS8: レフ名曖昧(mainタグ併存)でもmain判定される -> exit2"
+
+# TS9. 未出生ブランチ（コミット0件）: `git rev-parse --abbrev-ref HEAD` が失敗し
+# fail-openする不具合の回帰防止 → exit 2
+# 注: new_repo()は--allow-emptyコミット＋branch -Mを内部実行するため未出生状態を再現できない。
+# ここではinit直後の生リポジトリを使う（デフォルトブランチ名はmain/masterいずれもありうるため、
+# ハードコードせず「exit 2になること」のみを検証する）。
+R9="$SCRATCH/repo_ts9"
+mkdir -p "$R9"
+git -C "$R9" init -q
+run_bash 'rm out.txt' "$R9"; assert_exit 2 "$?" "TS9: 未出生ブランチ(コミット0件)でもデフォルトブランチ判定される -> exit2"
+
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }
