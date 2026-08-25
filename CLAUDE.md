@@ -19,7 +19,6 @@ bash linux/sync.sh      # ~/.claude/ → linux/claude/ へ同期（commit + push
 | `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
 | `linux/sync.sh` | `~/.claude/` → `linux/claude/` 同期スクリプト（commit + push 自動） |
 | `windows/` | Windows 版展開用のプレースホルダ（現時点では説明用 README のみで中身なし） |
-| `docs/` | 過去の計画・仕様の記録 |
 
 ## 移植性の仕組み（パス変数化）
 

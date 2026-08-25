@@ -9,7 +9,6 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 | `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
 | `linux/sync.sh` | `~/.claude/` → `linux/claude/` への同期（commit + push 自動） |
 | `windows/` | Windows 版展開用のプレースホルダ（現時点では説明用 README のみで中身なし） |
-| `docs/` | 過去の計画・仕様の記録 |
 
 ## linux/claude/ フォルダについて
 
