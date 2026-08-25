@@ -52,6 +52,21 @@ is_protected() {
   esac
 }
 
+# ローカル<branch>がorigin/<branch>よりfast-forward可能に遅れている場合のみ警告行を出す。
+# ネットワークアクセス（fetch）は行わない。祖先判定はgit merge-base --is-ancestorの終了コードのみで行い、
+# git log等のテキスト解析はしない。
+warn_if_stale() {
+  local dir="$1" branch="$2"
+  local remote_ref="origin/${branch}"
+  git -C "$dir" rev-parse --verify -q "$remote_ref" >/dev/null 2>&1 || return 0
+  local local_sha remote_sha
+  local_sha=$(git -C "$dir" rev-parse "$branch" 2>/dev/null) || return 0
+  remote_sha=$(git -C "$dir" rev-parse "$remote_ref" 2>/dev/null) || return 0
+  [ "$local_sha" = "$remote_sha" ] && return 0
+  git -C "$dir" merge-base --is-ancestor "$branch" "$remote_ref" 2>/dev/null || return 0
+  echo "⚠️  ローカルの${branch}が${remote_ref}より遅れています。先に 'git pull' を実行してから上記のブランチ作成をしてください。" >&2
+}
+
 case "$TOOL" in
   Write | Edit | MultiEdit | NotebookEdit)
     FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
@@ -63,6 +78,7 @@ case "$TOOL" in
     if is_protected "$BRANCH"; then
       echo "❌ BLOCKED: ${BRANCH}ブランチ上でのファイル変更は禁止されています: $FILE" >&2
       echo "   先に 'git checkout -b <branch-name>' でブランチを作成してから再試行してください。" >&2
+      warn_if_stale "$DIR" "$BRANCH"
       exit 2
     fi
     ;;
@@ -95,6 +111,7 @@ case "$TOOL" in
       if is_protected "$BRANCH"; then
         echo "❌ BLOCKED: ${BRANCH}ブランチ上でのファイル変更は禁止されています: $CMD" >&2
         echo "   先に 'git checkout -b <branch-name>' でブランチを作成してから再試行してください。" >&2
+        warn_if_stale "$PROJECT_DIR" "$BRANCH"
         exit 2
       fi
     fi
