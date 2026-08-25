@@ -7,7 +7,7 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 | パス | 内容 |
 |---|---|
 | `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
-| `linux/scripts/sync.sh` | `~/.claude/` → `linux/claude/` への同期（commit + push 自動） |
+| `linux/sync.sh` | `~/.claude/` → `linux/claude/` への同期（commit + push 自動） |
 | `windows/` | Windows 版展開用のプレースホルダ（現時点では説明用 README のみで中身なし） |
 | `docs/` | 過去の計画・仕様の記録 |
 
@@ -110,10 +110,10 @@ git clone <repo-url> ~/my-claude
 `~/.claude/` 側で設定を変更した後、リポジトリへ同期する：
 
 ```bash
-bash linux/scripts/sync.sh   # ~/.claude/ → linux/claude/ へ同期し commit + push（自動）
+bash linux/sync.sh   # ~/.claude/ → linux/claude/ へ同期し commit + push（自動）
 ```
 
-> `linux/scripts/sync.sh` は commit + push まで自動実行する。実行前に余計な差分がないか確認すること。
+> `linux/sync.sh` は commit + push まで自動実行する。実行前に余計な差分がないか確認すること。
 
 ## 移植性の仕組み
 
@@ -128,10 +128,10 @@ bash linux/scripts/sync.sh   # ~/.claude/ → linux/claude/ へ同期し commit 
 
 ## Gotchas（運用上の注意点）
 
-- **`linux/claude/` フォルダを直接編集しない**：`sync.sh` で `~/.claude/` 内容が上書きされる。設定変更は必ず `~/.claude/` 側で行い、その後 `bash linux/scripts/sync.sh` で同期する。
+- **`linux/claude/` フォルダを直接編集しない**：`sync.sh` で `~/.claude/` 内容が上書きされる。設定変更は必ず `~/.claude/` 側で行い、その後 `bash linux/sync.sh` で同期する。
   
-- **`linux/scripts/sync.sh` は commit + push まで自動実行する**：実行前に余計な差分がないか確認すること。
+- **`linux/sync.sh` は commit + push まで自動実行する**：実行前に余計な差分がないか確認すること。
 
 - **別環境セットアップは Claude Code への依頼で行う（`install.sh` は廃止）**：展開時は `projects/`・`sessions/`・`logs/`・`settings.local.json` 等の環境固有資産に一切触れないホワイトリスト方式を守り、差分のある既存ファイルは上書き前にバックアップへ退避する。
 
-- **展開時は rsync に依存しない**：Claude Code が Read/Write ツールで直接ファイル操作するため、展開先環境に rsync が無くても実行できる。一方 `linux/scripts/sync.sh`（`~/.claude/` → repo 方向）は引き続き rsync を使用する非対称設計。
+- **展開時は rsync に依存しない**：Claude Code が Read/Write ツールで直接ファイル操作するため、展開先環境に rsync が無くても実行できる。一方 `linux/sync.sh`（`~/.claude/` → repo 方向）は引き続き rsync を使用する非対称設計。

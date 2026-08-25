@@ -7,7 +7,7 @@
 ## コマンド
 
 ```bash
-bash linux/scripts/sync.sh      # ~/.claude/ → linux/claude/ へ同期（commit + push 自動）
+bash linux/sync.sh      # ~/.claude/ → linux/claude/ へ同期（commit + push 自動）
 ```
 
 別環境セットアップは専用スクリプトを持たない。Claude Code に `linux/claude/` の内容を `~/.claude/` へ展開するよう依頼する運用とする。
@@ -17,7 +17,7 @@ bash linux/scripts/sync.sh      # ~/.claude/ → linux/claude/ へ同期（commi
 | パス | 内容 |
 |-----|------|
 | `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
-| `linux/scripts/sync.sh` | `~/.claude/` → `linux/claude/` 同期スクリプト（commit + push 自動） |
+| `linux/sync.sh` | `~/.claude/` → `linux/claude/` 同期スクリプト（commit + push 自動） |
 | `windows/` | Windows 版展開用のプレースホルダ（現時点では説明用 README のみで中身なし） |
 | `docs/` | 過去の計画・仕様の記録 |
 
@@ -30,7 +30,7 @@ bash linux/scripts/sync.sh      # ~/.claude/ → linux/claude/ へ同期（commi
 
 ## Gotchas
 
-- **`linux/claude/` を直接編集しない**: `sync.sh` で上書きされる。設定変更は `~/.claude/` 側で行い、その後 `linux/scripts/sync.sh` で同期する
-- **`linux/scripts/sync.sh` は commit + push まで自動実行する**: 実行前に余計な差分がないか確認すること
+- **`linux/claude/` を直接編集しない**: `sync.sh` で上書きされる。設定変更は `~/.claude/` 側で行い、その後 `linux/sync.sh` で同期する
+- **`linux/sync.sh` は commit + push まで自動実行する**: 実行前に余計な差分がないか確認すること
 - **別環境セットアップは Claude Code への依頼で行う**（`install.sh` は廃止）: 展開時は `projects/`・`sessions/`・`logs/`・`settings.local.json` 等の環境固有資産に一切触れないホワイトリスト方式を守り、差分のある既存ファイルは上書き前にバックアップへ退避する
 - **展開時は rsync に依存しない**: Claude Code が Read/Write ツールで直接ファイル操作するため、展開先環境に rsync が無くても実行できる。sync.sh は引き続き rsync を使用する非対称設計

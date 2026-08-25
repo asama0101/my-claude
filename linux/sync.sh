@@ -19,7 +19,7 @@ set -euo pipefail
 
 # --- パス導出 ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 DEST_DIR="$REPO_ROOT/linux/claude"
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 
