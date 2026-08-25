@@ -36,7 +36,8 @@ $DirTargets = @(
     "skills",
     "agents",
     "rules",
-    "assets"
+    "assets",
+    "commands"
 )
 
 New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
