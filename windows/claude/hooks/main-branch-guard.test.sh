@@ -73,7 +73,7 @@ new_repo() {  # $1=ディレクトリ名（$SCRATCH配下）。作成したリ�
 }
 
 # 1. 読取専用findで 2>/dev/null を使う → 誤検知させない → exit 0
-run_bash 'find /home/asama/.claude/skills -iname "*foo*" 2>/dev/null' "$REPO"; assert_exit 0 "$?" "find + 2>/dev/null は誤検知しない"
+run_bash 'find $HOME/.claude/skills -iname "*foo*" 2>/dev/null' "$REPO"; assert_exit 0 "$?" "find + 2>/dev/null は誤検知しない"
 
 # 2. cat ... 2>/dev/null | head も同様 → exit 0
 run_bash 'cat missing.txt 2>/dev/null | head -1' "$REPO"; assert_exit 0 "$?" "cat + 2>/dev/null も誤検知しない"
@@ -92,6 +92,31 @@ run_bash 'rm out.txt' "$REPO"; assert_exit 2 "$?" "rmは引き続きブロック
 
 # 7. 2>&1 は既存仕様どおり誤検知しない（回帰防止） → exit 0
 run_bash 'cat missing.txt 2>&1' "$REPO"; assert_exit 0 "$?" "2>&1 は既存仕様どおり誤検知しない"
+
+# ── (C) Bash: 対象パスが全てプロジェクト外なら保護ブランチチェックをスキップ ──
+run_bash 'rm /tmp/mbg_test_target' "$REPO"; assert_exit 0 "$?" "(C) rm /tmp配下は保護ブランチでも許可"
+run_bash 'rm somefile' "$REPO"; assert_exit 2 "$?" "(C) rm 相対パス(プロジェクト内)は引き続きブロック"
+run_bash 'mv /tmp/mbg_a /tmp/mbg_b' "$REPO"; assert_exit 0 "$?" "(C) mv /tmp配下同士は許可"
+run_bash 'git commit -m x' "$REPO"; assert_exit 2 "$?" "(C) git commit は例外化されず引き続きブロック"
+run_bash 'sed -i s/a/b/ somefile.txt' "$REPO"; assert_exit 2 "$?" "(C) sed -i 相対パスは引き続きブロック（実運用上の例外は近似的に無効）"
+
+# ── レビュー指摘の修正確認（セキュリティレビューで実測された穴）──
+run_bash "cp /tmp/mbg_src $HOME/.claude/hooks/main-branch-guard.sh" "$REPO"; assert_exit 2 "$?" "CRITICAL修正: \$CLAUDE_HOME配下(フック自身)への書き込みはexemptされずブロック"
+run_bash "touch $HOME/.claude/scratch_test_file" "$REPO"; assert_exit 2 "$?" "CRITICAL修正: \$CLAUDE_HOME配下への単純touchもexemptされずブロック"
+run_bash 'cp /tmp/mbg_outside cp' "$REPO"; assert_exit 2 "$?" "HIGH修正: コマンド名と同名の引数(2個目)もプロジェクト内対象として検査されブロック"
+run_bash $'rm /tmp/mbg_outside\nrm somefile' "$REPO"; assert_exit 2 "$?" "MEDIUM修正: 改行密輸(1行目outside/2行目project内)はブロック"
+
+# ── 2周目の正確性レビュー指摘の修正確認 ──
+# HIGH: find -delete/rsync --deleteはbash-guard.sh側でプロジェクト配下ならゾーン許可
+# されるため、main-branch-guard.sh側のMUTATING_PATTERNSにも含めないと保護ブランチ上で
+# プロジェクト内ファイルを破壊できてしまう。
+run_bash 'find somedir -delete' "$REPO"; assert_exit 2 "$?" "HIGH修正: find -delete はMUTATING_PATTERNSに含まれ引き続きブロック"
+run_bash 'rsync -a --delete src/ dst/' "$REPO"; assert_exit 2 "$?" "HIGH修正: rsync --delete はMUTATING_PATTERNSに含まれ引き続きブロック"
+run_bash 'rsync -a --del src/ dst/' "$REPO"; assert_exit 2 "$?" "HIGH修正: rsync --del(エイリアス)もMUTATING_PATTERNSに含まれ引き続きブロック"
+# MEDIUM: 安全文字集合からグロブ文字(*/?)を除去。set -fでフック内はグロブ展開されないが
+# 実行シェルでは展開されるため、静的判定と実行時対象が乖離しグロブでプロジェクト内を
+# 「プロジェクト外」と誤判定させ除外機構を悪用できた。
+run_bash 'mv som*file /tmp/mbg_stolen' "$REPO"; assert_exit 2 "$?" "MEDIUM修正: mv対象のグロブは解析不能としてブロック(除外機構の悪用防止)"
 
 # TS1. Write分岐: main が origin/main より1コミット遅れている（祖先） → exit 2 かつ警告あり
 R1=$(new_repo repo_ts1)
@@ -166,12 +191,16 @@ run_bash 'rm out.txt' "$R8"; assert_exit 2 "$?" "TS8: レフ名曖昧(mainタグ
 # TS9. 未出生ブランチ（コミット0件）: `git rev-parse --abbrev-ref HEAD` が失敗し
 # fail-openする不具合の回帰防止 → exit 2
 # 注: new_repo()は--allow-emptyコミット＋branch -Mを内部実行するため未出生状態を再現できない。
-# ここではinit直後の生リポジトリを使う（デフォルトブランチ名はmain/masterいずれもありうるため、
-# ハードコードせず「exit 2になること」のみを検証する）。
+# ここではinit直後の生リポジトリを使う。init.defaultBranchをmainに明示固定し、
+# 実行環境のグローバル既定ブランチ名設定（trunk等）に左右されないようにする。
 R9="$SCRATCH/repo_ts9"
 mkdir -p "$R9"
-git -C "$R9" init -q
+git -C "$R9" -c init.defaultBranch=main init -q
 run_bash 'rm out.txt' "$R9"; assert_exit 2 "$?" "TS9: 未出生ブランチ(コミット0件)でもデフォルトブランチ判定される -> exit2"
+
+# 2周目の正確性レビュー指摘: origin不在時にwarn_if_staleが警告を出さない経路
+# （rev-parse --verify失敗による早期return）の直接アサーションが無かったため追加。
+run_bash 'rm out.txt' "$REPO"; assert_warn 0 "$LAST_STDERR" "origin未設定時は警告なし（rev-parse --verify失敗での早期return）"
 
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }

@@ -7,8 +7,10 @@
 # Bash: 削除・変更系コマンド（rm/mv/cp/tee/touch/sed -i/リダイレクト/git commit/git rm 等）
 # のみを対象に、cwd の git ブランチが main/master なら exit 2。読み取り専用コマンド
 # （git status/cat/ls/grep 等）は対象外。
-# find -delete/shutil.rmtree/rsync --delete は bash-guard.sh がブランチに関係なく
-# 常時無条件ブロックするため、ここには含めない（含めても到達不能な重複ロジックになるため）。
+# shutil.rmtree は bash-guard.sh がブランチに関係なく常時無条件ブロックするため、
+# ここには含めない（含めても到達不能な重複ロジックになるため）。find -delete/
+# rsync --delete は bash-guard.sh 側でプロジェクト配下等ならゾーン許可されるため、
+# 保護ブランチ上でのプロジェクト内破壊を防ぐにはこちらでも対象に含める必要がある。
 #
 # 既知の限界: scripts/sync.sh のようなラッパースクリプトの呼び出し自体は、Bash
 # に渡る文字列がスクリプト名のみで内部コマンドが見えないため検知できない。
@@ -23,11 +25,14 @@ CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 INPUT=$(cat)
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
 
-# git 管理下でなければ空文字を返す。
+# git 管理下でなければ空文字を返す。symbolic-ref ベースなので、同名タグの併存や
+# 未出生ブランチ（コミット0件）でも rev-parse --abbrev-ref HEAD のように誤動作しない。
 get_branch() {
   local dir="$1"
   git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo ""; return; }
-  git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null
+  local ref
+  ref=$(git -C "$dir" symbolic-ref -q HEAD 2>/dev/null)
+  printf '%s\n' "${ref#refs/heads/}"
 }
 
 is_protected() {
@@ -37,20 +42,19 @@ is_protected() {
   esac
 }
 
-# upstream追跡ブランチに対しfast-forward可能な祖先（かつ差分あり）なら
-# git pull を促すヒント行を stderr に出す。upstream未設定・diverged等は何もしない。
-print_pull_hint_if_ff() {
-  local dir="$1" upstream local_rev remote_rev
-  upstream=$(git -C "$dir" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) || return 0
-  [ -z "$upstream" ] && return 0
-  local_rev=$(git -C "$dir" rev-parse HEAD 2>/dev/null)
-  remote_rev=$(git -C "$dir" rev-parse "$upstream" 2>/dev/null)
-  [ -z "$local_rev" ] && return 0
-  [ -z "$remote_rev" ] && return 0
-  [ "$local_rev" = "$remote_rev" ] && return 0
-  if git -C "$dir" merge-base --is-ancestor HEAD "$upstream" 2>/dev/null; then
-    echo "   ヒント: ローカルは ${upstream} に対して fast-forward 可能です。'git pull' で追従してから再試行してください。" >&2
-  fi
+# ローカル<branch>がorigin/<branch>よりfast-forward可能に遅れている場合のみ警告行を出す。
+# ネットワークアクセス（fetch）は行わない。祖先判定はgit merge-base --is-ancestorの終了コードのみで行い、
+# git log等のテキスト解析はしない。
+warn_if_stale() {
+  local dir="$1" branch="$2"
+  local remote_ref="origin/${branch}"
+  git -C "$dir" rev-parse --verify -q "$remote_ref" >/dev/null 2>&1 || return 0
+  local local_sha remote_sha
+  local_sha=$(git -C "$dir" rev-parse "refs/heads/$branch" 2>/dev/null) || return 0
+  remote_sha=$(git -C "$dir" rev-parse "$remote_ref" 2>/dev/null) || return 0
+  [ "$local_sha" = "$remote_sha" ] && return 0
+  git -C "$dir" merge-base --is-ancestor "refs/heads/$branch" "$remote_ref" 2>/dev/null || return 0
+  echo "⚠️  ローカルの${branch}が${remote_ref}より遅れています。先に 'git pull' を実行してから上記のブランチ作成をしてください。" >&2
 }
 
 # 単一コマンド（rm/rmdir/unlink・mv・cp・touch・sed -i）が、全対象パスを
@@ -70,7 +74,7 @@ bash_targets_outside_project() {
   fi
   # 改行は tr で許可集合外の \v に変換してから判定する（grep は行単位評価のため
   # 生の改行は素通りし、複数行コマンドの2行目以降が無検査になる穴を防ぐ）。
-  printf '%s' "$cmd" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./*?-]' && return 1
+  printf '%s' "$cmd" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && return 1
   printf '%s' "$cmd" | grep -qiP '\bcd\b' && return 1
   set -f
   for tok in $cmd; do
@@ -103,7 +107,7 @@ case "$TOOL" in
     if is_protected "$BRANCH"; then
       echo "❌ BLOCKED: ${BRANCH}ブランチ上でのファイル変更は禁止されています: $FILE" >&2
       echo "   先に 'git checkout -b <branch-name>' でブランチを作成してから再試行してください。" >&2
-      print_pull_hint_if_ff "$DIR"
+      warn_if_stale "$DIR" "$BRANCH"
       exit 2
     fi
     ;;
@@ -121,6 +125,8 @@ case "$TOOL" in
       '\bmv\b'
       '\btouch\b'
       'sed\s+-i'                                     # sed インプレース編集
+      '\bfind\b.*-delete\b'                          # find -delete（bash-guard側はゾーン許可されうる）
+      '\brsync\b.*--del(ete)?\b'                      # rsync --delete/--del（同上）
     )
 
     is_mutating=0
@@ -139,7 +145,7 @@ case "$TOOL" in
         fi
         echo "❌ BLOCKED: ${BRANCH}ブランチ上でのファイル変更は禁止されています: $CMD" >&2
         echo "   先に 'git checkout -b <branch-name>' でブランチを作成してから再試行してください。" >&2
-        print_pull_hint_if_ff "$PROJECT_DIR"
+        warn_if_stale "$PROJECT_DIR" "$BRANCH"
         exit 2
       fi
     fi
