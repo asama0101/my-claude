@@ -121,7 +121,7 @@ BLOCKED_PATTERNS=(
   '(>>|>)\s*/root/\.(bashrc|zshrc|profile|bash_profile)'
 
   # ── 機密ファイル読取・持ち出し ──────────────────
-  '(cat|less|more|head|tail|base64|xxd|od|strings)\s+.*(\.env(\.|\s|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|$)|\.key(\s|$)|authorized_keys|\.netrc|credentials)'
+  '\b(cat|less|more|head|tail|base64|xxd|od|strings)\s+.*(\.env(\.|\s|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|$)|\.key(\s|$)|authorized_keys|\.netrc|credentials)'
   '(python3?|perl|ruby|node)\s+(-c|-e)\s+.*(\.env(\.|\s|['"'"'")]|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|['"'"'")]|$)|\.key(\s|['"'"'")]|$)|authorized_keys|\.netrc|credentials)'
 )
 

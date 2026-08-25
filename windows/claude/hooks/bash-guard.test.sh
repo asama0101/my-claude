@@ -87,5 +87,11 @@ run_bash 'cat ~/.ssh/id_rsa'; assert_exit 2 "$?" "既存: 秘密鍵読取は引�
 run_bash 'grep -r "shutdown" .'; assert_exit 0 "$?" "既存: read-only な shutdown 文字列検索は誤検知しない"
 run_bash 'shutil.rmtree("/tmp/x")'; assert_exit 2 "$?" "既存: shutil.rmtree は無条件ブロックのまま(スコープ外)"
 
+# バグ修正: 機密ファイル読取パターンの(cat|...|od|...)に\bが無く、"od"が"chmod"等の
+# 部分文字列にマッチし、無関係なコマンドを誤ブロックしていた。
+run_bash 'chmod 600 /tmp/x/credentials.toml'; assert_exit 0 "$?" "バグ修正: chmod 600 が'od'部分一致で誤ブロックされない"
+run_bash 'chmod 644 /tmp/x/.env'; assert_exit 0 "$?" "バグ修正: chmodの.envファイルも'od'部分一致で誤ブロックされない"
+run_bash 'od -c /tmp/x/credentials.toml'; assert_exit 2 "$?" "回帰確認: odコマンド自体による機密ファイル読取は引き続きブロック"
+
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }
