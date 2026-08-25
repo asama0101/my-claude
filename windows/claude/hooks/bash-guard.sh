@@ -121,7 +121,9 @@ BLOCKED_PATTERNS=(
   '(>>|>)\s*/root/\.(bashrc|zshrc|profile|bash_profile)'
 
   # ── 機密ファイル読取・持ち出し ──────────────────
-  '\b(cat|less|more|head|tail|base64|xxd|od|strings)\s+.*(\.env(\.|\s|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|$)|\.key(\s|$)|authorized_keys|\.netrc|credentials)'
+  # cat/less/head等のファイル読取はゾーン判定（下記専用ブロック）へ移行済み。
+  # python/perl等のワンライナー経由（-c/-e）はファイル対象がコード文字列に
+  # 埋め込まれ静的に確定できないためゾーン判定の対象外とし、常時無条件ブロックのまま。
   '(python3?|perl|ruby|node)\s+(-c|-e)\s+.*(\.env(\.|\s|['"'"'")]|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|['"'"'")]|$)|\.key(\s|['"'"'")]|$)|authorized_keys|\.netrc|credentials)'
 )
 
@@ -137,13 +139,14 @@ done
 # ── 正規化後の危険パターン再判定（難読化バイパス対策）──────────────
 # クォート分割/バックスラッシュ/${IFS}等で上のBLOCKED_PATTERNSを回避しようとした
 # 場合、正規化後の文字列に対して同じパターン(+rm系/ゾーン判定対象のcatch-all)を
-# 再評価しブロックする。find -delete/rsync --delete/chmod 000/-R 777はゾーン判定で
-# 許可されうるため、通常時（$NORMALIZED == $COMMAND）は下のゾーン判定に委ねるが、
-# 難読化を検知した時点ではゾーン判定のトリガー正規表現ごと迂回されうるため、
-# ここで無条件ブロックにフォールバックする。
+# 再評価しブロックする。find -delete/rsync --delete/chmod 000/-R 777/機密ファイル
+# 読取はゾーン判定で許可されうるため、通常時（$NORMALIZED == $COMMAND）は下の
+# ゾーン判定に委ねるが、難読化を検知した時点ではゾーン判定のトリガー正規表現ごと
+# 迂回されうるため、ここで無条件ブロックにフォールバックする。
 if [ "$NORMALIZED" != "$COMMAND" ]; then
   for pattern in "${BLOCKED_PATTERNS[@]}" '\b(rm|rmdir|unlink)(\s|$)' \
-                 'find\s+.*-delete' 'rsync\s+.*--del' 'chmod\s+.*000' 'chmod\s+-R\s+777\s+/'; do
+                 'find\s+.*-delete' 'rsync\s+.*--del' 'chmod\s+.*000' 'chmod\s+-R\s+777\s+/' \
+                 '\b(cat|less|more|head|tail|base64|xxd|od|strings)\s+.*(\.env(\.|\s|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|$)|\.key(\s|$)|authorized_keys|\.netrc|credentials)'; do
     if printf '%s' "$NORMALIZED" | grep -qiP "$pattern"; then
       echo "❌ BLOCKED: $COMMAND" >&2
       echo "   クォート分割/バックスラッシュ/\${IFS}等の難読化を検知し、正規化後に危険パターンへ一致しました: $pattern" >&2
@@ -383,6 +386,53 @@ if [ "$chmod_trigger" -eq 1 ]; then
   fi
   echo "❌ BLOCKED: $COMMAND" >&2
   echo "   chmod 000/-R 777 はプロジェクト配下($PROJECT_DIR)／\$CLAUDE_HOME配下($CLAUDE_HOME)／/tmp配下の子要素に対してのみ許可されています。" >&2
+  echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
+  exit 2
+fi
+
+# ── 機密ファイル読取: プロジェクト配下／$CLAUDE_HOME配下／/tmp配下の子要素のみ許可 ──
+# cat/less/more/head/tail/base64/xxd/od/stringsで.env/.ssh/id_rsa/credentials等
+# 「らしき」対象に触れるコマンドが対象。読取自体は場所を問わず機密性が変わらないため
+# 本来はゾーン判定より無条件ブロックの方が安全だが、使い捨てのテスト用フィクスチャ
+# （/tmp配下やプロジェクト配下の作業ファイル）まで一律ブロックする運用コストとの
+# トレードオフとして、他の破壊的操作と同じゾーン判定方式に揃える（ユーザー承認済み）。
+# パイプ・リダイレクト・複合コマンド・改行・cd・安全文字集合外の文字を含む場合は
+# 解析不能として従来通りブロックへフォールバックする。
+READ_FIRST=$(printf '%s' "$COMMAND" | awk 'NR==1{print $1}')
+if printf '%s' "$COMMAND" | grep -qiP '\b(cat|less|more|head|tail|base64|xxd|od|strings)\s+.*(\.env(\.|\s|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|$)|\.key(\s|$)|authorized_keys|\.netrc|credentials)'; then
+  read_allowed=0
+  had_target=0
+  case "$READ_FIRST" in
+    cat | less | more | head | tail | base64 | xxd | od | strings)
+      read_allowed=1
+      printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && read_allowed=0
+      printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && read_allowed=0
+      if [ "$read_allowed" -eq 1 ]; then
+        set -f
+        idx=0
+        for tok in $COMMAND; do
+          idx=$((idx + 1))
+          if [ "$idx" -eq 1 ]; then continue; fi   # コマンド名は先頭トークン(位置)でスキップ
+          case "$tok" in
+            -*) continue ;;
+          esac
+          had_target=1
+          abs=$(to_posix "$(realpath -m "$tok" 2>/dev/null)")
+          [ -z "$abs" ] && { read_allowed=0; break; }
+          case "$abs" in
+            "$PROJECT_DIR"/* | "$CLAUDE_HOME"/* | /tmp/*) ;;
+            *) read_allowed=0; break ;;
+          esac
+        done
+        set +f
+      fi
+      ;;
+  esac
+  if [ "$read_allowed" -eq 1 ] && [ "$had_target" -eq 1 ]; then
+    exit 0
+  fi
+  echo "❌ BLOCKED: $COMMAND" >&2
+  echo "   機密ファイルの読取はプロジェクト配下($PROJECT_DIR)／\$CLAUDE_HOME配下($CLAUDE_HOME)／/tmp配下の子要素に対してのみ許可されています。" >&2
   echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
   exit 2
 fi
