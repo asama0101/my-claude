@@ -7,6 +7,7 @@
 # - モデルバージョン不一致: 直近セッションのモデルIDと state.json の記録が異なる
 # - feedback/project メモリ更新: プロジェクト別 memory/ 配下のファイルが前回チェック以降に更新された
 # - 累積傾向: session_count_since_full_audit が閾値に到達
+# - レビュー指摘の可能性: transcript の prompt 文字列にレビュー関連キーワードが出現
 #
 # ループガード（2層）:
 # 1. stop_hook_active が true の場合（＝このStop hook自身のブロックで継続させたターン）は無条件で exit 0。
@@ -106,6 +107,16 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
   LAST_MODEL=$(jq -r '.last_reviewed_model // empty' "$STATE_FILE")
   if [ -n "$CURRENT_MODEL" ] && [ "$CURRENT_MODEL" != "$LAST_MODEL" ]; then
     REASONS+=("モデルバージョン不一致: 記録=${LAST_MODEL:-なし} 現在=${CURRENT_MODEL}")
+  fi
+
+  # レビュー系サブエージェント起動の形跡: subagent_type（エージェント名）ではなく
+  # transcript中のprompt文字列（現状はAgentツール呼び出しでのみ出現）の内容で判定する。
+  # 専用review-*/tdd-evaluatorに限らず、汎用エージェント(general-purpose等)への
+  # アドホックなレビュー依頼もエージェント名の命名規約に依存せず拾えるようにするため。
+  # 粗い検知のため "preview"/"interview" 等 review を部分文字列に含む語も誤って
+  # ヒットしうるが、Tier1は粗くてよい設計（裏取りはTier2が担う）ため許容する。
+  if grep -qE '"prompt":"([^"\\]|\\.)*(review|レビュー|指摘|査読)' "$TRANSCRIPT" 2>/dev/null; then
+    REASONS+=("レビュー指摘の可能性: transcriptにレビュー関連のサブエージェント起動の形跡")
   fi
 fi
 

@@ -12,6 +12,7 @@ MEMORY_DIR="$FAKE_HOME/.claude/projects/$SLUG/memory"
 mkdir -p "$STATE_DIR" "$MEMORY_DIR" "$PROJECT_DIR"
 
 reset_state() {
+  rm -f "$MEMORY_DIR"/*
   cat > "$STATE_DIR/self-improvement.json" <<'EOF'
 {
   "last_reviewed_model": "claude-sonnet-5",
@@ -129,6 +130,36 @@ jq '.handled_session_ids = ["sA"]' "$STATE_DIR/self-improvement.json" > "$STATE_
 # セッションBのTier2完了を模擬（sAを消さずsBを追記）
 jq '.handled_session_ids = ((.handled_session_ids // []) - ["sB"] + ["sB"] | .[-20:])' "$STATE_DIR/self-improvement.json" > "$STATE_DIR/tmp.json" && mv "$STATE_DIR/tmp.json" "$STATE_DIR/self-improvement.json"
 run_hook "sA" "$PROJECT_DIR/incident.jsonl"; assert_exit 0 "$?" "セッションBのTier2完了後もセッションAの処理済み記録が残る"
+
+# 12. Agentツール呼び出しのprompt内にレビュー関連キーワードがある → シグナル検知 → exit 2
+#     エージェント名(subagent_type)ではなくprompt内容で判定するため、専用reviewエージェントに
+#     限らず汎用エージェント(general-purpose等)へのアドホックなレビュー依頼も拾える。
+reset_state
+echo '{"tool_name":"Agent","tool_input":{"subagent_type":"general-purpose","prompt":"このコードをreviewして問題点を指摘して"}}' > "$PROJECT_DIR/review_prompt.jsonl"
+run_hook "s12" "$PROJECT_DIR/review_prompt.jsonl"; assert_exit 2 "$?" "レビュー関連キーワードを含むprompt(汎用エージェント)を検知"
+
+# 13. 専用review-*エージェントの起動もprompt内容経由で検知される
+reset_state
+echo '{"tool_name":"Agent","tool_input":{"subagent_type":"review-security","prompt":"セキュリティレビューを実施し指摘事項を報告して"}}' > "$PROJECT_DIR/review_security.jsonl"
+run_hook "s13" "$PROJECT_DIR/review_security.jsonl"; assert_exit 2 "$?" "review-*エージェントのprompt内容も検知"
+
+# 14. レビュー関連キーワードを含まないAgent呼び出し → シグナルなし → exit 0（回帰確認）
+reset_state
+echo '{"tool_name":"Agent","tool_input":{"subagent_type":"general-purpose","prompt":"このファイルの内容を要約して"}}' > "$PROJECT_DIR/non_review.jsonl"
+run_hook "s14" "$PROJECT_DIR/non_review.jsonl"; assert_exit 0 "$?" "レビュー無関係のAgent呼び出しは誤検知しない"
+
+# 15. セキュリティレビュー指摘の修正確認: promptにエスケープされた引用符(\")を含むコード
+#     スニペットがキーワードより手前にあっても検知漏れしない（旧パターン[^"]*は\"で
+#     停止してしまい、レビュー依頼の典型例で検知漏れが起きていた）。
+reset_state
+printf '{"tool_name":"Agent","tool_input":{"subagent_type":"general-purpose","prompt":"このコードの \\"review\\" をお願いします。指摘してください"}}\n' > "$PROJECT_DIR/escaped_quote.jsonl"
+run_hook "s15" "$PROJECT_DIR/escaped_quote.jsonl"; assert_exit 2 "$?" "セキュリティレビュー修正: エスケープされた引用符を含むpromptでも検知漏れしない"
+
+# 16. 正確性レビュー指摘の修正確認: 判定は"prompt"文字列の有無だけで行われ、tool_nameフィールドの
+#     値には一切依存しない（実装がドキュメント記述通り「Agentツールに限定」されていないことを明示する）。
+reset_state
+echo '{"prompt":"このコードをreviewして"}' > "$PROJECT_DIR/no_toolname.jsonl"
+run_hook "s16" "$PROJECT_DIR/no_toolname.jsonl"; assert_exit 2 "$?" "正確性レビュー修正: tool_nameフィールドが無くてもprompt文字列だけで検知される"
 
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }
