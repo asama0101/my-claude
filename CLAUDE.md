@@ -20,9 +20,9 @@ bash linux/sync.sh      # ~/.claude/ → linux/claude/ へ同期（commit + push
 
 | パス | 内容 |
 |-----|------|
-| `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
+| `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / commands / settings.json / CLAUDE.md / statusline-command.sh） |
 | `linux/sync.sh` | `~/.claude/` → `linux/claude/` 同期スクリプト（commit + push 自動） |
-| `windows/claude/` | `%USERPROFILE%\.claude\` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
+| `windows/claude/` | `%USERPROFILE%\.claude\` のミラー（hooks / skills / agents / rules / assets / commands / settings.json / CLAUDE.md / statusline-command.sh） |
 | `windows/sync.ps1` | `%USERPROFILE%\.claude\` → `windows/claude/` 同期スクリプト（commit + push 自動、PowerShell 版） |
 
 ## 移植性の仕組み（パス変数化）
