@@ -1,25 +1,26 @@
 #!/bin/bash
 set -euo pipefail
 
-# sync.sh — ~/.claude/ の設定をリポジトリの claude/ ミラーへ同期し、commit + push する。
+# sync.sh — ~/.claude/ の設定をリポジトリの linux/claude/ ミラーへ同期し、commit + push する。
 #
-# 方向: ~/.claude/  →  <repo>/claude/   （source が真実の源）
-# 逆方向（repo → ~/.claude）の展開は scripts/install.sh を使う。
+# 方向: ~/.claude/  →  <repo>/linux/claude/   （source が真実の源）
+# 逆方向（repo → ~/.claude）の展開は Claude Code に直接依頼する（旧 install.sh は廃止）。
+# settings.json のプレースホルダ実体化（下記）を含め、展開手順はリポジトリ直下 CLAUDE.md を参照。
 #
 # 同期方式:
-# - ファイル : rsync -a で claude/ 直下へコピー（上書き）
+# - ファイル : rsync -a で linux/claude/ 直下へコピー（上書き）
 # - ディレクトリ: rsync -a --delete で「完全同期」。source に無いファイルはミラーからも削除される。
 # - settings.json のみ: 絶対パス ($CLAUDE_HOME) → プレースホルダ __CLAUDE_HOME__ へ逆変換して保存。
-#   （Claude Code は settings.json 内で $HOME を展開しないため、repo にはプレースホルダを置き、
-#     install.sh が展開先の絶対パスへ実体化する。install.sh の順変換と対になる。）
+#   （Claude Code は settings.json 内で $HOME を展開しないため、repo にはプレースホルダを置く。
+#     展開先の絶対パスへの実体化は、別環境セットアップ時に Claude Code へ依頼する。）
 #
 # パスはスクリプト位置から導出するので、どのユーザー環境でも動作する。
 # 展開元は CLAUDE_HOME 環境変数で上書き可能（既定 $HOME/.claude）。
 
 # --- パス導出 ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-DEST_DIR="$REPO_ROOT/claude"
+REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+DEST_DIR="$REPO_ROOT/linux/claude"
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 
 # --- 同期対象 ---

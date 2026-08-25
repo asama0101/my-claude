@@ -7,17 +7,18 @@
 ## コマンド
 
 ```bash
-bash scripts/sync.sh      # ~/.claude/ → claude/ へ同期（commit + push 自動）
-bash scripts/install.sh   # claude/ → ~/.claude/ へ展開（別環境セットアップ用）
+bash linux/scripts/sync.sh      # ~/.claude/ → linux/claude/ へ同期（commit + push 自動）
 ```
+
+別環境セットアップは専用スクリプトを持たない。Claude Code に `linux/claude/` の内容を `~/.claude/` へ展開するよう依頼する運用とする。
 
 ## ディレクトリ構成
 
 | パス | 内容 |
 |-----|------|
-| `claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
-| `scripts/sync.sh` | `~/.claude/` → `claude/` 同期スクリプト（commit + push 自動） |
-| `scripts/install.sh` | `claude/` → `~/.claude/` 展開スクリプト（別環境セットアップ） |
+| `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
+| `linux/scripts/sync.sh` | `~/.claude/` → `linux/claude/` 同期スクリプト（commit + push 自動） |
+| `windows/` | Windows 版展開用のプレースホルダ（現時点では説明用 README のみで中身なし） |
 | `docs/` | 過去の計画・仕様の記録 |
 
 ## 移植性の仕組み（パス変数化）
@@ -25,11 +26,11 @@ bash scripts/install.sh   # claude/ → ~/.claude/ へ展開（別環境セッ�
 別環境でも動くよう、ハードコードされた絶対パスを排除している。
 
 - **hooks・skill スクリプト**: `$HOME` を直書き（シェル/Python が実行時に展開）。`/home/<user>/` を書かない。
-- **settings.json**: Claude Code は settings.json 内で `$HOME` を展開しないため、repo 上は **プレースホルダ `__CLAUDE_HOME__`** を置く。`install.sh` が展開先の絶対パスへ実体化し、`sync.sh` が逆変換でプレースホルダへ戻す（順変換と逆変換が対）。
+- **settings.json**: Claude Code は settings.json 内で `$HOME` を展開しないため、repo 上は **プレースホルダ `__CLAUDE_HOME__`** を置く。別環境セットアップ時に Claude Code が展開先の絶対パスへ実体化し、`sync.sh` が逆変換でプレースホルダへ戻す（順変換と逆変換が対）。
 
 ## Gotchas
 
-- **`claude/` を直接編集しない**: `sync.sh` で上書きされる。設定変更は `~/.claude/` 側で行い、その後 `scripts/sync.sh` で同期する
-- **`scripts/sync.sh` は commit + push まで自動実行する**: 実行前に余計な差分がないか確認すること
-- **install.sh は環境固有資産に触れない**: `projects/`・`sessions/`・`logs/`・`settings.local.json` 等は展開対象外（ホワイトリスト方式）。差分のある既存ファイルのみ `~/.claude/backups/install-<timestamp>/` へ退避してから上書き（差分がなければバックアップは作られない）
-- **install.sh は rsync 不要（cp/cmp/find のみで実装）**: 別環境での依存を最小化するため。sync.sh は引き続き rsync を使用する非対称設計
+- **`linux/claude/` を直接編集しない**: `sync.sh` で上書きされる。設定変更は `~/.claude/` 側で行い、その後 `linux/scripts/sync.sh` で同期する
+- **`linux/scripts/sync.sh` は commit + push まで自動実行する**: 実行前に余計な差分がないか確認すること
+- **別環境セットアップは Claude Code への依頼で行う**（`install.sh` は廃止）: 展開時は `projects/`・`sessions/`・`logs/`・`settings.local.json` 等の環境固有資産に一切触れないホワイトリスト方式を守り、差分のある既存ファイルは上書き前にバックアップへ退避する
+- **展開時は rsync に依存しない**: Claude Code が Read/Write ツールで直接ファイル操作するため、展開先環境に rsync が無くても実行できる。sync.sh は引き続き rsync を使用する非対称設計
