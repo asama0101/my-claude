@@ -1,0 +1,175 @@
+﻿{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "CLAUDE_CODE_DISABLE_MOUSE": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Read(./**)",
+      "Edit(./**)",
+      "WebFetch(domain:code.claude.com)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Read(**/*.key)",
+      "Edit(**/*.key)",
+      "Read(**/*.pem)",
+      "Edit(**/*.pem)",
+      "Read(**/id_rsa)",
+      "Edit(**/id_rsa)",
+      "Read(**/authorized_keys)",
+      "Edit(**/authorized_keys)",
+      "Read(**/id_ed25519)",
+      "Edit(**/id_ed25519)",
+      "Read(**/id_ecdsa)",
+      "Edit(**/id_ecdsa)",
+      "Read(**/.aws/credentials)",
+      "Edit(**/.aws/credentials)",
+      "Read(**/.config/gcloud/**)",
+      "Edit(**/.config/gcloud/**)",
+      "Read(**/.netrc)",
+      "Edit(**/.netrc)",
+      "Read(**/.npmrc)",
+      "Edit(**/.npmrc)",
+      "Read(**/.docker/config.json)",
+      "Edit(**/.docker/config.json)",
+      "Read(**/.kube/config)",
+      "Edit(**/.kube/config)",
+      "Read(/etc/shadow)",
+      "Bash(sudo *)",
+      "Edit(/etc/**)",
+      "Edit(/usr/**)",
+      "Edit(/var/**)",
+      "Edit(/bin/**)",
+      "Edit(/sbin/**)",
+      "Edit(/boot/**)",
+      "Edit(/root/**)",
+      "Edit(/lib/**)",
+      "Edit(/lib64/**)",
+      "Edit(/proc/**)",
+      "Edit(/sys/**)",
+      "Read(**/*.ppk)",
+      "Edit(**/*.ppk)",
+      "Read(**/*.pfx)",
+      "Edit(**/*.pfx)",
+      "Read(**/*.p12)",
+      "Edit(**/*.p12)",
+      "Read(**/AppData/Local/Microsoft/Credentials/**)",
+      "Read(**/AppData/Roaming/Microsoft/Credentials/**)",
+      "Read(**/AppData/Roaming/Microsoft/Protect/**)",
+      "Read(**/AppData/Roaming/gcloud/**)",
+      "Edit(**/AppData/Roaming/gcloud/**)",
+      "Read(**/System32/config/SAM)",
+      "Read(**/System32/config/SYSTEM)",
+      "Read(**/System32/config/SECURITY)",
+      "Read(**/NTUSER.DAT)",
+      "Edit(**/Windows/System32/**)",
+      "Edit(**/Windows/SysWOW64/**)"
+    ],
+    "ask": [
+      "PowerShell",
+      "Bash(git push *)",
+      "Bash(git reset --hard*)",
+      "Bash(git stash drop*)",
+      "Bash(git stash clear*)",
+      "Bash(git branch -D*)",
+      "Bash(git commit --amend*)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
+      "WebFetch",
+      "Edit(**/.claude/hooks/**)",
+      "Edit(**/.claude/settings.json)",
+      "Edit(**/.claude/settings.local.json)"
+    ],
+    "defaultMode": "auto",
+    "disableBypassPermissionsMode": "disable"
+  },
+  "model": "sonnet",
+  "theme": "dark",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CLAUDE_HOME__/hooks/bash-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "__CLAUDE_HOME__/hooks/venv-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CLAUDE_HOME__/hooks/workspace-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "__CLAUDE_HOME__/hooks/main-branch-guard.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__CLAUDE_HOME__/hooks/self-improve-trigger.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash __CLAUDE_HOME__/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "skill-creator@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true
+  },
+  "effortLevel": "high",
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
+  "remoteControlAtStartup": true,
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: None configured",
+      "**Repository visibility**: PUBLIC 窶・asama0101/my-claude (github.com)",
+      "**Internal sharing / snippet hosting**: None configured 窶・treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: None configured",
+      "**Default / protected branches**: default branch unknown (origin/HEAD unset); no rulesets or protected branches listed via gh",
+      "**CI/CD deploy targets**: None configured",
+      "**Network posture**: None configured",
+      "**Source control**: The trusted repo (asama0101/my-claude on github.com) and its origin remote only 窶・no additional orgs configured",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment (hyphen/underscore/dot-delimited 窶・e.g. matches `prod-db`, not `producer`)",
+      "**Protected deployment namespaces / environments**: None configured 窶・fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development (Claude Code configuration management 窶・this repo mirrors and syncs `~/.claude/` settings)",
+      "**Trusted repo**: asama0101/my-claude (github.com, PUBLIC) 窶・the working directory's repo and its origin remote; since it is public, only this repo's own work is OK to push here, and secrets/sensitive data are never cleared into it by visibility alone",
+      "**Org-specific CLIs**: None configured",
+      "**routine under this repo's `scripts/` prefix**: `sync.sh` (commits+pushes `~/.claude/` 竊・`claude/`) and `install.sh` (expands `claude/` 竊・`~/.claude/`) are repo-defined workflows, not org-wide CLIs"
+    ]
+  }
+}
