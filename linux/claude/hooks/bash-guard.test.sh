@@ -87,5 +87,19 @@ run_bash 'cat ~/.ssh/id_rsa'; assert_exit 2 "$?" "既存: 秘密鍵読取は引�
 run_bash 'grep -r "shutdown" .'; assert_exit 0 "$?" "既存: read-only な shutdown 文字列検索は誤検知しない"
 run_bash 'shutil.rmtree("/tmp/x")'; assert_exit 2 "$?" "既存: shutil.rmtree は無条件ブロックのまま(スコープ外)"
 
+# バグ修正: 機密ファイル読取パターンの(cat|...|od|...)に\bが無く、"od"が"chmod"等の
+# 部分文字列にマッチし、無関係なコマンドを誤ブロックしていた。
+run_bash 'chmod 600 /tmp/x/credentials.toml'; assert_exit 0 "$?" "バグ修正: chmod 600 が'od'部分一致で誤ブロックされない"
+run_bash 'chmod 644 /tmp/x/.env'; assert_exit 0 "$?" "バグ修正: chmodの.envファイルも'od'部分一致で誤ブロックされない"
+
+# 仕様変更: 機密ファイル読取をゾーン判定方式へ変更（ユーザー承認済み）。
+# プロジェクト配下／$CLAUDE_HOME配下／/tmp配下の読取は許可、それ以外は引き続きブロック。
+run_bash 'od -c /tmp/x/credentials.toml'; assert_exit 0 "$?" "仕様変更: /tmp配下のod読取はゾーン内として許可"
+run_bash 'cat /tmp/x/.env'; assert_exit 0 "$?" "仕様変更: /tmp配下の.env読取はゾーン内として許可"
+run_bash 'cat somefile/.env'; assert_exit 0 "$?" "仕様変更: プロジェクト配下(相対パス)の.env読取はゾーン内として許可"
+run_bash 'cat /etc/credentials'; assert_exit 2 "$?" "回帰確認: ゾーン外(/etc)の機密ファイル読取は引き続きブロック"
+run_bash 'cat /tmp/x/.env | grep KEY'; assert_exit 2 "$?" "回帰確認: パイプを含む複合コマンドは解析不能としてブロック"
+run_bash $'cat /tmp/x/.env\ncat /etc/credentials' ; assert_exit 2 "$?" "回帰確認: 改行密輸(1行目ゾーン内/2行目ゾーン外)はブロック"
+
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }
