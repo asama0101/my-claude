@@ -10,6 +10,10 @@
 bash linux/sync.sh      # ~/.claude/ → linux/claude/ へ同期（commit + push 自動）
 ```
 
+```powershell
+.\windows\sync.ps1      # %USERPROFILE%\.claude\ → windows/claude/ へ同期（commit + push 自動）
+```
+
 別環境セットアップは専用スクリプトを持たない。Claude Code に `linux/claude/` の内容を `~/.claude/` へ展開するよう依頼する運用とする。
 
 ## ディレクトリ構成
@@ -18,7 +22,8 @@ bash linux/sync.sh      # ~/.claude/ → linux/claude/ へ同期（commit + push
 |-----|------|
 | `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
 | `linux/sync.sh` | `~/.claude/` → `linux/claude/` 同期スクリプト（commit + push 自動） |
-| `windows/` | Windows 版展開用のプレースホルダ（現時点では説明用 README のみで中身なし） |
+| `windows/claude/` | `%USERPROFILE%\.claude\` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
+| `windows/sync.ps1` | `%USERPROFILE%\.claude\` → `windows/claude/` 同期スクリプト（commit + push 自動、PowerShell 版） |
 
 ## 移植性の仕組み（パス変数化）
 
