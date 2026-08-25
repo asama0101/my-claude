@@ -16,6 +16,10 @@ to_posix() {
   case "$p" in
     [A-Za-z]:/*) p="/$(printf '%s' "${p%%:*}" | tr 'A-Z' 'a-z')${p#*:}" ;;  # C:/x → /c/x
   esac
+  # NTFS はパスの大文字小文字を区別しないため、ゾーン前方一致比較
+  # （"$PROJECT_DIR"/* 等）が大文字小文字違いだけで誤って不一致判定
+  # されないよう、Windows(msys/cygwin)上でのみ全体を小文字化する。
+  case "${OSTYPE:-}" in msys* | cygwin*) p=$(printf '%s' "$p" | tr 'A-Z' 'a-z') ;; esac
   printf '%s' "$p"
 }
 
@@ -40,8 +44,7 @@ BLOCKED_PATTERNS=(
   'shred\s+.*(/dev/|/disk)'        # 完全消去
 
   # ── パーミッション破壊 ──────────────────────────
-  'chmod\s+.*000'                  # chmod 000（-R あり・なし両方）
-  'chmod\s+-R\s+777\s+/'
+  # chmod 000 / chmod -R 777 / はゾーン判定（下記専用ブロック）へ移行済み。
   'chown\s+-R\s+.*\s+/'            # ルート以下オーナー変更
 
   # ── プロセス・システム停止 ──────────────────────
@@ -92,10 +95,9 @@ BLOCKED_PATTERNS=(
   'truncate\s+.*-s\s+0'                     # ファイルを空にする
 
   # ── 迂回削除（find/python/rsync 経由）──────────────
-  'find\s+.*-delete'                        # find -delete による一括削除
+  # find -delete・rsync --delete はゾーン判定（下記専用ブロック）へ移行済み。
   'shutil\.rmtree'                          # Python shutil.rmtree
   'os\.(remove|unlink|rmdir)'               # Python os.remove/unlink/rmdir
-  'rsync\s+.*--delete'                      # rsync --delete による同期削除
   'truncate\s+.*--size[= ]*0'              # truncate --size 0 でファイルを空にする
 
   # ── Git 系破壊 ──────────────────────────────────
@@ -134,9 +136,14 @@ done
 
 # ── 正規化後の危険パターン再判定（難読化バイパス対策）──────────────
 # クォート分割/バックスラッシュ/${IFS}等で上のBLOCKED_PATTERNSを回避しようとした
-# 場合、正規化後の文字列に対して同じパターン(+rm系catch-all)を再評価しブロックする。
+# 場合、正規化後の文字列に対して同じパターン(+rm系/ゾーン判定対象のcatch-all)を
+# 再評価しブロックする。find -delete/rsync --delete/chmod 000/-R 777はゾーン判定で
+# 許可されうるため、通常時（$NORMALIZED == $COMMAND）は下のゾーン判定に委ねるが、
+# 難読化を検知した時点ではゾーン判定のトリガー正規表現ごと迂回されうるため、
+# ここで無条件ブロックにフォールバックする。
 if [ "$NORMALIZED" != "$COMMAND" ]; then
-  for pattern in "${BLOCKED_PATTERNS[@]}" '\b(rm|rmdir|unlink)(\s|$)'; do
+  for pattern in "${BLOCKED_PATTERNS[@]}" '\b(rm|rmdir|unlink)(\s|$)' \
+                 'find\s+.*-delete' 'rsync\s+.*--del' 'chmod\s+.*000' 'chmod\s+-R\s+777\s+/'; do
     if printf '%s' "$NORMALIZED" | grep -qiP "$pattern"; then
       echo "❌ BLOCKED: $COMMAND" >&2
       echo "   クォート分割/バックスラッシュ/\${IFS}等の難読化を検知し、正規化後に危険パターンへ一致しました: $pattern" >&2
@@ -170,7 +177,9 @@ case "$RM_FIRST" in
   rm | rmdir | unlink)
     rm_allowed=1
     # 安全文字集合外（~ $ ` ( ) { } " ' \ ; & | < > = 等）→ 解析不能 → 不許可
-    printf '%s' "$COMMAND" | grep -qP '[^A-Za-z0-9 \t_./*?-]' && rm_allowed=0
+    # 改行は tr で許可集合外の \v に変換してから判定する（grep は行単位評価のため
+    # 生の改行は素通りし、複数行コマンドの2行目以降が無検査になる穴を防ぐ）。
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && rm_allowed=0
     # cd を含むと cwd 変化でプロジェクト判定が崩れる → 不許可
     printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rm_allowed=0
     had_target=0
@@ -199,7 +208,7 @@ case "$RM_FIRST" in
     # git rm のみ: rm 同等の配下チェックを通れば許可（連結は安全文字チェックで弾く）
     if [ "$(printf '%s' "$COMMAND" | awk 'NR==1{print $2}')" = "rm" ]; then
       rm_allowed=1
-      printf '%s' "$COMMAND" | grep -qP '[^A-Za-z0-9 \t_./*?-]' && rm_allowed=0
+      printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && rm_allowed=0
       printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rm_allowed=0
       had_target=0
       if [ "$rm_allowed" -eq 1 ]; then
@@ -225,6 +234,158 @@ case "$RM_FIRST" in
     fi
     ;;
 esac
+
+# ── find -delete: プロジェクト配下／$CLAUDE_HOME配下／/tmp配下の子要素のみ許可 ──
+# find の path 指定はコマンド直後にまとまるため、最初のオプション(-*)出現までを
+# 対象パスとみなす。-delete を含まない find は対象外（従来通り無条件許可）。
+# トリガー判定はコマンド全体に対して行う（cd混在等で先頭トークンがfindでない
+# 複合コマンドも、ゾーン判定を通らなければ下のブロックへフォールスルーさせるため）。
+FIND_FIRST=$(printf '%s' "$COMMAND" | awk 'NR==1{print $1}')
+# (?<!-)-delete で rsync の --delete と誤マッチしないようにする（find -delete 専用）。
+if printf '%s' "$COMMAND" | grep -qiP '\bfind\b' && printf '%s' "$COMMAND" | grep -qiP -- '(?<!-)-delete\b'; then
+  find_allowed=0
+  had_target=0
+  if [ "$FIND_FIRST" = "find" ]; then
+    find_allowed=1
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && find_allowed=0
+    printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && find_allowed=0
+    # -exec/-execdir/-ok/-okdir や -fprint系はゾーン外ファイルを操作・破壊できるため、
+    # path列挙を打ち切った式部分に含まれていたら不許可（対象パス検査の対象外になるため）。
+    printf '%s' "$COMMAND" | grep -qiP -- '-(exec|execdir|ok|okdir|fprint0?|fprintf|fls)\b' && find_allowed=0
+    if [ "$find_allowed" -eq 1 ]; then
+      set -f
+      for tok in $COMMAND; do
+        case "$tok" in
+          find) continue ;;
+          -*) break ;;                        # 最初のオプション以降は式なのでpath列挙終了
+        esac
+        had_target=1
+        abs=$(to_posix "$(realpath -m "$tok" 2>/dev/null)")
+        [ -z "$abs" ] && { find_allowed=0; break; }
+        case "$abs" in
+          "$PROJECT_DIR"/* | "$CLAUDE_HOME"/* | /tmp/*) ;;
+          *) find_allowed=0; break ;;
+        esac
+      done
+      set +f
+    fi
+  fi
+  if [ "$find_allowed" -eq 1 ] && [ "$had_target" -eq 1 ]; then
+    exit 0
+  fi
+  echo "❌ BLOCKED: $COMMAND" >&2
+  echo "   find -delete はプロジェクト配下($PROJECT_DIR)／\$CLAUDE_HOME配下($CLAUDE_HOME)／/tmp配下の子要素に対してのみ許可されています。" >&2
+  echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
+  exit 2
+fi
+
+# ── rsync --delete: プロジェクト配下／$CLAUDE_HOME配下／/tmp配下の子要素のみ許可 ──
+# --delete系オプション（--del/--delete/--delete-before/--delete-during/--delete-delay/
+# --delete-after/--delete-excluded/--delete-missing-args）を含まない rsync は対象外
+# （従来通り無条件許可）。--delは--delete-duringのrsync公式エイリアス。
+# トリガー判定はコマンド全体に対して行う（cd混在等のフォールスルー対策、find参照）。
+RSYNC_FIRST=$(printf '%s' "$COMMAND" | awk 'NR==1{print $1}')
+if printf '%s' "$COMMAND" | grep -qiP '\brsync\b' && printf '%s' "$COMMAND" | grep -qiP -- '--del(ete)?\b'; then
+  rsync_allowed=0
+  had_target=0
+  if [ "$RSYNC_FIRST" = "rsync" ]; then
+    rsync_allowed=1
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && rsync_allowed=0
+    printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rsync_allowed=0
+    if [ "$rsync_allowed" -eq 1 ]; then
+      set -f
+      for tok in $COMMAND; do
+        case "$tok" in
+          rsync) continue ;;
+          -*) continue ;;
+        esac
+        had_target=1
+        abs=$(to_posix "$(realpath -m "$tok" 2>/dev/null)")
+        [ -z "$abs" ] && { rsync_allowed=0; break; }
+        case "$abs" in
+          "$PROJECT_DIR"/* | "$CLAUDE_HOME"/* | /tmp/*) ;;
+          *) rsync_allowed=0; break ;;
+        esac
+      done
+      set +f
+    fi
+  fi
+  if [ "$rsync_allowed" -eq 1 ] && [ "$had_target" -eq 1 ]; then
+    exit 0
+  fi
+  echo "❌ BLOCKED: $COMMAND" >&2
+  echo "   rsync --delete はプロジェクト配下($PROJECT_DIR)／\$CLAUDE_HOME配下($CLAUDE_HOME)／/tmp配下の子要素に対してのみ許可されています。" >&2
+  echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
+  exit 2
+fi
+
+# ── chmod 000 / chmod -R 777: プロジェクト配下／$CLAUDE_HOME配下／/tmp配下の子要素のみ許可 ──
+# 最初の非フラグトークンはモード引数として無条件スキップ（数値・シンボリック問わず）、
+# それ以降の非フラグトークンのみを対象パスとみなす。000/-R 777 以外の chmod は対象外
+# （シンボリックモードでの全開放/全剥奪はスコープ外・既存の弱点のまま）。
+# トリガー判定は「先頭トークンがchmodで、最初の非フラグトークン(モード引数)が
+# 000/0000/777/0777相当」を主とし、フラグ順序(chmod 777 -R等)・桁数(0777等)の
+# バリエーションを吸収する。先頭トークンがchmodでない複合コマンド（cd混在等）は
+# 解析できないため、粗いパターン一致のみで安全側にトリガーする。
+CHMOD_FIRST=$(printf '%s' "$COMMAND" | awk 'NR==1{print $1}')
+CHMOD_MODE=""
+if [ "$CHMOD_FIRST" = "chmod" ]; then
+  set -f
+  for tok in $COMMAND; do
+    case "$tok" in
+      chmod) continue ;;
+      -*) continue ;;
+    esac
+    CHMOD_MODE="$tok"
+    break
+  done
+  set +f
+fi
+chmod_trigger=0
+case "$CHMOD_MODE" in
+  0 | 00 | 000 | 0000 | 7 | 77 | 777 | 0777) chmod_trigger=1 ;;
+esac
+if [ "$chmod_trigger" -eq 0 ]; then
+  printf '%s' "$COMMAND" | grep -qiP '(chmod\s+.*000|chmod\s+-R\s+777\s+/)' && chmod_trigger=1
+fi
+if [ "$chmod_trigger" -eq 1 ]; then
+  chmod_allowed=0
+  had_target=0
+  if [ "$CHMOD_FIRST" = "chmod" ]; then
+    chmod_allowed=1
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && chmod_allowed=0
+    printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && chmod_allowed=0
+    if [ "$chmod_allowed" -eq 1 ]; then
+      set -f
+      mode_consumed=0
+      for tok in $COMMAND; do
+        case "$tok" in
+          chmod) continue ;;
+          -*) continue ;;
+        esac
+        if [ "$mode_consumed" -eq 0 ]; then
+          mode_consumed=1
+          continue                              # 最初の非フラグトークン = モード引数
+        fi
+        had_target=1
+        abs=$(to_posix "$(realpath -m "$tok" 2>/dev/null)")
+        [ -z "$abs" ] && { chmod_allowed=0; break; }
+        case "$abs" in
+          "$PROJECT_DIR"/* | "$CLAUDE_HOME"/* | /tmp/*) ;;
+          *) chmod_allowed=0; break ;;
+        esac
+      done
+      set +f
+    fi
+  fi
+  if [ "$chmod_allowed" -eq 1 ] && [ "$had_target" -eq 1 ]; then
+    exit 0
+  fi
+  echo "❌ BLOCKED: $COMMAND" >&2
+  echo "   chmod 000/-R 777 はプロジェクト配下($PROJECT_DIR)／\$CLAUDE_HOME配下($CLAUDE_HOME)／/tmp配下の子要素に対してのみ許可されています。" >&2
+  echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
+  exit 2
+fi
 
 # 上で許可されなかった rm/rmdir/unlink 呼び出しはブロック（末尾形も捕捉）
 if printf '%s' "$COMMAND" | grep -qiP '\b(rm|rmdir|unlink)(\s|$)'; then

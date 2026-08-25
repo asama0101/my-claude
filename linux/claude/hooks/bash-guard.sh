@@ -114,9 +114,14 @@ done
 
 # ── 正規化後の危険パターン再判定（難読化バイパス対策）──────────────
 # クォート分割/バックスラッシュ/${IFS}等で上のBLOCKED_PATTERNSを回避しようとした
-# 場合、正規化後の文字列に対して同じパターン(+rm系catch-all)を再評価しブロックする。
+# 場合、正規化後の文字列に対して同じパターン(+rm系/ゾーン判定対象のcatch-all)を
+# 再評価しブロックする。find -delete/rsync --delete/chmod 000/-R 777はゾーン判定で
+# 許可されうるため、通常時（$NORMALIZED == $COMMAND）は下のゾーン判定に委ねるが、
+# 難読化を検知した時点ではゾーン判定のトリガー正規表現ごと迂回されうるため、
+# ここで無条件ブロックにフォールバックする。
 if [ "$NORMALIZED" != "$COMMAND" ]; then
-  for pattern in "${BLOCKED_PATTERNS[@]}" '\b(rm|rmdir|unlink)(\s|$)'; do
+  for pattern in "${BLOCKED_PATTERNS[@]}" '\b(rm|rmdir|unlink)(\s|$)' \
+                 'find\s+.*-delete' 'rsync\s+.*--del' 'chmod\s+.*000' 'chmod\s+-R\s+777\s+/'; do
     if printf '%s' "$NORMALIZED" | grep -qiP "$pattern"; then
       echo "❌ BLOCKED: $COMMAND" >&2
       echo "   クォート分割/バックスラッシュ/\${IFS}等の難読化を検知し、正規化後に危険パターンへ一致しました: $pattern" >&2
@@ -152,7 +157,7 @@ case "$RM_FIRST" in
     # 安全文字集合外（~ $ ` ( ) { } " ' \ ; & | < > = 等）→ 解析不能 → 不許可
     # 改行は tr で許可集合外の \v に変換してから判定する（grep は行単位評価のため
     # 生の改行は素通りし、複数行コマンドの2行目以降が無検査になる穴を防ぐ）。
-    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./*?-]' && rm_allowed=0
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && rm_allowed=0
     # cd を含むと cwd 変化でプロジェクト判定が崩れる → 不許可
     printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rm_allowed=0
     had_target=0
@@ -181,7 +186,7 @@ case "$RM_FIRST" in
     # git rm のみ: rm 同等の配下チェックを通れば許可（連結は安全文字チェックで弾く）
     if [ "$(printf '%s' "$COMMAND" | awk 'NR==1{print $2}')" = "rm" ]; then
       rm_allowed=1
-      printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./*?-]' && rm_allowed=0
+      printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && rm_allowed=0
       printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rm_allowed=0
       had_target=0
       if [ "$rm_allowed" -eq 1 ]; then
@@ -220,7 +225,7 @@ if printf '%s' "$COMMAND" | grep -qiP '\bfind\b' && printf '%s' "$COMMAND" | gre
   had_target=0
   if [ "$FIND_FIRST" = "find" ]; then
     find_allowed=1
-    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./*?-]' && find_allowed=0
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && find_allowed=0
     printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && find_allowed=0
     # -exec/-execdir/-ok/-okdir や -fprint系はゾーン外ファイルを操作・破壊できるため、
     # path列挙を打ち切った式部分に含まれていたら不許可（対象パス検査の対象外になるため）。
@@ -253,15 +258,17 @@ if printf '%s' "$COMMAND" | grep -qiP '\bfind\b' && printf '%s' "$COMMAND" | gre
 fi
 
 # ── rsync --delete: プロジェクト配下／$CLAUDE_HOME配下／/tmp配下の子要素のみ許可 ──
-# --delete を含まない rsync は対象外（従来通り無条件許可）。
+# --delete系オプション（--del/--delete/--delete-before/--delete-during/--delete-delay/
+# --delete-after/--delete-excluded/--delete-missing-args）を含まない rsync は対象外
+# （従来通り無条件許可）。--delは--delete-duringのrsync公式エイリアス。
 # トリガー判定はコマンド全体に対して行う（cd混在等のフォールスルー対策、find参照）。
 RSYNC_FIRST=$(printf '%s' "$COMMAND" | awk 'NR==1{print $1}')
-if printf '%s' "$COMMAND" | grep -qiP '\brsync\b' && printf '%s' "$COMMAND" | grep -qiP -- '--delete\b'; then
+if printf '%s' "$COMMAND" | grep -qiP '\brsync\b' && printf '%s' "$COMMAND" | grep -qiP -- '--del(ete)?\b'; then
   rsync_allowed=0
   had_target=0
   if [ "$RSYNC_FIRST" = "rsync" ]; then
     rsync_allowed=1
-    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./*?-]' && rsync_allowed=0
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && rsync_allowed=0
     printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rsync_allowed=0
     if [ "$rsync_allowed" -eq 1 ]; then
       set -f
@@ -324,7 +331,7 @@ if [ "$chmod_trigger" -eq 1 ]; then
   had_target=0
   if [ "$CHMOD_FIRST" = "chmod" ]; then
     chmod_allowed=1
-    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./*?-]' && chmod_allowed=0
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && chmod_allowed=0
     printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && chmod_allowed=0
     if [ "$chmod_allowed" -eq 1 ]; then
       set -f

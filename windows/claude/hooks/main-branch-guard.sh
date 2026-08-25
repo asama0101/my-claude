@@ -7,8 +7,10 @@
 # Bash: 削除・変更系コマンド（rm/mv/cp/tee/touch/sed -i/リダイレクト/git commit/git rm 等）
 # のみを対象に、cwd の git ブランチが main/master なら exit 2。読み取り専用コマンド
 # （git status/cat/ls/grep 等）は対象外。
-# find -delete/shutil.rmtree/rsync --delete は bash-guard.sh がブランチに関係なく
-# 常時無条件ブロックするため、ここには含めない（含めても到達不能な重複ロジックになるため）。
+# shutil.rmtree は bash-guard.sh がブランチに関係なく常時無条件ブロックするため、
+# ここには含めない（含めても到達不能な重複ロジックになるため）。find -delete/
+# rsync --delete は bash-guard.sh 側でプロジェクト配下等ならゾーン許可されるため、
+# 保護ブランチ上でのプロジェクト内破壊を防ぐにはこちらでも対象に含める必要がある。
 #
 # 既知の限界: scripts/sync.sh のようなラッパースクリプトの呼び出し自体は、Bash
 # に渡る文字列がスクリプト名のみで内部コマンドが見えないため検知できない。
@@ -32,8 +34,14 @@ to_posix() {
   case "$p" in
     [A-Za-z]:/*) p="/$(printf '%s' "${p%%:*}" | tr 'A-Z' 'a-z')${p#*:}" ;;  # C:/x → /c/x
   esac
+  # NTFS はパスの大文字小文字を区別しないため、ゾーン前方一致比較
+  # （"$project_dir"/* 等）が大文字小文字違いだけで誤って不一致判定
+  # されないよう、Windows(msys/cygwin)上でのみ全体を小文字化する。
+  case "${OSTYPE:-}" in msys* | cygwin*) p=$(printf '%s' "$p" | tr 'A-Z' 'a-z') ;; esac
   printf '%s' "$p"
 }
+
+CLAUDE_HOME=$(to_posix "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")
 
 INPUT=$(cat)
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
@@ -69,6 +77,46 @@ warn_if_stale() {
   echo "⚠️  ローカルの${branch}が${remote_ref}より遅れています。先に 'git pull' を実行してから上記のブランチ作成をしてください。" >&2
 }
 
+# 単一コマンド（rm/rmdir/unlink・mv・cp・touch・sed -i）が、全対象パスを
+# プロジェクト外かつ $CLAUDE_HOME 外に持つ場合のみ真を返す。パイプ・リダイレクト・
+# 複合コマンド・改行・cd・安全文字集合外の文字を含む場合や sed に -i が無い場合は
+# 偽（従来通りブロック）。$CLAUDE_HOME を除外しないと、cp/mv/touch/sed -i でフック
+# 自身（main-branch-guard.sh等）を保護ブランチ上から書き換えられてしまうため必須。
+bash_targets_outside_project() {
+  local cmd="$1" project_dir="$2" claude_home="$CLAUDE_HOME" first tok abs had_target=0 idx=0
+  first=$(printf '%s' "$cmd" | awk 'NR==1{print $1}')
+  case "$first" in
+    rm | rmdir | unlink | mv | cp | touch | sed) ;;
+    *) return 1 ;;
+  esac
+  if [ "$first" = "sed" ]; then
+    printf '%s' "$cmd" | grep -qP -- '-i\b' || return 1
+  fi
+  # 改行は tr で許可集合外の \v に変換してから判定する（grep は行単位評価のため
+  # 生の改行は素通りし、複数行コマンドの2行目以降が無検査になる穴を防ぐ）。
+  printf '%s' "$cmd" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && return 1
+  printf '%s' "$cmd" | grep -qiP '\bcd\b' && return 1
+  set -f
+  for tok in $cmd; do
+    idx=$((idx + 1))
+    if [ "$idx" -eq 1 ]; then continue; fi   # コマンド名は先頭トークン(位置)でスキップ。
+                                              # 値一致だと「コマンド名と同名の引数」
+                                              # (例: cp /tmp/x cp)を誤ってスキップする。
+    case "$tok" in
+      -*) continue ;;
+    esac
+    had_target=1
+    abs=$(to_posix "$(realpath -m "$tok" 2>/dev/null)")
+    if [ -z "$abs" ]; then set +f; return 1; fi
+    case "$abs" in
+      "$project_dir" | "$project_dir"/*) set +f; return 1 ;;
+      "$claude_home" | "$claude_home"/*) set +f; return 1 ;;
+    esac
+  done
+  set +f
+  [ "$had_target" -eq 1 ]
+}
+
 case "$TOOL" in
   Write | Edit | MultiEdit | NotebookEdit)
     FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
@@ -98,6 +146,8 @@ case "$TOOL" in
       '\bmv\b'
       '\btouch\b'
       'sed\s+-i'                                     # sed インプレース編集
+      '\bfind\b.*-delete\b'                          # find -delete（bash-guard側はゾーン許可されうる）
+      '\brsync\b.*--del(ete)?\b'                      # rsync --delete/--del（同上）
     )
 
     is_mutating=0
@@ -111,6 +161,9 @@ case "$TOOL" in
     if [ "$is_mutating" -eq 1 ]; then
       BRANCH=$(get_branch "$PROJECT_DIR")
       if is_protected "$BRANCH"; then
+        if bash_targets_outside_project "$CMD" "$PROJECT_DIR"; then
+          exit 0
+        fi
         echo "❌ BLOCKED: ${BRANCH}ブランチ上でのファイル変更は禁止されています: $CMD" >&2
         echo "   先に 'git checkout -b <branch-name>' でブランチを作成してから再試行してください。" >&2
         warn_if_stale "$PROJECT_DIR" "$BRANCH"
