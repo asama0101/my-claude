@@ -125,7 +125,22 @@ if [ "$NORMALIZED" != "$COMMAND" ]; then
   for pattern in "${BLOCKED_PATTERNS[@]}" '\b(rm|rmdir|unlink)(\s|$)' \
                  'find\s+.*-delete' 'rsync\s+.*--del' 'chmod\s+.*000' 'chmod\s+-R\s+777\s+/' \
                  '\b(cat|less|more|head|tail|base64|xxd|od|strings)\s+.*(\.env(\.|\s|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|$)|\.key(\s|$)|authorized_keys|\.netrc|credentials)'; do
-    if printf '%s' "$NORMALIZED" | grep -qiP "$pattern"; then
+    # 正規化で「新たに」現れたマッチのみを難読化とみなす。元コマンドの時点で
+    # 既に同じパターンに一致していた場合、そのキーワードはクォート等で隠されて
+    # おらず素通しで見えているということなので、難読化ではない（無関係な箇所の
+    # クォート — 例: git commit -m "..." のメッセージ引用 — がNORMALIZED!=COMMAND
+    # を成立させただけで、rm等が誤って道連れブロックされるのを防ぐ）。この場合は
+    # 後続のゾーン判定（git rm --cached 等）に評価を委ねる。
+    # 安全性メモ（review-security確認済み）: この除外条件は「同じパターンが
+    # コマンド中のどこか無害な場所に既出であれば除外する」ため、変更前より
+    # 狭い範囲でしか捕捉しない。実際に危険なコマンドが素通りしないのは、
+    # 445行目付近の最終catch-all（\b(rm|rmdir|unlink)(\s|$)等の同一パターン）
+    # や各専用ゾーン判定のFIRSTトークン厳格チェックが独立した安全網として
+    # 機能しているためであり、この除外条件自身が安全性を担保しているわけでは
+    # ない。将来それらの層を変更する際は、この除外条件との相互作用を再確認する
+    # こと。
+    if printf '%s' "$NORMALIZED" | grep -qiP "$pattern" \
+       && ! printf '%s' "$COMMAND" | grep -qiP "$pattern"; then
       echo "❌ BLOCKED: $COMMAND" >&2
       echo "   クォート分割/バックスラッシュ/\${IFS}等の難読化を検知し、正規化後に危険パターンへ一致しました: $pattern" >&2
       echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
@@ -139,8 +154,12 @@ fi
 # コマンド置換（` / $(）を含む場合は削除対象を確定できず解析不能として block。
 # 削除語を含む場合のみに限定し、通常コマンドの誤爆を避ける（delete/rmtree は
 # 英単語での誤爆を避けるためトリガーから除外＝それぞれ専用パターンで捕捉済み）。
-if printf '%s' "$COMMAND" | grep -qiP '\b(rm|rmdir|unlink)\b' \
-   && printf '%s' "$COMMAND" | grep -qE '[$`]'; then
+# 判定は「削除語を含む行」単位に限定する。複数行コマンド（例: git rm --cached の
+# 次行に git commit -m "$(cat <<EOF ... )" のような別コマンドが続く場合）で、
+# 削除語を含まない別行の $(...) に道連れでブロックされないようにするため
+# （削除対象を確定できない、という本来の趣旨は削除語自身の行にのみ関係する）。
+RM_LINES=$(printf '%s\n' "$COMMAND" | grep -iP '\b(rm|rmdir|unlink)\b')
+if [ -n "$RM_LINES" ] && printf '%s' "$RM_LINES" | grep -qE '[$`]'; then
   echo "❌ BLOCKED: $COMMAND" >&2
   echo "   削除系コマンドに変数展開/コマンド置換が含まれ、削除対象を確定できません。" >&2
   echo "このコマンドはポリシーによりブロックされました。自分では実行せず、ユーザーに次のコマンドを実行するよう依頼してください（! プレフィックス推奨）: ${COMMAND}"
