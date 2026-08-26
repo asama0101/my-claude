@@ -163,5 +163,34 @@ run_bash $'X=$(whoami)\nrm -rf /etc/passwd'; assert_exit 2 "$?" "review-security
 # ことを固定化する(find/rsync/機密ファイル読取のFIRSTトークン厳格チェックも同型)。
 run_bash "echo \"chmod harmless000file\"; ch'mod' 0'0'0 /tmp/x"; assert_exit 2 "$?" "review-security指摘: 無害文字列での事前一致回避もchmodゾーン判定のFIRSTトークン厳格チェックでブロック"
 
+# ── 追加: git rm / find -delete / rsync --delete / 機密ファイル読取の残り4ゾーンでも
+#    スラッシュ形式Windowsパスが許可されることを確認（rm/chmodと同一パターンの回帰）。
+#    このブロックも実$HOME/.claude配下に副作用を持つため、trapを両フィクスチャ
+#    ディレクトリ削除に統合する（bash のtrapは同一シグナルにつき最後の設定のみ有効）。
+trap 'rm -rf "$HOME/.claude/bg_winpath_test" "$HOME/.claude/bg_winpath_test_ext"' EXIT
+mkdir -p "$HOME/.claude/bg_winpath_test_ext"
+
+# git rm ゾーン判定
+touch "$HOME/.claude/bg_winpath_test_ext/git_target.txt"
+WIN_GIT_TARGET_SLASH="${WIN_HOME_SLASH}/.claude/bg_winpath_test_ext/git_target.txt"
+run_bash "git rm $WIN_GIT_TARGET_SLASH"; assert_exit 0 "$?" "バグ修正確認: git rmゾーン判定でもスラッシュ形式Windowsパスはゾーン内として許可される"
+run_bash 'git rm C:/Windows/System32/drivers/etc/hosts'; assert_exit 2 "$?" "回帰確認: ゾーン外のWindowsスラッシュ形式パスgit rmは引き続きブロック"
+
+# find -delete ゾーン判定
+run_bash "find ${WIN_HOME_SLASH}/.claude/bg_winpath_test_ext -delete"; assert_exit 0 "$?" "バグ修正確認: find -deleteゾーン判定でもスラッシュ形式Windowsパスはゾーン内として許可される"
+
+# rsync --delete ゾーン判定
+mkdir -p "$HOME/.claude/bg_winpath_test_ext/rsync_src" "$HOME/.claude/bg_winpath_test_ext/rsync_dst"
+WIN_RSYNC_SRC="${WIN_HOME_SLASH}/.claude/bg_winpath_test_ext/rsync_src/"
+WIN_RSYNC_DST="${WIN_HOME_SLASH}/.claude/bg_winpath_test_ext/rsync_dst/"
+run_bash "rsync -a --delete $WIN_RSYNC_SRC $WIN_RSYNC_DST"; assert_exit 0 "$?" "バグ修正確認: rsync --deleteゾーン判定でもスラッシュ形式Windowsパスはゾーン内として許可される"
+
+# 機密ファイル読取ゾーン判定
+touch "$HOME/.claude/bg_winpath_test_ext/.env"
+WIN_ENV_SLASH="${WIN_HOME_SLASH}/.claude/bg_winpath_test_ext/.env"
+run_bash "cat $WIN_ENV_SLASH"; assert_exit 0 "$?" "バグ修正確認: 機密ファイル読取ゾーン判定でもスラッシュ形式Windowsパスはゾーン内として許可される"
+
+rm -rf "$HOME/.claude/bg_winpath_test_ext"
+
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }
