@@ -182,7 +182,7 @@ case "$RM_FIRST" in
     # 安全文字集合外（~ $ ` ( ) { } " ' \ ; & | < > = 等）→ 解析不能 → 不許可
     # 改行は tr で許可集合外の \v に変換してから判定する（grep は行単位評価のため
     # 生の改行は素通りし、複数行コマンドの2行目以降が無検査になる穴を防ぐ）。
-    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && rm_allowed=0
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./:-]' && rm_allowed=0
     # cd を含むと cwd 変化でプロジェクト判定が崩れる → 不許可
     printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rm_allowed=0
     had_target=0
@@ -211,7 +211,7 @@ case "$RM_FIRST" in
     # git rm のみ: rm 同等の配下チェックを通れば許可（連結は安全文字チェックで弾く）
     if [ "$(printf '%s' "$COMMAND" | awk 'NR==1{print $2}')" = "rm" ]; then
       rm_allowed=1
-      printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && rm_allowed=0
+      printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./:-]' && rm_allowed=0
       printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rm_allowed=0
       had_target=0
       if [ "$rm_allowed" -eq 1 ]; then
@@ -250,7 +250,7 @@ if printf '%s' "$COMMAND" | grep -qiP '\bfind\b' && printf '%s' "$COMMAND" | gre
   had_target=0
   if [ "$FIND_FIRST" = "find" ]; then
     find_allowed=1
-    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && find_allowed=0
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./:-]' && find_allowed=0
     printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && find_allowed=0
     # -exec/-execdir/-ok/-okdir や -fprint系はゾーン外ファイルを操作・破壊できるため、
     # path列挙を打ち切った式部分に含まれていたら不許可（対象パス検査の対象外になるため）。
@@ -287,13 +287,17 @@ fi
 # --delete-after/--delete-excluded/--delete-missing-args）を含まない rsync は対象外
 # （従来通り無条件許可）。--delは--delete-duringのrsync公式エイリアス。
 # トリガー判定はコマンド全体に対して行う（cd混在等のフォールスルー対策、find参照）。
+# 注: 安全文字集合の`:`はWindowsパス（C:/...）向けだが、rsyncは最初のスラッシュより
+# 前に`:`があるとHOST:PATH（リモート）構文と解釈する。C:/...形式はrsync自体がリモート
+# ホスト指定と誤解釈し接続失敗するため、rsyncゾーンでは実質的に機能しない（fail-inert、
+# ゾーン外への書き込みには繋がらないためブロッカーとしては許容）。
 RSYNC_FIRST=$(printf '%s' "$COMMAND" | awk 'NR==1{print $1}')
 if printf '%s' "$COMMAND" | grep -qiP '\brsync\b' && printf '%s' "$COMMAND" | grep -qiP -- '--del(ete)?\b'; then
   rsync_allowed=0
   had_target=0
   if [ "$RSYNC_FIRST" = "rsync" ]; then
     rsync_allowed=1
-    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && rsync_allowed=0
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./:-]' && rsync_allowed=0
     printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && rsync_allowed=0
     if [ "$rsync_allowed" -eq 1 ]; then
       set -f
@@ -356,7 +360,7 @@ if [ "$chmod_trigger" -eq 1 ]; then
   had_target=0
   if [ "$CHMOD_FIRST" = "chmod" ]; then
     chmod_allowed=1
-    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && chmod_allowed=0
+    printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./:-]' && chmod_allowed=0
     printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && chmod_allowed=0
     if [ "$chmod_allowed" -eq 1 ]; then
       set -f
@@ -405,7 +409,7 @@ if printf '%s' "$COMMAND" | grep -qiP '\b(cat|less|more|head|tail|base64|xxd|od|
   case "$READ_FIRST" in
     cat | less | more | head | tail | base64 | xxd | od | strings)
       read_allowed=1
-      printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && read_allowed=0
+      printf '%s' "$COMMAND" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./:-]' && read_allowed=0
       printf '%s' "$COMMAND" | grep -qiP '\bcd\b' && read_allowed=0
       if [ "$read_allowed" -eq 1 ]; then
         set -f
