@@ -101,5 +101,38 @@ run_bash 'cat /etc/credentials'; assert_exit 2 "$?" "回帰確認: ゾーン外(
 run_bash 'cat /tmp/x/.env | grep KEY'; assert_exit 2 "$?" "回帰確認: パイプを含む複合コマンドは解析不能としてブロック"
 run_bash $'cat /tmp/x/.env\ncat /etc/credentials' ; assert_exit 2 "$?" "回帰確認: 改行密輸(1行目ゾーン内/2行目ゾーン外)はブロック"
 
+# ── Windows絶対パス形式でのゾーン判定: バックスラッシュ形式は意図的にブロック、
+#    スラッシュ形式のみ許可(CRITICAL脆弱性修正: 安全文字集合から\を除外) ──
+# バックスラッシュを安全文字集合に含めると、realpath -m によるゾーン判定と bash の
+# 実際の展開(エスケープ解釈)が乖離し、".\." 連鎖によるパストラバーサルが成立して
+# しまうため、安全文字集合には`:`のみを追加し`\`は追加しない。結果としてWindowsパスは
+# `C:/Users/...`のスラッシュ形式でのみゾーン判定を通過でき、`C:\Users\...`のバック
+# スラッシュ形式は引き続きブロックされる(意図的な設計)。
+command -v cygpath >/dev/null 2>&1 && WIN_HOME=$(cygpath -w "$HOME") || WIN_HOME=$(printf '%s' "$HOME" | sed -E 's#^/([a-zA-Z])/#\1:\\#; s#/#\\#g')
+WIN_HOME_SLASH=$(printf '%s' "$WIN_HOME" | tr '\\' '/' 2>/dev/null)
+
+# このブロックのみ実$HOME/.claude配下に副作用を持つため、異常終了時の残留を防ぐtrapを設定する
+trap 'rm -rf "$HOME/.claude/bg_winpath_test"' EXIT
+mkdir -p "$HOME/.claude/bg_winpath_test"
+touch "$HOME/.claude/bg_winpath_test/target.txt"
+WIN_TARGET_BACKSLASH="${WIN_HOME}\\.claude\\bg_winpath_test\\target.txt"
+run_bash "rm $WIN_TARGET_BACKSLASH"; assert_exit 2 "$?" "設計確認: バックスラッシュ形式のWindowsパスは安全性のため意図的にブロックされたまま"
+
+WIN_TARGET_SLASH="${WIN_HOME_SLASH}/.claude/bg_winpath_test/target.txt"
+run_bash "rm $WIN_TARGET_SLASH"; assert_exit 0 "$?" "バグ修正確認: ゾーン内(\$CLAUDE_HOME配下)のスラッシュ形式Windowsパスrmは許可される"
+
+run_bash 'rm C:\Windows\System32\drivers\etc\hosts'; assert_exit 2 "$?" "回帰確認: ゾーン外のWindowsバックスラッシュパスrmは引き続きブロック"
+
+touch "$HOME/.claude/bg_winpath_test/chmod_target.txt"
+WIN_CHMOD_TARGET_SLASH="${WIN_HOME_SLASH}/.claude/bg_winpath_test/chmod_target.txt"
+run_bash "chmod 000 $WIN_CHMOD_TARGET_SLASH"; assert_exit 0 "$?" "バグ修正確認: chmod 000ゾーン判定でもスラッシュ形式Windowsパスはゾーン内として許可される"
+
+rm -rf "$HOME/.claude/bg_winpath_test"
+
+# 退行防止: バックスラッシュでコマンド名自体を分断する難読化(r\m)は、RM_FIRSTが
+# "rm"と完全一致しないためゾーン判定に合致せず、難読化バイパス対策ブロックで
+# 引き続き捕捉される。
+run_bash 'r\m -rf /'; assert_exit 2 "$?" "退行防止: コマンド名分断難読化(r\\m -rf /)は引き続きブロック"
+
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }
