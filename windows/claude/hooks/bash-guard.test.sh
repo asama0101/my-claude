@@ -134,5 +134,34 @@ rm -rf "$HOME/.claude/bg_winpath_test"
 # 引き続き捕捉される。
 run_bash 'r\m -rf /'; assert_exit 2 "$?" "退行防止: コマンド名分断難読化(r\\m -rf /)は引き続きブロック"
 
+# ── バグ修正: 単純な git rm --cached 単体が、無関係な箇所のクォート等で
+#    「難読化」と誤診断されて誤ったメッセージでブロックされない ──
+# git rm --cached <zone内path> 単体（連結なし）はゾーン判定を通り exit 0 になる。
+run_bash "git rm --cached target.txt"; assert_exit 0 "$?" "バグ修正: git rm --cached単体(連結なし)はゾーン判定を通り許可される"
+
+# ── 設計確認: git rm --cached を他コマンドと && や改行で連結したものは、
+#    ゾーン判定自身の安全文字集合チェック（連結を弾く設計、コメント参照）により
+#    引き続きブロックされる。これは意図的な設計であり今回のバグ修正の対象外。
+#    連結せず個別のBash呼び出しに分けて実行するのが正しい回避策。
+run_bash 'git rm --cached target.txt && git commit -m "message"'; assert_exit 2 "$?" "設計確認: git rm --cachedと他コマンドの連結(&&)は意図的にブロックされたまま(個別呼び出しに分割が正解)"
+run_bash $'git rm --cached target.txt\ngit commit -m "$(cat <<\'EOF\'\nmsg\nEOF\n)"'; assert_exit 2 "$?" "設計確認: git rm --cached後続行の別コマンドとの複合も連結として引き続きブロックされたまま"
+
+# ── 回帰確認: 削除語+変数展開が同一行に同居する本来の攻撃パターンは引き続きブロック ──
+run_bash 'rm $(echo /etc/passwd)'; assert_exit 2 "$?" "回帰確認: rm自身の対象が変数展開/コマンド置換な場合は引き続き解析不能としてブロック"
+run_bash 'rm `echo /etc/passwd`'; assert_exit 2 "$?" "回帰確認: rm自身の対象がバッククォート置換な場合は引き続き解析不能としてブロック"
+
+# ── review-security指摘分の回帰テスト追加(Minor) ──
+# 削除語を含む行自体には $/` が無いが、別行で変数展開/コマンド置換が行われる
+# パターン。変更2のガード(削除語を含む行のみを見る)は素通りするが、最終
+# catch-all(\b(rm|rmdir|unlink)(\s|$))が2行目の"rm"に直接一致するため、
+# 別の防御層によって引き続きブロックされることを固定化する。
+run_bash $'X=$(whoami)\nrm -rf /etc/passwd'; assert_exit 2 "$?" "review-security指摘: 削除語行と変数展開行が別行でも最終catch-allでブロック"
+
+# 無害な文字列(echoの引数)でchmod\s+.*000パターンを事前一致させ変更1の
+# 再判定ブロックを回避しても、chmod専用ゾーン判定はCHMOD_FIRSTがchmodと
+# 完全一致しない複合コマンドを無条件不許可とするため、引き続きブロックされる
+# ことを固定化する(find/rsync/機密ファイル読取のFIRSTトークン厳格チェックも同型)。
+run_bash "echo \"chmod harmless000file\"; ch'mod' 0'0'0 /tmp/x"; assert_exit 2 "$?" "review-security指摘: 無害文字列での事前一致回避もchmodゾーン判定のFIRSTトークン厳格チェックでブロック"
+
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }
