@@ -64,9 +64,13 @@ if (Test-Path $SettingsMirror -PathType Leaf) {
     $RestPath = $ClaudeHome.Substring(2) -replace '\\', '/'
     $ClaudeHomeGitBash = "/$DriveLetter$RestPath"
 
-    $Content = Get-Content -Path $SettingsMirror -Raw
+    # -Encoding utf8 を明示しないと既定のシステムANSIコードページで読み込まれ、
+    # 多バイト文字（em dash等）が文字化けする。書き込みは Set-Content -Encoding utf8 だと
+    # Windows PowerShell 5.1 で常にBOM付きUTF-8になるため、.NET APIでBOMなしUTF-8を明示する。
+    $Content = Get-Content -Path $SettingsMirror -Raw -Encoding utf8
     $Content = $Content.Replace($ClaudeHomeGitBash, "__CLAUDE_HOME__")
-    Set-Content -Path $SettingsMirror -Value $Content -NoNewline -Encoding utf8
+    $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($SettingsMirror, $Content, $Utf8NoBom)
     Write-Output "Done(subst): settings.json のパスを __CLAUDE_HOME__ に置換しました。"
 }
 
