@@ -96,16 +96,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "__CLAUDE_HOME__/hooks/self-improve-trigger.sh"
-          }
-        ]
-      }
     ]
   },
   "statusLine": {
