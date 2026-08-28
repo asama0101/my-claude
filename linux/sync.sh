@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# sync.sh — ~/.claude/ の設定をリポジトリの linux/claude/ ミラーへ同期し、commit + push する。
+# sync.sh — ~/.claude/ の設定をリポジトリの linux/claude/ ミラーへ同期する。
 #
 # 方向: ~/.claude/  →  <repo>/linux/claude/   （source が真実の源）
 # 逆方向（repo → ~/.claude）の展開は Claude Code に直接依頼する（旧 install.sh は廃止）。
@@ -77,19 +77,3 @@ for ITEM in "${DIR_TARGETS[@]}"; do
 done
 
 echo "すべての同期が完了しました。"
-echo ""
-echo "Git へ push します..."
-
-cd "$REPO_ROOT" || { echo "リポジトリへの移動に失敗しました。"; exit 1; }
-
-if [ -z "$(git status --porcelain)" ]; then
-    echo "変更なし — push をスキップします。"
-    exit 0
-fi
-
-TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
-git add -A
-git commit -m "chore(setup): sync Claude config files ($TIMESTAMP)"
-git push
-
-echo "push 完了。"
