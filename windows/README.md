@@ -6,8 +6,8 @@ Windows 版 Claude Code 設定の置き場所。`linux/` と対称的な構成�
 
 | パス | 内容 |
 |-----|------|
-| `windows/claude/` | `%USERPROFILE%\.claude\` のミラー（hooks / skills / agents / rules / assets / settings.json / CLAUDE.md / statusline-command.sh） |
-| `windows/sync.ps1` | `%USERPROFILE%\.claude\` → `windows/claude/` 同期スクリプト（commit + push 自動、PowerShell 版） |
+| `windows/claude/` | `%USERPROFILE%\.claude\` のミラー（hooks / skills / agents / rules / assets / commands / settings.json / CLAUDE.md / statusline-command.sh） |
+| `.claude/skills/sync-config/` | `%USERPROFILE%\.claude\` → `windows/claude/` への同期スキル（コピーのみ、commit + push は行わない）。Windows 用スクリプト本体は `scripts/sync-windows.ps1` |
 
 ## 同期方式
 
