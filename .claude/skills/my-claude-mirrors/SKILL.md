@@ -1,20 +1,20 @@
 ---
-name: diff-sync
-description: linux/claude/ と windows/claude/（このmy-claudeリポジトリ内の2つの~/.claudeミラー）配下全体を比較し、意図的なOS差分を「台帳(ledger.json)」に記録して以後は静かに許容しつつ、未記録の差分だけを対話的に解消する。ユーザーが「linuxとwindowsの差分を同期して」「diff-syncして」「ミラー間の差分を確認して」「許容差分の台帳を見せて」「OS差分の履歴を教えて」と言ったとき、または2つのミラーディレクトリの内容がずれていないか確認・整合したい場面で必ず使う。sync-configスキル（実機→ミラーの一方向コピー、差分判定なし）とは役割が異なるので混同しないこと。
+name: my-claude-mirrors
+description: linux/claude/ と windows/claude/（このmy-claudeリポジトリ内の2つの~/.claudeミラー）配下全体を比較し、意図的なOS差分を「台帳(ledger.json)」に記録して以後は静かに許容しつつ、未記録の差分だけを対話的に解消する。ユーザーが「linuxとwindowsの差分を同期して」「my-claude-mirrorsして」「ミラー間の差分を確認して」「許容差分の台帳を見せて」「OS差分の履歴を教えて」と言ったとき、または2つのミラーディレクトリの内容がずれていないか確認・整合したい場面で必ず使う。my-claude-pullスキル（実機→ミラーの一方向コピー、差分判定なし）とは役割が異なるので混同しないこと。
 ---
 
-# diff-sync
+# my-claude-mirrors
 
 `linux/claude/` と `windows/claude/` は本来同じ設定のミラーだが、Windows対応コード（Git Bash向けのパス正規化・ロケール対応など）のように意図的にOSごとで内容が異なってよい箇所がある。このスキルは、その「意図的な差分」を台帳（`ledger.json`）に記録して次回以降は自動的に許容し、台帳に無い・変化した差分だけを人間の判断に上げる。
 
 **実機（`~/.claude/` や `%USERPROFILE%\.claude\`）には一切触れない。** 比較対象はリポジトリ内の `linux/claude/` と `windows/claude/` の2つだけ。
 
-## sync-configとの違い（重要）
+## my-claude-pullとの違い（重要）
 
-- `sync-config`: 実機 → ミラー の一方向コピー。差分の意味は判定しない。
-- `diff-sync`（このスキル）: ミラー同士（linux/claude vs windows/claude）を比較し、差分が意図的か未確認かを判定・記録する。
+- `my-claude-pull`: 実機 → ミラー の一方向コピー。差分の意味は判定しない。
+- `my-claude-mirrors`（このスキル）: ミラー同士（linux/claude vs windows/claude）を比較し、差分が意図的か未確認かを判定・記録する。
 
-CLAUDE.mdのGotchas「`linux/claude/`・`windows/claude/` を直接編集しない」は sync-config による上書きを想定した注意であり、**このスキルは両ミラーの差分を解消するために両ミラーを直接編集してよい**（このスキル自身の目的そのものであるため）。
+CLAUDE.mdのGotchas「`linux/claude/`・`windows/claude/` を直接編集しない」は my-claude-pull による上書きを想定した注意であり、**このスキルは両ミラーの差分を解消するために両ミラーを直接編集してよい**（このスキル自身の目的そのものであるため）。
 
 ## モード1: 通常実行（差分の検出・解消）
 

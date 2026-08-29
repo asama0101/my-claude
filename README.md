@@ -7,8 +7,8 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 | パス | 内容 |
 |---|---|
 | `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / commands / settings.json / CLAUDE.md / statusline-command.sh） |
-| `.claude/skills/sync-config/` | `~/.claude/` → `linux/claude/` への同期スキル（コピーのみ、commit + push は行わない） |
-| `.claude/skills/diff-sync/` | `linux/claude/` と `windows/claude/` の差分を検出・解消するスキル。意図的なOS差分を台帳（`ledger.json`）に記録して以後自動的に許容し、未記録の差分だけ対話的に解消する。実機には一切触れない |
+| `.claude/skills/my-claude-pull/` | `~/.claude/` → `linux/claude/` への同期スキル（コピーのみ、commit + push は行わない） |
+| `.claude/skills/my-claude-mirrors/` | `linux/claude/` と `windows/claude/` の差分を検出・解消するスキル。意図的なOS差分を台帳（`ledger.json`）に記録して以後自動的に許容し、未記録の差分だけ対話的に解消する。実機には一切触れない |
 | `windows/` | Windows 版設定の置き場所（`windows/claude/` は `%USERPROFILE%\.claude\` の完全なミラー） |
 
 ## linux/claude/ フォルダについて
@@ -107,32 +107,32 @@ git clone <repo-url> ~/my-claude
 
 ## 設定を更新したら（既存環境）
 
-`~/.claude/` 側で設定を変更した後、`sync-config` スキルでリポジトリへ同期する。Claude Code に「設定を同期して」と伝える。Claude Code が OS を判定し、内部で以下のスクリプトを実行する（自分で直接実行することも可能）：
+`~/.claude/` 側で設定を変更した後、`my-claude-pull` スキルでリポジトリへ同期する。Claude Code に「設定を同期して」と伝える。Claude Code が OS を判定し、内部で以下のスクリプトを実行する（自分で直接実行することも可能）：
 
 ```bash
-bash .claude/skills/sync-config/scripts/sync-linux.sh   # ~/.claude/ → linux/claude/ へコピー（commit・push は行わない）
+bash .claude/skills/my-claude-pull/scripts/sync-linux.sh   # ~/.claude/ → linux/claude/ へコピー（commit・push は行わない）
 ```
 
-> `sync-config` スキルはコピーのみ行う。commit・push が必要なら `git status` で差分を確認し `/pr-create` を使うこと。
+> `my-claude-pull` スキルはコピーのみ行う。commit・push が必要なら `git status` で差分を確認し `/pr-create` を使うこと。
 
 ## 移植性の仕組み
 
 ハードコードされた絶対パス（`/home/<user>/`）を排除している：
 
 - **hooks・skill スクリプト**: `$HOME` を直書き。シェル/Python が実行時に展開するため変換不要。
-- **settings.json**: Claude Code は settings.json 内で `$HOME` を展開しないため、repo 上は プレースホルダ `__CLAUDE_HOME__` を置く。別環境セットアップ時に Claude Code が展開先の絶対パスへ実体化し、`sync-config` スキルの同期スクリプトが逆変換でプレースホルダへ戻す。
+- **settings.json**: Claude Code は settings.json 内で `$HOME` を展開しないため、repo 上は プレースホルダ `__CLAUDE_HOME__` を置く。別環境セットアップ時に Claude Code が展開先の絶対パスへ実体化し、`my-claude-pull` スキルの同期スクリプトが逆変換でプレースホルダへ戻す。
 
-この順変換（展開時）と逆変換（`sync-config` スキルの同期スクリプト）は対になっている。そのため、展開と同期を繰り返してもパス表現はブレない。
+この順変換（展開時）と逆変換（`my-claude-pull` スキルの同期スクリプト）は対になっている。そのため、展開と同期を繰り返してもパス表現はブレない。
 
 - **agents・rules・assets など**: ハードコードされた絶対パスを含まないため、パス変換処理は不要。
 
 ## Gotchas（運用上の注意点）
 
-- **`linux/claude/` フォルダを直接編集しない**：`sync-config` スキル実行時に `~/.claude/` 内容で上書きされる。設定変更は必ず `~/.claude/` 側で行い、その後 Claude Code に「設定を同期して」と依頼するか、`sync-linux.sh` を直接実行して同期する。
-  - 例外：`diff-sync` スキルは `linux/claude/` と `windows/claude/` の差分を解消することが目的のスキルであり、両ミラーを直接編集してよい（実機には一切触れない）。この禁止は `sync-config` による上書きを想定したものであり、`diff-sync` には適用されない。
+- **`linux/claude/` フォルダを直接編集しない**：`my-claude-pull` スキル実行時に `~/.claude/` 内容で上書きされる。設定変更は必ず `~/.claude/` 側で行い、その後 Claude Code に「設定を同期して」と依頼するか、`sync-linux.sh` を直接実行して同期する。
+  - 例外：`my-claude-mirrors` スキルは `linux/claude/` と `windows/claude/` の差分を解消することが目的のスキルであり、両ミラーを直接編集してよい（実機には一切触れない）。この禁止は `my-claude-pull` による上書きを想定したものであり、`my-claude-mirrors` には適用されない。
   
-- **`sync-config` スキルはコピーのみ行う**：commit・push は自動実行しない。同期後は `git status` で差分を確認し、必要なら `/pr-create` を使うこと。
+- **`my-claude-pull` スキルはコピーのみ行う**：commit・push は自動実行しない。同期後は `git status` で差分を確認し、必要なら `/pr-create` を使うこと。
 
 - **別環境セットアップは Claude Code への依頼で行う（`install.sh` は廃止）**：展開時は `projects/`・`sessions/`・`logs/`・`settings.local.json` 等の環境固有資産に一切触れないホワイトリスト方式を守り、差分のある既存ファイルは上書き前にバックアップへ退避する。
 
-- **展開時は rsync に依存しない**：Claude Code が Read/Write ツールで直接ファイル操作するため、展開先環境に rsync が無くても実行できる。一方 `sync-config` スキルの `sync-linux.sh`（`~/.claude/` → repo 方向）は引き続き rsync を使用する。展開方向と同期方向でツールが異なる非対称設計。
+- **展開時は rsync に依存しない**：Claude Code が Read/Write ツールで直接ファイル操作するため、展開先環境に rsync が無くても実行できる。一方 `my-claude-pull` スキルの `sync-linux.sh`（`~/.claude/` → repo 方向）は引き続き rsync を使用する。展開方向と同期方向でツールが異なる非対称設計。
