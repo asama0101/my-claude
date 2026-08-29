@@ -17,6 +17,7 @@
 | `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / commands / settings.json / CLAUDE.md / statusline-command.sh） |
 | `windows/claude/` | `%USERPROFILE%\.claude\` のミラー（hooks / skills / agents / rules / assets / commands / settings.json / CLAUDE.md / statusline-command.sh） |
 | `.claude/skills/sync-config/` | 上記2つのミラーへの同期スキル（`scripts/sync-linux.sh` / `scripts/sync-windows.ps1`）。コピーのみでcommit・pushは行わない |
+| `.claude/skills/diff-sync/` | `linux/claude/` と `windows/claude/` の間の差分を検出・解消するスキル（`scripts/detect-diffs.sh` / `scripts/show-ledger.sh` / `ledger.json`）。実機には一切触れず、意図的なOS差分を台帳に記録して以後自動許容し、未記録の差分だけ対話的に解消する |
 
 ## 移植性の仕組み（パス変数化）
 
@@ -28,6 +29,7 @@
 ## Gotchas
 
 - **`linux/claude/`・`windows/claude/` を直接編集しない**: `sync-config` スキル実行時に上書きされる。設定変更は `~/.claude/`（または`%USERPROFILE%\.claude\`）側で行い、その後 `sync-config` スキルで同期する
+  - 例外: `diff-sync` スキルは両ミラー間の差分を解消することが目的のスキルであり、両ミラーを直接編集してよい（実機には一切触れない）。上記の禁止は `sync-config` による上書きを想定したものであり、`diff-sync` には適用されない
 - **`sync-config` スキルはコピーのみ行う**: 同期後の変更内容は `git status` で確認し、commit・push が必要なら `/pr-create` を使うこと
 - **別環境セットアップは Claude Code への依頼で行う**（`install.sh` は廃止）: 展開時は `projects/`・`sessions/`・`logs/`・`settings.local.json` 等の環境固有資産に一切触れないホワイトリスト方式を守り、差分のある既存ファイルは上書き前にバックアップへ退避する
 - **展開時は rsync に依存しない**: Claude Code が Read/Write ツールで直接ファイル操作するため、展開先環境に rsync が無くても実行できる。`sync-config` スキルの `sync-linux.sh` は引き続き rsync を使用する非対称設計

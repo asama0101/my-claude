@@ -1,0 +1,79 @@
+[
+  {
+    "file": "settings.json",
+    "linux_hash": "b0e55a244faa450ad122ad96fdf1527a281f332e501d9e46da357f96fe2b774c",
+    "windows_hash": "6fe73db900d3edeaa5967db878ae02cc9eaa1c2e93a51cf5ee597f69dc14300b",
+    "reason": "Windows固有のpermission(ppk/pfx/p12/Credentials/gcloud/SAM/NTUSER.DAT等の保護)・PowerShellツール許可・theme:dark(Windows環境の個人設定)・plugins(code-review, playwright)有効化はwindows側のみの意図的差分",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "hooks/branch-guard.sh",
+    "linux_hash": "a894c728314f6090481d7e450eb87d5f9c3b6bee11297e5ad99ec0ceceabce8c",
+    "windows_hash": "4f51d8b33c7cc081e3f55e49e807d8f157416163ae11fae74a9f17a06082683c",
+    "reason": "Windows(Git Bash)対応: to_posix()によるパス正規化(バックスラッシュ・ドライブレター・大文字小文字)、CP932ロケール対応、Windows実機でのcan_create_branch()限界に関するコメント拡充",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "hooks/branch-guard.test.sh",
+    "linux_hash": "0065aab4eb719722b1818a6392f6cd2fdd69882eaa445a6d72cca4806c9b5c36",
+    "windows_hash": "4da6b0cf06185e3ce11a663559aa3ea7d2f8214cfe1ce613cc795a9252f13b5a",
+    "reason": "Windows/Git BashでのchmodによるHEAD書込み不可化の実効性に関する既知の制約コメント追記",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "rules/hooks.md",
+    "linux_hash": "32246485c6da24a9b4938674f6c91a35d297843b2e16789c1bf46e498317d340",
+    "windows_hash": "ff0065cd034f4761079534faa7a73e8137e8a022674581d06387ffa9f9dbe9cd",
+    "reason": "workspace-guard.sh説明行にWindows版セッション用一時ディレクトリ($LOCALAPPDATA/Temp/claude/配下)の記述をwindows側のみ追記",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "hooks/hooks-integration.test.sh",
+    "linux_hash": "c74c9a13a9de93dbb8d3cb0b32c63a7b9e50451c01f23cc4d0f59e8c3833bb25",
+    "windows_hash": "a1ea336816176769e8de23255462615555d1696bbbee41eb5b16b15e377e0af1",
+    "reason": "Windows/NTFSの実行ビット制御不能・jq.exeのCRLF出力に関する既知の限界コメント追記とCR除去処理(hook=${hook%$'\\r'})の追加",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "hooks/system-guard.sh",
+    "linux_hash": "5c7262bed4ce8efe1bc6d0c7e92a7b204c3286ddd90a174c98981e18da740c71",
+    "windows_hash": "6d296a2a981bacded291e0900742f6b6b7cc9b6dca736d3144b8e00311052614",
+    "reason": "Windows対応のLC_ALL設定追加とBLOCKED_PATTERNS各行への行末コメント追加(パターン自体・判定ロジックは不変)",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "hooks/venv-guard.sh",
+    "linux_hash": "13a83b7677509a8ac65f9db98c495a886a9f977bcbb8d8259bd8e1f60555cab6",
+    "windows_hash": "01091968577264256151fcd18ed761ec0bbd406c6b072c922107b193818aa0fc",
+    "reason": "Windows(Git Bash)対応: to_posix()によるVIRTUAL_ENV/pwdのパス正規化、.venv/Scripts/pip.exe形式の早期許可対応、Windows向けメッセージ追加",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "hooks/venv-guard.test.sh",
+    "linux_hash": "bc7752146d625afa4a788316af30c2e68ea46016631af3cac00bb49f23f13b33",
+    "windows_hash": "d0d51b6cdf4e12a5e0eeab932c1dbdd61e41a97c5760a34ec36a1278e35e2a85",
+    "reason": "run_bash()にcwdパラメータ追加、Windows固有テストケース2件(.venv/Scripts/pip.exe対応、VIRTUAL_ENVバックスラッシュ形式でのto_posix()前方一致確認)を追加",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "hooks/workspace-guard.sh",
+    "linux_hash": "5aae17db7c123350e301a6dcab895d8b6291f0653c1e2b62630970b8a21a88ca",
+    "windows_hash": "ded04e549306fdf09106ee58a6f2c3e74e42875676695d43a0cdcfa5c6867678",
+    "reason": "Windows(Git Bash)対応: to_posix()によるパス正規化(大文字小文字含む)、$LOCALAPPDATA/Temp/claude/配下を許可ゾーンに追加",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "hooks/workspace-guard.test.sh",
+    "linux_hash": "cfb7352709fb4c40b9d8de620615e865a43f104230ac52ab554e21280a327055",
+    "windows_hash": "f7eb7e37b4112f2200e1631efb2a65f16c543ac51be66a2a74eb60d173f7250e",
+    "reason": "MSYS_NO_PATHCONV設定追加とWindows固有テストケース3件(to_posix大文字小文字混在の回帰確認、WIN_TEMP_CLAUDEゾーン許可、無アンカーcaseパターンの誤許可バグ回帰固定化)を追加",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "statusline-command.sh",
+    "linux_hash": "f52be4b0971547602fb2c6675c00c8f2cfd788ca82b2b852f3ab97dd462a4a99",
+    "windows_hash": "7cc634a81e103eb0f47c585d6eb9c2a643d03c16a4079963baeeb294c7841b10",
+    "reason": "Windows対応: jq.exeのCRLF出力を tr -d '\\r' で除去、printf %b を %s に変更(Windowsパスのバックスラッシュが\\Uエスケープとして誤解釈されるバグの修正)",
+    "recorded_at": "2026-08-29"
+  }
+]
