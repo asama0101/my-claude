@@ -10,6 +10,18 @@
 
 実機への反映（逆方向の同期）は `my-claude-push` スキル（`.claude/skills/my-claude-push/`）を使う。リポジトリの `linux/claude/`・`windows/claude/` の内容を、実行環境の `$CLAUDE_HOME` へ差分確認・バックアップを経て書き込む。真っさらな別環境の初回セットアップにも使える（バックアップ対象が単に存在しないだけで、同一マシン内での反映と同じ手順で動作する）。
 
+## 典型的な作業フロー
+
+### A. 実機の設定を変更したとき（このマシン → リポジトリ）
+1. `~/.claude/`（Windows: `%USERPROFILE%\.claude\`）を直接編集する
+2. `my-claude-pull` スキルでミラー（`linux/claude/` または `windows/claude/`）へ同期する
+3. 両OSのミラーに差分が出た場合のみ `my-claude-mirrors` で意図的差分か確認・整理する
+4. `git status` で変更を確認し、`/pr-create` で commit・push する
+
+### B. リポジトリの変更を実機へ反映するとき（リポジトリ → このマシン。別環境の初回セットアップも同じ手順）
+1. `git pull` 等でリポジトリを最新化する
+2. `my-claude-push` スキルで対応OSのミラー内容を実機 `$CLAUDE_HOME` へ反映する
+
 ## ディレクトリ構成
 
 | パス | 内容 |
