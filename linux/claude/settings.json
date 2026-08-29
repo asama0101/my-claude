@@ -7,7 +7,9 @@
     "allow": [
       "Read(./**)",
       "Edit(./**)",
-      "WebFetch(domain:code.claude.com)"
+      "WebFetch(domain:code.claude.com)",
+      "WebSearch",
+      "Bash(git push *)"
     ],
     "deny": [
       "Read(**/.env)",
@@ -51,7 +53,11 @@
       "Edit(/sys/**)"
     ],
     "ask": [
-      "Bash(git push *)",
+      "Bash(git push)",
+      "Bash(git push origin main*)",
+      "Bash(git push origin master*)",
+      "Bash(git push -u origin main*)",
+      "Bash(git push -u origin master*)",
       "Bash(git reset --hard*)",
       "Bash(git stash drop*)",
       "Bash(git stash clear*)",
