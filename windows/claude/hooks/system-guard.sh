@@ -1,6 +1,12 @@
 #!/bin/bash
+# system-guard.sh — PreToolUse フック
+# 場所を問わずシステム全体を破壊しうるコマンドのみを無条件ブロックする単純な1層構成。
+# ゾーン判定（プロジェクト外かどうか）はworkspace-guard.sh、ブランチ判定は
+# branch-guard.shが別途担当する。
+#
 # ── fail-close: jq 不在なら解析不能として block ──────────────
-command -v jq >/dev/null 2>&1 || { echo "❌ bash-guard: jq not found, failing closed" >&2; exit 2; }
+command -v jq >/dev/null 2>&1 || { echo "❌ system-guard: jq not found, failing closed" >&2; exit 2; }
+
 # ── Windows(Git Bash)対応 ──────────────────────────────────────────
 # 既定ロケール(CP932等)では grep -P が "supports only unibyte and UTF-8 locales"
 # で失敗し終了ステータス2を返す。下の判定は全て `if ... grep -qiP ...; then` 形式で、
@@ -21,6 +27,8 @@ BLOCKED_PATTERNS=(
 
   # ── パーミッション破壊 ──────────────────────────
   'chown\s+-R\s+.*\s+/'            # ルート以下オーナー変更
+  'chmod\s+-R\s+777\s+/\s*(&&|;|\||$)'  # ファイルシステムルート配下の全権限解放
+  'chmod\s+(-\S+\s+)*0{1,4}\b'          # chmod 000/-R 000等の全権限剥奪
 
   # ── プロセス・システム停止 ──────────────────────
   'kill\s+-9\s+-1'                 # 全プロセス強制終了
@@ -66,6 +74,13 @@ BLOCKED_PATTERNS=(
   'dnf\s+remove\s+-y'
   'npm\s+uninstall\s+-g'                    # グローバルパッケージ削除
 
+  # ── システムパッケージのupdate/upgrade ──────────
+  'apt(-get)?\s+update\b'
+  'apt(-get)?\s+(upgrade|dist-upgrade)\b'
+  'brew\s+upgrade\b'
+  'yum\s+(update|upgrade)\b'
+  'dnf\s+(update|upgrade)\b'
+
   # ── ファイル内容消去 ────────────────────────────
   'truncate\s+.*-s\s+0'                     # ファイルを空にする
 
@@ -81,16 +96,14 @@ BLOCKED_PATTERNS=(
   # ── スケジューラ破壊 ────────────────────────────
   'crontab\s+-r'                            # crontab 全削除
 
-  # ── SSH/シェル設定書き換え ──────────────────────
-  # ~/.ssh/・~/.bashrc等への書き込みのゾーン判定はworkspace-guard.shへ移設済み。
-  # ただし裸の相対パス形（.ssh/authorized_keys・.bashrc のように先頭に~も/も
-  # 伴わない形）は、cwdが全ゾーン外の場合workspace-guard.sh側でも素通しする
-  # 既知の限界がある（ユーザー判断により対応不要・記録のみ確定）。
+  # ── Git作業ツリー破壊(パス指定なしの無差別削除) ──────
+  'git\s+clean\s+-[a-z]*f[a-z]*d[a-z]*\s*(&&|;|\||$)'
 
   # ── 機密ファイル読取・持ち出し ──────────────────
-  # cat/less/head等のファイル読取のゾーン判定はworkspace-guard.shへ移設済み。
+  # cat/less/head等のファイル読取のゾーン判定はworkspace-guard.shの対象外(Write/Edit系
+  # のみに縮小済み)のため、ここでは対象にしない(2026-08-29再設計でスコープ確定)。
   # python/perl等のワンライナー経由（-c/-e）はファイル対象がコード文字列に
-  # 埋め込まれ静的に確定できないためゾーン判定の対象外とし、常時無条件ブロックのまま。
+  # 埋め込まれ静的に確定できないためゾーン判定になじまず、常時無条件ブロックのまま。
   '(python3?|perl|ruby|node)\s+(-c|-e)\s+.*(\.env(\.|\s|['"'"'")]|$)|\.ssh/|id_rsa|id_ed25519|\.pem(\s|['"'"'")]|$)|\.key(\s|['"'"'")]|$)|authorized_keys|\.netrc|credentials)'
 )
 
@@ -104,10 +117,6 @@ normalize() {
 }
 
 # ── 全体スコープの危険パターン判定（$COMMAND全体へ評価）────────────────
-# rm/rmdir/unlink・git rm・find -delete・rsync --delete・chmod 000/-R777・
-# git clean -fd・機密ファイル読取のゾーン判定はworkspace-guard.shへ移設済み。
-# bash-guard.shはシステム全体を無条件に破壊しうるコマンド（BLOCKED_PATTERNS）
-# のみを判定する単純な1層構成にする。
 check_whole_command() {
   local pattern COMMAND_NORMALIZED
   COMMAND_NORMALIZED=$(normalize "$COMMAND")
