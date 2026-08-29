@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "__CLAUDE_HOME__/hooks/bash-guard.sh"
+            "command": "__CLAUDE_HOME__/hooks/system-guard.sh"
           },
           {
             "type": "command",
@@ -84,15 +84,20 @@
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
             "command": "__CLAUDE_HOME__/hooks/workspace-guard.sh"
-          },
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
           {
             "type": "command",
-            "command": "__CLAUDE_HOME__/hooks/main-branch-guard.sh"
+            "command": "__CLAUDE_HOME__/hooks/branch-guard.sh"
           }
         ]
       }
