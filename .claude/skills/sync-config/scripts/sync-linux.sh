@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# sync.sh — ~/.claude/ の設定をリポジトリの linux/claude/ ミラーへ同期する。
+# sync-linux.sh — ~/.claude/ の設定をリポジトリの linux/claude/ ミラーへ同期する。
 #
 # 方向: ~/.claude/  →  <repo>/linux/claude/   （source が真実の源）
 # 逆方向（repo → ~/.claude）の展開は Claude Code に直接依頼する（旧 install.sh は廃止）。
@@ -14,12 +14,14 @@ set -euo pipefail
 #   （Claude Code は settings.json 内で $HOME を展開しないため、repo にはプレースホルダを置く。
 #     展開先の絶対パスへの実体化は、別環境セットアップ時に Claude Code へ依頼する。）
 #
+# commit/push は行わない（同期のみ）。反映後に commit/push が必要なら /pr-create を使う。
+#
 # パスはスクリプト位置から導出するので、どのユーザー環境でも動作する。
 # 展開元は CLAUDE_HOME 環境変数で上書き可能（既定 $HOME/.claude）。
 
 # --- パス導出 ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 DEST_DIR="$REPO_ROOT/linux/claude"
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 

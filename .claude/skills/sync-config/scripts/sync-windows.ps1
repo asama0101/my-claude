@@ -1,4 +1,4 @@
-﻿# sync.ps1 — %USERPROFILE%\.claude\ の設定をリポジトリの windows/claude/ ミラーへ同期し、commit + push する。
+# sync-windows.ps1 — %USERPROFILE%\.claude\ の設定をリポジトリの windows/claude/ ミラーへ同期する。
 #
 # 方向: $CLAUDE_HOME  →  <repo>\windows\claude\   （source が真実の源）
 # 逆方向（repo → $CLAUDE_HOME）の展開は Claude Code に直接依頼する（linux 版と同じ運用）。
@@ -12,6 +12,8 @@
 #   （Claude Code は settings.json 内で $HOME を展開しないため、repo にはプレースホルダを置く。
 #     展開先の絶対パスへの実体化は、別環境セットアップ時に Claude Code へ依頼する。）
 #
+# commit/push は行わない（同期のみ）。反映後に commit/push が必要なら /pr-create を使う。
+#
 # パスはスクリプト位置から導出するので、どの環境でも動作する。
 # 展開元は CLAUDE_HOME 環境変数で上書き可能（既定 $env:USERPROFILE\.claude）。
 
@@ -19,7 +21,7 @@ $ErrorActionPreference = "Stop"
 
 # --- パス導出 ---
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot = Split-Path -Parent $ScriptDir
+$RepoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptDir)))
 $DestDir = Join-Path $RepoRoot "windows\claude"
 $ClaudeHome = if ($env:CLAUDE_HOME) { $env:CLAUDE_HOME } else { Join-Path $env:USERPROFILE ".claude" }
 
@@ -92,21 +94,4 @@ foreach ($Name in $DirTargets) {
 }
 
 Write-Output "すべての同期が完了しました。"
-Write-Output ""
-Write-Output "Git へ push します..."
-
-Set-Location $RepoRoot
-
-$GitStatus = git status --porcelain
-if (-not $GitStatus) {
-    Write-Output "変更なし — push をスキップします。"
-    exit 0
-}
-
-$Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-git add -A
-git commit -m "chore(setup): sync Windows Claude config files ($Timestamp)"
-git push
-
-Write-Output "push 完了。"
 exit 0
