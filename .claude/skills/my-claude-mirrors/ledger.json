@@ -89,5 +89,12 @@
     "windows_hash": "8774d1a7983ae52d0ab8ded1dc4719d6c9d0294ba204716b8febf66b035ef21c",
     "reason": "Windows固有のpermission(ppk/pfx/p12/Credentials/gcloud/SAM/NTUSER.DAT等の保護)・PowerShellツール許可・theme:dark(Windows環境の個人設定)・plugins(code-review, playwright)有効化はwindows側のみの意図的差分",
     "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "settings.json",
+    "linux_hash": "1d3194b3518353f7b7c6b47120a3863dc553c5cce1a27d0b6df9b64b6b35c006",
+    "windows_hash": "18048bd5d8957a7c0a1aed75464b1bcb0e288c4d9d5b16e7010c8796e6f214b2",
+    "reason": "Windows固有のpermission(ppk/pfx/p12/Credentials/gcloud/SAM/NTUSER.DAT等の保護)・PowerShellツール許可・theme:dark(Windows環境の個人設定)・plugins(code-review, playwright)有効化はwindows側のみの意図的差分(WebSearch/git push許可追加でファイル全体のハッシュが変化したため再記録)",
+    "recorded_at": "2026-08-29"
   }
 ]
