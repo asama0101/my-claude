@@ -8,7 +8,8 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 |---|---|
 | `linux/claude/` | `~/.claude/` のミラー（hooks / skills / agents / rules / assets / commands / settings.json / CLAUDE.md / statusline-command.sh） |
 | `.claude/skills/sync-config/` | `~/.claude/` → `linux/claude/` への同期スキル（コピーのみ、commit + push は行わない） |
-| `windows/` | Windows 版設定の置き場所（`windows/claude/` は `%USERPROFILE%\.claude\` の完全なミラー）。詳細は `windows/README.md` を参照 |
+| `.claude/skills/diff-sync/` | `linux/claude/` と `windows/claude/` の差分を検出・解消するスキル。意図的なOS差分を台帳（`ledger.json`）に記録して以後自動的に許容し、未記録の差分だけ対話的に解消する。実機には一切触れない |
+| `windows/` | Windows 版設定の置き場所（`windows/claude/` は `%USERPROFILE%\.claude\` の完全なミラー） |
 
 ## linux/claude/ フォルダについて
 
@@ -128,6 +129,7 @@ bash .claude/skills/sync-config/scripts/sync-linux.sh   # ~/.claude/ → linux/c
 ## Gotchas（運用上の注意点）
 
 - **`linux/claude/` フォルダを直接編集しない**：`sync-config` スキル実行時に `~/.claude/` 内容で上書きされる。設定変更は必ず `~/.claude/` 側で行い、その後 Claude Code に「設定を同期して」と依頼するか、`sync-linux.sh` を直接実行して同期する。
+  - 例外：`diff-sync` スキルは `linux/claude/` と `windows/claude/` の差分を解消することが目的のスキルであり、両ミラーを直接編集してよい（実機には一切触れない）。この禁止は `sync-config` による上書きを想定したものであり、`diff-sync` には適用されない。
   
 - **`sync-config` スキルはコピーのみ行う**：commit・push は自動実行しない。同期後は `git status` で差分を確認し、必要なら `/pr-create` を使うこと。
 

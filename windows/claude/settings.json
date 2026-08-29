@@ -166,7 +166,7 @@
       "**Primary use of Claude Code**: software development (Claude Code configuration management — this repo mirrors and syncs `~/.claude/` settings)",
       "**Trusted repo**: asama0101/my-claude (github.com, PUBLIC) — the working directory's repo and its origin remote; since it is public, only this repo's own work is OK to push here, and secrets/sensitive data are never cleared into it by visibility alone",
       "**Org-specific CLIs**: None configured",
-      "**routine under this repo's `scripts/` prefix**: `sync.sh` (commits+pushes `~/.claude/` → `claude/`) and `install.sh` (expands `claude/` → `~/.claude/`) are repo-defined workflows, not org-wide CLIs"
+      "**routine under this repo's `.claude/skills/sync-config/` prefix**: the `sync-config` skill copies `~/.claude/` → `claude/` mirror only (no commit/push, no `install.sh` — reverse deployment is done by asking Claude Code directly); repo-defined workflow, not an org-wide CLI"
     ]
   }
 }
