@@ -52,7 +52,6 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 
 | 名前 | 役割 |
 |---|---|
-| `self-improvement-loop` | Stop hookが検知したシグナル（インシデント・モデル不一致・メモリ更新・累積セッション数閾値到達）を受け、`~/.claude/` 配下の改善要否を判定・低リスク修正は自動適用 |
 | `tdd-gates` | superpowers のスキルチェーンに品質規律を上乗せする TDD 品質ゲート（チェックポイント CP-A〜F・証拠主義・Critical 即 FAIL） |
 
 ## hooks
