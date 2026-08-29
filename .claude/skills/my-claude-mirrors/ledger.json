@@ -75,5 +75,19 @@
     "windows_hash": "7cc634a81e103eb0f47c585d6eb9c2a643d03c16a4079963baeeb294c7841b10",
     "reason": "Windows対応: jq.exeのCRLF出力を tr -d '\\r' で除去、printf %b を %s に変更(Windowsパスのバックスラッシュが\\Uエスケープとして誤解釈されるバグの修正)",
     "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "rules/hooks.md",
+    "linux_hash": "bc6f8d9da44260d9b03f4a0372a51207fdf6511e566e117362a3c1bf0ddb49f0",
+    "windows_hash": "5db93e3ba1c295b10f8671d4c7855be8369531a61cd2ef615bfe98bd42ad512c",
+    "reason": "workspace-guard.sh説明のWindows版セッション用一時ディレクトリ($LOCALAPPDATA/Temp/claude/配下)への言及はwindows側のみの意図的差分",
+    "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "settings.json",
+    "linux_hash": "d4b2a6a40c4da81cc39d42a9b8433b07eda90b0c87722e65c1d20780a12196d4",
+    "windows_hash": "8774d1a7983ae52d0ab8ded1dc4719d6c9d0294ba204716b8febf66b035ef21c",
+    "reason": "Windows固有のpermission(ppk/pfx/p12/Credentials/gcloud/SAM/NTUSER.DAT等の保護)・PowerShellツール許可・theme:dark(Windows環境の個人設定)・plugins(code-review, playwright)有効化はwindows側のみの意図的差分",
+    "recorded_at": "2026-08-29"
   }
 ]

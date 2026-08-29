@@ -1,9 +1,9 @@
 ---
-name: sync-config
+name: my-claude-pull
 description: ~/.claude/（Linux/macOS）または %USERPROFILE%\.claude\（Windows）の設定を、このmy-claudeリポジトリのミラーディレクトリ（linux/claude/ または windows/claude/）へ同期する。ユーザーが「設定を同期して」「syncして」「claude設定をリポジトリに反映して」と言ったときや、~/.claude/配下のhooks・skills・agents・rules・settings.json等を編集した後にリポジトリへ反映したい場面で必ず使う。commit・pushは行わない（同期のみ）。
 ---
 
-# sync-config
+# my-claude-pull
 
 `~/.claude/`（実環境の設定）が真実の源で、リポジトリの`linux/claude/`・`windows/claude/`はそのミラー。このスキルはミラーを最新化するだけで、commit・pushは行わない。反映後にコミット・PR作成が必要なら`/pr-create`を使う。
 
