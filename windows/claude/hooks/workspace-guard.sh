@@ -69,6 +69,33 @@ TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty')
 PROJECT_DIR=$(to_posix "$(pwd)")
 CLAUDE_HOME=$(to_posix "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")
 
+# Windows版セッション用スクラッチパッドのアンカー基点。$LOCALAPPDATA未設定時は
+# 空文字列のままにする(""/* が /* に展開され任意の絶対パスに誤マッチするcase文の
+# 罠を避けるため)。以降はこの変数を直接case文で参照せず、必ず_wg_in_win_temp_claude*
+# ヘルパー経由で参照すること(実装上の必須要件)。
+WIN_TEMP_CLAUDE=""
+[ -n "${LOCALAPPDATA:-}" ] && WIN_TEMP_CLAUDE=$(to_posix "${LOCALAPPDATA}/Temp/claude")
+
+# ルート自体を含めた前方一致判定(is_allowed()/is_ext_dest()用)。
+_wg_in_win_temp_claude() {
+  [ -n "$WIN_TEMP_CLAUDE" ] || return 1
+  case "$1" in
+    "$WIN_TEMP_CLAUDE" | "$WIN_TEMP_CLAUDE"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# 子要素のみの前方一致判定(_wg_tok_in_zone用。ルート自体は含めない。
+# 他の3ゾーン(PROJECT_DIR/CLAUDE_HOME等)と同様、rm等の削除系がゾーンルート
+# 自体を対象にして配下ごと消去できてしまう事故を防ぐため)。
+_wg_in_win_temp_claude_child() {
+  [ -n "$WIN_TEMP_CLAUDE" ] || return 1
+  case "$1" in
+    "$WIN_TEMP_CLAUDE"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 is_allowed() {
   local path="$1"
   local abs
@@ -79,9 +106,11 @@ is_allowed() {
     "$PROJECT_DIR" | "$PROJECT_DIR"/*) return 0 ;;
     "$CLAUDE_HOME" | "$CLAUDE_HOME"/*) return 0 ;;
     /tmp/claude-*/*) return 0 ;;  # Claude Code 自身のセッション用ディレクトリのみ許可
-    */[Tt]emp/claude/*) return 0 ;;  # Windows: %LOCALAPPDATA%\Temp\claude\<project>\<session>\ 配下
-    *) return 1 ;;
   esac
+  # Windows: $LOCALAPPDATA/Temp/claude/<project>/<session>/ 配下(アンカー付き前方一致。
+  # 無アンカーcaseパターンだと "temp/claude" を部分文字列に含むだけの任意パスが
+  # 誤って許可されてしまうため、_wg_in_win_temp_claude() 経由でのみ判定する)。
+  _wg_in_win_temp_claude "$abs"
 }
 
 # cp/tee/mv/curl/wget 宛先の外部判定（保守的）。
@@ -107,9 +136,11 @@ is_ext_dest() {
     "$PROJECT_DIR" | "$PROJECT_DIR"/*) return 1 ;; # プロジェクト配下 → 許可
     "$CLAUDE_HOME" | "$CLAUDE_HOME"/*) return 1 ;; # $CLAUDE_HOME 配下 → 許可
     /tmp/claude-*/*) return 1 ;;                   # /tmp/claude-* セッション用ディレクトリのみ許可
-    */[Tt]emp/claude/*) return 1 ;;                # Windows: Temp\claude\ 配下(スクラッチパッド)も許可
-    *) return 0 ;;                                 # 明確な外部絶対パス → ブロック対象
   esac
+  # Windows: $LOCALAPPDATA/Temp/claude/ 配下(スクラッチパッド)も許可。無アンカー
+  # caseパターンの誤許可を避けるため_wg_in_win_temp_claude()経由で判定する。
+  _wg_in_win_temp_claude "$abs" && return 1
+  return 0                                         # 明確な外部絶対パス → ブロック対象
 }
 
 # ── normalize(): bash-guard.shと同一の難読化正規化(移植) ──
@@ -198,11 +229,15 @@ _wg_frag_has_cd() {
 # 許可対象としていたため、その挙動を変えない（狭めると旧実装からの意図しない仕様変更に
 # なる。ブリーフの当初記述が誤ってworkspace-guard.sh既存の狭いセッション専用ゾーン定義を
 # 7カテゴリに流用してしまっていたための是正）。
-# 4ゾーン目(*/[Tt]emp/claude/*)はWindows版セッション用スクラッチパッド(is_allowed()/
-# is_ext_dest()の4)と同一パターン)。realpath -m の結果は to_posix() で正規化してから
-# 比較する（Windows(msys/cygwin)でのバックスラッシュ→スラッシュ変換・ドライブレター
-# 小文字化・パス全体の大文字小文字統一。ここへの適用漏れは7カテゴリのゾーン判定全体が
-# Windows実機で誤ブロックする regression になる＝実装上の必須要件）。
+# 4ゾーン目はWindows版セッション用スクラッチパッド($LOCALAPPDATA/Temp/claude/配下、
+# is_allowed()/is_ext_dest()と同じアンカー基点)。旧実装は無アンカーcaseパターン
+# (*/[Tt]emp/claude/*)で判定していたが、パスのどこかに"temp/claude"を部分文字列
+# として含むだけの任意パスが誤って許可されてしまうため、_wg_in_win_temp_claude_child()
+# 経由でのみ判定する（ルート自体は含めない子要素限定、他ゾーンと同じ方針）。
+# realpath -m の結果は to_posix() で正規化してから比較する（Windows(msys/cygwin)での
+# バックスラッシュ→スラッシュ変換・ドライブレター小文字化・パス全体の大文字小文字統一。
+# ここへの適用漏れは7カテゴリのゾーン判定全体がWindows実機で誤ブロックする regression
+# になる＝実装上の必須要件）。
 _wg_tok_in_zone() {
   local abs
   abs=$(realpath -m "$1" 2>/dev/null) || return 1
@@ -218,9 +253,8 @@ _wg_tok_in_zone() {
     "$PROJECT_DIR"/*) return 0 ;;
     "$CLAUDE_HOME"/*) return 0 ;;
     /tmp/*) return 0 ;;
-    */[Tt]emp/claude/*) return 0 ;;
-    *) return 1 ;;
   esac
+  _wg_in_win_temp_claude_child "$abs"
 }
 
 # rm/rmdir/unlink・git rm・git clean -fd 用の共通構造検証。

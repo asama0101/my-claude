@@ -216,16 +216,38 @@ run_bash_win "rm ${WIN_CH_SLASH}/case_target.txt"; assert_exit 0 "$?" "(to_posix
 touch "$WIN_CLAUDE_HOME/hooks/case_target.txt"
 run_bash_win "rm ${WIN_CH_SLASH_UPPER}/case_target.txt"; assert_exit 0 "$?" "(to_posix bug) 大文字混在スラッシュ形式Windowsパスも同じ許可結果(ドライブレターのみ小文字化する旧バグの回帰確認)"
 
-# ── */[Tt]emp/claude/*ゾーン(Windows: %LOCALAPPDATA%\Temp\claude\<project>\<session>\)
-#    が7カテゴリのゾーン判定(_wg_tok_in_zone)でも正しく効くことを確認する。
-#    $WIN_SCRATCH配下のうち$WIN_REPO/$WIN_CLAUDE_HOMEのどちらでもない場所に
-#    専用ディレクトリを置き、真にこのゾーン追加自体の効果を検証する。
-TEMP_CLAUDE_DIR="$WIN_SCRATCH/win_temp_claude_zone/Temp/claude/fakesession"; mkdir -p "$TEMP_CLAUDE_DIR"
-touch "$TEMP_CLAUDE_DIR/f.txt"
-run_bash_win "chmod 000 $TEMP_CLAUDE_DIR/f.txt"; assert_exit 0 "$?" "(temp-claude-zone) */Temp/claude/*配下は7カテゴリゾーン判定(chmod)でも許可"
-touch "$TEMP_CLAUDE_DIR/g.txt"
-run_bash_win "rm $TEMP_CLAUDE_DIR/g.txt"; assert_exit 0 "$?" "(temp-claude-zone) */Temp/claude/*配下は7カテゴリゾーン判定(rm)でも許可"
-run_write_win "$TEMP_CLAUDE_DIR/w.txt"; assert_exit 0 "$?" "(temp-claude-zone) */Temp/claude/*配下はWrite(is_allowed)でも許可(既存機能の確認)"
+# ── Windowsセッション用スクラッチパッド(実$LOCALAPPDATA/Temp/claude/<session>配下)が
+#    7カテゴリのゾーン判定(_wg_tok_in_zone)・Write(is_allowed)でも正しく効くことを
+#    確認する。旧テストは$WIN_SCRATCH配下に"Temp/claude"という文字列を含むだけの
+#    偽ディレクトリを使っており、無アンカーcaseパターン(*/[Tt]emp/claude/*)の
+#    バグに依存した誤ったテストだったため、実$LOCALAPPDATA配下を使う形に是正する。
+#    $LOCALAPPDATA未設定環境(非Windows)ではスキップする。
+LOCALAPPDATA_POSIX=""
+if [ -n "${LOCALAPPDATA:-}" ] && command -v cygpath >/dev/null 2>&1; then
+  LOCALAPPDATA_POSIX=$(cygpath -u "$LOCALAPPDATA")
+fi
+if [ -n "$LOCALAPPDATA_POSIX" ]; then
+  REAL_TEMP_CLAUDE_DIR="$LOCALAPPDATA_POSIX/Temp/claude/wg-test-$$"; mkdir -p "$REAL_TEMP_CLAUDE_DIR"
+  touch "$REAL_TEMP_CLAUDE_DIR/f.txt"
+  run_bash_win "chmod 000 $REAL_TEMP_CLAUDE_DIR/f.txt"; assert_exit 0 "$?" "(temp-claude-zone) 実\$LOCALAPPDATA/Temp/claude配下は7カテゴリゾーン判定(chmod)でも許可"
+  touch "$REAL_TEMP_CLAUDE_DIR/g.txt"
+  run_bash_win "rm $REAL_TEMP_CLAUDE_DIR/g.txt"; assert_exit 0 "$?" "(temp-claude-zone) 実\$LOCALAPPDATA/Temp/claude配下は7カテゴリゾーン判定(rm)でも許可"
+  run_write_win "$REAL_TEMP_CLAUDE_DIR/w.txt"; assert_exit 0 "$?" "(temp-claude-zone) 実\$LOCALAPPDATA/Temp/claude配下はWrite(is_allowed)でも許可(既存機能の確認)"
+  rm -rf "$REAL_TEMP_CLAUDE_DIR"
+else
+  echo "SKIP: LOCALAPPDATA未設定のため実temp/claudeゾーンテストをスキップ"
+fi
+
+# ── 無アンカーcaseパターン(*/[Tt]emp/claude/*)の誤許可バグの回帰固定化テスト。
+#    実$LOCALAPPDATA配下ではなく、パスのどこかに"temp/claude"という部分文字列を
+#    含むだけの偽パス($WIN_SCRATCH配下、正規のスクラッチパッドとは無関係)を作り、
+#    アンカー付き前方一致修正後はこれがブロックされる(exit 2)ことを確認する。
+FAKE_TEMP_CLAUDE_DIR="$WIN_SCRATCH/fakeproject/nested/temp/claude/evil"; mkdir -p "$FAKE_TEMP_CLAUDE_DIR"
+touch "$FAKE_TEMP_CLAUDE_DIR/f.txt"
+run_bash_win "chmod 000 $FAKE_TEMP_CLAUDE_DIR/f.txt"; assert_exit 2 "$?" "(temp-claude-zone-regression) temp/claudeを部分文字列に含むだけの偽パスはchmodでもブロックされる(無アンカー実装バグの固定化)"
+touch "$FAKE_TEMP_CLAUDE_DIR/g.txt"
+run_bash_win "rm $FAKE_TEMP_CLAUDE_DIR/g.txt"; assert_exit 2 "$?" "(temp-claude-zone-regression) temp/claudeを部分文字列に含むだけの偽パスはrmでもブロックされる(無アンカー実装バグの固定化)"
+run_write_win "$FAKE_TEMP_CLAUDE_DIR/w.txt"; assert_exit 2 "$?" "(temp-claude-zone-regression) temp/claudeを部分文字列に含むだけの偽パスはWriteでもブロックされる(無アンカー実装バグの固定化)"
 
 # ══════════════════════════════════════════════════════════════════
 # ── rsync HOST:PATH バイパス回帰テスト(2026-08-29追加)。
