@@ -49,7 +49,7 @@ Claude Code公式ドキュメント（`code.claude.com/docs/en/permissions`）�
 - 対象: `Write` / `Edit` / `MultiEdit` / `NotebookEdit` の書込み先チェックのみ
 - 許可ゾーン: プロジェクト配下／`$CLAUDE_HOME`配下／`/tmp/claude-*/`配下（既存の`is_allowed()`ロジックを踏襲）
 - **Bash側のゾーン判定（`rm`/`git rm`/`find -delete`/`rsync --delete`/`chmod 000`・`chmod -R 777`/`git clean -fd`/機密ファイル読取の7カテゴリ）は全廃**
-  - 廃止に伴うリスク: プロジェクト外の任意ファイルをBash経由の`rm`等で削除する操作が無制限に通るようになる
+  - 廃止に伴うリスク: Bash経由でのプロジェクト外操作のうち、以下が無制限になる: (a) 任意ファイルの削除(`rm`等) (b) 機密ファイルの読取(`cat`/`less`/`head`等での`.env`/`.ssh`鍵/認証情報の閲覧) (c) 任意ファイルへの書込み(リダイレクト/`cp`/`tee`/`mv`/`curl -o`、`~/.bashrc`等のシェル設定ファイル改変を含む)。`chmod 000`/`chmod -R 777 /`・`git clean -fd`(パス無し)は場所非依存の絶対破壊としてsystem-guard.shへ復元済み(2026-08-29最終レビュー対応)
   - 代替の決定的防御は無い（後述の「検討して却下した代替案」参照）。**このリスクを承知の上で許容する、というユーザー判断による決定**
 - 副次効果: Bashコマンド文字列を扱わなくなるため、難読化正規化(`normalize()`)が不要になり実装が大幅に単純化する
 - 既知の限界（新設計にも残る、Critical ではない）:

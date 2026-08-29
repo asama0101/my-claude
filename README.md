@@ -58,10 +58,10 @@ Claude Code のユーザーグローバル設定（`~/.claude/`）をバージ�
 
 | Hook | 効果 |
 |---|---|
-| `bash-guard.sh` | 破壊的コマンドをブロック。`rm`/`rmdir`/`unlink`/`git rm` はプロジェクト配下／`$CLAUDE_HOME` 配下／`/tmp` 配下の子要素のみ許可（各ゾーンのルート自体は不可）。非 rm 削除（`find -delete`・`shutil.rmtree`・`rsync --delete`）は無条件ブロック。機密ファイル（`.env`/`.ssh`/鍵）の読取/持ち出しもブロック |
-| `workspace-guard.sh` | プロジェクト配下／`~/.claude` 配下／`/tmp` 配下以外への Write/Edit をブロック。`~/.claude/hooks/` とハーネス設定（`settings.json`）は許可。Bash の `/var/tmp` リダイレクト・プロジェクト外宛先の cp/tee/mv も保守的にブロック |
-| `venv-guard.sh` | venv 外への `pip install`/`pip uninstall`（`pip`/`pip3`/`python -m pip` 経由）・`uv add`/`uv pip install` をブロック（文字列一致で誤検知しうる） |
-| `main-branch-guard.sh` | main/master ブランチ上での Write/Edit/MultiEdit/NotebookEdit、および Bash の削除・変更系コマンド（`rm`/`rmdir`/`unlink`/`git rm`/`git commit`/リダイレクト書き込み/`tee`/`cp`/`mv`/`touch`/`sed -i`）をブロック。読み取り専用コマンドは対象外 |
+| `system-guard.sh` | 場所を問わずシステム全体を破壊しうるコマンドのみを無条件ブロック（`dd`/`mkfs`/`shred`・`chown -R .../`・`chmod 000`/`chmod -R 777 /`・`kill -9 -1`・フォーク爆弾・`shutdown`等・`curl\|bash`等・`/etc/hosts`等への書込・DB破壊・グローバルパッケージ導入/削除・システムパッケージのupdate/upgrade・`truncate -s 0`・`git clean -fd`(パス無し)・`crontab -r`）。機密ファイル読取・任意ファイルへの書込み(リダイレクト/cp/tee/mv/curl -o)は意図的に無防備（ゾーン判定が必要でこのフックの「場所非依存」という設計軸に合わないため。詳細は`docs/specs/2026-08-29-hooks-redesign-design.md`） |
+| `workspace-guard.sh` | Write/Edit/MultiEdit/NotebookEdit の書込み先が、プロジェクト配下／`~/.claude` 配下／`/tmp/claude-*/` 配下のいずれでもない場合にブロック。Bashコマンド経由の書込み・削除はこのフックの対象外（2026-08-29再設計でスコープ縮小） |
+| `venv-guard.sh` | venv 外への `pip install`/`pip uninstall`（`pip`/`pip3`/`python -m pip` 経由）・`uv add`/`uv pip install` をブロック（文字列一致で誤検知しうるが例外は認めない方針） |
+| `branch-guard.sh` | main/master ブランチ上での Write/Edit/MultiEdit/NotebookEdit、および Bash の削除・変更系コマンドをブロック。読み取り専用コマンドは対象外。`.git`書込み権限が無い環境は自動検知し警告のみで許容(監査ログ記録) |
 
 > いずれのスクリプトも jq が無い環境では判定不能として fail-close（安全側にブロック）する。詳細は各スクリプト内のコメント、またはリポジトリ直下 `CLAUDE.md` の「Hooks（enforcement の正典）」表を参照。
 

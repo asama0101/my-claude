@@ -99,7 +99,7 @@
 - **削除制限**
   - 範囲外の削除は方法を提示せよ。
   - 実行はユーザーに委ねて待て。
-  - 許可範囲・enforcementはbash-guard.sh（`~/.claude/rules/hooks.md`のHooks表）を見よ。
+  - 許可範囲・enforcementはsystem-guard.sh等（`~/.claude/rules/hooks.md`のHooks表）を見よ。
 - **委任時の安全指示（Critical）**
   - Bash/Write等の実行権限を持つサブエージェントへ委任する際は、次を委任プロンプトに明記せよ。
     - (a) 安全装置にブロックされたら、別の技術的手段で回避せず即座に停止し、BLOCKEDとして報告すること。
