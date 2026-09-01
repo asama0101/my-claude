@@ -1,4 +1,4 @@
-# sync-windows.ps1 — %USERPROFILE%\.claude\ の設定をリポジトリの windows/claude/ ミラーへ同期する。
+﻿# sync-windows.ps1 — %USERPROFILE%\.claude\ の設定をリポジトリの windows/claude/ ミラーへ同期する。
 #
 # 方向: $CLAUDE_HOME  →  <repo>\windows\claude\   （source が真実の源）
 # 逆方向（repo → $CLAUDE_HOME）の展開は Claude Code に直接依頼する（linux 版と同じ運用）。
