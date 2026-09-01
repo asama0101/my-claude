@@ -83,7 +83,6 @@
       "Bash(git commit --amend*)",
       "Bash(git checkout -- *)",
       "Bash(git restore *)",
-      "WebFetch",
       "Edit(**/.claude/hooks/**)",
       "Edit(**/.claude/settings.json)",
       "Edit(**/.claude/settings.local.json)"
