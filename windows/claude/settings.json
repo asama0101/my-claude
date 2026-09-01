@@ -70,7 +70,6 @@
       "Edit(**/Windows/SysWOW64/**)"
     ],
     "ask": [
-      "PowerShell",
       "Bash(git push)",
       "Bash(git push origin main*)",
       "Bash(git push origin master*)",
