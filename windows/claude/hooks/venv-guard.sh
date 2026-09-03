@@ -1,5 +1,6 @@
 #!/bin/bash
-command -v jq >/dev/null 2>&1 || { echo "❌ venv-guard: jq not found, failing closed" >&2; exit 2; }
+source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
+has_json_backend || { echo "❌ venv-guard: node not found, failing closed" >&2; exit 2; }
 # ── Windows(Git Bash)対応 ──────────────────────────────────────────
 # Windows では $VIRTUAL_ENV が C:\... 形式で渡る一方 $(pwd) は MSYS 形式(/c/...)。
 # 正規化しないと前方一致が必ず失敗し、プロジェクト直下の正しい venv であっても
@@ -15,7 +16,7 @@ to_posix() {
 }
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+COMMAND=$(json_field "$INPUT" tool_input.command)
 
 PROJECT_DIR=$(to_posix "$(pwd)")
 VENV_DIR=$(to_posix "${VIRTUAL_ENV:-}")

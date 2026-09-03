@@ -13,17 +13,36 @@ git -C "$REPO" branch -M main
 CLAUDE_HOME_TEST="$SCRATCH/claude_home"
 mkdir -p "$CLAUDE_HOME_TEST"
 
+# key=value / key.sub=value 形式の引数からJSONを組み立てる(jqの代替)。
+json_build() {
+  node -e '
+    var out = {};
+    process.argv.slice(1).forEach(function (kv) {
+      var i = kv.indexOf("=");
+      var path = kv.slice(0, i), val = kv.slice(i + 1);
+      var keys = path.split(".");
+      var cur = out;
+      for (var j = 0; j < keys.length - 1; j++) {
+        cur[keys[j]] = cur[keys[j]] || {};
+        cur = cur[keys[j]];
+      }
+      cur[keys[keys.length - 1]] = val;
+    });
+    process.stdout.write(JSON.stringify(out));
+  ' "$@"
+}
+
 LAST_STDERR=""
 run_bash() {  # $1=command $2=repo
   local input repo="$2"
-  input=$(jq -n --arg cmd "$1" '{tool_name:"Bash", tool_input:{command:$cmd}}')
+  input=$(json_build tool_name=Bash tool_input.command="$1")
   LAST_STDERR=$(printf '%s' "$input" | (cd "$repo" && CLAUDE_CONFIG_DIR="$CLAUDE_HOME_TEST" bash "$HOOK") 2>&1 >/dev/null)
   return $?
 }
 
 run_write() {  # $1=file_path $2=repo
   local input repo="$2"
-  input=$(jq -n --arg fp "$1" '{tool_name:"Write", tool_input:{file_path:$fp}}')
+  input=$(json_build tool_name=Write tool_input.file_path="$1")
   LAST_STDERR=$(printf '%s' "$input" | (cd "$repo" && CLAUDE_CONFIG_DIR="$CLAUDE_HOME_TEST" bash "$HOOK") 2>&1 >/dev/null)
   return $?
 }
@@ -103,8 +122,8 @@ fi
 # ── (1) gitコマンド自体が無い環境は fail-open ──
 BASH_BIN=$(command -v bash)
 NOGIT_BIN=$(mktemp -d)
-for bin in jq grep cat; do p=$(command -v "$bin" 2>/dev/null) && ln -sf "$p" "$NOGIT_BIN/$bin"; done
-input=$(jq -n --arg cmd 'rm out.txt' '{tool_name:"Bash", tool_input:{command:$cmd}}')
+for bin in grep cat node; do p=$(command -v "$bin" 2>/dev/null) && ln -sf "$p" "$NOGIT_BIN/$bin"; done
+input=$(json_build tool_name=Bash tool_input.command='rm out.txt')
 printf '%s' "$input" | (cd "$REPO" && PATH="$NOGIT_BIN" CLAUDE_CONFIG_DIR="$CLAUDE_HOME_TEST" "$BASH_BIN" "$HOOK") >/dev/null 2>&1
 assert_exit 0 "$?" "(1) gitコマンド自体が無い環境はfail-open"
 rm -rf "$NOGIT_BIN"

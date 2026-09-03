@@ -5,9 +5,28 @@ SCRATCH=$(mktemp -d)
 REPO="$SCRATCH/repo"; mkdir -p "$REPO/.venv/bin"
 trap 'rm -rf "$SCRATCH"' EXIT
 
+# key=value / key.sub=value 形式の引数からJSONを組み立てる(jqの代替)。
+json_build() {
+  node -e '
+    var out = {};
+    process.argv.slice(1).forEach(function (kv) {
+      var i = kv.indexOf("=");
+      var path = kv.slice(0, i), val = kv.slice(i + 1);
+      var keys = path.split(".");
+      var cur = out;
+      for (var j = 0; j < keys.length - 1; j++) {
+        cur[keys[j]] = cur[keys[j]] || {};
+        cur = cur[keys[j]];
+      }
+      cur[keys[keys.length - 1]] = val;
+    });
+    process.stdout.write(JSON.stringify(out));
+  ' "$@"
+}
+
 run_bash() {  # $1=command $2=VIRTUAL_ENV値(省略時は未設定) $3=cwd(省略時は$REPO)
   local input cmd="$1" venv="${2:-}" cwd="${3:-$REPO}"
-  input=$(jq -n --arg cmd "$cmd" '{tool_name:"Bash", tool_input:{command:$cmd}}')
+  input=$(json_build tool_name=Bash tool_input.command="$cmd")
   if [ -n "$venv" ]; then
     printf '%s' "$input" | (cd "$cwd" && VIRTUAL_ENV="$venv" bash "$HOOK")
   else
@@ -44,7 +63,7 @@ run_bash "$REPO/.venv/bin/pip3 install requests"; assert_exit 0 "$?" "venvバイ
 # ── uv add / uv pip install ──
 run_bash 'uv add requests'; assert_exit 0 "$?" "uv add: プロジェクト配下に.venvがあれば許可"
 NOVENV="$SCRATCH/novenv"; mkdir -p "$NOVENV"
-input=$(jq -n --arg cmd 'uv add requests' '{tool_name:"Bash", tool_input:{command:$cmd}}')
+input=$(json_build tool_name=Bash tool_input.command='uv add requests')
 printf '%s' "$input" | (cd "$NOVENV" && bash "$HOOK")
 assert_exit 2 "$?" "uv add: プロジェクト配下に.venvが無ければブロック"
 

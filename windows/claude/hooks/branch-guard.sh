@@ -12,7 +12,7 @@
 #   1) gitコマンド自体が無い                       → 何もしない(fail-open。
 #      get_branchがgit呼び出し失敗時に空文字を返しis_protectedがfalseになるため
 #      保護は効かないが、そもそもgitが無ければ変更操作自体が実行不能なため実害は
-#      限定的。jq欠如とは異なりfail-closeにしない)
+#      限定的。node欠如とは異なりfail-closeにしない)
 #   2) gitはあるがこのディレクトリはリポジトリでない   → 無条件許可
 #   3) detached HEAD                                → 無条件許可(get_branchが
 #      空文字を返しis_protectedがfalseになる。どのブランチにも属さないコミットに
@@ -48,7 +48,8 @@
 #     ケースがあり、その場合can_create_branch()が「作成不可」と誤判定し状態(5)の
 #     警告のみ許容に倒れることがある(実機検証で確認済み。通常利用では発生しない)。
 
-command -v jq >/dev/null 2>&1 || { echo "❌ branch-guard: jq not found, failing closed" >&2; exit 2; }
+source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
+has_json_backend || { echo "❌ branch-guard: node not found, failing closed" >&2; exit 2; }
 
 # ── Windows(Git Bash)対応 ──────────────────────────────────────────
 # 1) 既定ロケール(CP932等)では grep -P が "supports only unibyte and UTF-8 locales"
@@ -79,7 +80,7 @@ log_warn_allow() {  # $1=branch $2=target
 }
 
 INPUT=$(cat)
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
+TOOL=$(json_field "$INPUT" tool_name)
 
 # git 管理下でなければ空文字を返す。symbolic-ref ベースなので、同名タグの併存や
 # 未出生ブランチ（コミット0件）でも rev-parse --abbrev-ref HEAD のように誤動作しない。
@@ -179,7 +180,7 @@ handle_protected() {  # $1=dir $2=branch $3=target(表示用)
 
 case "$TOOL" in
   Write | Edit | MultiEdit | NotebookEdit)
-    FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
+    FILE=$(json_field "$INPUT" tool_input.file_path tool_input.notebook_path)
     [ -z "$FILE" ] && exit 0
     ABS=$(realpath -m "$FILE" 2>/dev/null) || ABS="$FILE"
     ABS=$(to_posix "$ABS")
@@ -190,7 +191,7 @@ case "$TOOL" in
     fi
     ;;
   Bash)
-    CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
+    CMD=$(json_field "$INPUT" tool_input.command)
     PROJECT_DIR=$(to_posix "$(pwd)")
 
     MUTATING_PATTERNS=(

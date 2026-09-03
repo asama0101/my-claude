@@ -4,8 +4,9 @@
 # ゾーン判定（プロジェクト外かどうか）はworkspace-guard.sh、ブランチ判定は
 # branch-guard.shが別途担当する。
 #
-# ── fail-close: jq 不在なら解析不能として block ──────────────
-command -v jq >/dev/null 2>&1 || { echo "❌ system-guard: jq not found, failing closed" >&2; exit 2; }
+# ── fail-close: node 不在なら解析不能として block ──────────────
+source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
+has_json_backend || { echo "❌ system-guard: node not found, failing closed" >&2; exit 2; }
 
 # ── Windows(Git Bash)対応 ──────────────────────────────────────────
 # 既定ロケール(CP932等)では grep -P が "supports only unibyte and UTF-8 locales"
@@ -15,7 +16,7 @@ command -v jq >/dev/null 2>&1 || { echo "❌ system-guard: jq not found, failing
 case "${OSTYPE:-}" in msys* | cygwin*) export LC_ALL="${LC_ALL:-C.UTF-8}" ;; esac
 
 INPUT=$(cat)
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
+COMMAND=$(json_field "$INPUT" tool_input.command)
 
 BLOCKED_PATTERNS=(
   # ── ディスク・デバイス破壊 ──────────────────────
