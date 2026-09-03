@@ -13,17 +13,35 @@ FAKE_CLAUDE_HOME="$SCRATCH/claude_home"; mkdir -p "$FAKE_CLAUDE_HOME/hooks"
 SESSION_TMP=$(mktemp -d "/tmp/claude-test-XXXXXX")
 trap 'rm -rf "$SCRATCH" "$SESSION_TMP"' EXIT
 
+# key=value / key.sub=value 形式の引数からJSONを組み立てる(jqの代替)。
+json_build() {
+  node -e '
+    var out = {};
+    process.argv.slice(1).forEach(function (kv) {
+      var i = kv.indexOf("=");
+      var path = kv.slice(0, i), val = kv.slice(i + 1);
+      var keys = path.split(".");
+      var cur = out;
+      for (var j = 0; j < keys.length - 1; j++) {
+        cur[keys[j]] = cur[keys[j]] || {};
+        cur = cur[keys[j]];
+      }
+      cur[keys[keys.length - 1]] = val;
+    });
+    process.stdout.write(JSON.stringify(out));
+  ' "$@"
+}
+
 run_write() {  # $1=file_path
-  local input; input=$(jq -n --arg fp "$1" '{tool_name:"Write", tool_input:{file_path:$fp, content:"x"}}')
+  local input; input=$(json_build tool_name=Write tool_input.file_path="$1" tool_input.content=x)
   printf '%s' "$input" | (cd "$REPO" && CLAUDE_CONFIG_DIR="$FAKE_CLAUDE_HOME" bash "$HOOK")
 }
 run_bash() {  # $1=command
-  local input; input=$(jq -n --arg cmd "$1" '{tool_name:"Bash", tool_input:{command:$cmd}}')
+  local input; input=$(json_build tool_name=Bash tool_input.command="$1")
   printf '%s' "$input" | (cd "$REPO" && CLAUDE_CONFIG_DIR="$FAKE_CLAUDE_HOME" bash "$HOOK")
 }
 run_tool() {  # $1=tool_name $2=json_key(file_path|notebook_path) $3=path_value
-  local input; input=$(jq -n --arg tool "$1" --arg key "$2" --arg val "$3" \
-    '{tool_name:$tool, tool_input:{($key):$val}}')
+  local input; input=$(json_build tool_name="$1" "tool_input.$2=$3")
   printf '%s' "$input" | (cd "$REPO" && CLAUDE_CONFIG_DIR="$FAKE_CLAUDE_HOME" bash "$HOOK")
 }
 
@@ -64,15 +82,15 @@ run_bash "mv $REPO/a /root/b2"; assert_exit 0 "$?" "縮小: mv のゾーン外�
 run_bash "tee /root/out.txt <<< hi"; assert_exit 0 "$?" "縮小: tee のゾーン外宛先は無制限に許可"
 run_bash "curl -o /root/out.bin http://example.com/x"; assert_exit 0 "$?" "縮小: curl -o のゾーン外宛先は無制限に許可"
 
-# ── jq不在時はfail-close(既存維持) ──
+# ── node不在時はfail-close(既存維持) ──
 NOJQ_BIN=$(mktemp -d)
 BASH_BIN=$(command -v bash)
 input='{"tool_name":"Write","tool_input":{"file_path":"x"}}'
 printf '%s' "$input" | (cd "$REPO" && PATH="$NOJQ_BIN" "$BASH_BIN" "$HOOK") >/dev/null 2>&1
-assert_exit 2 "$?" "jq不在時はfail-close"
+assert_exit 2 "$?" "node不在時はfail-close"
 rm -rf "$NOJQ_BIN"
 
-# ── 既知の限界: jqはあるが不正JSON入力の場合はfail-open(TOOLが空文字になり素通し) ──
+# ── 既知の限界: nodeはあるが不正JSON入力の場合はfail-open(TOOLが空文字になり素通し) ──
 printf 'not-json' | (cd "$REPO" && CLAUDE_CONFIG_DIR="$FAKE_CLAUDE_HOME" bash "$HOOK") >/dev/null 2>&1
 assert_exit 0 "$?" "既知の限界: 不正JSON入力はfail-open"
 
@@ -88,7 +106,7 @@ WIN_CLAUDE_HOME="$WIN_SCRATCH/claude_home"; mkdir -p "$WIN_CLAUDE_HOME/hooks"
 trap 'rm -rf "$SCRATCH" "$SESSION_TMP" "$WIN_SCRATCH"' EXIT
 
 run_write_ch() {  # $1=file_path (CLAUDE_CONFIG_DIR=$WIN_CLAUDE_HOME、cwd=$REPO)
-  local input; input=$(jq -n --arg fp "$1" '{tool_name:"Write", tool_input:{file_path:$fp, content:"x"}}')
+  local input; input=$(json_build tool_name=Write tool_input.file_path="$1" tool_input.content=x)
   printf '%s' "$input" | (cd "$REPO" && CLAUDE_CONFIG_DIR="$WIN_CLAUDE_HOME" bash "$HOOK")
 }
 

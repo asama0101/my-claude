@@ -13,15 +13,16 @@
 #   4) $LOCALAPPDATA/Temp/claude/配下（Windows版セッション用スクラッチパッド。3)のWindows版）
 #
 # 既知の限界:
-#   - jqが存在してもINPUTが不正JSONの場合、TOOLが空文字になりどのcase分岐にも
-#     一致せず素通しでexit 0になる（fail-closeはjq自体の不在時のみ保証）。
+#   - nodeが存在してもINPUTが不正JSONの場合、TOOLが空文字になりどのcase分岐にも
+#     一致せず素通しでexit 0になる（fail-closeはnode自体の不在時のみ保証）。
 #     Claude Code自身が生成する入力なので通常は整形式JSON。
 #   - Bashコマンド経由の書込み・削除（rm/cp/mv等）はこのフックの対象外。
 #     場所を問わない絶対破壊コマンドはsystem-guard.shが担当し、それ以外の
 #     プロジェクト外への個別ファイル操作は意図的に無防備（設計上の既知のリスク、
 #     docs/specs/2026-08-29-hooks-redesign-design.md 参照）。
 
-command -v jq >/dev/null 2>&1 || { echo "❌ workspace-guard: jq not found, failing closed" >&2; exit 2; }
+source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
+has_json_backend || { echo "❌ workspace-guard: node not found, failing closed" >&2; exit 2; }
 
 # ── Windows(Git Bash)対応 ──────────────────────────────────────────
 # 1) 既定ロケール(CP932等)では grep -P が "supports only unibyte and UTF-8 locales"
@@ -45,7 +46,7 @@ to_posix() {
 }
 
 INPUT=$(cat)
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
+TOOL=$(json_field "$INPUT" tool_name)
 PROJECT_DIR=$(to_posix "$(pwd)")
 CLAUDE_HOME=$(to_posix "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")
 
@@ -84,7 +85,7 @@ is_allowed() {
 
 case "$TOOL" in
   Write | Edit | MultiEdit | NotebookEdit)
-    FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
+    FILE=$(json_field "$INPUT" tool_input.file_path tool_input.notebook_path)
     [ -z "$FILE" ] && exit 0
     if ! is_allowed "$FILE"; then
       echo "❌ BLOCKED: プロジェクト外への書き込み: $FILE" >&2

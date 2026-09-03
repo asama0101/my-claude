@@ -51,26 +51,24 @@ fmt_remaining() {
   fi
 }
 
-# jq で必要フィールドだけ取得
-mapfile -t _f < <(jq -r '
-  (.workspace.current_dir // .cwd // ""),
-  (.model.display_name // ""),
-  (.effort.level // ""),
-  (.context_window.used_percentage // 0 | tostring),
-  (.worktree.branch // ""),
-  (.rate_limits.five_hour.used_percentage // "" | tostring),
-  (.rate_limits.five_hour.resets_at // "" | tostring),
-  (.rate_limits.seven_day.used_percentage // "" | tostring),
-  (.rate_limits.seven_day.resets_at // "" | tostring),
-  (.workspace.repo.host // ""),
-  (.workspace.repo.owner // ""),
-  (.workspace.repo.name // ""),
-  (.cost.total_cost_usd // 0 | tostring)
-' <<< "$input" | tr -d '\r')
-# tr -d '\r': Windows の jq.exe は stdout がテキストモードのため CRLF を出力する。
-# mapfile -t が落とすのは \n だけなので、除去しないと used_percentage が "42\r" のような
-# 値になり printf '%.0f' が "invalid number" で失敗する（$(...) は MSYS bash が CR ごと
-# 落とすためフック側では顕在化せず、mapfile を使うこのスクリプトだけが影響を受ける）。
+# shellcheck source=hooks/lib/json-field.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hooks/lib/json-field.sh"
+
+# json_fields (hooks/lib/json-field.sh) で必要フィールドだけ取得(jqの代替。node単体で動く)
+mapfile -t _f < <(json_fields "$input" \
+  "workspace.current_dir,cwd" \
+  "model.display_name" \
+  "effort.level" \
+  "context_window.used_percentage" \
+  "worktree.branch" \
+  "rate_limits.five_hour.used_percentage" \
+  "rate_limits.five_hour.resets_at" \
+  "rate_limits.seven_day.used_percentage" \
+  "rate_limits.seven_day.resets_at" \
+  "workspace.repo.host" \
+  "workspace.repo.owner" \
+  "workspace.repo.name" \
+  "cost.total_cost_usd")
 
 current_dir="${_f[0]:-}"
 model_name="${_f[1]:-}"
