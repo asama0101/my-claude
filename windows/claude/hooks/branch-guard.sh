@@ -22,9 +22,11 @@
 #      $CLAUDE_HOME配下のログへ毎回記録=監査証跡)
 #   6) main/master以外の通常ブランチ                  → 無条件許可
 #
-# 旧main-branch-guard.shにあったCLAUDE_MAIN_BRANCH_GUARD_BYPASS環境変数バイパスは
-# 存在しなかったため廃止作業自体は不要。.git書込み権限の自動検知に一本化することで、
-# 設定ファイル/シェルRC経由の間接的自己バイパス経路が構造的に生まれない設計を踏襲する。
+# 旧main-branch-guard.shには同種のバイパス機構があり、セキュリティレビューで指摘された
+# CRITICAL(設定ファイル/シェルRC経由の間接的自己バイパス経路の温床だったため)を受けて
+# 廃止した。CLAUDE_MAIN_BRANCH_GUARD_BYPASSという環境変数名としては現行のbranch-guard.sh
+# に実装は存在しない。.git書込み権限の自動検知に一本化することで、この種のバイパス経路が
+# 構造的に生まれない設計になっている。
 #
 # shutil.rmtree は system-guard.sh がブランチに関係なく常時無条件ブロックするため、
 # ここには含めない（含めても到達不能な重複ロジックになるため）。find -delete/

@@ -48,10 +48,8 @@ CLAUDE.mdのGotchas「`linux/claude/`・`windows/claude/` を直接編集しな�
 
 5. **Dを選んだ場合**: 台帳に追記する。既存エントリは残したまま追記する（上書きしない。これがそのまま変更履歴になる）:
    ```bash
-   jq --arg f "<file>" --arg lh "<linux_hash>" --arg wh "<windows_hash>" --arg r "<理由>" --arg d "$(date +%F)" \
-     '. + [{file:$f, linux_hash:$lh, windows_hash:$wh, reason:$r, recorded_at:$d}]' \
-     <スキルディレクトリ>/ledger.json > <スキルディレクトリ>/ledger.json.tmp \
-     && mv <スキルディレクトリ>/ledger.json.tmp <スキルディレクトリ>/ledger.json
+   node <スキルディレクトリ>/scripts/lib/append-ledger.js \
+     <スキルディレクトリ>/ledger.json "<file>" "<linux_hash>" "<windows_hash>" "<理由>"
    ```
 
 6. 「コピー」「削除」を選んだ `only_in_*` エントリも実際にファイル操作を行う。

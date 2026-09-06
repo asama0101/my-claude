@@ -1,7 +1,8 @@
 #!/bin/bash
-command -v jq >/dev/null 2>&1 || { echo "❌ venv-guard: jq not found, failing closed" >&2; exit 2; }
+source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
+has_json_backend || { echo "❌ venv-guard: node not found, failing closed" >&2; exit 2; }
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+COMMAND=$(json_field "$INPUT" tool_input.command)
 
 PROJECT_DIR=$(pwd)
 

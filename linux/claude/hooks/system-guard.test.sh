@@ -2,9 +2,28 @@
 set -uo pipefail
 HOOK="$HOME/.claude/hooks/system-guard.sh"
 
+# key=value / key.sub=value 形式の引数からJSONを組み立てる(jqの代替)。
+json_build() {
+  node -e '
+    var out = {};
+    process.argv.slice(1).forEach(function (kv) {
+      var i = kv.indexOf("=");
+      var path = kv.slice(0, i), val = kv.slice(i + 1);
+      var keys = path.split(".");
+      var cur = out;
+      for (var j = 0; j < keys.length - 1; j++) {
+        cur[keys[j]] = cur[keys[j]] || {};
+        cur = cur[keys[j]];
+      }
+      cur[keys[keys.length - 1]] = val;
+    });
+    process.stdout.write(JSON.stringify(out));
+  ' "$@"
+}
+
 run_bash() {
   local input
-  input=$(jq -n --arg cmd "$1" '{tool_name:"Bash", tool_input:{command:$cmd}}')
+  input=$(json_build tool_name=Bash tool_input.command="$1")
   printf '%s' "$input" | bash "$HOOK"
 }
 
