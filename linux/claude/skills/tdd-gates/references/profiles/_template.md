@@ -17,7 +17,12 @@
 # 単一テスト（RED/GREEN の証拠）
 <cmd>
 
-# 全体（既存回帰の確認）
+# RED 再現（tdd-evaluator が隔離 worktree で実行する）
+git worktree add <scratchpad>/red-<slug> <RED_SHA>
+<worktree 内で単一テストを実行する cmd。ランナーが本体ツリーのモジュールを優先解決する場合は環境変数で worktree 側を指す>
+git worktree remove <scratchpad>/red-<slug>
+
+# 全体（既存回帰の確認。起動時のベースライン取得と CP-D 手順0 で各1回実行する。CP-C では実行しない）
 <cmd>
 
 # カバレッジ
@@ -52,8 +57,8 @@ CP-E が被覆すべき必須ステージと具体コマンド（グローバル
 ## Critical 証拠ルール（このランナーでの合格ログの形）
 
 - **CP-C(RED)**: 失敗を示す出力パターン = `<...>`。無効例（FAIL 扱い）= `<...>`。
-- **CP-C(GREEN)**: 通過を示す出力 = `<...>`、かつ全体で失敗 0。
-- **CP-C(REFACTOR)**: テスト不変（diff にテスト変更なし）かつ全緑。
+- **CP-C(GREEN)**: 通過を示す出力 = `<...>`。フルスイートは実行しない（全体の新規失敗 0 は CP-D 手順0 で確認する）。
+- **CP-C(REFACTOR)**: テスト不変（diff にテスト変更なし）かつ対象テストが緑。
 
 ## カバレッジ閾値
 

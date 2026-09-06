@@ -62,31 +62,32 @@ CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否�
 - **明示的な上書き（重要）**: SDDの `task-reviewer-prompt.md` にある **"Do not re-run the suite to confirm their report."**（実装者の報告を信頼し、再実行しない）は、tdd-gatesが乗る場面では**明示的に上書きする**。`tdd-evaluator` は RED/GREEN のテスト実行結果を実装者（SDD implementer）の報告のまま信用せず、**自ら再実行して確認する**。証拠不信の原則はtdd-gates最大の付加価値であり、ここが唯一 SDD の既定動作と正面から矛盾する箇所。
 - **担当**: `tdd-evaluator`（SDDの通常task reviewerを差し替え）。実装作業自体はSDDのimplementer subagentがそのまま担う——tdd-gates独自の生成役は持たない。
 - **RED の Critical（即FAIL）**:
-  - `tdd-evaluator` が**対象テストのみ**（フルスイート不要）を自ら再実行し、テストが実際に失敗する（プロファイルの失敗ログ形式に一致）。「おそらく失敗する」は0点。
+  - `tdd-evaluator` が実装者の報告した RED コミットを scratchpad 配下の隔離 worktree（`git worktree add`）に展開し、その中で**対象テストのみ**（フルスイート不要）をプロファイル「RED 再現」のコマンドで自ら再実行し、テストが実際に失敗する（プロファイルの失敗ログ形式に一致）。本体の作業ツリーは変更しない（`git stash`／`checkout` 禁止）。「おそらく失敗する」は0点。
   - assertが対象の振る舞いを具体的に検証している（`assert False`/`assert True`/例外raiseだけ/トートロジー等の無条件失敗はCritical未達）。
-  - evaluatorが自ら取得した `git diff` で、変更がテストファイルのみであること。
+  - evaluatorが自ら取得した `git diff --stat <RED_SHA>^ <RED_SHA>` で、RED コミットの変更がテストファイルのみであること。
 - **GREEN の Critical（即FAIL）**:
-  - `tdd-evaluator` が自ら再実行し、テストが通過する（対象`passed`かつ全体でベースライン比の新規`failed`0）。
+  - `tdd-evaluator` が自ら再実行し、対象テストが通過する（対象`passed`）。フルスイートは再実行しない——既存回帰の独立検証はCP-D手順0のフルスイート1回に集約する。
   - RED時点で固定したテストと同一で、assertを弱めていない。
   - 最小実装である（テスト非対応の実装branchを作り込んでいない）。
 - **REFACTOR の Critical（即FAIL）**:
-  - `tdd-evaluator`がGREEN確定コミット〜現在HEADの`git diff`を自ら取得する。**差分が空なら**GREENで確認済みの全緑結果を援用し、以下のフルスイート再実行を**省略**してよい（軽量化。`references/profiles/*.md`「CP-C証拠ルール」参照）。**差分がある場合**は以下を通常通り検証する。
+  - `tdd-evaluator`がGREEN確定コミット〜現在HEADの`git diff`を自ら取得する。**差分が空なら**GREENで確認済みの対象テスト結果を援用し、以下の再実行を**省略**してよい（`references/profiles/*.md`「CP-C証拠ルール」参照）。**差分がある場合**は以下を通常通り検証する。
   - 新機能・新しい振る舞いを追加していない。テストファイルとテスト設定ファイルが不変（skip/xfail等の実行除外追加を含め変更なし）かつ既存テストが到達しない新規branchが加わっていないことを確認する。
-  - リファクタ後もプロファイル定義のテスト実行コマンドで全緑。
+  - リファクタ後も対象テストがプロファイル定義の単一テスト実行コマンドで緑（フルスイートは再実行しない）。
 - **UI/UX条件付き検査**: テスト種別がe2e（ブラウザ）、または**テンプレート/ルーティング/ビュー層に変更がある場合**（unit申告でも回避不可）、`frontend-design`スキル＋敵対的クロスレビューを追加で必須化する。最大3ラウンド（確認→修正）。ブラウザ不可環境は静的解析で代替。
 - **evaluatorモデル階層化（軽量化）**: `tdd-evaluator`をディスパッチするモデルは、CP-Bが確定したsmall-route判定を再利用する。small-route該当タスクは`haiku`、それ以外の全タスク（security/perf敏感タスクを含む）は現行の`sonnet`を指定する。CP-E（同じタスクループに乗る）も同じ規則に従う。新たな判定ロジックは追加しない。
 - **リトライ機構**: **SDD純正の5ラウンドfix loopをそのまま使用**（独自カウンタ・独自CONDITIONALは持たない）。出力形式はSDD互換のSpec Compliance形式（`scoring.md`のCP-C〜F用）。
-- **証拠**: RED失敗ログ／GREEN通過ログ（全既存テスト緑を含む）／REFACTOR後の緑ログ／（UI/UX該当時）スクショ・静的解析結果。SDDの `progress.md` に証拠行として追記する。
+- **証拠**: RED コミット SHA／RED失敗ログ（隔離 worktree での再現）／GREEN コミット SHA／GREEN通過ログ（対象テスト）／REFACTOR後の対象テスト緑ログ／（UI/UX該当時）スクショ・静的解析結果。SDDの `progress.md` に証拠行として追記する。
 
 ## CP-D: 最終スコアカード（旧Gate8・SDD Final Review に寄生）
 
 - **目的**: 変更差分全体を多次元で採点し、マージ可否を判定する最終ゲート。
 - **上乗せ先**: SDDの「## Final Review」。`requesting-code-review/code-reviewer.md`の単独ディスパッチを、review-*条件付き2〜5本並列起動＋`tdd-evaluator`集約に差し替える（`templates/final-scorecard-review-prompt.md`、Phase2）。
+- **手順0（フルスイート1回）**: `review-*`起動前にMainがプロファイル定義の全体実行コマンドを1回実行し、出力をscratchpad配下にファイル化する（既定名`reviews/<タスクスラッグ>-cp-d-fullsuite.log`）。判定は「起動時に`progress.md`へ記録したベースライン比の新規`failed`0」。CP-Cでは各タスクのフルスイートを再実行しないため、既存回帰の独立検証はこの1回が担う。ログのパスは集約`tdd-evaluator`へ渡す。
 - **担当**: MainがCP-Bの構造変更フラグ・security/perf敏感フラグに基づき`review-*`を**条件付き並列起動**する——`review-correctness`／`review-test`は常時起動、`review-maintainability`はCP-Bで構造変更ありと判定された場合のみ、`review-security`／`review-performance`はCP-Bで該当と判定された場合のみ追加起動（計2〜5本）。`tdd-evaluator`が1枚のスコアカードに集約＋Critical判定。**各reviewerには所見をscratchpadの所見ファイルに直接書き出させ**（例`reviews/<タスクスラッグ>-cp-d-<dimension>.md`）、`tdd-evaluator`がそのファイル群を自らReadして集約採点する（review-*は所見のみ、tdd-evaluatorが点数化）。Mainは所見本文を要約・改変せず経路から外れる。
-- **Critical（即FAIL）**: 仕様不適合／既存回帰／**偽装テスト検出**（assertなし・常に真・実装の写経。検出は目視に加えミューテーション検証を実施——徴候があれば必須・無くても代表1テストにスモーク）。
+- **Critical（即FAIL）**: 仕様不適合／既存回帰／**偽装テスト検出**（assertなし・常に真・実装の写経。検出は目視に加え、徴候（期待値が実装の写し・assertが実装側の定数/内部関数を参照・実装から期待値を計算）が1つでもあればミューテーション検証を必須とする。徴候が無ければ実施せず、その旨をスコアカードに明記する）。
 - **採点項目**: 起動した次元それぞれ（常時: 正確性／テスト品質。条件付き: 保守性／セキュリティ／性能）。
 - **リトライ機構**: **SDD純正のFinal Review**（1修正波+1 scoped re-review、adjudicate residuals）。tdd-gates独自の再評価カウンタは持たない。
-- **証拠**: 集約スコアカード（review-*所見に裏付け）。Mainが`progress.md`にも書き出す（チャット報告のみで終わらせない。詳細はSKILL.md「証拠の記録先」）。
+- **証拠**: 手順0のフルスイートログ／集約スコアカード（review-*所見に裏付け）。Mainが`progress.md`にも書き出す（チャット報告のみで終わらせない。詳細はSKILL.md「証拠の記録先」）。
 - **スコープ外の既存問題**: review-*が報告した差分外の既存問題は採点・Critical判定に含めず、スコアカード末尾に「スコープ外の既存問題（未修正・参考）」として転記する。Mainはユーザー確認を待たず、規模判定（trivial/small/substantial）にかけて即座に修正に着手する。
 
 ## CP-E: CI品質ゲート整備（旧Gate9・条件付き・writing-plansが末尾タスクとして追加）

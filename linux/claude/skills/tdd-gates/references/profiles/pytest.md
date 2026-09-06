@@ -22,7 +22,12 @@ fixture・AAA・parametrize・非同期・モック等の**深い pytest 作法�
 # 単一テスト（RED/GREEN の証拠取得に使う）
 pytest <path>::<test> -q
 
-# 全体（既存回帰の確認・CP-C(GREEN/REFACTOR) の緑維持証拠）
+# RED 再現（tdd-evaluator が隔離 worktree で実行する。editable install は本体の src/ を指すため、PYTHONPATH で worktree 側を優先させる。src/ レイアウトでなければ worktree ルートを指す）
+git worktree add <scratchpad>/red-<slug> <RED_SHA>
+PYTHONPATH=<scratchpad>/red-<slug>/src python -m pytest <scratchpad>/red-<slug>/<path>::<test> -q -p no:cacheprovider --rootdir=<scratchpad>/red-<slug>
+git worktree remove <scratchpad>/red-<slug>
+
+# 全体（既存回帰の確認。起動時のベースライン取得と CP-D 手順0 で各1回実行する。CP-C では実行しない）
 pytest -q
 
 # カバレッジ（目標 80% 以上・行/ブランチ）
@@ -62,8 +67,8 @@ CP-E が CI ワークフローで被覆すべき必須ステージと、この�
 
 - **CP-C(RED)**: 対象テストのみ実行する（フルスイート不要）。出力に `FAILED` が含まれ、対象テストが 1 件以上 `failed`、かつトレースバックの `E` 行が**対象 assert の `AssertionError`** を示す。assert 到達前の実行時エラー（`TypeError`/`AttributeError` 等）による `failed` は未実装シンボル起因の初回 RED としてのみ有効——GREEN 前に実装者がスタブを置いた二段階 RED で対象 assert の失敗を確認する。
   - 無効例（0 点＝FAIL）: ログなしの「多分落ちる」／`collected 0 items`（テスト未収集）／`ERROR`（import 失敗などで RED になっていない）。
-- **CP-C(GREEN)**: 対象テストが `passed`、かつ `pytest -q` 全体で**ベースライン比の新規 `failed` が 0**（進捗記録のベースライン記録に無い failed が 0。ベースラインが全緑なら従来どおり `failed` 0）。
-- **CP-C(REFACTOR)**: GREEN確定コミット〜現在HEADの`git diff`を確認する。**差分が空ならGREENの全緑結果を援用しフルスイート再実行を省略**してよい。差分がある場合はテストファイルの変更が無いこと（＝振る舞い不変）と、`pytest -q` が全緑であることを確認する。
+- **CP-C(GREEN)**: 対象テストが `passed`。フルスイートは実行しない。既存回帰は CP-D 手順0 の `pytest -q` で**ベースライン比の新規 `failed` が 0**を確認する（`progress.md` のベースライン記録に無い failed が 0。ベースラインが全緑なら `failed` 0）。
+- **CP-C(REFACTOR)**: GREEN確定コミット〜現在HEADの`git diff`を確認する。**差分が空ならGREENの対象テスト結果を援用し再実行を省略**してよい。差分がある場合はテストファイルの変更が無いこと（＝振る舞い不変）と、対象テストが `passed` であることを確認する。
 
 ## カバレッジ閾値
 

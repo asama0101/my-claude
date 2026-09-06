@@ -71,7 +71,7 @@
 | `references/profiles/bash-hook-test.md` | :22, :45-46 | 同上 |
 | `references/profiles/browser-manual-e2e.md` | :23-24, :66-67 | 全シナリオ再実行を CP-D 手順0 へ移す |
 | `SKILL.md` | :33（CP-D 行） | 担当欄に手順0 を反映 |
-| 同 | :19-22（起動時チェックリスト） | ベースライン取得（フルスイート1回→progress.md 記録）を追加 |
+| 同 | :23（起動時チェックリスト項目2「証拠の記録先」） | ベースライン取得（フルスイート1回→progress.md 記録）を追加 |
 
 ### 4.3 代償
 
