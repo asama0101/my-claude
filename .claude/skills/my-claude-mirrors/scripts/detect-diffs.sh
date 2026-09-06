@@ -6,10 +6,13 @@ set -euo pipefail
 #
 # 実機(~/.claude/ 等)には一切触れない。このリポジトリ内の2ミラーの比較専用。
 #
-# 出力: {"new_diffs":[...], "known_diffs":[...], "only_in_linux":[...], "only_in_windows":[...]}
-# - new_diffs   : 内容が違い、台帳に未記録（またはハッシュが変化した）ファイル
-# - known_diffs : 内容が違うが、台帳に同じハッシュペアで記録済み（許容差分）
-# - only_in_*   : 片方のミラーにしか存在しないファイル／空ディレクトリ
+# 出力: {"new_diffs":[...], "known_diffs":[...],
+#         "only_in_linux":[...], "only_in_windows":[...],
+#         "known_only_in_linux":[...], "known_only_in_windows":[...]}
+# - new_diffs           : 内容が違い、台帳に未記録（またはハッシュが変化した）ファイル
+# - known_diffs         : 内容が違うが、台帳に同じハッシュペアで記録済み（許容差分）
+# - only_in_*           : 片方のミラーにしか存在しない、台帳に未記録のファイル／空ディレクトリ
+# - known_only_in_*     : 片方のミラーにしか存在しないが、台帳に記録済み（許容差分）
 #
 # 改行コード(CRLF/LF)は比較前に正規化する。Windows側で編集されたファイルが
 # CRLF化されただけの内容同一ファイルを「差分あり」として誤検知しないため。
@@ -63,16 +66,69 @@ while IFS= read -r f; do
   fi
 done <<< "$COMMON_FILES"
 
-to_json_array() {
-  printf '%s\n' "$@" | jq -R -s -c 'split("\n") | map(select(length > 0))'
+# only_in_* も台帳と照合し、記録済み(known)と未記録(new)に分ける。
+# ファイルは実ハッシュが台帳の該当side(linux_hash/windows_hash)と一致するかで判定、
+# 空ディレクトリはハッシュ概念が無いためファイルパス一致のみで判定する。
+NEW_ONLY_LINUX="[]"; KNOWN_ONLY_LINUX="[]"
+NEW_ONLY_WINDOWS="[]"; KNOWN_ONLY_WINDOWS="[]"
+
+is_known_only_file() {
+  local dir="$1" hash_field="$2" f="$3" h match
+  h=$(norm_hash "$dir/$f")
+  match=$(jq -c --arg f "$f" --arg h "$h" --arg hf "$hash_field" \
+    '[.[] | select(.file == $f and .[$hf] == $h)] | last // empty' "$LEDGER")
+  [ -n "$match" ] && [ "$match" != "null" ]
 }
 
-ONLY_LINUX_JSON=$(to_json_array "$ONLY_LINUX_FILES" "$ONLY_LINUX_DIRS")
-ONLY_WINDOWS_JSON=$(to_json_array "$ONLY_WINDOWS_FILES" "$ONLY_WINDOWS_DIRS")
+is_known_only_dir() {
+  local f="$1" match
+  match=$(jq -c --arg f "$f" '[.[] | select(.file == $f)] | last // empty' "$LEDGER")
+  [ -n "$match" ] && [ "$match" != "null" ]
+}
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if is_known_only_file "$LINUX_DIR" "linux_hash" "$f"; then
+    KNOWN_ONLY_LINUX=$(jq -c --arg f "$f" '. + [$f]' <<< "$KNOWN_ONLY_LINUX")
+  else
+    NEW_ONLY_LINUX=$(jq -c --arg f "$f" '. + [$f]' <<< "$NEW_ONLY_LINUX")
+  fi
+done <<< "$ONLY_LINUX_FILES"
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if is_known_only_dir "$f"; then
+    KNOWN_ONLY_LINUX=$(jq -c --arg f "$f" '. + [$f]' <<< "$KNOWN_ONLY_LINUX")
+  else
+    NEW_ONLY_LINUX=$(jq -c --arg f "$f" '. + [$f]' <<< "$NEW_ONLY_LINUX")
+  fi
+done <<< "$ONLY_LINUX_DIRS"
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if is_known_only_file "$WINDOWS_DIR" "windows_hash" "$f"; then
+    KNOWN_ONLY_WINDOWS=$(jq -c --arg f "$f" '. + [$f]' <<< "$KNOWN_ONLY_WINDOWS")
+  else
+    NEW_ONLY_WINDOWS=$(jq -c --arg f "$f" '. + [$f]' <<< "$NEW_ONLY_WINDOWS")
+  fi
+done <<< "$ONLY_WINDOWS_FILES"
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if is_known_only_dir "$f"; then
+    KNOWN_ONLY_WINDOWS=$(jq -c --arg f "$f" '. + [$f]' <<< "$KNOWN_ONLY_WINDOWS")
+  else
+    NEW_ONLY_WINDOWS=$(jq -c --arg f "$f" '. + [$f]' <<< "$NEW_ONLY_WINDOWS")
+  fi
+done <<< "$ONLY_WINDOWS_DIRS"
 
 jq -n \
   --argjson new_diffs "$NEW_DIFFS" \
   --argjson known_diffs "$KNOWN_DIFFS" \
-  --argjson only_in_linux "$ONLY_LINUX_JSON" \
-  --argjson only_in_windows "$ONLY_WINDOWS_JSON" \
-  '{new_diffs:$new_diffs, known_diffs:$known_diffs, only_in_linux:$only_in_linux, only_in_windows:$only_in_windows}'
+  --argjson only_in_linux "$NEW_ONLY_LINUX" \
+  --argjson only_in_windows "$NEW_ONLY_WINDOWS" \
+  --argjson known_only_in_linux "$KNOWN_ONLY_LINUX" \
+  --argjson known_only_in_windows "$KNOWN_ONLY_WINDOWS" \
+  '{new_diffs:$new_diffs, known_diffs:$known_diffs,
+    only_in_linux:$only_in_linux, only_in_windows:$only_in_windows,
+    known_only_in_linux:$known_only_in_linux, known_only_in_windows:$known_only_in_windows}'
