@@ -103,5 +103,75 @@
     "windows_hash": "9facfc7b03e032e1bedc508a594b44fe57ad466b48d4d1157830e9a5ae1f2b0f",
     "reason": "Windows固有のpermission(ppk/pfx/p12/Credentials/gcloud/SAM/NTUSER.DAT等の保護)・PowerShellツール許可・theme:dark(Windows環境の個人設定)・plugins(code-review, playwright)有効化・WebFetch ask解除(windows実機で既に解除済み、commit d7e0ce1と同じ意図的差分)はwindows側のみの意図的差分(ファイル全体ハッシュが変化したため再記録)",
     "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/branch-guard.sh",
+    "linux_hash": "0da88ac5bc12930e56822017dee82c3db5ba2b3983ee860981e8692364edb3ac",
+    "windows_hash": "eaa0802998b39e6b2d7aa426628729ec05b77f22042b9ab6ebfad13703d5ae28",
+    "reason": "Windows(Git Bash)対応(to_posix()によるパス正規化・CP932ロケール対応・can_create_branch()のWindows実機限界コメント)はwindows側のみの意図的差分。jq→node移行(#37)はlinux側にも反映済みで、残る差分はWindows専用部分のみ",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/branch-guard.test.sh",
+    "linux_hash": "c604c01a2bd3ecf1b429c0f7620c1275ea90088ee40b12c5e403ef8f25e55e37",
+    "windows_hash": "41e98d7a2098da32e70950f2ebf0d24a68cfceabf1c955fed9523b6a2b93b8f7",
+    "reason": "Windows/Git BashでのNTFS chmod挙動に関する既知の制約コメント追記はwindows側のみの意図的差分。jq→node移行(#37)のjson_build化はlinux側にも反映済み",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/system-guard.sh",
+    "linux_hash": "5605e7762dbdd007446ef1355e9342a0a058c3e5536ed5c475444c1a0fb815c0",
+    "windows_hash": "982055daec39787c23409af862fc471dc5e28caf7ca727fe5fdf7ae1791c5920",
+    "reason": "Windows対応のCP932ロケール向けLC_ALL設定追加はwindows側のみの意図的差分。jq→node移行(#37)はlinux側にも反映済み",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/venv-guard.sh",
+    "linux_hash": "6be04d9c398d00a82baa493f85e85db7e5da523de31a6bce0e2d75c43f6e07b3",
+    "windows_hash": "331b455bb2da12c7fc55ab9d4698d8273813cb4d0d613191c915449f8494e4d2",
+    "reason": "Windows(Git Bash)対応(to_posix()によるVIRTUAL_ENV/pwdのパス正規化、.venv/Scripts/pip.exe形式対応、Windows向けメッセージ追加)はwindows側のみの意図的差分。jq→node移行(#37)はlinux側にも反映済み",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/venv-guard.test.sh",
+    "linux_hash": "88910efb4b6e3034d03f4f50bad5a6fac7f694436cfc2efa65e72caf8973fa49",
+    "windows_hash": "358e30acda0a874f5d58a15b2cc0d36f8e3dfd003b6027ea1cae631d449cdb1a",
+    "reason": "Windows固有テストケース2件(.venv/Scripts/pip.exe対応、VIRTUAL_ENVバックスラッシュ形式でのto_posix()前方一致確認)はwindows側のみの意図的差分。jq→node移行(#37)のjson_build化はlinux側にも反映済み",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/workspace-guard.sh",
+    "linux_hash": "704d1cd9044a9b431269d3217708bfde4d00f15a66e8ac629631547c9274110a",
+    "windows_hash": "e6e26ab0a03fac8ca25106f32e51deadd75150e221075561090ebd92d92341a3",
+    "reason": "Windows(Git Bash)対応(to_posix()によるパス正規化、$LOCALAPPDATA/Temp/claude/配下を許可ゾーンに追加)はwindows側のみの意図的差分。jq→node移行(#37)はlinux側にも反映済み",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/workspace-guard.test.sh",
+    "linux_hash": "d3102106e25d6b21129d245925eea3e72942d6c891b0c97f2a2a875dbd01a658",
+    "windows_hash": "9a4f50c6e350d91f49b6f5cb9f77d31b5dccd27757963c128ead5d593acdedcf",
+    "reason": "MSYS_NO_PATHCONV設定とWindows固有テストケース3件(to_posix大文字小文字混在確認、WIN_TEMP_CLAUDEゾーン許可、無アンカーcaseパターン誤許可バグ回帰固定化)はwindows側のみの意図的差分。jq→node移行(#37)のjson_build化はlinux側にも反映済み",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "rules/hooks.md",
+    "linux_hash": "31d9f9f447ced9282ddeac293a5a386eb47df10d690bdaa716f04c8ed2d0e942",
+    "windows_hash": "e6cb32258c86c22e96a4d55cb306f14ee3a12d751d60dc4ffb5bf3116d225094",
+    "reason": "workspace-guard.sh説明行のWindows版セッション用一時ディレクトリ($LOCALAPPDATA/Temp/claude/配下)言及はwindows側のみの意図的差分。system-guard.sh説明のnode不在時fail-close表現はlinux側にも反映済み",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "statusline-command.sh",
+    "linux_hash": "484f4f650243d4c6f2021704dda07189b53f2071f676f3d90313482addc0c7b5",
+    "windows_hash": "9ee3d06ccaffbb100191395e2d803818cc050f5bb0bc2b94537ec61aac06cc20",
+    "reason": "Windows対応のprintf %b→%s変更(Windowsパスのバックスラッシュが\\Uエスケープとして誤解釈されるバグの修正)はwindows側のみの意図的差分。jq→node移行(#37)のjson_fields化はlinux側にも反映済み",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/branch-guard.sh",
+    "linux_hash": "d0e0ee121d764e022b8e16e3610aa94b2010b1a0cdb4c5662ae1b05dc222a8af",
+    "windows_hash": "c291306005f4e8f94134cbdf1662d1707d530a94a75e8a9be151e82794086341",
+    "reason": "Windows(Git Bash)対応(to_posix()によるパス正規化・CP932ロケール対応・can_create_branch()のWindows実機限界コメント)はwindows側のみの意図的差分。CLAUDE_MAIN_BRANCH_GUARD_BYPASS撤廃の経緯コメントはユーザー確認により両OS側で同一の文面(旧main-branch-guard.shには同種機構がありセキュリティレビューで撤廃、現行ファイルには同名の変数実装は存在しない)に統一済み",
+    "recorded_at": "2026-09-06"
   }
 ]

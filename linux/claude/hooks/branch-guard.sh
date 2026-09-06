@@ -12,7 +12,7 @@
 #   1) gitコマンド自体が無い                       → 何もしない(fail-open。
 #      get_branchがgit呼び出し失敗時に空文字を返しis_protectedがfalseになるため
 #      保護は効かないが、そもそもgitが無ければ変更操作自体が実行不能なため実害は
-#      限定的。jq欠如とは異なりfail-closeにしない)
+#      限定的。node欠如とは異なりfail-closeにしない)
 #   2) gitはあるがこのディレクトリはリポジトリでない   → 無条件許可
 #   3) detached HEAD                                → 無条件許可(get_branchが
 #      空文字を返しis_protectedがfalseになる。どのブランチにも属さないコミットに
@@ -22,18 +22,27 @@
 #      $CLAUDE_HOME配下のログへ毎回記録=監査証跡)
 #   6) main/master以外の通常ブランチ                  → 無条件許可
 #
-# 旧main-branch-guard.shにあったCLAUDE_MAIN_BRANCH_GUARD_BYPASS環境変数バイパスは
-# 廃止した(セキュリティレビューで指摘されたCRITICAL: 設定ファイル/シェルRC経由の
-# 間接的自己バイパス経路の温床だったため。.git書込み権限の自動検知に置き換えることで
-# この経路自体が構造的に無くなる)。
+# 旧main-branch-guard.shには同種のバイパス機構があり、セキュリティレビューで指摘された
+# CRITICAL(設定ファイル/シェルRC経由の間接的自己バイパス経路の温床だったため)を受けて
+# 廃止した。CLAUDE_MAIN_BRANCH_GUARD_BYPASSという環境変数名としては現行のbranch-guard.sh
+# に実装は存在しない。.git書込み権限の自動検知に一本化することで、この種のバイパス経路が
+# 構造的に生まれない設計になっている。
 #
 # shutil.rmtree は system-guard.sh がブランチに関係なく常時無条件ブロックするため、
 # ここには含めない（含めても到達不能な重複ロジックになるため）。find -delete/
 # rsync --delete は workspace-guard.sh の対象外(ゾーン判定はWrite/Edit系のみに
 # 縮小済み)のため、保護ブランチ上でのプロジェクト内破壊を防ぐにはこちらで対象に
 # 含める必要がある。
+#
+# 既知の限界:
+#   - scripts/sync.sh のようなラッパースクリプトの呼び出し自体は、Bash に渡る文字列が
+#     スクリプト名のみで内部コマンドが見えないため検知できない。リダイレクト検知は
+#     `2>/dev/null` 等の破棄リダイレクトは除外済みだが、それ以外の文字列中に "> " を
+#     含む read-only コマンド（grep等）は誤検知しうる（system-guard.sh / workspace-guard.sh
+#     と同種の制約。回避は Read）。
 
-command -v jq >/dev/null 2>&1 || { echo "❌ branch-guard: jq not found, failing closed" >&2; exit 2; }
+source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
+has_json_backend || { echo "❌ branch-guard: node not found, failing closed" >&2; exit 2; }
 
 CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
@@ -43,7 +52,7 @@ log_warn_allow() {  # $1=branch $2=target
 }
 
 INPUT=$(cat)
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
+TOOL=$(json_field "$INPUT" tool_name)
 
 # git 管理下でなければ空文字を返す。symbolic-ref ベースなので、同名タグの併存や
 # 未出生ブランチ（コミット0件）でも rev-parse --abbrev-ref HEAD のように誤動作しない。
@@ -103,12 +112,16 @@ bash_targets_outside_project() {
   if [ "$first" = "sed" ]; then
     printf '%s' "$cmd" | grep -qP -- '-i\b' || return 1
   fi
+  # 改行は tr で許可集合外の \v に変換してから判定する（grep は行単位評価のため
+  # 生の改行は素通りし、複数行コマンドの2行目以降が無検査になる穴を防ぐ）。
   printf '%s' "$cmd" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && return 1
   printf '%s' "$cmd" | grep -qiP '\bcd\b' && return 1
   set -f
   for tok in $cmd; do
     idx=$((idx + 1))
-    if [ "$idx" -eq 1 ]; then continue; fi
+    if [ "$idx" -eq 1 ]; then continue; fi   # コマンド名は先頭トークン(位置)でスキップ。
+                                              # 値一致だと「コマンド名と同名の引数」
+                                              # (例: cp /tmp/x cp)を誤ってスキップする。
     case "$tok" in
       -*) continue ;;
     esac
@@ -141,7 +154,7 @@ handle_protected() {  # $1=dir $2=branch $3=target(表示用)
 
 case "$TOOL" in
   Write | Edit | MultiEdit | NotebookEdit)
-    FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
+    FILE=$(json_field "$INPUT" tool_input.file_path tool_input.notebook_path)
     [ -z "$FILE" ] && exit 0
     ABS=$(realpath -m "$FILE" 2>/dev/null) || ABS="$FILE"
     DIR=$(dirname -- "$ABS")
@@ -151,21 +164,21 @@ case "$TOOL" in
     fi
     ;;
   Bash)
-    CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
+    CMD=$(json_field "$INPUT" tool_input.command)
     PROJECT_DIR=$(pwd)
 
     MUTATING_PATTERNS=(
-      '\b(rm|rmdir|unlink)\b'
-      '\bgit\s+rm\b'
-      '\bgit\s+commit\b'
-      '>>?(?!&)[[:space:]]*(?!/dev/null\b)[^[:space:]]'
+      '\b(rm|rmdir|unlink)\b'                       # 削除
+      '\bgit\s+rm\b'                                 # git rm
+      '\bgit\s+commit\b'                             # git commit（--amend含む）
+      '>>?(?!&)[[:space:]]*(?!/dev/null\b)[^[:space:]]' # リダイレクト書き込み（先頭境界不要。2>&1等のfd複製・/dev/null宛の破棄は除外）
       '\btee\b'
       '\bcp\b'
       '\bmv\b'
       '\btouch\b'
-      'sed\s+-i'
-      '\bfind\b.*-delete\b'
-      '\brsync\b.*--del(ete)?\b'
+      'sed\s+-i'                                     # sed インプレース編集
+      '\bfind\b.*-delete\b'                          # find -delete（workspace-guard側は対象外）
+      '\brsync\b.*--del(ete)?\b'                      # rsync --delete/--del（同上）
     )
 
     is_mutating=0

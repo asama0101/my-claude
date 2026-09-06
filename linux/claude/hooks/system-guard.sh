@@ -4,28 +4,30 @@
 # ゾーン判定（プロジェクト外かどうか）はworkspace-guard.sh、ブランチ判定は
 # branch-guard.shが別途担当する。
 #
-# ── fail-close: jq 不在なら解析不能として block ──────────────
-command -v jq >/dev/null 2>&1 || { echo "❌ system-guard: jq not found, failing closed" >&2; exit 2; }
+# ── fail-close: node 不在なら解析不能として block ──────────────
+source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
+has_json_backend || { echo "❌ system-guard: node not found, failing closed" >&2; exit 2; }
+
 INPUT=$(cat)
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
+COMMAND=$(json_field "$INPUT" tool_input.command)
 
 BLOCKED_PATTERNS=(
   # ── ディスク・デバイス破壊 ──────────────────────
-  'dd\s+if=.*of=/dev/sd'
-  'dd\s+if=.*of=/dev/nvme'
-  '>\s*/dev/sd'
-  'mkfs\.'
-  'shred\s+.*(/dev/|/disk)'
+  'dd\s+if=.*of=/dev/sd'           # ディスク上書き
+  'dd\s+if=.*of=/dev/nvme'         # NVMe上書き
+  '>\s*/dev/sd'                    # リダイレクト上書き
+  'mkfs\.'                         # 再フォーマット
+  'shred\s+.*(/dev/|/disk)'        # 完全消去
 
   # ── パーミッション破壊 ──────────────────────────
-  'chown\s+-R\s+.*\s+/'
-  'chmod\s+-R\s+777\s+/\s*(&&|;|\||$)'
-  'chmod\s+(-\S+\s+)*0{1,4}\b'
+  'chown\s+-R\s+.*\s+/'            # ルート以下オーナー変更
+  'chmod\s+-R\s+777\s+/\s*(&&|;|\||$)'  # ファイルシステムルート配下の全権限解放
+  'chmod\s+(-\S+\s+)*0{1,4}\b'          # chmod 000/-R 000等の全権限剥奪
 
   # ── プロセス・システム停止 ──────────────────────
-  'kill\s+-9\s+-1'
-  ':\(\)\s*\{.*:\|:.*\}'
-  '\bshutdown(\s+(-|now|\+|halt)|$)'
+  'kill\s+-9\s+-1'                 # 全プロセス強制終了
+  ':\(\)\s*\{.*:\|:.*\}'           # Fork爆弾
+  '\bshutdown(\s+(-|now|\+|halt)|$)'   # システム停止コマンド（grep/if-chip-shutdown 等の read-only 文字列は通す）
   'halt'
   'reboot'
   'poweroff'
@@ -34,37 +36,37 @@ BLOCKED_PATTERNS=(
   'systemctl\s+(poweroff|reboot|halt)'
 
   # ── 危険なリモート実行 ──────────────────────────
-  'curl\s+.*\|\s*(bash|sh)'
-  'wget\s+.*\|\s*(bash|sh)'
+  'curl\s+.*\|\s*(bash|sh)'        # curl | bash
+  'wget\s+.*\|\s*(bash|sh)'        # wget | sh
   'eval\s+.*curl'
 
   # ── システムファイル破壊 ────────────────────────
   '>\s*/etc/hosts'
   '>\s*/etc/passwd'
   '>\s*/etc/shadow'
-  'unset\s+PATH'
+  'unset\s+PATH'                   # PATH破壊
 
   # ── DB破壊 ─────────────────────────────────────
   'DROP\s+DATABASE'
   'DROP\s+TABLE'
 
   # ── グローバルパッケージ インストール ────────────
-  'npm\s+(install|i)\s+(-g|--global)'
-  'yarn\s+global\s+add'
-  'pnpm\s+(add|install)\s+(-g|--global)'
-  'cargo\s+install'
-  'gem\s+install'
-  'go\s+install'
-  'pipx\s+install'
-  'uv\s+tool\s+install'
-  'conda\s+install'
+  'npm\s+(install|i)\s+(-g|--global)'       # npm グローバルインストール
+  'yarn\s+global\s+add'                     # yarn グローバルインストール
+  'pnpm\s+(add|install)\s+(-g|--global)'   # pnpm グローバルインストール
+  'cargo\s+install'                         # Rust クレートのグローバルインストール
+  'gem\s+install'                           # Ruby gem インストール
+  'go\s+install'                            # Go パッケージのグローバルインストール
+  'pipx\s+install'                          # pipx によるグローバル CLI ツールのインストール
+  'uv\s+tool\s+install'                    # uv のグローバル CLI ツールのインストール
+  'conda\s+install'                        # Anaconda/Miniconda パッケージインストール
 
   # ── パッケージ アンインストール ──────────────────
-  'apt\s+(remove|purge|autoremove)\s+-y'
+  'apt\s+(remove|purge|autoremove)\s+-y'     # apt 一括削除
   'apt-get\s+(remove|purge|autoremove)\s+-y'
   'yum\s+remove\s+-y'
   'dnf\s+remove\s+-y'
-  'npm\s+uninstall\s+-g'
+  'npm\s+uninstall\s+-g'                    # グローバルパッケージ削除
 
   # ── システムパッケージのupdate/upgrade ──────────
   'apt(-get)?\s+update\b'
@@ -74,19 +76,19 @@ BLOCKED_PATTERNS=(
   'dnf\s+(update|upgrade)\b'
 
   # ── ファイル内容消去 ────────────────────────────
-  'truncate\s+.*-s\s+0'
+  'truncate\s+.*-s\s+0'                     # ファイルを空にする
 
   # ── 迂回削除（python経由）──────────────────────
-  'shutil\.rmtree'
-  'os\.(remove|unlink|rmdir)'
-  'truncate\s+.*--size[= ]*0'
+  'shutil\.rmtree'                          # Python shutil.rmtree
+  'os\.(remove|unlink|rmdir)'               # Python os.remove/unlink/rmdir
+  'truncate\s+.*--size[= ]*0'              # truncate --size 0 でファイルを空にする
 
   # ── DB 追加破壊 ─────────────────────────────────
-  'TRUNCATE\s+TABLE'
-  'DROP\s+SCHEMA'
+  'TRUNCATE\s+TABLE'                        # テーブルデータ全消去
+  'DROP\s+SCHEMA'                           # スキーマ削除
 
   # ── スケジューラ破壊 ────────────────────────────
-  'crontab\s+-r'
+  'crontab\s+-r'                            # crontab 全削除
 
   # ── Git作業ツリー破壊(パス指定なしの無差別削除) ──────
   'git\s+clean\s+-[a-z]*f[a-z]*d[a-z]*\s*(&&|;|\||$)'
@@ -102,7 +104,8 @@ BLOCKED_PATTERNS=(
 # ── 難読化正規化（判定用。実行はしない）──────────────
 # クォート分割('r''m')・バックスラッシュエスケープ(r\m)・${IFS}/$IFS空白代替
 # (kill${IFS}-9)で BLOCKED_PATTERNS の前提(コマンド名がそのまま文字列に現れる)
-# が崩れるのを防ぐため、除去・置換のみ行った正規化版を作る。
+# が崩れるのを防ぐため、除去・置換のみ行った正規化版を作る。コマンド置換
+# ($()/``)や変数展開は評価しない単純なテキスト変換のため安全。
 normalize() {
   printf '%s' "$1" | tr -d "\"'\\\\" | sed -E 's/\$\{?IFS\}?/ /g'
 }
@@ -121,8 +124,16 @@ check_whole_command() {
     fi
   done
 
+  # ── 正規化後の危険パターン再判定（難読化バイパス対策）──────────────
+  # クォート分割/バックスラッシュ/${IFS}等で上のBLOCKED_PATTERNSを回避しようとした
+  # 場合、正規化後の文字列に対して同じパターンを再評価しブロックする。
   if [ "$COMMAND_NORMALIZED" != "$COMMAND" ]; then
     for pattern in "${BLOCKED_PATTERNS[@]}"; do
+      # 正規化で「新たに」現れたマッチのみを難読化とみなす。元のコマンドの時点で
+      # 既に同じパターンに一致していた場合、そのキーワードはクォート等で隠されて
+      # おらず素通しで見えているということなので、難読化ではない（無関係な箇所の
+      # クォート — 例: git commit -m "..." のメッセージ引用 — がCOMMAND_NORMALIZED!=
+      # COMMANDを成立させただけの誤爆を防ぐ）。
       if printf '%s' "$COMMAND_NORMALIZED" | grep -qiP "$pattern" \
          && ! printf '%s' "$COMMAND" | grep -qiP "$pattern"; then
         echo "❌ BLOCKED: $COMMAND" >&2
