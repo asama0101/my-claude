@@ -96,5 +96,12 @@
     "windows_hash": "18048bd5d8957a7c0a1aed75464b1bcb0e288c4d9d5b16e7010c8796e6f214b2",
     "reason": "Windows固有のpermission(ppk/pfx/p12/Credentials/gcloud/SAM/NTUSER.DAT等の保護)・PowerShellツール許可・theme:dark(Windows環境の個人設定)・plugins(code-review, playwright)有効化はwindows側のみの意図的差分(WebSearch/git push許可追加でファイル全体のハッシュが変化したため再記録)",
     "recorded_at": "2026-08-29"
+  },
+  {
+    "file": "settings.json",
+    "linux_hash": "1d3194b3518353f7b7c6b47120a3863dc553c5cce1a27d0b6df9b64b6b35c006",
+    "windows_hash": "9facfc7b03e032e1bedc508a594b44fe57ad466b48d4d1157830e9a5ae1f2b0f",
+    "reason": "Windows固有のpermission(ppk/pfx/p12/Credentials/gcloud/SAM/NTUSER.DAT等の保護)・PowerShellツール許可・theme:dark(Windows環境の個人設定)・plugins(code-review, playwright)有効化・WebFetch ask解除(windows実機で既に解除済み、commit d7e0ce1と同じ意図的差分)はwindows側のみの意図的差分(ファイル全体ハッシュが変化したため再記録)",
+    "recorded_at": "2026-09-06"
   }
 ]
