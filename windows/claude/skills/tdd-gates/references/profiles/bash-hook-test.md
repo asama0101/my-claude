@@ -19,7 +19,10 @@ Claude Code の PreToolUse/Stop 等フックスクリプト（`hooks/*.sh`）と
 # ケース単位の分離実行機構を持たないため、これが「対象テストのみ」の粒度）
 bash "$HOME/.claude/hooks/<name>.test.sh"
 
-# 全体（既存回帰の確認。hooks/ 配下の全 *.test.sh を実行）
+# RED 再現: 適用不可。対象の $HOME/.claude/hooks/ は git 管理外のため RED コミット・worktree 方式が成立しない。
+# tdd-evaluator は実装者の RED ログを、テストファイルの FAIL 行（expected exit）と実装後の挙動差から照合して検証する。
+
+# 全体（既存回帰の確認。hooks/ 配下の全 *.test.sh を実行。起動時のベースライン取得と CP-D 手順0 で各1回実行する。CP-C では実行しない）
 for f in "$HOME"/.claude/hooks/*.test.sh; do bash "$f" || echo "FAILED: $f"; done
 
 # カバレッジ
@@ -42,8 +45,8 @@ bash "$HOME/.claude/hooks/<name>.test.sh"
 
 - **CP-C(RED)**: 対象ケースの行が `FAIL: <ラベル> (expected exit X, got Y)` として出力され、かつファイル全体の最終行が `SOME TESTS FAILED`（終了コード1）。
   無効例（FAIL扱い）: 該当ケースが実行されずスキップされた、またはシェル構文エラーで全体が実行不能になっただけの失敗（意図した分岐に到達していない）。
-- **CP-C(GREEN)**: 全ケースの行が `PASS: <ラベル>` となり、ファイル全体の最終行が `ALL PASS`（終了コード0）。既存ケースに新規failedが無いこと。
-- **CP-C(REFACTOR)**: テストファイル（`*.test.sh`）が不変、かつ再実行で全緑（`ALL PASS`）。
+- **CP-C(GREEN)**: 全ケースの行が `PASS: <ラベル>` となり、ファイル全体の最終行が `ALL PASS`（終了コード0）。他の `*.test.sh` は実行しない（既存回帰は CP-D 手順0 で確認する）。
+- **CP-C(REFACTOR)**: テストファイル（`*.test.sh`）が不変、かつ対象ファイルの再実行で `ALL PASS`。
 
 ## カバレッジ閾値
 

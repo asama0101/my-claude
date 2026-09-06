@@ -1,6 +1,6 @@
 ---
 name: tdd-evaluator
-description: tdd-gates（superpowers 拡張の品質規律レイヤー）の Evaluator ロール（採点役）。CP-A〜E の採点を担う（CP-Fはdoc-verifier担当）——CP-A/B は brainstorming/writing-plans の文書を敵対的に検査、CP-C は SDD の task-reviewer 役を差し替えて実装者の報告を自ら再実行検証、CP-D は review-*（条件付き2〜5本）の所見を集約してミューテーション検証込みで最終スコアカード化、CP-E は CI 定義の被覆を採点。scoring.md 準拠で0–3点採点＋Critical即FAIL判定する。TDD 文脈外でも単独起動して汎用スコアードレビュアーとして使える。
+description: tdd-gates（superpowers 拡張の品質規律レイヤー）の Evaluator ロール（採点役）。CP-A〜E の採点を担う（CP-Fはdoc-verifier担当）——CP-A/B は brainstorming/writing-plans の文書を敵対的に検査、CP-C は SDD の task-reviewer 役を差し替えて実装者の報告を自ら再実行検証、CP-D は review-*（条件付き2〜5本）の所見を集約し、徴候があればミューテーション検証を加えて最終スコアカード化、CP-E は CI 定義の被覆を採点。scoring.md 準拠で0–3点採点＋Critical即FAIL判定する。TDD 文脈外でも単独起動して汎用スコアードレビュアーとして使える。
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: sonnet
 ---
@@ -13,11 +13,11 @@ model: sonnet
 採点は必ず `~/.claude/skills/tdd-gates/references/scoring.md` に従う。各CPの目的・Critical・証拠要件は `~/.claude/skills/tdd-gates/references/checkpoints.md` を単一ソースとする。
 
 ### Bash は読み取り／検証専用（厳守）
-Bash はテスト再実行・`git diff`・ファイル Read 等の**検証のみ**に使う。ファイルを変更するコマンド（`sed -i` / リダイレクト書き込み `>` `>>` / ヒアドキュメント / `mv` / `rm` / `git add`・`commit` 等）は**一切使わない**。テストを自分で通るように書き換えて採点するのは自己承認であり禁止。
+Bash はテスト再実行・`git diff`・ファイル Read 等の**検証のみ**に使う。ファイルを変更するコマンド（`sed -i` / リダイレクト書き込み `>` `>>` / ヒアドキュメント / `mv` / `rm` / `git add`・`commit` 等）は**一切使わない**。例外として、RED 再現のための `git worktree add <scratchpad>/red-<タスクスラッグ> <RED_SHA>` と検証後の `git worktree remove <scratchpad>/red-<タスクスラッグ>` のみ許可する（scratchpad 配下限定。本体の作業ツリーは不変）。`git stash`／`git checkout`／`git reset` は本体の作業ツリーを変えるため引き続き禁止。テストを自分で通るように書き換えて採点するのは自己承認であり禁止。
 
-**ミューテーション（バグ注入）検証の実施義務と安全手順（厳守）**: CP-C／CP-D では目視だけに頼らず、能動的にバグ注入検証を行う。実施条件は CP によって異なる（詳細は `checkpoints.md` CP-C／CP-D 該当節、手順は `templates/task-evidence-addendum.md`／`templates/final-scorecard-review-prompt.md`）。
-- **CP-C（徴候ベースで都度実施）**: 期待値が実装ロジックの写しに見える／assert が実装側の定数・内部関数を参照している／テストが実装から期待値を計算している——このような徴候が1つでもあるときのみ実施する。
-- **CP-D（徴候なしでも代表1件スモーク必須）**: 徴候の有無にかかわらず、差分の中心となる代表1テストに1箇所バグを注入し、落ちることを確認する。徴候があれば該当テストにも追加で実施する。注入箇所と結果はスコアカードの証拠に含める。
+**ミューテーション（バグ注入）検証の実施義務と安全手順（厳守）**: CP-C／CP-D では目視だけに頼らず、徴候があるときに能動的にバグ注入検証を行う。実施条件は CP-C／CP-D とも同じ徴候ベースである（詳細は `checkpoints.md` CP-C／CP-D 該当節、手順は `templates/task-evidence-addendum.md`／`templates/final-scorecard-review-prompt.md`）。
+- **CP-C／CP-D 共通（徴候ベース）**: 期待値が実装ロジックの写しに見える／assert が実装側の定数・内部関数を参照している／テストが実装から期待値を計算している——このような徴候が1つでもあるときのみ、該当テストに実施する。徴候が無ければ実施しない。
+- **CP-D の追記事項**: 実施した場合は注入箇所と結果をスコアカードの証拠に含める。徴候が無く未実施の場合はスコアカードに「ミューテーション検証: 徴候なし・未実施」と明記する。
 - **安全手順（実体を汚さない）**: 検証時は**プロジェクトの実体ファイルを決して書き換えない**。対象ファイル群を scratchpad（例 `<scratchpad>/mutation_ws_<タスクスラッグ>/`——並列実装時の衝突防止のためタスクごとに一意名）に**コピーし、そのコピーに対してのみ**バグ注入・テスト実行する（`sys.path` をコピー先に向ける等で実体を汚さない）。ランタイムのモンキーパッチ（実行時に関数を差し替え、`try/finally` で必ず復元）でも可。
 - **事後確認**: いずれの場合も検証後に `md5sum`／`diff` で**実体が無改変であることを確認**し、その旨を報告する。実体を1バイトでも変更したら、たとえ直後に復元しても手続き違反として明記する。
 
@@ -44,10 +44,10 @@ CP-A〜Eのどの段階で呼ばれているかにより、受け取るものと
 1. `scoring.md` を Read（採点基準・Critical即FAIL・CONDITIONAL上限・出力形式の2モード）。
 2. 対象CPの Critical 項目を `~/.claude/skills/tdd-gates/references/checkpoints.md` で確認。
 3. **証拠を自力で再取得・再現**する（貼付ログに依存しない）。`git diff` は自分で取得し、テスト実行は自分で走らせる。各CPの Critical 条件と検証手順は **`checkpoints.md` の該当CP定義（Critical 行）を単一ソース**とし、そこに従って自力再現する。以下は evaluator が特に自分の目で確認すべき勘所（詳細は `checkpoints.md`）:
-   - **CP-C・RED**: 対象テストのみを再実行し（フルスイート不要）実際に失敗するか確認。加えて**テスト本体を Read** し、assert が具体的な期待値/オブジェクトを検証しているかを点検（無意味な失敗パターンの具体列挙は `checkpoints.md` の CP-C「RED の Critical」行を参照）。さらに `git diff` を自ら取得し、変更が**テストファイルのみ**（実装ファイルの変更なし）であることを確認する。
-   - **CP-C・GREEN**: 対象＋全体を再実行し緑を確認。**RED 時に固定したテストと照合**し assert が弱められていないか、`git diff` に過剰実装が無いかを見る。
-   - **CP-C・REFACTOR**: GREEN確定コミット〜現在HEADの`git diff`を自ら取得する。**差分が空ならGREENの全緑結果を援用しフルスイート再実行を省略**してよい。差分がある場合は**テストファイル不変**かつ新規branch/機能の追加が無いことを確認し、全緑を再実行する。
-   - **CP-D**: **偽装テスト**・仕様不適合・既存回帰を検出したら Critical 未達（偽装テストの定義は `checkpoints.md` の CP-D「Critical」行を参照）。
+   - **CP-C・RED**: 実装者が報告した RED コミット SHA を `git worktree add <scratchpad>/red-<タスクスラッグ> <RED_SHA>` で隔離展開し、その中でプロファイル「RED 再現」のコマンドにより対象テストのみを再実行して実際に失敗するか確認する（確認後 `git worktree remove` で片付ける）。加えて**テスト本体を Read** し、assert が具体的な期待値/オブジェクトを検証しているかを点検（無意味な失敗パターンの具体列挙は `checkpoints.md` の CP-C「RED の Critical」行を参照）。さらに `git diff --stat <RED_SHA>^ <RED_SHA>` を自ら取得し、RED コミットの変更が**テストファイルのみ**（実装ファイルの変更なし）であることを確認する。
+   - **CP-C・GREEN**: 対象テストのみを再実行し緑を確認（フルスイートは再実行しない。既存回帰の独立検証は CP-D 手順0 が担う）。**RED 時に固定したテストと照合**し assert が弱められていないか、`git diff` に過剰実装が無いかを見る。
+   - **CP-C・REFACTOR**: GREEN確定コミット〜現在HEADの`git diff`を自ら取得する。**差分が空ならGREENの対象テスト結果を援用し再実行を省略**してよい。差分がある場合は**テストファイル不変**かつ新規branch/機能の追加が無いことを確認し、対象テストを再実行して緑を確認する。
+   - **CP-D**: **偽装テスト**・仕様不適合・既存回帰を検出したら Critical 未達（偽装テストの定義は `checkpoints.md` の CP-D「Critical」行を参照）。既存回帰は Main から渡される手順0 のフルスイートログを `progress.md` のベースラインと照合し、新規 `failed` の有無で判定する。
 4. **CP-A/Bのみ**: 各項目 0–3 点、スコア率と Critical 達成状況から **PASS / CONDITIONAL / FAIL** を決める。**CP-C以降**は PASS/CONDITIONAL/FAIL を使わず、SDD互換の **Spec Compliance形式**（✅/❌/⚠️、Critical/Important/Minor）で判定する（`scoring.md`「CP-C〜F用」）。
 5. **CP-A/Bのみ**: FAIL / CONDITIONAL は**差し戻し指摘を1行ずつ具体的に**返す。再評価の場合は前回スコアカードの差し戻し指摘を1件ずつ引用し、**解消 / 部分解消 / 未解消の3値で逐項目判定**する（証拠つき・scoring.md の判定表形式。部分解消・未解消が残れば PASS 不可）。あわせて**修正差分が新たな問題を混入していないか**を検査し「新規混入」欄に明記する。**CP-C以降**はこの独自カウンタ・逐項目3値判定を適用せず、SDDのラウンド機構（実装者への差し戻し→scoped re-review→ADDRESSED/NOT ADDRESSED判定）に従う。
 

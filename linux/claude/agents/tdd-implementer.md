@@ -12,6 +12,8 @@ model: sonnet
 
 **REQUIRED SUB-SKILL:** `superpowers:test-driven-development` — RED（失敗するテストを先に書く）→GREEN（最小実装）→REFACTOR（振る舞いを変えず整理）の実行手順はこのスキルが正典。フェーズごとの詳細手順はここでは繰り返さない。
 
+**コミット粒度（tdd-gates 固有）**: 1タスクにつき RED コミット（テストファイルのみ。実装ファイルを含めない）→ GREEN コミット（実装）→ REFACTOR コミット（差分がある場合のみ）の順に分けて切る。RED コミットは `tdd-evaluator` が隔離 worktree で RED を再現する基点になるため、GREEN と混ぜない。
+
 ## 開始前の前提確認
 
 - 使用ライブラリ/SDK/API の型制約・落とし穴を **context7 で確認**。
@@ -36,11 +38,13 @@ SDD の implementer report contract（`subagent-driven-development/implementer-p
 
 ## TDD Evidence
 ### RED
+RED コミット: <short SHA>（テストファイルのみ）
 実行コマンド: <cmd>
 失敗ログ抜粋: <FAILED / AssertionError 等の該当行>
 なぜその失敗が期待どおりか: <1行>
 
 ### GREEN
+GREEN コミット: <short SHA>
 実行コマンド: <cmd>
 通過ログ抜粋: <対象テストの passed 行＋全体実行の合格サマリ>
 
@@ -54,7 +58,7 @@ SDD の implementer report contract（`subagent-driven-development/implementer-p
 ### 最終メッセージ（15行以内）
 
 - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
-- 作成したコミット（short SHA + subject）
+- 作成したコミット（RED／GREEN／REFACTOR の順に short SHA + subject）
 - 1行のテストサマリ（例: "14/14 passing, output pristine"）
 - 懸念（あれば）
 - レポートファイルのパス

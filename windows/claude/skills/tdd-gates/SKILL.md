@@ -20,7 +20,7 @@ description: |
    - **対象言語のプロファイルが無い場合**（現状は pytest／browser-manual-e2e の2本）は、`references/profiles/_template.md` から新規プロファイルを起草する。テスト実行コマンドと合格ログ形式を**ユーザーに承認してもらってから**開始する（未定義のまま pytest 前提で進めない。停止時は `references/scoring.md`「停止シグナル」の `profile_undefined` 形式で提示する）。
    - **確定したプロファイルのパスは、各チェックポイントのレビュアーを起動するたびにプロンプトへ必ず明記して渡す**（エージェント側での推測は禁止）。
    - **CP-F（ドキュメント同期）を回すなら、ドキュメントプロファイルも確定する**: プロジェクトの `CLAUDE.md` に宣言があればそれに従う（例「ドキュメントプロファイル: docs-network-tool」）。宣言が無ければ既定の `references/profiles/docs-generic.md` を使ってよいかユーザーに一言確認する（言語プロファイルと異なり`docs-generic`は安全な既定値のため `profile_undefined` 停止は発火しない）。プロファイルが無いドメインは `references/profiles/_template-docs.md` から起草しユーザー承認を得る。
-2. **証拠の記録先（成果物は必ずファイル化する）**: CP-A・CP-B は独自の PASS/CONDITIONAL/FAIL（最大2回の再評価）で完結し、専用の台帳は持たない。ただし `tdd-evaluator` は Bash 書き込みを持たないため、**Main が Quality Gate Report を対象 spec/plan 文書の末尾に追記してから git commit する**（brainstorming/writing-plans が既に commit する文書に相乗りし、新規の台帳ファイルは作らない）。チャット報告のみで終わらせない。**CP-C 以降は SDD（`subagent-driven-development`）の `progress.md` に証拠行（RED/GREEN コマンドと出力）を追記する形に統一**し、**CP-D の集約スコアカードも Main が `progress.md` に書き出す**。tdd-gates 独自の台帳（旧 `.tdd-gates/ledger-*.md`）は作らない。
+2. **証拠の記録先（成果物は必ずファイル化する）**: CP-A・CP-B は独自の PASS/CONDITIONAL/FAIL（最大2回の再評価）で完結し、専用の台帳は持たない。ただし `tdd-evaluator` は Bash 書き込みを持たないため、**Main が Quality Gate Report を対象 spec/plan 文書の末尾に追記してから git commit する**（brainstorming/writing-plans が既に commit する文書に相乗りし、新規の台帳ファイルは作らない）。チャット報告のみで終わらせない。**CP-C 以降は SDD（`subagent-driven-development`）の `progress.md` に証拠行（RED／GREEN コミット SHA、RED/GREEN コマンドと出力）を追記する形に統一**し、**CP-D の集約スコアカードも Main が `progress.md` に書き出す**。**タスクループ開始前に Main がプロファイルの全体実行コマンドを1回実行し、その結果をベースラインとして `progress.md` に記録する**（CP-D 手順0 の比較基準。CP-C の各タスクではフルスイートを再実行しない）。tdd-gates 独自の台帳（旧 `.tdd-gates/ledger-*.md`）は作らない。
 3. **superpowers チェーンを起動**: `superpowers:using-superpowers` の案内どおり `brainstorming` から入り、下記 CP対応表に従って各ステップのレビュアーを差し替える。CP-C 以降のタスク単位の todo は SDD が自前で作成するため、tdd-gates 側で重複して作らない。**brainstormingを経由せず既存のspec/plan文書から再開する場合**（別セッションでCP-A承認済みの場合等）は、対象spec文書のcommit日時以降に参照範囲のコードへ変更が入っていないか`git log`で確認し、変更があれば一言ユーザーに確認する（CP-A再実行ではなく差分有無の軽量チェック）。
 
 ## CP対応表（superpowers チェーンへの寄生地図）
@@ -30,7 +30,7 @@ description: |
 | CP-A 要件ギャップレビュー（旧1） | brainstorming の Spec Self-Review 後・User Review Gate 前に独立エージェントの敵対的検査を挿入。土台は `spec-document-reviewer-prompt.md` への差分追記 | `tdd-evaluator` | tdd-gates独自 PASS/CONDITIONAL/FAIL・最大2回 |
 | CP-B 計画品質レビュー（旧2+3） | writing-plans の Self-Review 後・Execution Handoff 前。土台は `plan-document-reviewer-prompt.md` への差分追記（トレーサビリティ表・3層戦略・small/substantial判定・業務ロジック分離監査を追加） | `tdd-evaluator` | 同上・最大2回 |
 | CP-C タスク証拠検証（旧4-7） | SDD の task-reviewer ディスパッチを差し替え（汎用reviewerでなく`tdd-evaluator`）。UI/UX・security/perfは条件付き追加 | `tdd-evaluator` | SDD純正の5ラウンドfix loopをそのまま使用（独自カウンタは持たない） |
-| CP-D 最終スコアカード（旧8） | SDD Final Review の `code-reviewer.md` を差し替え | `review-*`条件付き2〜5本並列→`tdd-evaluator`集約（ミューテーション検証必須） | SDD純正のFinal Review（1修正波+1 scoped re-review） |
+| CP-D 最終スコアカード（旧8） | SDD Final Review の `code-reviewer.md` を差し替え | Mainがフルスイート1回（手順0）→`review-*`条件付き2〜5本並列→`tdd-evaluator`集約（徴候時はミューテーション検証必須） | SDD純正のFinal Review（1修正波+1 scoped re-review） |
 | CP-E CI品質ゲート整備（旧9・条件付き） | writing-plans が条件を満たせば末尾タスクとして自動追加 | 実装=`doc-updater`、レビュー=`tdd-evaluator` | SDD純正の5ラウンドloop |
 | CP-F ドキュメント同期（旧10・条件付き） | 同上、CI整備タスクの後。選択したドキュメントプロファイルのカテゴリ表を参照し、トリガー条件該当カテゴリのみ対象 | 実装=`doc-updater`、レビュー=`doc-verifier` | SDD純正の5ラウンドloop |
 

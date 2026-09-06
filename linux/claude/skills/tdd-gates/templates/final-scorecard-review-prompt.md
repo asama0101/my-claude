@@ -4,6 +4,10 @@
 
 SDD の「## Final Review」は既定で `code-reviewer.md` を単独ディスパッチする。CP-D はこの単独ディスパッチを、**review-*（条件付き2〜5本）の並列起動 + `tdd-evaluator` 集約**に丸ごと差し替える。本ファイルは土台テンプレの本文を複製せず、差し替え後の手順のみを記述する（各 reviewer の詳細チェックリストは `~/.claude/agents/review-*.md` と `~/.claude/agents/references/review.md` が正典）。
 
+## 手順0: フルスイート1回（Main が実施）
+
+review-* を起動する前に、Main が対象言語プロファイルの全体実行コマンド（例 `pytest.md` の `pytest -q`）を1回実行し、出力を scratchpad の `[FULL_SUITE_LOG]` にファイル化する。判定は「起動時に `progress.md` へ記録したベースライン比で新規 `failed` が 0」。CP-C では各タスクのフルスイートを再実行しないため、既存回帰の独立検証はこの1回が担う。新規 `failed` があれば集約時に Critical（既存回帰）となる。
+
 ## 手順1: 並列ディスパッチ（Main が実施）
 
 `superpowers:dispatching-parallel-agents` の機構に従い、次のエージェントを**同一メッセージ内で並列**に起動する。逐次起動しない。
@@ -23,25 +27,23 @@ scratchpad/reviews/<タスクスラッグ>-cp-d-<dimension>.md
 
 ## 手順2: 集約（tdd-evaluator が実施）
 
-Main は `tdd-evaluator` を起動し、上記の起動された全ファイル（2〜5本）のパス一覧を渡す。その際 description は `"CP-D: Aggregate and score review files"` とする。`tdd-evaluator` は次を行う。
+Main は `tdd-evaluator` を起動し、上記の起動された全ファイル（2〜5本）のパス一覧と手順0 の `[FULL_SUITE_LOG]` のパスを渡す。その際 description は `"CP-D: Aggregate and score review files"` とする。`tdd-evaluator` は次を行う。
 
 1. 渡されたファイルすべてを自ら Read する（Main による要約・選別を経由しない）。
 2. 所見ファイル数がMainから伝えられた起動本数（2〜5本）と一致するか照合する。不足があれば採点せず、不足次元を明記して Main に差し戻す。
 3. `~/.claude/skills/tdd-gates/references/scoring.md`「スコアカード出力形式（CP-C〜F用）」の Spec Compliance 形式に集約する。起動した次元（常時: 正確性／テスト品質。条件付き: 保守性／セキュリティ／性能）それぞれの所見を反映する。
-4. Critical 判定基準は `~/.claude/skills/tdd-gates/references/checkpoints.md` CP-D の Critical 行（仕様不適合／既存回帰／偽装テスト検出）に従う。
+4. Critical 判定基準は `~/.claude/skills/tdd-gates/references/checkpoints.md` CP-D の Critical 行（仕様不適合／既存回帰／偽装テスト検出）に従う。既存回帰は `[FULL_SUITE_LOG]` を `progress.md` のベースラインと照合し、新規 `failed` の有無で判定する。
 5. 集約後のスコアカードは Main が `progress.md` にも書き出す（`tdd-evaluator` は Bash 書き込みを持たないため。チャット報告のみで終わらせない）。
 
 ## 手順3: ミューテーション検証（tdd-evaluator が実施）
 
 偽装テスト検出のため、目視に加えて能動的なバグ注入検証を行う。
 
-- **実施条件**:
-  - **必須**: 期待値が実装ロジックの写しに見える／assert が実装側の定数・内部関数を参照している／テストが実装から期待値を計算している——このような徴候が1つでもあるとき。
-  - **スモーク**: 徴候が無くても、差分の中心となる代表1テストに1箇所バグを注入し、落ちることを確認する。
+- **実施条件**: 期待値が実装ロジックの写しに見える／assert が実装側の定数・内部関数を参照している／テストが実装から期待値を計算している——このような徴候が1つでもあるとき、該当テストに実施する。徴候が無ければ実施せず、スコアカードに「ミューテーション検証: 徴候なし・未実施」と明記する。
 - **安全手順（実体を汚さない）**: 対象ファイル群を scratchpad（例 `scratchpad/mutation_ws_<タスクスラッグ>/`）に**コピー**し、コピーに対してのみバグ注入・テスト実行する。プロジェクトの実体ファイルは一切書き換えない。
 - **事後確認**: 検証後に `md5sum`／`diff` で実体ファイルが無改変であることを確認し、その旨をスコアカードの証拠に含める。
 
-（この検証手順は `~/.claude/agents/tdd-evaluator.md` に既に定義されている内容と同一である——CP-D 用に新設する手順ではなく、CP-D で必ず実施することをここで明記する。）
+（この検証手順は `~/.claude/agents/tdd-evaluator.md` に既に定義されている内容と同一である——CP-D 用に新設する手順ではなく、CP-D でも同じ徴候ベースで実施することをここで明記する。）
 
 ## リトライ機構
 
@@ -51,4 +53,5 @@ SDD 純正の Final Review（1修正波 + 1 scoped re-review、adjudicate residu
 
 - `[BASE_SHA]` / `[HEAD_SHA]`: 土台テンプレと同じ
 - `[TASK_SLUG]`: 所見ファイル名に使う一意スラッグ
+- `[FULL_SUITE_LOG]`: 手順0 のフルスイート出力ファイルのパス（既定名 `reviews/[TASK_SLUG]-cp-d-fullsuite.log`）
 - 対象言語プロファイルのパス（review-test・review-performance が実行コマンドを把握するため）
