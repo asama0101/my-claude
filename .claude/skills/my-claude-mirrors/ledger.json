@@ -173,5 +173,19 @@
     "windows_hash": "c291306005f4e8f94134cbdf1662d1707d530a94a75e8a9be151e82794086341",
     "reason": "Windows(Git Bash)対応(to_posix()によるパス正規化・CP932ロケール対応・can_create_branch()のWindows実機限界コメント)はwindows側のみの意図的差分。CLAUDE_MAIN_BRANCH_GUARD_BYPASS撤廃の経緯コメントはユーザー確認により両OS側で同一の文面(旧main-branch-guard.shには同種機構がありセキュリティレビューで撤廃、現行ファイルには同名の変数実装は存在しない)に統一済み",
     "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/branch-guard.sh",
+    "linux_hash": "c14ff52bf729494cc99304ebe3f9338766e504b893dcdfae2f3dca83740355c9",
+    "windows_hash": "dff0c987e072c2b8f88133038551609656ba776a399fe79fa7ac6b4b8d6c275d",
+    "reason": "grep誤検知修正(is_readonly_search_pipeline)はlinux側にも移植済み。Windows(Git Bash)対応(to_posix()によるパス正規化、CP932ロケール向けLC_ALL設定、can_create_branch/CLAUDE_MAIN_BRANCH_GUARD_BYPASS関連コメント差異)はwindows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/branch-guard.test.sh",
+    "linux_hash": "dced57cc3727c8b93a584be79f25ef5882f8a0c55b405c799c44db445e883131",
+    "windows_hash": "2e26bb9a86f78c7b098f0730cd9737e0d9d991e13975774b1df25946ecb50a45",
+    "reason": "grep誤検知修正の回帰テスト4件はlinux側にも移植済み。can_create_branch()のWindows(NTFS)実効限界に関する補足コメントはwindows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
   }
 ]
