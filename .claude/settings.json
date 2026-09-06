@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git fetch origin --quiet 2>/dev/null; LOCAL=$(git rev-parse @ 2>/dev/null); REMOTE=$(git rev-parse \"@{u}\" 2>/dev/null); BASE=$(git merge-base @ \"@{u}\" 2>/dev/null); if [ -n \"$LOCAL\" ] && [ -n \"$REMOTE\" ] && [ \"$LOCAL\" != \"$REMOTE\" ]; then if [ \"$LOCAL\" = \"$BASE\" ]; then if git pull --ff-only --quiet 2>/dev/null; then echo \"{\\\"systemMessage\\\": \\\"リモートの更新をpullしました\\\"}\"; else echo \"{\\\"systemMessage\\\": \\\"リモートに更新がありましたがpullに失敗しました（手動確認してください）\\\"}\"; fi; else echo \"{\\\"systemMessage\\\": \\\"ローカルとリモートが分岐しています（手動マージ/リベースが必要です）\\\"}\"; fi; fi",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

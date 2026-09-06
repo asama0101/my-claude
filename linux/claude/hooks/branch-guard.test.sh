@@ -158,6 +158,20 @@ mkdir -p "$R_UNBORN"
 git -C "$R_UNBORN" -c init.defaultBranch=main init -q
 run_bash 'rm out.txt' "$R_UNBORN"; assert_exit 2 "$?" "未出生ブランチ(コミット0件)でもmain判定される"
 
+# ── grep系の読み取り専用パイプラインは誤検知させず許可する(検索パターン文字列に
+#    "git commit"等の語が偶然含まれていても実コマンドとして誤検知しない) ──
+run_bash 'grep -n "git commit\|git rm" f.txt 2>/dev/null | head -40' "$REPO"
+assert_exit 0 "$?" "grep+パイプ内の疑似コマンド文字列は誤検知しない"
+run_bash 'grep pattern file.txt' "$REPO"; assert_exit 0 "$?" "grep単体は許可"
+run_bash 'egrep "a|b" f.txt | sort | uniq' "$REPO"; assert_exit 0 "$?" "grep系+安全フィルタの連結は許可"
+run_bash 'rg pattern . 2>/dev/null | wc -l' "$REPO"; assert_exit 0 "$?" "rg+wcは許可"
+
+# ── 許可リストは狭く保つ: 連結・リダイレクト・非フィルタへのパイプは従来通りブロック ──
+run_bash 'grep pattern file.txt; rm out.txt' "$REPO"; assert_exit 2 "$?" "grep後に;で実コマンド連結はブロック"
+run_bash 'grep pattern file.txt && rm out.txt' "$REPO"; assert_exit 2 "$?" "grep後に&&で実コマンド連結はブロック"
+run_bash 'grep pattern file.txt > out.txt' "$REPO"; assert_exit 2 "$?" "grepの結果を実ファイルへリダイレクトはブロック"
+run_bash 'bash -c "git commit -m x"' "$REPO"; assert_exit 2 "$?" "クォート内に隠れた実git commitは引き続き検知する"
+
 chmod -R u+w "$SCRATCH" 2>/dev/null
 rm -rf "$SCRATCH"
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "SOME TESTS FAILED"; exit 1; }
