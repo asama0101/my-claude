@@ -46,3 +46,5 @@
 - **`my-claude-pull` スキルはコピーのみ行う**: 同期後の変更内容は `git status` で確認し、commit・push が必要なら `/pr-create` を使うこと
 - **別環境セットアップ・実機反映は `my-claude-push` スキルで行う**（`install.sh` は廃止）: 展開時は `projects/`・`sessions/`・`logs/`・`settings.local.json` 等の環境固有資産に一切触れないホワイトリスト方式を守り、差分のある既存ファイルは上書き前にバックアップへ退避する
 - **`my-claude-push` は rsync/robocopy に依存しない**: Claude Code が Read/Write ツールで直接ファイル操作するため、展開先環境に rsync/robocopy が無くても実行できる。`my-claude-pull` スキルの `sync-linux.sh` は引き続き rsync を使用する非対称設計
+- **`my-claude-push`実行時、`$CLAUDE_HOME`へのBash書き込み（mkdir/cp/リダイレクト等）はbranch-guardにブロックされる**: mainブランチ上のBash変更系コマンドは「対象パスが全てプロジェクト外かつ`$CLAUDE_HOME`外」の場合のみ除外されるが、`$CLAUDE_HOME`自体はこの条件を満たさない。バックアップ退避・書き込みはWrite/Editツール（`$CLAUDE_HOME`への書き込みはworkspace-guardで許可済み）で行うこと
+- **`my-claude-pull`実行後の`git status`はCRLF/LF差分で`M`が多発することがある**: 実質差分は`git diff --stat`で確認し、`git status`の`M`件数を鵜呑みにしない
