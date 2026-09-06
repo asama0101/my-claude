@@ -103,5 +103,89 @@
     "windows_hash": "9facfc7b03e032e1bedc508a594b44fe57ad466b48d4d1157830e9a5ae1f2b0f",
     "reason": "Windows固有のpermission(ppk/pfx/p12/Credentials/gcloud/SAM/NTUSER.DAT等の保護)・PowerShellツール許可・theme:dark(Windows環境の個人設定)・plugins(code-review, playwright)有効化・WebFetch ask解除(windows実機で既に解除済み、commit d7e0ce1と同じ意図的差分)はwindows側のみの意図的差分(ファイル全体ハッシュが変化したため再記録)",
     "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/branch-guard.sh",
+    "linux_hash": "a894c728314f6090481d7e450eb87d5f9c3b6bee11297e5ad99ec0ceceabce8c",
+    "windows_hash": "eaa0802998b39e6b2d7aa426628729ec05b77f22042b9ab6ebfad13703d5ae28",
+    "reason": "commit dee6b35(2026-09-04): Windows実機のjq消失事故を受けたjq→node化。コメント文言をjq→nodeに差し替え、既知の限界セクション(sync.shラッパー検知不能・can_create_branch()のWindows/NTFS限界)を追記。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/branch-guard.test.sh",
+    "linux_hash": "0065aab4eb719722b1818a6392f6cd2fdd69882eaa445a6d72cca4806c9b5c36",
+    "windows_hash": "41e98d7a2098da32e70950f2ebf0d24a68cfceabf1c955fed9523b6a2b93b8f7",
+    "reason": "commit dee6b35(2026-09-04): jqの代替であるjson_build()(node -e、key=value形式からJSON組立)をテストヘルパーとして追加。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/system-guard.sh",
+    "linux_hash": "5c7262bed4ce8efe1bc6d0c7e92a7b204c3286ddd90a174c98981e18da740c71",
+    "windows_hash": "982055daec39787c23409af862fc471dc5e28caf7ca727fe5fdf7ae1791c5920",
+    "reason": "commit dee6b35(2026-09-04): jq呼び出しをhooks/lib/json-field.shのjson_field()/has_json_backend()に置き換えnode単体で動作するよう変更。Git Bash向けLC_ALL設定(grep -Pのロケール失敗対策)も追加。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/system-guard.test.sh",
+    "linux_hash": "c3c8d59eef50115ba841a01b0d1443465f2c9bf33657229294416d745356b3e2",
+    "windows_hash": "c25803c18e7735b28bf4f56b880aba5a251a535cdc21d071cde78451e989b42e",
+    "reason": "commit dee6b35(2026-09-04): jqの代替json_build()(node -e)をテストヘルパーとして追加。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/venv-guard.sh",
+    "linux_hash": "13a83b7677509a8ac65f9db98c495a886a9f977bcbb8d8259bd8e1f60555cab6",
+    "windows_hash": "331b455bb2da12c7fc55ab9d4698d8273813cb4d0d613191c915449f8494e4d2",
+    "reason": "commit dee6b35(2026-09-04): jq→json_field()化に加え、Git Bash向けto_posix()(VIRTUAL_ENV/pwdのパス正規化)とLC_ALL設定を追加。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/venv-guard.test.sh",
+    "linux_hash": "bc7752146d625afa4a788316af30c2e68ea46016631af3cac00bb49f23f13b33",
+    "windows_hash": "358e30acda0a874f5d58a15b2cc0d36f8e3dfd003b6027ea1cae631d449cdb1a",
+    "reason": "commit dee6b35(2026-09-04): jqの代替json_build()(node -e)をテストヘルパーとして追加。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/workspace-guard.sh",
+    "linux_hash": "5aae17db7c123350e301a6dcab895d8b6291f0653c1e2b62630970b8a21a88ca",
+    "windows_hash": "e6e26ab0a03fac8ca25106f32e51deadd75150e221075561090ebd92d92341a3",
+    "reason": "commit dee6b35(2026-09-04): jq→json_field()化。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/workspace-guard.test.sh",
+    "linux_hash": "cfb7352709fb4c40b9d8de620615e865a43f104230ac52ab554e21280a327055",
+    "windows_hash": "9a4f50c6e350d91f49b6f5cb9f77d31b5dccd27757963c128ead5d593acdedcf",
+    "reason": "commit dee6b35(2026-09-04): jqの代替json_build()(node -e)追加とMSYS_NO_PATHCONV設定(Git BashによるPOSIXパス自動変換の無効化)を追加。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "rules/hooks.md",
+    "linux_hash": "bc6f8d9da44260d9b03f4a0372a51207fdf6511e566e117362a3c1bf0ddb49f0",
+    "windows_hash": "e6cb32258c86c22e96a4d55cb306f14ee3a12d751d60dc4ffb5bf3116d225094",
+    "reason": "commit dee6b35(2026-09-04): system-guard.sh/workspace-guard.sh説明の「jq不在時fail-close」を「node不在時fail-close」等に更新(windows側の実態を反映)。linux側は実際にjqへ依存しているため記述はjqのまま。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "statusline-command.sh",
+    "linux_hash": "f52be4b0971547602fb2c6675c00c8f2cfd788ca82b2b852f3ab97dd462a4a99",
+    "windows_hash": "9ee3d06ccaffbb100191395e2d803818cc050f5bb0bc2b94537ec61aac06cc20",
+    "reason": "commit dee6b35(2026-09-04): Windows実機でjqがPATH上から消失しstatuslineが空欄表示に壊れた事故を受け、jq呼び出しをhooks/lib/json-field.shのjson_fields()に置き換え。linux側は実機にjqが正常存在するため未変更。windows側のみの意図的差分",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/lib/json-field.sh",
+    "linux_hash": "",
+    "windows_hash": "8c3f65b907fbc52c951f17cdc4cc79530d705a9d68971706436a8a0a7569a768",
+    "reason": "commit dee6b35(2026-09-04): jqの代替となるnode製JSON抽出ライブラリ(json_field()/json_fields()/has_json_backend())。windows側のみに新規追加され、linux側は既存のjq利用を継続するため存在しない。only_in_windowsとして許容",
+    "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "hooks/lib/json-field.test.sh",
+    "linux_hash": "",
+    "windows_hash": "35df335b90c44fb9259b00bb8b8d26a2a7f87cbcc3667ec335de5e4c8762c483",
+    "reason": "commit dee6b35(2026-09-04): 上記hooks/lib/json-field.shのテスト。windows側のみに新規追加。only_in_windowsとして許容",
+    "recorded_at": "2026-09-06"
   }
 ]
