@@ -41,10 +41,8 @@ CLAUDE.mdのGotchas「`linux/claude/`・`windows/claude/` を直接編集しな�
    「許容」を選んだ場合、存在する側のハッシュだけを記録し、存在しない側は空文字にする（`detect-diffs.sh` はこの空文字を「そちら側には無くてよい」の意味として扱う）:
    ```bash
    # only_in_windows の例（linux側には存在しない）
-   jq --arg f "<file>" --arg wh "$(tr -d '\r' < windows/claude/<file> | sha256sum | cut -d' ' -f1)" --arg r "<理由>" --arg d "$(date +%F)" \
-     '. + [{file:$f, linux_hash:"", windows_hash:$wh, reason:$r, recorded_at:$d}]' \
-     <スキルディレクトリ>/ledger.json > <スキルディレクトリ>/ledger.json.tmp \
-     && mv <スキルディレクトリ>/ledger.json.tmp <スキルディレクトリ>/ledger.json
+   node <スキルディレクトリ>/scripts/lib/append-ledger.js \
+     <スキルディレクトリ>/ledger.json "<file>" "" "$(tr -d '\r' < windows/claude/<file> | sha256sum | cut -d' ' -f1)" "<理由>"
    ```
    空ディレクトリの場合はハッシュ自体が無意味なので `linux_hash`/`windows_hash` を両方空文字にし、ファイルパス一致のみで照合される。
 
@@ -60,10 +58,8 @@ CLAUDE.mdのGotchas「`linux/claude/`・`windows/claude/` を直接編集しな�
 
 5. **Dを選んだ場合**: 台帳に追記する。既存エントリは残したまま追記する（上書きしない。これがそのまま変更履歴になる）:
    ```bash
-   jq --arg f "<file>" --arg lh "<linux_hash>" --arg wh "<windows_hash>" --arg r "<理由>" --arg d "$(date +%F)" \
-     '. + [{file:$f, linux_hash:$lh, windows_hash:$wh, reason:$r, recorded_at:$d}]' \
-     <スキルディレクトリ>/ledger.json > <スキルディレクトリ>/ledger.json.tmp \
-     && mv <スキルディレクトリ>/ledger.json.tmp <スキルディレクトリ>/ledger.json
+   node <スキルディレクトリ>/scripts/lib/append-ledger.js \
+     <スキルディレクトリ>/ledger.json "<file>" "<linux_hash>" "<windows_hash>" "<理由>"
    ```
 
 6. 「コピー」「削除」を選んだ `only_in_*` エントリも実際にファイル操作を行う。

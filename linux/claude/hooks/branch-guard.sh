@@ -12,7 +12,7 @@
 #   1) gitコマンド自体が無い                       → 何もしない(fail-open。
 #      get_branchがgit呼び出し失敗時に空文字を返しis_protectedがfalseになるため
 #      保護は効かないが、そもそもgitが無ければ変更操作自体が実行不能なため実害は
-#      限定的。jq欠如とは異なりfail-closeにしない)
+#      限定的。node欠如とは異なりfail-closeにしない)
 #   2) gitはあるがこのディレクトリはリポジトリでない   → 無条件許可
 #   3) detached HEAD                                → 無条件許可(get_branchが
 #      空文字を返しis_protectedがfalseになる。どのブランチにも属さないコミットに
@@ -22,18 +22,27 @@
 #      $CLAUDE_HOME配下のログへ毎回記録=監査証跡)
 #   6) main/master以外の通常ブランチ                  → 無条件許可
 #
-# 旧main-branch-guard.shにあったCLAUDE_MAIN_BRANCH_GUARD_BYPASS環境変数バイパスは
-# 廃止した(セキュリティレビューで指摘されたCRITICAL: 設定ファイル/シェルRC経由の
-# 間接的自己バイパス経路の温床だったため。.git書込み権限の自動検知に置き換えることで
-# この経路自体が構造的に無くなる)。
+# 旧main-branch-guard.shには同種のバイパス機構があり、セキュリティレビューで指摘された
+# CRITICAL(設定ファイル/シェルRC経由の間接的自己バイパス経路の温床だったため)を受けて
+# 廃止した。CLAUDE_MAIN_BRANCH_GUARD_BYPASSという環境変数名としては現行のbranch-guard.sh
+# に実装は存在しない。.git書込み権限の自動検知に一本化することで、この種のバイパス経路が
+# 構造的に生まれない設計になっている。
 #
 # shutil.rmtree は system-guard.sh がブランチに関係なく常時無条件ブロックするため、
 # ここには含めない（含めても到達不能な重複ロジックになるため）。find -delete/
 # rsync --delete は workspace-guard.sh の対象外(ゾーン判定はWrite/Edit系のみに
 # 縮小済み)のため、保護ブランチ上でのプロジェクト内破壊を防ぐにはこちらで対象に
 # 含める必要がある。
+#
+# 既知の限界:
+#   - scripts/sync.sh のようなラッパースクリプトの呼び出し自体は、Bash に渡る文字列が
+#     スクリプト名のみで内部コマンドが見えないため検知できない。リダイレクト検知は
+#     `2>/dev/null` 等の破棄リダイレクトは除外済みだが、それ以外の文字列中に "> " を
+#     含む read-only コマンド（grep等）は誤検知しうる（system-guard.sh / workspace-guard.sh
+#     と同種の制約。回避は Read）。
 
-command -v jq >/dev/null 2>&1 || { echo "❌ branch-guard: jq not found, failing closed" >&2; exit 2; }
+source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
+has_json_backend || { echo "❌ branch-guard: node not found, failing closed" >&2; exit 2; }
 
 CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
@@ -43,7 +52,7 @@ log_warn_allow() {  # $1=branch $2=target
 }
 
 INPUT=$(cat)
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
+TOOL=$(json_field "$INPUT" tool_name)
 
 # git 管理下でなければ空文字を返す。symbolic-ref ベースなので、同名タグの併存や
 # 未出生ブランチ（コミット0件）でも rev-parse --abbrev-ref HEAD のように誤動作しない。
@@ -103,12 +112,16 @@ bash_targets_outside_project() {
   if [ "$first" = "sed" ]; then
     printf '%s' "$cmd" | grep -qP -- '-i\b' || return 1
   fi
+  # 改行は tr で許可集合外の \v に変換してから判定する（grep は行単位評価のため
+  # 生の改行は素通りし、複数行コマンドの2行目以降が無検査になる穴を防ぐ）。
   printf '%s' "$cmd" | tr '\n' '\v' | grep -qP '[^A-Za-z0-9 \t_./-]' && return 1
   printf '%s' "$cmd" | grep -qiP '\bcd\b' && return 1
   set -f
   for tok in $cmd; do
     idx=$((idx + 1))
-    if [ "$idx" -eq 1 ]; then continue; fi
+    if [ "$idx" -eq 1 ]; then continue; fi   # コマンド名は先頭トークン(位置)でスキップ。
+                                              # 値一致だと「コマンド名と同名の引数」
+                                              # (例: cp /tmp/x cp)を誤ってスキップする。
     case "$tok" in
       -*) continue ;;
     esac
@@ -122,6 +135,124 @@ bash_targets_outside_project() {
   done
   set +f
   [ "$had_target" -eq 1 ]
+}
+
+# grep系コマンド単体（または安全な読み取り専用フィルタへのパイプのみ）かどうかを判定する。
+# grep等の引数（検索パターン文字列）は任意のテキストであり、"git commit"等の実コマンドと
+# 同じ語を偶然含んでいてもデータであって実行されない。しかしMUTATING_PATTERNSは単純な
+# 部分文字列マッチのため、クォート内のデータかどうかを区別できず誤検知する
+# （例: grep -n "git commit\|git rm" file.txt | head）。
+# 一方で "bash -c \"git commit\"" のようにクォート内テキストが実際にシェル実行される
+# ケースもあるため、単純にクォートを除去して判定することはできない（新たな見逃しを生む）。
+# そのため「grep系コマンドが単体、または ; && | 等の連結なしに安全なフィルタ
+# （head/tail/wc/sort/uniq/cut/tr/cat/less/nl/rev/tac）にのみパイプされている」という
+# 狭い形にのみ許可を限定し、それ以外（連結・非/dev/nullリダイレクト・awk/sed等の
+# コード実行手段を持つコマンドへのパイプ・クォート未閉鎖等）は判定不能として
+# 従来通りの全チェックにフォールバックする（fail-closed）。
+read -r -d '' _READONLY_SEARCH_JS <<'JSEOF' || true
+var data = "";
+process.stdin.on("data", function (c) { data += c; });
+process.stdin.on("end", function () {
+  var cmd = data;
+  var SEARCH_CMDS = ["grep", "egrep", "fgrep", "rg"];
+  var SAFE_FILTERS = ["head", "tail", "wc", "sort", "uniq", "cut", "tr", "cat", "less", "nl", "rev", "tac"];
+
+  function isReadonlySearchPipeline(cmd) {
+    var i = 0, n = cmd.length;
+    var inSingle = false, inDouble = false;
+    var segments = [];
+    var wordBuf = "", wordStarted = false, wordDone = false, wordHadQuote = false;
+
+    function pushSegmentWord() {
+      segments.push({ word: wordBuf, hadQuote: wordHadQuote });
+      wordBuf = ""; wordStarted = false; wordDone = false; wordHadQuote = false;
+    }
+
+    function consumeRedirectTarget() {
+      // i は現在 '>' を指している。'>>' の2文字目、'&N'（fd複製）、
+      // または '/dev/null' のみ許可する。
+      i++;
+      if (cmd[i] === ">") i++;
+      if (cmd[i] === "&") {
+        i++;
+        var start = i;
+        while (i < n && /[0-9]/.test(cmd[i])) i++;
+        if (i === start) return false;
+        return true;
+      }
+      while (i < n && /\s/.test(cmd[i])) i++;
+      var target = cmd.slice(i, i + "/dev/null".length);
+      if (target !== "/dev/null") return false;
+      i += target.length;
+      if (i < n && !/[\s;&|]/.test(cmd[i])) return false;
+      return true;
+    }
+
+    while (i < n) {
+      var ch = cmd[i];
+
+      if (inSingle) {
+        if (ch === "'") { inSingle = false; i++; continue; }
+        if (!wordDone) { wordBuf += ch; wordStarted = true; }
+        i++; continue;
+      }
+      if (inDouble) {
+        if (ch === "\\") { i += 2; if (!wordDone) { wordBuf += ch; } continue; }
+        if (ch === '"') { inDouble = false; i++; continue; }
+        if (!wordDone) { wordBuf += ch; wordStarted = true; }
+        i++; continue;
+      }
+
+      if (ch === "\\") { i += 2; continue; }
+      if (ch === "'") {
+        if (!wordDone) wordHadQuote = true;
+        inSingle = true; i++; continue;
+      }
+      if (ch === '"') {
+        if (!wordDone) wordHadQuote = true;
+        inDouble = true; i++; continue;
+      }
+      if (ch === "`") return false;
+      if (ch === "$" && cmd[i + 1] === "(") return false;
+      if (ch === "<") return false;
+      if (ch === ";") return false;
+      if (ch === "\n") return false;
+      if (ch === "&") return false;
+      if (ch === "|") {
+        if (cmd[i + 1] === "|") return false;
+        pushSegmentWord();
+        i++; continue;
+      }
+      if (ch === ">") {
+        if (!consumeRedirectTarget()) return false;
+        continue;
+      }
+      if (/\s/.test(ch)) {
+        if (wordStarted) wordDone = true;
+        i++; continue;
+      }
+      if (!wordDone) { wordBuf += ch; wordStarted = true; }
+      i++; continue;
+    }
+    if (inSingle || inDouble) return false;
+    pushSegmentWord();
+
+    if (segments.length === 0) return false;
+    if (segments[0].hadQuote || segments[0].word === "") return false;
+    if (SEARCH_CMDS.indexOf(segments[0].word) === -1) return false;
+    for (var s = 1; s < segments.length; s++) {
+      if (segments[s].hadQuote || segments[s].word === "") return false;
+      if (SAFE_FILTERS.indexOf(segments[s].word) === -1) return false;
+    }
+    return true;
+  }
+
+  process.exit(isReadonlySearchPipeline(cmd) ? 0 : 1);
+});
+JSEOF
+
+is_readonly_search_pipeline() {
+  printf '%s' "$1" | node -e "$_READONLY_SEARCH_JS" >/dev/null 2>&1
 }
 
 # main/master保護時の共通処理: .git書込み権限があればブロック、無ければ
@@ -141,7 +272,7 @@ handle_protected() {  # $1=dir $2=branch $3=target(表示用)
 
 case "$TOOL" in
   Write | Edit | MultiEdit | NotebookEdit)
-    FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
+    FILE=$(json_field "$INPUT" tool_input.file_path tool_input.notebook_path)
     [ -z "$FILE" ] && exit 0
     ABS=$(realpath -m "$FILE" 2>/dev/null) || ABS="$FILE"
     DIR=$(dirname -- "$ABS")
@@ -151,21 +282,25 @@ case "$TOOL" in
     fi
     ;;
   Bash)
-    CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
+    CMD=$(json_field "$INPUT" tool_input.command)
     PROJECT_DIR=$(pwd)
 
+    # grep系の読み取り専用パイプラインは、ブランチに関わらず無条件許可する
+    # （検索パターン文字列中の疑似コマンド語による誤検知を避けるため）。
+    is_readonly_search_pipeline "$CMD" && exit 0
+
     MUTATING_PATTERNS=(
-      '\b(rm|rmdir|unlink)\b'
-      '\bgit\s+rm\b'
-      '\bgit\s+commit\b'
-      '>>?(?!&)[[:space:]]*(?!/dev/null\b)[^[:space:]]'
+      '\b(rm|rmdir|unlink)\b'                       # 削除
+      '\bgit\s+rm\b'                                 # git rm
+      '\bgit\s+commit\b'                             # git commit（--amend含む）
+      '>>?(?!&)[[:space:]]*(?!/dev/null\b)[^[:space:]]' # リダイレクト書き込み（先頭境界不要。2>&1等のfd複製・/dev/null宛の破棄は除外）
       '\btee\b'
       '\bcp\b'
       '\bmv\b'
       '\btouch\b'
-      'sed\s+-i'
-      '\bfind\b.*-delete\b'
-      '\brsync\b.*--del(ete)?\b'
+      'sed\s+-i'                                     # sed インプレース編集
+      '\bfind\b.*-delete\b'                          # find -delete（workspace-guard側は対象外）
+      '\brsync\b.*--del(ete)?\b'                      # rsync --delete/--del（同上）
     )
 
     is_mutating=0

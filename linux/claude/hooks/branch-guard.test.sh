@@ -13,17 +13,36 @@ git -C "$REPO" branch -M main
 CLAUDE_HOME_TEST="$SCRATCH/claude_home"
 mkdir -p "$CLAUDE_HOME_TEST"
 
+# key=value / key.sub=value 形式の引数からJSONを組み立てる(jqの代替)。
+json_build() {
+  node -e '
+    var out = {};
+    process.argv.slice(1).forEach(function (kv) {
+      var i = kv.indexOf("=");
+      var path = kv.slice(0, i), val = kv.slice(i + 1);
+      var keys = path.split(".");
+      var cur = out;
+      for (var j = 0; j < keys.length - 1; j++) {
+        cur[keys[j]] = cur[keys[j]] || {};
+        cur = cur[keys[j]];
+      }
+      cur[keys[keys.length - 1]] = val;
+    });
+    process.stdout.write(JSON.stringify(out));
+  ' "$@"
+}
+
 LAST_STDERR=""
 run_bash() {  # $1=command $2=repo
   local input repo="$2"
-  input=$(jq -n --arg cmd "$1" '{tool_name:"Bash", tool_input:{command:$cmd}}')
+  input=$(json_build tool_name=Bash tool_input.command="$1")
   LAST_STDERR=$(printf '%s' "$input" | (cd "$repo" && CLAUDE_CONFIG_DIR="$CLAUDE_HOME_TEST" bash "$HOOK") 2>&1 >/dev/null)
   return $?
 }
 
 run_write() {  # $1=file_path $2=repo
   local input repo="$2"
-  input=$(jq -n --arg fp "$1" '{tool_name:"Write", tool_input:{file_path:$fp}}')
+  input=$(json_build tool_name=Write tool_input.file_path="$1")
   LAST_STDERR=$(printf '%s' "$input" | (cd "$repo" && CLAUDE_CONFIG_DIR="$CLAUDE_HOME_TEST" bash "$HOOK") 2>&1 >/dev/null)
   return $?
 }
@@ -101,8 +120,8 @@ fi
 # ── (1) gitコマンド自体が無い環境は fail-open ──
 BASH_BIN=$(command -v bash)
 NOGIT_BIN=$(mktemp -d)
-for bin in jq grep cat; do p=$(command -v "$bin" 2>/dev/null) && ln -sf "$p" "$NOGIT_BIN/$bin"; done
-input=$(jq -n --arg cmd 'rm out.txt' '{tool_name:"Bash", tool_input:{command:$cmd}}')
+for bin in grep cat node; do p=$(command -v "$bin" 2>/dev/null) && ln -sf "$p" "$NOGIT_BIN/$bin"; done
+input=$(json_build tool_name=Bash tool_input.command='rm out.txt')
 printf '%s' "$input" | (cd "$REPO" && PATH="$NOGIT_BIN" CLAUDE_CONFIG_DIR="$CLAUDE_HOME_TEST" "$BASH_BIN" "$HOOK") >/dev/null 2>&1
 assert_exit 0 "$?" "(1) gitコマンド自体が無い環境はfail-open"
 rm -rf "$NOGIT_BIN"
@@ -138,6 +157,20 @@ R_UNBORN="$SCRATCH/repo_unborn"
 mkdir -p "$R_UNBORN"
 git -C "$R_UNBORN" -c init.defaultBranch=main init -q
 run_bash 'rm out.txt' "$R_UNBORN"; assert_exit 2 "$?" "未出生ブランチ(コミット0件)でもmain判定される"
+
+# ── grep系の読み取り専用パイプラインは誤検知させず許可する(検索パターン文字列に
+#    "git commit"等の語が偶然含まれていても実コマンドとして誤検知しない) ──
+run_bash 'grep -n "git commit\|git rm" f.txt 2>/dev/null | head -40' "$REPO"
+assert_exit 0 "$?" "grep+パイプ内の疑似コマンド文字列は誤検知しない"
+run_bash 'grep pattern file.txt' "$REPO"; assert_exit 0 "$?" "grep単体は許可"
+run_bash 'egrep "a|b" f.txt | sort | uniq' "$REPO"; assert_exit 0 "$?" "grep系+安全フィルタの連結は許可"
+run_bash 'rg pattern . 2>/dev/null | wc -l' "$REPO"; assert_exit 0 "$?" "rg+wcは許可"
+
+# ── 許可リストは狭く保つ: 連結・リダイレクト・非フィルタへのパイプは従来通りブロック ──
+run_bash 'grep pattern file.txt; rm out.txt' "$REPO"; assert_exit 2 "$?" "grep後に;で実コマンド連結はブロック"
+run_bash 'grep pattern file.txt && rm out.txt' "$REPO"; assert_exit 2 "$?" "grep後に&&で実コマンド連結はブロック"
+run_bash 'grep pattern file.txt > out.txt' "$REPO"; assert_exit 2 "$?" "grepの結果を実ファイルへリダイレクトはブロック"
+run_bash 'bash -c "git commit -m x"' "$REPO"; assert_exit 2 "$?" "クォート内に隠れた実git commitは引き続き検知する"
 
 chmod -R u+w "$SCRATCH" 2>/dev/null
 rm -rf "$SCRATCH"

@@ -163,6 +163,124 @@ bash_targets_outside_project() {
   [ "$had_target" -eq 1 ]
 }
 
+# grep系コマンド単体（または安全な読み取り専用フィルタへのパイプのみ）かどうかを判定する。
+# grep等の引数（検索パターン文字列）は任意のテキストであり、"git commit"等の実コマンドと
+# 同じ語を偶然含んでいてもデータであって実行されない。しかしMUTATING_PATTERNSは単純な
+# 部分文字列マッチのため、クォート内のデータかどうかを区別できず誤検知する
+# （例: grep -n "git commit\|git rm" file.txt | head）。
+# 一方で "bash -c \"git commit\"" のようにクォート内テキストが実際にシェル実行される
+# ケースもあるため、単純にクォートを除去して判定することはできない（新たな見逃しを生む）。
+# そのため「grep系コマンドが単体、または ; && | 等の連結なしに安全なフィルタ
+# （head/tail/wc/sort/uniq/cut/tr/cat/less/nl/rev/tac）にのみパイプされている」という
+# 狭い形にのみ許可を限定し、それ以外（連結・非/dev/nullリダイレクト・awk/sed等の
+# コード実行手段を持つコマンドへのパイプ・クォート未閉鎖等）は判定不能として
+# 従来通りの全チェックにフォールバックする（fail-closed）。
+read -r -d '' _READONLY_SEARCH_JS <<'JSEOF' || true
+var data = "";
+process.stdin.on("data", function (c) { data += c; });
+process.stdin.on("end", function () {
+  var cmd = data;
+  var SEARCH_CMDS = ["grep", "egrep", "fgrep", "rg"];
+  var SAFE_FILTERS = ["head", "tail", "wc", "sort", "uniq", "cut", "tr", "cat", "less", "nl", "rev", "tac"];
+
+  function isReadonlySearchPipeline(cmd) {
+    var i = 0, n = cmd.length;
+    var inSingle = false, inDouble = false;
+    var segments = [];
+    var wordBuf = "", wordStarted = false, wordDone = false, wordHadQuote = false;
+
+    function pushSegmentWord() {
+      segments.push({ word: wordBuf, hadQuote: wordHadQuote });
+      wordBuf = ""; wordStarted = false; wordDone = false; wordHadQuote = false;
+    }
+
+    function consumeRedirectTarget() {
+      // i は現在 '>' を指している。'>>' の2文字目、'&N'（fd複製）、
+      // または '/dev/null' のみ許可する。
+      i++;
+      if (cmd[i] === ">") i++;
+      if (cmd[i] === "&") {
+        i++;
+        var start = i;
+        while (i < n && /[0-9]/.test(cmd[i])) i++;
+        if (i === start) return false;
+        return true;
+      }
+      while (i < n && /\s/.test(cmd[i])) i++;
+      var target = cmd.slice(i, i + "/dev/null".length);
+      if (target !== "/dev/null") return false;
+      i += target.length;
+      if (i < n && !/[\s;&|]/.test(cmd[i])) return false;
+      return true;
+    }
+
+    while (i < n) {
+      var ch = cmd[i];
+
+      if (inSingle) {
+        if (ch === "'") { inSingle = false; i++; continue; }
+        if (!wordDone) { wordBuf += ch; wordStarted = true; }
+        i++; continue;
+      }
+      if (inDouble) {
+        if (ch === "\\") { i += 2; if (!wordDone) { wordBuf += ch; } continue; }
+        if (ch === '"') { inDouble = false; i++; continue; }
+        if (!wordDone) { wordBuf += ch; wordStarted = true; }
+        i++; continue;
+      }
+
+      if (ch === "\\") { i += 2; continue; }
+      if (ch === "'") {
+        if (!wordDone) wordHadQuote = true;
+        inSingle = true; i++; continue;
+      }
+      if (ch === '"') {
+        if (!wordDone) wordHadQuote = true;
+        inDouble = true; i++; continue;
+      }
+      if (ch === "`") return false;
+      if (ch === "$" && cmd[i + 1] === "(") return false;
+      if (ch === "<") return false;
+      if (ch === ";") return false;
+      if (ch === "\n") return false;
+      if (ch === "&") return false;
+      if (ch === "|") {
+        if (cmd[i + 1] === "|") return false;
+        pushSegmentWord();
+        i++; continue;
+      }
+      if (ch === ">") {
+        if (!consumeRedirectTarget()) return false;
+        continue;
+      }
+      if (/\s/.test(ch)) {
+        if (wordStarted) wordDone = true;
+        i++; continue;
+      }
+      if (!wordDone) { wordBuf += ch; wordStarted = true; }
+      i++; continue;
+    }
+    if (inSingle || inDouble) return false;
+    pushSegmentWord();
+
+    if (segments.length === 0) return false;
+    if (segments[0].hadQuote || segments[0].word === "") return false;
+    if (SEARCH_CMDS.indexOf(segments[0].word) === -1) return false;
+    for (var s = 1; s < segments.length; s++) {
+      if (segments[s].hadQuote || segments[s].word === "") return false;
+      if (SAFE_FILTERS.indexOf(segments[s].word) === -1) return false;
+    }
+    return true;
+  }
+
+  process.exit(isReadonlySearchPipeline(cmd) ? 0 : 1);
+});
+JSEOF
+
+is_readonly_search_pipeline() {
+  printf '%s' "$1" | node -e "$_READONLY_SEARCH_JS" >/dev/null 2>&1
+}
+
 # main/master保護時の共通処理: .git書込み権限があればブロック、無ければ
 # 警告のみで許容(自動検知)し監査ログへ記録する。
 handle_protected() {  # $1=dir $2=branch $3=target(表示用)
@@ -193,6 +311,10 @@ case "$TOOL" in
   Bash)
     CMD=$(json_field "$INPUT" tool_input.command)
     PROJECT_DIR=$(to_posix "$(pwd)")
+
+    # grep系の読み取り専用パイプラインは、ブランチに関わらず無条件許可する
+    # （検索パターン文字列中の疑似コマンド語による誤検知を避けるため）。
+    is_readonly_search_pipeline "$CMD" && exit 0
 
     MUTATING_PATTERNS=(
       '\b(rm|rmdir|unlink)\b'                       # 削除
