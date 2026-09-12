@@ -100,7 +100,9 @@ run_write "$REPO/f.txt" "$REPO"; assert_exit 2 "$?" "(4) Write分岐でも同様
 
 # ── (5) main・.git書込み不可 → 警告のみ許容(自動検知) ──
 # 注: root権限で実行するとchmodによる書込み不可化がバイパスされ本テストは無効化される
-# （非root環境での実行を前提とする、既知の制約）。
+# （非root環境での実行を前提とする、既知の制約）。Windows/Git Bashでは.gitディレクトリ
+# 自体へのchmod -wは実効性を持たない場合があるが、HEADファイルへのchmod -wは効くため
+# can_create_branch()のAND条件全体としては期待通り「不可」判定になる(実機検証済み)。
 R_NOPERM=$(new_repo repo_noperm)
 GITDIR=$(git -C "$R_NOPERM" rev-parse --absolute-git-dir)
 chmod -w "$GITDIR" "$GITDIR/HEAD"

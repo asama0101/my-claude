@@ -153,4 +153,7 @@ if [[ "$cost_float" != "0.00" ]]; then
   line+=$(printf '%s%b$%s%b' "$DIV" "$FG_DIM" "$cost_float" "$RESET")
 fi
 
-printf '%b\n' "$line"
+# %b ではなく %s で出力する。$line は組み立て時の printf '%b' で既に実 ESC 文字へ展開済みで、
+# ここで再度 %b にかけるとパス中のバックスラッシュまでエスケープ解釈される
+# （Windows の C:\Users\... が "missing unicode digit for \U" で壊れる）。
+printf '%s\n' "$line"
