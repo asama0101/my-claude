@@ -8,6 +8,13 @@
 source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
 has_json_backend || { echo "❌ system-guard: node not found, failing closed" >&2; exit 2; }
 
+# ── Windows(Git Bash)対応 ──────────────────────────────────────────
+# 既定ロケール(CP932等)では grep -P が "supports only unibyte and UTF-8 locales"
+# で失敗し終了ステータス2を返す。下の判定は全て `if ... grep -qiP ...; then` 形式で、
+# エラー(2)は「不一致」と同じ扱いになるため、ロケールを明示しないと
+# BLOCKED_PATTERNS 全件が黙って fail-open する（＝何も守らない）。
+case "${OSTYPE:-}" in msys* | cygwin*) export LC_ALL="${LC_ALL:-C.UTF-8}" ;; esac
+
 INPUT=$(cat)
 COMMAND=$(json_field "$INPUT" tool_input.command)
 

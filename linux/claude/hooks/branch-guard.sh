@@ -22,11 +22,9 @@
 #      $CLAUDE_HOME配下のログへ毎回記録=監査証跡)
 #   6) main/master以外の通常ブランチ                  → 無条件許可
 #
-# 旧main-branch-guard.shには同種のバイパス機構があり、セキュリティレビューで指摘された
-# CRITICAL(設定ファイル/シェルRC経由の間接的自己バイパス経路の温床だったため)を受けて
-# 廃止した。CLAUDE_MAIN_BRANCH_GUARD_BYPASSという環境変数名としては現行のbranch-guard.sh
-# に実装は存在しない。.git書込み権限の自動検知に一本化することで、この種のバイパス経路が
-# 構造的に生まれない設計になっている。
+# 旧main-branch-guard.shにあったCLAUDE_MAIN_BRANCH_GUARD_BYPASS環境変数バイパスは
+# 存在しなかったため廃止作業自体は不要。.git書込み権限の自動検知に一本化することで、
+# 設定ファイル/シェルRC経由の間接的自己バイパス経路が構造的に生まれない設計を踏襲する。
 #
 # shutil.rmtree は system-guard.sh がブランチに関係なく常時無条件ブロックするため、
 # ここには含めない（含めても到達不能な重複ロジックになるため）。find -delete/
@@ -40,11 +38,41 @@
 #     `2>/dev/null` 等の破棄リダイレクトは除外済みだが、それ以外の文字列中に "> " を
 #     含む read-only コマンド（grep等）は誤検知しうる（system-guard.sh / workspace-guard.sh
 #     と同種の制約。回避は Read）。
+#   - can_create_branch()の`[ -w ]`判定はWindows(NTFS)上で完全には実挙動と一致しない。
+#     Git BashのchmodはNTFS上でディレクトリの書込み可否を実際には制御できない場合があり
+#     (chmod -wしても`[ -w ]`が真のままになり得る)、一方でファイル(HEAD)へのchmod -wは
+#     `[ -w ]`に正しく反映される。can_create_branch()は両方のANDを取るため、通常の
+#     未制限リポジトリでは両方とも真＝正しく状態(4)ブロックとして働くが、意図的に
+#     .git配下の権限を制限した特殊な環境（読取専用マウント等）では、実際のgit内部の
+#     ロックファイル+rename方式によるHEAD更新がOSの読取専用属性を回避して成功する
+#     ケースがあり、その場合can_create_branch()が「作成不可」と誤判定し状態(5)の
+#     警告のみ許容に倒れることがある(実機検証で確認済み。通常利用では発生しない)。
 
 source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
 has_json_backend || { echo "❌ branch-guard: node not found, failing closed" >&2; exit 2; }
 
-CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# ── Windows(Git Bash)対応 ──────────────────────────────────────────
+# 1) 既定ロケール(CP932等)では grep -P が "supports only unibyte and UTF-8 locales"
+#    で失敗し終了ステータス2を返す。下の MUTATING_PATTERNS 判定は
+#    `if ... grep -qiP ...; then` 形式でエラー(2)を「不一致」と同じ扱いにするため、
+#    ロケールを明示しないと変更系コマンドの検知が黙って fail-open する。
+# 2) フックに渡る file_path は Windows 形式(C:\...)。MSYS の realpath は C:\x を C:/x に
+#    直すだけなので、正規化しないと dirname/git -C に渡るパスが壊れる。
+case "${OSTYPE:-}" in msys* | cygwin*) export LC_ALL="${LC_ALL:-C.UTF-8}" ;; esac
+
+to_posix() {
+  local p="${1//\\//}"                                                      # \ → /
+  case "$p" in
+    [A-Za-z]:/*) p="/$(printf '%s' "${p%%:*}" | tr 'A-Z' 'a-z')${p#*:}" ;;  # C:/x → /c/x
+  esac
+  # NTFS はパスの大文字小文字を区別しないため、ゾーン前方一致比較
+  # （"$project_dir"/* 等）が大文字小文字違いだけで誤って不一致判定
+  # されないよう、Windows(msys/cygwin)上でのみ全体を小文字化する。
+  case "${OSTYPE:-}" in msys* | cygwin*) p=$(printf '%s' "$p" | tr 'A-Z' 'a-z') ;; esac
+  printf '%s' "$p"
+}
+
+CLAUDE_HOME=$(to_posix "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")
 
 log_warn_allow() {  # $1=branch $2=target
   local branch="$1" target="$2" logfile="$CLAUDE_HOME/branch-guard-bypass.log"
@@ -56,8 +84,6 @@ TOOL=$(json_field "$INPUT" tool_name)
 
 # git 管理下でなければ空文字を返す。symbolic-ref ベースなので、同名タグの併存や
 # 未出生ブランチ（コミット0件）でも rev-parse --abbrev-ref HEAD のように誤動作しない。
-# detached HEAD・gitコマンド不在・非リポジトリのいずれも symbolic-ref/rev-parse の
-# 失敗として同じ経路で空文字を返す(状態1/2/3が同一コードパスで安全側に倒れる)。
 get_branch() {
   local dir="$1"
   git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo ""; return; }
@@ -75,7 +101,7 @@ is_protected() {
 
 # .git ディレクトリへの書込み権限を自動検知する(git checkout -b が実際に失敗するか
 # どうかの近似判定)。HEADファイルの書換えとgit-dir自体へのref作成の両方が必要になる
-# ため、両方が書込み可能であることを要求する。
+# ため、両方が書込み可能であることを要求する（Windows実機での限界は上部コメント参照）。
 can_create_branch() {
   local dir="$1" gitdir
   gitdir=$(git -C "$dir" rev-parse --absolute-git-dir 2>/dev/null) || return 1
@@ -126,7 +152,7 @@ bash_targets_outside_project() {
       -*) continue ;;
     esac
     had_target=1
-    abs=$(realpath -m "$tok" 2>/dev/null)
+    abs=$(to_posix "$(realpath -m "$tok" 2>/dev/null)")
     if [ -z "$abs" ]; then set +f; return 1; fi
     case "$abs" in
       "$project_dir" | "$project_dir"/*) set +f; return 1 ;;
@@ -275,6 +301,7 @@ case "$TOOL" in
     FILE=$(json_field "$INPUT" tool_input.file_path tool_input.notebook_path)
     [ -z "$FILE" ] && exit 0
     ABS=$(realpath -m "$FILE" 2>/dev/null) || ABS="$FILE"
+    ABS=$(to_posix "$ABS")
     DIR=$(dirname -- "$ABS")
     BRANCH=$(get_branch "$DIR")
     if is_protected "$BRANCH"; then
@@ -283,7 +310,7 @@ case "$TOOL" in
     ;;
   Bash)
     CMD=$(json_field "$INPUT" tool_input.command)
-    PROJECT_DIR=$(pwd)
+    PROJECT_DIR=$(to_posix "$(pwd)")
 
     # grep系の読み取り専用パイプラインは、ブランチに関わらず無条件許可する
     # （検索パターン文字列中の疑似コマンド語による誤検知を避けるため）。
