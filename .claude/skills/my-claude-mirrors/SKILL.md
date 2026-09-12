@@ -26,15 +26,25 @@ CLAUDE.mdのGotchas「`linux/claude/`・`windows/claude/` を直接編集しな�
      "new_diffs": [{"file": "...", "linux_hash": "...", "windows_hash": "..."}],
      "known_diffs": [{"file": "...", "linux_hash": "...", "windows_hash": "...", "reason": "...", "recorded_at": "..."}],
      "only_in_linux": ["..."],
-     "only_in_windows": ["..."]
+     "only_in_windows": ["..."],
+     "known_only_in_linux": ["..."],
+     "known_only_in_windows": ["..."]
    }
    ```
-   `known_diffs` はすでに台帳に記録済みの差分なので、そのままユーザーに件数だけ触れれば十分で、逐一確認する必要はない。以下は `new_diffs` と `only_in_*` の処理。
+   `known_diffs` と `known_only_in_*` はすでに台帳に記録済みの差分なので、そのままユーザーに件数だけ触れれば十分で、逐一確認する必要はない。以下は `new_diffs` と `only_in_*`（未記録分のみ）の処理。
 
 2. **`only_in_linux` / `only_in_windows` の各エントリ**について、実際の内容（ファイルなら中身、ディレクトリなら配下構成）を確認した上でユーザーに3択を確認する:
    - **コピー**: 欠けている側に同じ内容を作る
    - **削除**: 存在する側から取り除く
    - **許容**: 片方にしか無いことが意図的（台帳に記録するのみ、何も変更しない）
+
+   「許容」を選んだ場合、存在する側のハッシュだけを記録し、存在しない側は空文字にする（`detect-diffs.sh` はこの空文字を「そちら側には無くてよい」の意味として扱う）:
+   ```bash
+   # only_in_windows の例（linux側には存在しない）
+   node <スキルディレクトリ>/scripts/lib/append-ledger.js \
+     <スキルディレクトリ>/ledger.json "<file>" "" "$(tr -d '\r' < windows/claude/<file> | sha256sum | cut -d' ' -f1)" "<理由>"
+   ```
+   空ディレクトリの場合はハッシュ自体が無意味なので `linux_hash`/`windows_hash` を両方空文字にし、ファイルパス一致のみで照合される。
 
 3. **`new_diffs` の各エントリ**について、`diff <(tr -d '\r' < linux/claude/<file>) <(tr -d '\r' < windows/claude/<file>)` 等で実際の差分内容を確認し、事実に基づく所見（どちらが最新か、矛盾はないか）を添えてユーザーに4択を確認する:
    - **A**: linux側の内容を採用（windows側をEditで合わせる）
@@ -71,3 +81,4 @@ bash <スキルディレクトリ>/scripts/show-ledger.sh
 - 改行コード(CRLF/LF)の違いだけの差分はノイズとして扱う。`detect-diffs.sh` は比較前に `tr -d '\r'` で正規化してからハッシュを取るため、そもそも差分として出てこない。
 - 台帳のハッシュ判定はファイル単位・内容完全一致ベース。ファイルの一部だけが変わっても、そのファイル全体が「新規差分」として再検出される（ハンク単位では管理しない）。
 - `only_in_linux` / `only_in_windows` の判定はファイルに加えて空ディレクトリも対象にする。中身のあるディレクトリが片方にしかない場合は、配下の各ファイルが自然に `only_in_*` へ出てくる。
+- `only_in_*` を「許容」で記録すると、次回以降は `known_only_in_*` に分類され `only_in_*` には出てこなくなる。ファイルは実ハッシュと台帳の該当side（`linux_hash`/`windows_hash`）の一致で判定するため、内容が変わると再び未記録の `only_in_*` として検出される。

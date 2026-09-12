@@ -187,5 +187,12 @@
     "windows_hash": "2e26bb9a86f78c7b098f0730cd9737e0d9d991e13975774b1df25946ecb50a45",
     "reason": "grep誤検知修正の回帰テスト4件はlinux側にも移植済み。can_create_branch()のWindows(NTFS)実効限界に関する補足コメントはwindows側のみの意図的差分",
     "recorded_at": "2026-09-06"
+  },
+  {
+    "file": "settings.json",
+    "linux_hash": "f934672a91f972c5df5ccd9cabb2ed9f1682f241637c3e69d9f9c8691ac4d5bd",
+    "windows_hash": "9facfc7b03e032e1bedc508a594b44fe57ad466b48d4d1157830e9a5ae1f2b0f",
+    "reason": "ponytailプラグイン(enabledPlugins・extraKnownMarketplaces)登録はlinux実機のみで導入済みのためlinux側のみの意図的差分(ファイル全体ハッシュが変化したため再記録)",
+    "recorded_at": "2026-09-12"
   }
 ]
