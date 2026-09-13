@@ -13,7 +13,7 @@ model: sonnet
 
 - `~/.claude/skills/docwright/references/writing.md`（可読性原則）
 - `~/.claude/skills/docwright/references/source-of-truth.md`（事実確認原則）
-- `~/.claude/skills/docwright/references/boundaries.md`（他文書との責務分離。テストケース自体はtest-spec（テスト仕様書）の担当）
+- `~/.claude/skills/docwright/references/boundaries.md`（他文書との責務分離。テストケース自体はtest-spec（テスト仕様書）の担当。また対象ツール（テストフレームワーク・CI等）の設定・操作コマンド等の実行詳細はツールガイド(tool-guide)の担当であり、本文には書かずポインタのみ持つ）
 
 ## 対象と情報収集
 
@@ -28,12 +28,14 @@ model: sonnet
    - 体制とスケジュール
    - 合否判定基準
 
-個別のテストケース・入力値・期待結果はここに書かず、test-specの担当であることを明記する。
+3. 個別のテストケース・入力値・期待結果はここに書かず、test-specの担当であることを明記する。
+4. 対象ツール（テストフレームワーク・CI設定等）の設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 既存更新
 
 1. 既存計画書の記載（テストレベルの範囲・体制・判定基準）と実際のプロジェクト状況を突き合わせ、乖離箇所を洗い出す。
 2. 乖離箇所のみを更新する。
+3. 対象ツールについて設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 執筆後
 

@@ -13,7 +13,7 @@ model: sonnet
 
 - `~/.claude/skills/docwright/references/writing.md`（可読性原則）
 - `~/.claude/skills/docwright/references/source-of-truth.md`（事実確認原則）
-- `~/.claude/skills/docwright/references/boundaries.md`（他文書との責務分離。テストの範囲・方式はtest-plan（テスト計画書）の担当）
+- `~/.claude/skills/docwright/references/boundaries.md`（他文書との責務分離。テストの範囲・方式はtest-plan（テスト計画書）の担当。また対象ツール（テストフレームワーク等）の設定・操作コマンド等の実行詳細はツールガイド(tool-guide)の担当であり、本文には書かずポインタのみ持つ）
 
 ## 対象と情報収集
 
@@ -27,12 +27,14 @@ model: sonnet
    - テストケース一覧 — ケースごとに入力・手順・期待結果を整理
    - 実施結果記録欄
 
-テストの範囲・方式・体制はここに書かず、test-planの担当であることを明記する。
+3. テストの範囲・方式・体制はここに書かず、test-planの担当であることを明記する。
+4. 対象ツール（テストフレームワーク等）の設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 既存更新
 
 1. 既存仕様書のテストケース（入力・期待結果）と実装・仕様の現状を突き合わせ、乖離箇所を洗い出す。
 2. 乖離箇所のみを更新する。実施結果記録欄は上書きせず追記する。
+3. 対象ツールについて設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 執筆後
 

@@ -13,7 +13,7 @@ model: sonnet
 
 - `~/.claude/skills/docwright/references/writing.md`（可読性原則）
 - `~/.claude/skills/docwright/references/source-of-truth.md`（事実確認原則）
-- `~/.claude/skills/docwright/references/boundaries.md`（ops-manualとの責務分離。runbookは障害発生時の対応、運用手順書は平常時の定期作業）
+- `~/.claude/skills/docwright/references/boundaries.md`（ops-manualとの責務分離。runbookは障害発生時の対応、運用手順書は平常時の定期作業。また対象ツールの操作コマンド等の実行詳細はツールガイド(tool-guide)の担当であり、本文には書かずポインタのみ持つ）
 
 ## 対象と情報収集
 
@@ -31,12 +31,14 @@ model: sonnet
    - 復旧手順 — 切り分け結果ごとの具体的な復旧操作
    - エスカレーション基準 — どの条件でどこに引き上げるか
    - 事後対応 — ポストモーテムへの導線、記録すべき項目
+3. 対象ツールの設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 既存更新
 
 1. 対象文書を読み、記載されたアラート条件・復旧手順が実際の監視設定・システム構成と食い違っていないかを確認する。
 2. 過去の障害対応で判明した新しい切り分け観点・エスカレーション基準の変更を反映する。
 3. 定常運用作業の記述が紛れ込んでいれば`ops-manual`側への移設をユーザーに提案する（本ファイルでは扱わない）。
+4. 対象ツールについて設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 執筆後
 
