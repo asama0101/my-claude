@@ -1,15 +1,30 @@
 #!/bin/bash
 source "${BASH_SOURCE[0]%/*}/lib/json-field.sh"
 has_json_backend || { echo "❌ venv-guard: node not found, failing closed" >&2; exit 2; }
+# ── Windows(Git Bash)対応 ──────────────────────────────────────────
+# Windows では $VIRTUAL_ENV が C:\... 形式で渡る一方 $(pwd) は MSYS 形式(/c/...)。
+# 正規化しないと前方一致が必ず失敗し、プロジェクト直下の正しい venv であっても
+# 「venvがプロジェクトフォルダ外です」で誤ブロックされる。
+case "${OSTYPE:-}" in msys* | cygwin*) export LC_ALL="${LC_ALL:-C.UTF-8}" ;; esac
+
+to_posix() {
+  local p="${1//\\//}"                                                      # \ → /
+  case "$p" in
+    [A-Za-z]:/*) p="/$(printf '%s' "${p%%:*}" | tr 'A-Z' 'a-z')${p#*:}" ;;  # C:/x → /c/x
+  esac
+  printf '%s' "$p"
+}
+
 INPUT=$(cat)
 COMMAND=$(json_field "$INPUT" tool_input.command)
 
-PROJECT_DIR=$(pwd)
+PROJECT_DIR=$(to_posix "$(pwd)")
+VENV_DIR=$(to_posix "${VIRTUAL_ENV:-}")
 
 # ── venv パス直接指定の早期許可 ─────────────────────────────────────────────
 # /path/to/.venv/bin/pip install や .venv/bin/pip install のように
 # venv バイナリを明示指定している場合は venv 内とみなして許可する
-if echo "$COMMAND" | grep -qE '([./]venv|\.venv)/bin/pip[0-9.]*\s+(install|uninstall)'; then
+if echo "$COMMAND" | grep -qE '([./]venv|\.venv)[/\\](bin|Scripts)[/\\]pip[0-9.]*(\.exe)?\s+(install|uninstall)'; then
   echo "✅ pip: venv バイナリ直接指定のため許可" >&2
   exit 0
 fi
@@ -21,10 +36,11 @@ if echo "$COMMAND" | grep -qE '(^|&&|;)\s*(pip3?\s+install|python[0-9.]*\s+-m\s+
   if [ -z "$VIRTUAL_ENV" ]; then
     echo "❌ pip install はvenv内でのみ許可されています（VIRTUAL_ENV 未設定）。" >&2
     echo "   venv を有効化するか、venv 内 pip を明示してください:" >&2
-    echo "   source .venv/bin/activate && pip install ...   または   .venv/bin/pip install ..." >&2
+    echo "   Linux/macOS: source .venv/bin/activate && pip install ...   /   .venv/bin/pip install ..." >&2
+    echo "   Windows:     source .venv/Scripts/activate && pip install ...   /   .venv/Scripts/pip install ..." >&2
     exit 2
   fi
-  if [[ "$VIRTUAL_ENV" != "$PROJECT_DIR"* ]]; then
+  if [[ "$VENV_DIR" != "$PROJECT_DIR"* ]]; then
     echo "❌ venvがプロジェクトフォルダ外です。" >&2
     echo "   現在のvenv: $VIRTUAL_ENV" >&2
     echo "   プロジェクト: $PROJECT_DIR" >&2
@@ -40,10 +56,11 @@ if echo "$COMMAND" | grep -qE '(^|&&|;)\s*(pip3?\s+uninstall|python[0-9.]*\s+-m\
   if [ -z "$VIRTUAL_ENV" ]; then
     echo "❌ pip uninstall はvenv内でのみ許可されています（VIRTUAL_ENV 未設定）。" >&2
     echo "   venv を有効化するか、venv 内 pip を明示してください:" >&2
-    echo "   source .venv/bin/activate && pip uninstall ...   または   .venv/bin/pip uninstall ..." >&2
+    echo "   Linux/macOS: source .venv/bin/activate && pip uninstall ...   /   .venv/bin/pip uninstall ..." >&2
+    echo "   Windows:     source .venv/Scripts/activate && pip uninstall ...   /   .venv/Scripts/pip uninstall ..." >&2
     exit 2
   fi
-  if [[ "$VIRTUAL_ENV" != "$PROJECT_DIR"* ]]; then
+  if [[ "$VENV_DIR" != "$PROJECT_DIR"* ]]; then
     echo "❌ venvがプロジェクトフォルダ外です。" >&2
     echo "   現在のvenv: $VIRTUAL_ENV" >&2
     echo "   プロジェクト: $PROJECT_DIR" >&2

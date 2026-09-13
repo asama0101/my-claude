@@ -54,14 +54,10 @@ const windowsFileSet = new Set(windows.files);
 const linuxDirSet = new Set(linux.emptyDirs);
 const windowsDirSet = new Set(windows.emptyDirs);
 
-const onlyInLinux = [
-  ...linux.files.filter((f) => !windowsFileSet.has(f)),
-  ...linux.emptyDirs.filter((d) => !windowsDirSet.has(d)),
-].sort();
-const onlyInWindows = [
-  ...windows.files.filter((f) => !linuxFileSet.has(f)),
-  ...windows.emptyDirs.filter((d) => !linuxDirSet.has(d)),
-].sort();
+const onlyInLinuxFiles = linux.files.filter((f) => !windowsFileSet.has(f));
+const onlyInWindowsFiles = windows.files.filter((f) => !linuxFileSet.has(f));
+const onlyInLinuxDirs = linux.emptyDirs.filter((d) => !windowsDirSet.has(d));
+const onlyInWindowsDirs = windows.emptyDirs.filter((d) => !linuxDirSet.has(d));
 const commonFiles = linux.files.filter((f) => windowsFileSet.has(f)).sort();
 
 let ledger = [];
@@ -88,13 +84,50 @@ for (const f of commonFiles) {
   }
 }
 
+// only_in_* も台帳と照合し、記録済み(known)と未記録(new)に分ける。
+// ファイルは実ハッシュが台帳の該当side(linux_hash/windows_hash)と一致するかで判定、
+// 空ディレクトリはハッシュ概念が無いためファイルパス一致のみで判定する。
+function isKnownOnlyFile(dir, hashField, f) {
+  const h = normHash(path.join(dir, f));
+  return ledger.some((e) => e.file === f && e[hashField] === h);
+}
+
+function isKnownOnlyDir(f) {
+  return ledger.some((e) => e.file === f);
+}
+
+const newOnlyLinux = [];
+const knownOnlyLinux = [];
+for (const f of onlyInLinuxFiles) {
+  (isKnownOnlyFile(linuxDir, 'linux_hash', f) ? knownOnlyLinux : newOnlyLinux).push(f);
+}
+for (const d of onlyInLinuxDirs) {
+  (isKnownOnlyDir(d) ? knownOnlyLinux : newOnlyLinux).push(d);
+}
+
+const newOnlyWindows = [];
+const knownOnlyWindows = [];
+for (const f of onlyInWindowsFiles) {
+  (isKnownOnlyFile(windowsDir, 'windows_hash', f) ? knownOnlyWindows : newOnlyWindows).push(f);
+}
+for (const d of onlyInWindowsDirs) {
+  (isKnownOnlyDir(d) ? knownOnlyWindows : newOnlyWindows).push(d);
+}
+
+newOnlyLinux.sort();
+knownOnlyLinux.sort();
+newOnlyWindows.sort();
+knownOnlyWindows.sort();
+
 console.log(
   JSON.stringify(
     {
       new_diffs: newDiffs,
       known_diffs: knownDiffs,
-      only_in_linux: onlyInLinux,
-      only_in_windows: onlyInWindows,
+      only_in_linux: newOnlyLinux,
+      only_in_windows: newOnlyWindows,
+      known_only_in_linux: knownOnlyLinux,
+      known_only_in_windows: knownOnlyWindows,
     },
     null,
     2
