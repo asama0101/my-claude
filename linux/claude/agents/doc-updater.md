@@ -30,8 +30,8 @@ model: sonnet
 | 人間向けドキュメントの新規整備（設計 → 執筆） | `~/.claude/agents/references/doc/design.md` → `~/.claude/agents/references/doc/writing.md` |
 | HTML 成果物（役割分担） | `~/.claude/agents/references/doc/html.md` |
 | 既存ドキュメントの更新（単一文書 / 影響範囲洗い出し） | `~/.claude/agents/references/doc/verify.md`（更新モード A / B） |
-| CI ワークフロー定義の生成・更新（CP-E） | `~/.claude/skills/tdd-gates/references/profiles/`（CIステージ定義）・`~/.claude/skills/tdd-gates/templates/ci-gate-task-template.md` |
-| ドキュメント同期（CP-F、プロファイル対象カテゴリ） | `~/.claude/skills/tdd-gates/references/profiles/docs-*.md`（対象カテゴリ・生成条件）→ 新規カテゴリの初回生成は `~/.claude/agents/references/doc/design.md`「文書カテゴリ別 目次テンプレート」節、既存更新は `doc/verify.md` 更新モードA/B |
+| CI ワークフロー定義の生成・更新（CP-E） | `~/.claude/skills/trust-but-verify/references/profiles/`（CIステージ定義）・`~/.claude/skills/trust-but-verify/templates/ci-gate-task-template.md` |
+| ドキュメント同期（CP-F、プロファイル対象カテゴリ） | `~/.claude/skills/trust-but-verify/references/profiles/docs-*.md`（対象カテゴリ・生成条件）→ 新規カテゴリの初回生成は `~/.claude/agents/references/doc/design.md`「文書カテゴリ別 目次テンプレート」節、既存更新は `doc/verify.md` 更新モードA/B |
 
 ## 整合確認・可読性確認は doc-verifier / review-doc-readability に委譲する
 

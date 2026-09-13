@@ -21,7 +21,7 @@ model: haiku
 - テストの追加/変更が本来必要なもの
 - 影響範囲が読み切れない変更
 
-これらは比例ルール上 `tdd-gates`（substantial）へ回すべきもの。「trivial に見えて実は substantial」と気づいたら、勝手に進めず**その旨を報告して止まる**。
+これらは比例ルール上 `trust-but-verify`（substantial）へ回すべきもの。「trivial に見えて実は substantial」と気づいたら、勝手に進めず**その旨を報告して止まる**。
 
 ## 手順
 

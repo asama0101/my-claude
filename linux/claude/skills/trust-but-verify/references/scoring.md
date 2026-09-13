@@ -2,7 +2,7 @@
 
 すべてのCPはこのルーブリックで採点する。**主張ではなく証拠（実行ログ・差分）で採点する**こと。証拠が無い項目は自動的に0点。
 
-**出力形式は2モードに分岐する**（下記）。**CONDITIONAL再評価の上限（最大2回）はCP-A/CP-Bのみに適用**する。CP-C以降はSDDのラウンド機構（5ラウンドfix loop／Final Reviewの1修正波+1 scoped re-review）に従い、tdd-gates独自の再評価上限は適用しない。
+**出力形式は2モードに分岐する**（下記）。**CONDITIONAL再評価の上限（最大2回）はCP-A/CP-Bのみに適用**する。CP-C以降はSDDのラウンド機構（5ラウンドfix loop／Final Reviewの1修正波+1 scoped re-review）に従い、trust-but-verify独自の再評価上限は適用しない。
 
 ## 項目スコア（0–3点）
 
@@ -107,7 +107,7 @@ Critical違反: なし / <違反項目>
 
 ## スコアカード出力形式（CP-C〜F用・SDD互換）
 
-CP-C以降で`tdd-evaluator`（CP-Dは集約後の`tdd-evaluator`、CP-Fは`doc-verifier`）は、SDDの`task-reviewer-prompt.md`と同型の**Spec Compliance形式**で返す。**Critical/Important判定の根拠には、対応する0–3ルーブリックの該当項目（`checkpoints.md`のCritical行）を添える**——SDD標準のreviewerと違い、tdd-gatesはCritical判定を主観でなくルーブリックに紐付ける。
+CP-C以降で`tdd-evaluator`（CP-Dは集約後の`tdd-evaluator`、CP-Fは`doc-verifier`）は、SDDの`task-reviewer-prompt.md`と同型の**Spec Compliance形式**で返す。**Critical/Important判定の根拠には、対応する0–3ルーブリックの該当項目（`checkpoints.md`のCritical行）を添える**——SDD標準のreviewerと違い、trust-but-verifyはCritical判定を主観でなくルーブリックに紐付ける。
 
 ```
 ### Spec Compliance

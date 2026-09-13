@@ -15,7 +15,7 @@ writing-plans が CP-F の条件（選択したドキュメントプロファイ
 
 **Files:**
 - Modify: `<Step 1で特定した該当カテゴリの文書パス>`
-- Reference: `~/.claude/skills/tdd-gates/references/profiles/<docs-profile>.md`「対象カテゴリ」節（カテゴリと生成条件の正典）
+- Reference: `~/.claude/skills/trust-but-verify/references/profiles/<docs-profile>.md`「対象カテゴリ」節（カテゴリと生成条件の正典）
 
 **Interfaces:**
 - Consumes: 本タスクより前の実装タスクが確定した挙動・数値・コマンド・スキーマ（推測・発明は禁止）
@@ -26,7 +26,7 @@ writing-plans が CP-F の条件（選択したドキュメントプロファイ
 
 - [ ] **Step 1: 対象ドキュメントプロファイルの確認とカテゴリ選定**
 
-`~/.claude/skills/tdd-gates/references/profiles/<docs-profile>.md` の「対象カテゴリ」表を Read し、
+`~/.claude/skills/trust-but-verify/references/profiles/<docs-profile>.md` の「対象カテゴリ」表を Read し、
 各カテゴリの生成条件（常時 / 条件付きトリガー）を確認する。`doc-updater` が実装差分（`git diff`）を
 確認し、条件付きカテゴリはトリガーに該当する根拠（`file:line`）があるものだけを選定する
 （根拠を示せないカテゴリは生成しない。無条件生成の禁止は `checkpoints.md` CP-F 参照）。

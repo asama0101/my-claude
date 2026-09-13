@@ -1,6 +1,6 @@
 # 言語プロファイル: Python / pytest
 
-tdd-gates のゲートを Python プロジェクトで駆動するための**ゲート用グルー**（薄い層）。
+trust-but-verify のゲートを Python プロジェクトで駆動するための**ゲート用グルー**（薄い層）。
 fixture・AAA・parametrize・非同期・モック等の**深い pytest 作法は `~/.claude/agents/references/python/testing.md` を Read**（重複させない）。
 
 ## テスト種別 → ランナー / パスパターン判定

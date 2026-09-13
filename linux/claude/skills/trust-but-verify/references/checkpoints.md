@@ -5,13 +5,13 @@ CP-A〜F。駆動順序の正典は SKILL.md「CP対応表」（重複掲載し�
 
 ## 3ロール分離（自己承認の構造的排除）
 
-土台は SDD（`subagent-driven-development`）の **implementer / task-reviewer 分離**。tdd-gates はこの分離自体を作らない——**reviewer役を差し替えるだけ**の薄いレイヤーである。
+土台は SDD（`subagent-driven-development`）の **implementer / task-reviewer 分離**。trust-but-verify はこの分離自体を作らない——**reviewer役を差し替えるだけ**の薄いレイヤーである。
 
 - **Planner役**（CP-A/B）= superpowers の `brainstorming`／`writing-plans` が文書を起草する。`planner` エージェントが補助してよい。
-- **Generator/Implementer役**（CP-C）= SDD の implementer subagent（`implementer-prompt.md` で起動）。tdd-gates 独自の生成役は持たない（`tdd-implementer` エージェントが SDD の report 契約に合わせて実装を担う）。
+- **Generator/Implementer役**（CP-C）= SDD の implementer subagent（`implementer-prompt.md` で起動）。trust-but-verify 独自の生成役は持たない（`tdd-implementer` エージェントが SDD の report 契約に合わせて実装を担う）。
 - **Evaluator役**（全CP共通）= `tdd-evaluator`。SDD が標準で使う汎用 task reviewer / final code-reviewer を、CP単位で `tdd-evaluator`（または CP-D の review-*条件付き2〜5本＋集約、CP-F の doc-verifier・review-doc-readability）に差し替える。
 
-分離原則（正典）: 実装した本人（Implementer）が採点してはならない。CP-C 以降はこれを SDD の仕組みがそのまま担保し、tdd-gates は reviewer 役の中身だけを差し替える。
+分離原則（正典）: 実装した本人（Implementer）が採点してはならない。CP-C 以降はこれを SDD の仕組みがそのまま担保し、trust-but-verify は reviewer 役の中身だけを差し替える。
 
 ---
 
@@ -32,7 +32,7 @@ CP-A〜F。駆動順序の正典は SKILL.md「CP対応表」（重複掲載し�
 - **Critical**: ①コンテキスト把握が的確（既存実装・制約を踏まえている）。②要件の網羅性——抜け漏れ候補リストが提示され、非自明な欠落はユーザー確認で解消済み。③スコープが単一。
 - **採点項目**: コンテキスト把握の的確さ／要件抽出・構造化／要件の網羅性（抜け漏れ・暗黙要件）／スコープの単一性。
 - **証拠**: 整理済み要件リスト＋抜け漏れ候補リスト（＋ユーザー確認の結果）＋参照した既存コードの `file:line`。
-- **判定**: tdd-gates独自の PASS/CONDITIONAL/FAIL（最大2回、`scoring.md`）。専用台帳は持たない——spec文書自体（brainstormingがgit commitする）とスコアカード応答が記録になる（Mainがspec文書に追記してcommitする。詳細はSKILL.md「証拠の記録先」）。
+- **判定**: trust-but-verify独自の PASS/CONDITIONAL/FAIL（最大2回、`scoring.md`）。専用台帳は持たない——spec文書自体（brainstormingがgit commitする）とスコアカード応答が記録になる（Mainがspec文書に追記してcommitする。詳細はSKILL.md「証拠の記録先」）。
 
 ## CP-B: 計画品質レビュー（旧Gate2+3・writing-plans に寄生）
 
@@ -43,7 +43,7 @@ CP-A〜F。駆動順序の正典は SKILL.md「CP対応表」（重複掲載し�
 - **Critical**: 受入基準↔要件↔シナリオのトレーサビリティに漏れがない（各要件に最低1受入基準・各受入基準に最低1シナリオ）／重大セキュリティ欠陥・設計破綻がない。
 - **採点項目**: 受入基準の明確さ・検証可能性／シナリオ網羅（正常・異常・境界）／テスト種別の妥当性・3層割り当て／トレーサビリティ／既存構造の把握／セキュリティ観点（権限漏れ含む）／業務ロジックの分離（unitテスト可能性）／ファイルサイズ・責務分割（`review-maintainability` の基準に従う）／タスク粒度の妥当性（過剰分割・過小分割の検査、`templates/plan-quality-review-addendum.md`差分7）。
 - **証拠**: 対応表（要件ID↔受入基準↔テストシナリオ↔対象ファイル↔テスト種別/層）＋レビュー所見。
-- **判定**: tdd-gates独自の PASS/CONDITIONAL/FAIL（最大2回、`scoring.md`）。専用台帳は持たない——plan文書自体とスコアカード応答が記録になる（Mainがplan文書に追記してcommitする。詳細はSKILL.md「証拠の記録先」）。
+- **判定**: trust-but-verify独自の PASS/CONDITIONAL/FAIL（最大2回、`scoring.md`）。専用台帳は持たない——plan文書自体とスコアカード応答が記録になる（Mainがplan文書に追記してcommitする。詳細はSKILL.md「証拠の記録先」）。
 
 ### テスト3層戦略（CP-Bの層割り当て方針）
 
@@ -58,9 +58,9 @@ CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否�
 ## CP-C: タスク証拠検証（旧Gate4-7・SDD に寄生）
 
 - **目的**: RED（失敗するテストを先に書く）→GREEN（最小実装）→REFACTOR（振る舞い不変で整理）の各段階を、実行ログに基づいて検証する。UI/UXは条件付き。
-- **上乗せ先**: `subagent-driven-development`の「### 3. Review the task」ステップ。SDDが標準ディスパッチする `task-reviewer-prompt.md` を、tdd-gates版アドオン（`templates/task-evidence-addendum.md`、Phase2）を追記したプロンプトに差し替える。`executing-plans`は独立レビュアーへのdispatchステップを持たず、実装者と評価者の分離が成立しないため対象外（サブエージェントへのアクセスが無い場合のフォールバックとして位置づけられており、その場合`tdd-evaluator`のdispatch自体が不可能）。
-- **明示的な上書き（重要）**: SDDの `task-reviewer-prompt.md` にある **"Do not re-run the suite to confirm their report."**（実装者の報告を信頼し、再実行しない）は、tdd-gatesが乗る場面では**明示的に上書きする**。`tdd-evaluator` は RED/GREEN のテスト実行結果を実装者（SDD implementer）の報告のまま信用せず、**自ら再実行して確認する**。証拠不信の原則はtdd-gates最大の付加価値であり、ここが唯一 SDD の既定動作と正面から矛盾する箇所。
-- **担当**: `tdd-evaluator`（SDDの通常task reviewerを差し替え）。実装作業自体はSDDのimplementer subagentがそのまま担う——tdd-gates独自の生成役は持たない。
+- **上乗せ先**: `subagent-driven-development`の「### 3. Review the task」ステップ。SDDが標準ディスパッチする `task-reviewer-prompt.md` を、trust-but-verify版アドオン（`templates/task-evidence-addendum.md`、Phase2）を追記したプロンプトに差し替える。`executing-plans`は独立レビュアーへのdispatchステップを持たず、実装者と評価者の分離が成立しないため対象外（サブエージェントへのアクセスが無い場合のフォールバックとして位置づけられており、その場合`tdd-evaluator`のdispatch自体が不可能）。
+- **明示的な上書き（重要）**: SDDの `task-reviewer-prompt.md` にある **"Do not re-run the suite to confirm their report."**（実装者の報告を信頼し、再実行しない）は、trust-but-verifyが乗る場面では**明示的に上書きする**。`tdd-evaluator` は RED/GREEN のテスト実行結果を実装者（SDD implementer）の報告のまま信用せず、**自ら再実行して確認する**。証拠不信の原則はtrust-but-verify最大の付加価値であり、ここが唯一 SDD の既定動作と正面から矛盾する箇所。
+- **担当**: `tdd-evaluator`（SDDの通常task reviewerを差し替え）。実装作業自体はSDDのimplementer subagentがそのまま担う——trust-but-verify独自の生成役は持たない。
 - **RED の Critical（即FAIL）**:
   - `tdd-evaluator` が実装者の報告した RED コミットを scratchpad 配下の隔離 worktree（`git worktree add`）に展開し、その中で**対象テストのみ**（フルスイート不要）をプロファイル「RED 再現」のコマンドで自ら再実行し、テストが実際に失敗する（プロファイルの失敗ログ形式に一致）。本体の作業ツリーは変更しない（`git stash`／`checkout` 禁止）。「おそらく失敗する」は0点。
   - assertが対象の振る舞いを具体的に検証している（`assert False`/`assert True`/例外raiseだけ/トートロジー等の無条件失敗はCritical未達）。
@@ -86,7 +86,7 @@ CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否�
 - **担当**: MainがCP-Bの構造変更フラグ・security/perf敏感フラグに基づき`review-*`を**条件付き並列起動**する——`review-correctness`／`review-test`は常時起動、`review-maintainability`はCP-Bで構造変更ありと判定された場合のみ、`review-security`／`review-performance`はCP-Bで該当と判定された場合のみ追加起動（計2〜5本）。`tdd-evaluator`が1枚のスコアカードに集約＋Critical判定。**各reviewerには所見をscratchpadの所見ファイルに直接書き出させ**（例`reviews/<タスクスラッグ>-cp-d-<dimension>.md`）、`tdd-evaluator`がそのファイル群を自らReadして集約採点する（review-*は所見のみ、tdd-evaluatorが点数化）。Mainは所見本文を要約・改変せず経路から外れる。
 - **Critical（即FAIL）**: 仕様不適合／既存回帰／**偽装テスト検出**（assertなし・常に真・実装の写経。検出は目視に加え、徴候（期待値が実装の写し・assertが実装側の定数/内部関数を参照・実装から期待値を計算）が1つでもあればミューテーション検証を必須とする。徴候が無ければ実施せず、その旨をスコアカードに明記する）。
 - **採点項目**: 起動した次元それぞれ（常時: 正確性／テスト品質。条件付き: 保守性／セキュリティ／性能）。
-- **リトライ機構**: **SDD純正のFinal Review**（1修正波+1 scoped re-review、adjudicate residuals）。tdd-gates独自の再評価カウンタは持たない。
+- **リトライ機構**: **SDD純正のFinal Review**（1修正波+1 scoped re-review、adjudicate residuals）。trust-but-verify独自の再評価カウンタは持たない。
 - **証拠**: 手順0のフルスイートログ／集約スコアカード（review-*所見に裏付け）。Mainが`progress.md`にも書き出す（チャット報告のみで終わらせない。詳細はSKILL.md「証拠の記録先」）。
 - **スコープ外の既存問題**: review-*が報告した差分外の既存問題は採点・Critical判定に含めず、スコアカード末尾に「スコープ外の既存問題（未修正・参考）」として転記する。Mainはユーザー確認を待たず、規模判定（trivial/small/substantial）にかけて即座に修正に着手する。
 
@@ -132,5 +132,5 @@ CP-Bは各シナリオを「どの層で守るか」割り当て、E2Eは要否�
 チェーン全体の流れの正典はSKILL.md「CP対応表」（重複掲載しない）。分岐ルール:
 
 - CP-A/B: 各CPはPASSで次へ。CONDITIONALは同CPを再評価（最大2回、`scoring.md`）。**この再評価ループはワークフローの正規工程であり、Mainは各回のユーザー承認を待たずに自動で回す**。停止するのは再評価上限到達でFAILが確定した時のみ（構造化フォーマットは`scoring.md`「停止シグナル」）。
-- CP-C〜F: SDD純正のリトライ機構（5ラウンドfix loop／Final Reviewの1修正波+1 scoped re-review）にそのまま従う。**このfix loopも例外処理でなく正規工程**であり、ラウンド上限到達で収束しない場合のみガードレール停止としてユーザーへ差し戻す。tdd-gatesは採点語彙（0–3ルーブリック・Critical即FAIL）とreviewer役の差し替えだけを提供する。
+- CP-C〜F: SDD純正のリトライ機構（5ラウンドfix loop／Final Reviewの1修正波+1 scoped re-review）にそのまま従う。**このfix loopも例外処理でなく正規工程**であり、ラウンド上限到達で収束しない場合のみガードレール停止としてユーザーへ差し戻す。trust-but-verifyは採点語彙（0–3ルーブリック・Critical即FAIL）とreviewer役の差し替えだけを提供する。
 - **受け入れ確認のタイミングはSKILL.md「CP-A〜Fを1サイクルとして自動で通し、受け入れ確認は最後に一度だけ」節が正典**（CP-F完了後に一度だけ。重複掲載しない）。

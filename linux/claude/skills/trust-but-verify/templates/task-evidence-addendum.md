@@ -17,13 +17,13 @@
 
 ## 差分2: 「テストを再実行しない」の明示的上書き（最重要）
 
-土台テンプレ「## Tests」節にある次の一文を、tdd-gates が乗る場面では**そのまま採用しない**。
+土台テンプレ「## Tests」節にある次の一文を、trust-but-verify が乗る場面では**そのまま採用しない**。
 
 > `Do not re-run the suite to confirm their report.`
 
-この一文を、渡すプロンプトの同じ位置で次のように**明示的に上書き**する（引用の上に取り消し線的に「この節は tdd-gates では以下に置き換える」と書き、原文をそのまま残さない）。
+この一文を、渡すプロンプトの同じ位置で次のように**明示的に上書き**する（引用の上に取り消し線的に「この節は trust-but-verify では以下に置き換える」と書き、原文をそのまま残さない）。
 
-> ## Tests（tdd-gates による上書き）
+> ## Tests（trust-but-verify による上書き）
 >
 > 実装者（SDD implementer）が報告した RED 失敗ログ・GREEN 通過ログを、**そのままでは信用しない**。あなた（`tdd-evaluator`）自身が対象テストを Bash で再実行し、実際に失敗（RED 時点）・実際に通過（GREEN 時点）することを自分の目で確認する。RED 時点は、実装者が報告した RED コミット SHA を `git worktree add <scratchpad>/red-<タスクスラッグ> <RED_SHA>` で隔離展開し、その中でプロファイル「RED 再現」のコマンドを実行して再現する（確認後 `git worktree remove`。本体の作業ツリーは変更しない）。**RED・GREEN とも対象テストのみの再実行で足り、フルスイート実行は不要**（既存回帰の独立検証は CP-D 手順0 に集約する）。再現できないログ、対象テストパスが申告と一致しないログは Critical 未達（0点）として扱う。実行コマンド・失敗/通過の判定基準は対象言語プロファイル（例 `references/profiles/pytest.md` の「Critical 証拠ルール」）に従う。**REFACTOR確認**は、GREEN確定コミット〜現在HEADの`git diff`を自ら取得し、差分が空ならGREENの対象テスト結果を援用して再実行を省略してよい。差分があればテストファイル不変の確認＋対象テストの再実行を行う。
 
@@ -31,25 +31,25 @@
 
 土台テンプレ「## Part 2: Code Quality」の直後に追加する。
 
-> ## assert 骨抜き検知（tdd-gates 追加）
+> ## assert 骨抜き検知（trust-but-verify 追加）
 >
 > 新規・変更されたテストの assert を読み、次のいずれかに該当するテストが無いか確認する: assert が無い／`assert True` 等の常に真の assert／例外 raise の有無だけを見て内容を検証しない／期待値が実装コードの写経（実装の定数・内部関数をそのままテスト側で再計算している）。該当すればテスト種別を問わず Critical（偽装テスト）とする。
 
 ## 差分4: 追加セクション「UI/UX レビュー起動条件」
 
-> ## UI/UX レビュー起動条件（tdd-gates 追加）
+> ## UI/UX レビュー起動条件（trust-but-verify 追加）
 >
 > 対象ファイルが言語プロファイルの view/template/routing パターン（例 `references/profiles/pytest.md` の該当行、または e2e＝ブラウザ判定）に一致する場合、unit 申告であっても回避不可で、`frontend-design` スキルの起動と敵対的クロスレビューを追加する。最大3ラウンド（確認→修正）。ブラウザが使えない環境は静的解析で代替する。
 
 ## 差分5: 追加セクション「security/perf 追加レビュー起動条件」
 
-> ## security/perf 追加レビュー起動条件（tdd-gates 追加）
+> ## security/perf 追加レビュー起動条件（trust-but-verify 追加）
 >
 > CP-B（`templates/plan-quality-review-addendum.md` 差分6）で security 敏感／perf 敏感の印が付いたタスクに限り、`review-security`／`review-performance` を本タスクの task-reviewer ディスパッチに追加起動する。印が無いタスクには追加起動しない（過剰レビューを避ける）。
 
 ## 出力形式・リトライ機構
 
-出力形式は土台テンプレの `## Output Format`（Spec Compliance / Strengths / Issues / Assessment）をそのまま使う。リトライは SDD 純正の5ラウンド fix loop に従い、tdd-gates 独自のカウンタは持たない。Critical 判定の根拠には `~/.claude/skills/tdd-gates/references/checkpoints.md` CP-C の Critical 行を明記する（`scoring.md` の「スコアカード出力形式（CP-C〜F用）」参照）。
+出力形式は土台テンプレの `## Output Format`（Spec Compliance / Strengths / Issues / Assessment）をそのまま使う。リトライは SDD 純正の5ラウンド fix loop に従い、trust-but-verify 独自のカウンタは持たない。Critical 判定の根拠には `~/.claude/skills/trust-but-verify/references/checkpoints.md` CP-C の Critical 行を明記する（`scoring.md` の「スコアカード出力形式（CP-C〜F用）」参照）。
 
 ## ディスパッチ時に Main が埋めるプレースホルダ
 
