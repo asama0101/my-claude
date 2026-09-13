@@ -316,10 +316,6 @@ case "$TOOL" in
     # （検索パターン文字列中の疑似コマンド語による誤検知を避けるため）。
     is_readonly_search_pipeline "$CMD" && exit 0
 
-    # grep系の読み取り専用パイプラインは、ブランチに関わらず無条件許可する
-    # （検索パターン文字列中の疑似コマンド語による誤検知を避けるため）。
-    is_readonly_search_pipeline "$CMD" && exit 0
-
     MUTATING_PATTERNS=(
       '\b(rm|rmdir|unlink)\b'                       # 削除
       '\bgit\s+rm\b'                                 # git rm
