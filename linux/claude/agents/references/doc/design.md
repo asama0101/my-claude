@@ -68,7 +68,7 @@ CLAUDE.md・README・仕様書など既存ドキュメントがあれば内容�
 
 ## 文書カテゴリ別 目次テンプレート（CP-F プロファイル連動）
 
-> 以下は `~/.claude/skills/tdd-gates/references/profiles/docs-*.md` が条件付きで対象とする
+> 以下は `~/.claude/skills/trust-but-verify/references/profiles/docs-*.md` が条件付きで対象とする
 > カテゴリの目次アジェンダ（章立て）。初めて当該カテゴリを生成するときの起草の土台に使う。
 > 生成条件（トリガー）の正典は各プロファイルファイル。ここでは章立てのみ扱う。
 

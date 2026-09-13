@@ -31,8 +31,8 @@ Main は `tdd-evaluator` を起動し、上記の起動された全ファイル�
 
 1. 渡されたファイルすべてを自ら Read する（Main による要約・選別を経由しない）。
 2. 所見ファイル数がMainから伝えられた起動本数（2〜5本）と一致するか照合する。不足があれば採点せず、不足次元を明記して Main に差し戻す。
-3. `~/.claude/skills/tdd-gates/references/scoring.md`「スコアカード出力形式（CP-C〜F用）」の Spec Compliance 形式に集約する。起動した次元（常時: 正確性／テスト品質。条件付き: 保守性／セキュリティ／性能）それぞれの所見を反映する。
-4. Critical 判定基準は `~/.claude/skills/tdd-gates/references/checkpoints.md` CP-D の Critical 行（仕様不適合／既存回帰／偽装テスト検出）に従う。既存回帰は `[FULL_SUITE_LOG]` を `progress.md` のベースラインと照合し、新規 `failed` の有無で判定する。
+3. `~/.claude/skills/trust-but-verify/references/scoring.md`「スコアカード出力形式（CP-C〜F用）」の Spec Compliance 形式に集約する。起動した次元（常時: 正確性／テスト品質。条件付き: 保守性／セキュリティ／性能）それぞれの所見を反映する。
+4. Critical 判定基準は `~/.claude/skills/trust-but-verify/references/checkpoints.md` CP-D の Critical 行（仕様不適合／既存回帰／偽装テスト検出）に従う。既存回帰は `[FULL_SUITE_LOG]` を `progress.md` のベースラインと照合し、新規 `failed` の有無で判定する。
 5. 集約後のスコアカードは Main が `progress.md` にも書き出す（`tdd-evaluator` は Bash 書き込みを持たないため。チャット報告のみで終わらせない）。
 
 ## 手順3: ミューテーション検証（tdd-evaluator が実施）
@@ -47,7 +47,7 @@ Main は `tdd-evaluator` を起動し、上記の起動された全ファイル�
 
 ## リトライ機構
 
-SDD 純正の Final Review（1修正波 + 1 scoped re-review、adjudicate residuals）にそのまま従う。tdd-gates 独自の再評価カウンタは持たない。修正波のディスパッチ先も起動した `review-*` 群ではなく、指摘された次元の実装者（SDD implementer）への差し戻しである点は SDD 標準と同じ。
+SDD 純正の Final Review（1修正波 + 1 scoped re-review、adjudicate residuals）にそのまま従う。trust-but-verify 独自の再評価カウンタは持たない。修正波のディスパッチ先も起動した `review-*` 群ではなく、指摘された次元の実装者（SDD implementer）への差し戻しである点は SDD 標準と同じ。
 
 ## Main が埋めるプレースホルダ
 

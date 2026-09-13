@@ -19,13 +19,13 @@
 
 土台の `## What to Check` 表の直後に、以下のセクションを追加する。
 
-> ## 抜け漏れ候補の敵対的リストアップ（tdd-gates 追加）
+> ## 抜け漏れ候補の敵対的リストアップ（trust-but-verify 追加）
 >
-> spec に書かれていない要件・暗黙のうちに前提とされている要件・想定されていないエッジケースを、承認する側でなく崩す側の視点で列挙する。各項目には根拠（既存コードの `file:line`、または要求文の該当箇所）を必ず添える。網羅性の判定基準は `~/.claude/skills/tdd-gates/references/checkpoints.md` CP-A の「採点項目」に従う。
+> spec に書かれていない要件・暗黙のうちに前提とされている要件・想定されていないエッジケースを、承認する側でなく崩す側の視点で列挙する。各項目には根拠（既存コードの `file:line`、または要求文の該当箇所）を必ず添える。網羅性の判定基準は `~/.claude/skills/trust-but-verify/references/checkpoints.md` CP-A の「採点項目」に従う。
 
 ## 差分3: 出力形式の差し替え
 
-土台の `## Output Format`（`Status: Approved | Issues Found` 形式）は使わない。代わりに `~/.claude/skills/tdd-gates/references/scoring.md` の「スコアカード出力形式（CP-A/B用）」（Quality Gate Report 形式）で返すよう指示する。
+土台の `## Output Format`（`Status: Approved | Issues Found` 形式）は使わない。代わりに `~/.claude/skills/trust-but-verify/references/scoring.md` の「スコアカード出力形式（CP-A/B用）」（Quality Gate Report 形式）で返すよう指示する。
 
 - ヘッダ: `Quality Gate Report: CP-A - 要件ギャップレビュー`
 - 評価項目: `checkpoints.md` CP-A の採点項目4件（コンテキスト把握の的確さ／要件抽出・構造化／要件の網羅性（抜け漏れ・暗黙要件）／スコープの単一性）
@@ -33,7 +33,7 @@
 
 ## 差分4: 「Approve unless serious gaps」方針の上書き（Stop&Ask）
 
-土台の Calibration にある `Approve unless there are serious gaps that would lead to a flawed plan.` という自動承認寄りの方針は、tdd-gates では上書きする。
+土台の Calibration にある `Approve unless there are serious gaps that would lead to a flawed plan.` という自動承認寄りの方針は、trust-but-verify では上書きする。
 
 非自明な抜け漏れ候補（ユーザーの意図に関わり、実装側が推測で埋めることになる項目）が1件でもあれば、`tdd-evaluator` は判定を PASS にせず CONDITIONAL 以下に留め、差し戻し指摘に「ユーザー確認が必要な項目」として明記する。`tdd-evaluator` 自身はユーザーに直接質問しない——Main がこの指摘を受け取ってユーザーに確認し、結果を spec に反映してから CP-A を再評価する。
 

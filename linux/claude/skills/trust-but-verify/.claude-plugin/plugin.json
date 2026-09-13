@@ -1,0 +1,5 @@
+{
+  "name": "trust-but-verify",
+  "version": "0.1.0",
+  "description": "superpowers標準チェーンに自己承認を防ぐ独立検証を差し込む品質規律レイヤー（旧tdd-gates）"
+}

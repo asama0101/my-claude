@@ -14,5 +14,5 @@ SSH/Telnet通信・ネットワーク機器連携・監視/アラート系ツー
 
 ## 参照委譲
 
-継承元のカテゴリ定義: `~/.claude/skills/tdd-gates/references/profiles/docs-generic.md`。
+継承元のカテゴリ定義: `~/.claude/skills/trust-but-verify/references/profiles/docs-generic.md`。
 目次構成: `~/.claude/agents/references/doc/design.md`「文書カテゴリ別 目次テンプレート」節。

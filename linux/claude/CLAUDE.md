@@ -117,8 +117,8 @@
 | 規模 | 定義 | 工程 |
 |------|------|------|
 | trivial | 数行・既存パターン踏襲・テスト不要（設定/doc/コメント/誤記） | 単一の軽量 Agent（`trivial-executor`＝haiku）に一括委任せよ。<br>Main は Read/Edit するな。要約のみ受け取れ。<br>Plan/planner/reviewer は省略可。<br>**doc編集はtrivial-executor実行後に`doc-verifier`で整合確認せよ** |
-| small | 次を**すべて**満たす: 差分 ≤2ファイル。実装差分 ≤50行（テスト除く）。公開 IF 不変。既存テストが対象を被覆。<br>1つでも外れたら substantial | 着手前は substantial と仮置きして `tdd-gates` に入れ。<br>small 該当判定は CP-B で `tdd-evaluator` が行う。<br>該当なら CP-C（RED→GREEN 中心）の簡略パイプに降格して進めよ |
-| substantial | 新規ロジック・複数ファイル横断・公開 IF 変更・非自明なバグ修正 | Plan モード → `tdd-gates` フル工程で進めよ。<br>採点は実装者と別コンテキストで行え |
+| small | 次を**すべて**満たす: 差分 ≤2ファイル。実装差分 ≤50行（テスト除く）。公開 IF 不変。既存テストが対象を被覆。<br>1つでも外れたら substantial | 着手前は substantial と仮置きして `trust-but-verify:trust-but-verify` に入れ。<br>small 該当判定は plan-audit で `tdd-evaluator` が行う。<br>該当なら evidence-check（RED→GREEN 中心）の簡略パイプに降格して進めよ |
+| substantial | 新規ロジック・複数ファイル横断・公開 IF 変更・非自明なバグ修正 | Plan モード → `trust-but-verify:trust-but-verify` フル工程で進めよ。<br>採点は実装者と別コンテキストで行え |
 | レビュー単独 | コードレビューだけ独立で欲しいとき | Main が `review-*` を並列起動せよ。<br>`tdd-evaluator` は集約採点のみ行え（reviewer を自分で起動するな） |
 
 - 例外（Main直接可）
@@ -148,6 +148,6 @@
 
 - エージェント: `~/.claude/agents/`
   - 詳細は各`*.md`。
-  - reviewer構成・本数の正典は`~/.claude/skills/tdd-gates/references/checkpoints.md`。
+  - reviewer構成・本数の正典は`~/.claude/skills/trust-but-verify/references/checkpoints.md`。
 - スキル使用判断: `~/.claude/rules/skills.md`を見よ
 - Hooks（enforcementの正典）: `~/.claude/rules/hooks.md`を見よ

@@ -15,7 +15,7 @@ writing-plans が CP-E の条件（CI を運用するプロジェクト）を満
 
 **Files:**
 - Create/Modify: `.github/workflows/<ci-workflow>.yml`（CI プロバイダは GitHub Actions が既定。プロファイルで差し替え可）
-- Reference: `~/.claude/skills/tdd-gates/references/profiles/<lang>.md`「CI ステージ」節（ステージごとの具体コマンドの正典）
+- Reference: `~/.claude/skills/trust-but-verify/references/profiles/<lang>.md`「CI ステージ」節（ステージごとの具体コマンドの正典）
 
 **Interfaces:**
 - Consumes: 対象言語プロファイルが供給する各ステージの実行コマンド（lint/typecheck/build/unit/integration/主要E2E）
@@ -26,7 +26,7 @@ writing-plans が CP-E の条件（CI を運用するプロジェクト）を満
 
 - [ ] **Step 1: 対象言語プロファイルの CI ステージ定義を確認**
 
-`~/.claude/skills/tdd-gates/references/profiles/<lang>.md` の「CI ステージ」表を Read し、lint／typecheck／build／unit test／integration test／主要E2E の具体コマンドを確認する。
+`~/.claude/skills/trust-but-verify/references/profiles/<lang>.md` の「CI ステージ」表を Read し、lint／typecheck／build／unit test／integration test／主要E2E の具体コマンドを確認する。
 
 - [ ] **Step 2: CI ワークフローを作成/更新**
 

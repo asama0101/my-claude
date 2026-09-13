@@ -31,8 +31,8 @@ superpowers標準チェーン（`brainstorming`→`writing-plans`→`subagent-dr
 ```
 ~/.claude/skills/trust-but-verify/
 ├── .claude-plugin/plugin.json
-├── SKILL.md                          # オーケストレーター
 ├── skills/
+│   ├── trust-but-verify/SKILL.md     # オーケストレーター（trust-but-verify:trust-but-verify として呼び出す）
 │   ├── design-audit/SKILL.md         # 旧CP-A
 │   ├── plan-audit/SKILL.md           # 旧CP-B
 │   ├── evidence-check/SKILL.md       # 旧CP-C
@@ -45,6 +45,8 @@ superpowers標準チェーン（`brainstorming`→`writing-plans`→`subagent-dr
     └── doc-sync-task-template.md     # 旧CP-F、テンプレートのまま維持
 ```
 
+公式`plugin-structure`仕様（`references/plugin-features-reference.md`）はauto-discoveryの対象を`skills/`配下のサブディレクトリに限定しており、プラグイン直下の裸SKILL.mdは自動登録されない。そのため、オーケストレーターも`ponytail:ponytail`と同型で`skills/trust-but-verify/SKILL.md`として配置する。
+
 ### 各スキルの役割と変更点
 
 | スキル | 旧名 | 変更内容 |
@@ -52,7 +54,7 @@ superpowers標準チェーン（`brainstorming`→`writing-plans`→`subagent-dr
 | `design-audit` | CP-A | 監査基準に「決定ツリーを一問一答で詰め、各分岐に推奨回答を示したか」を追加。それ以外は現行のまま維持（実効性監査で効果実証済み） |
 | `plan-audit` | CP-B | 内容は変更なし。実効性の実証記録がCP-Aほど無いため、将来の運用実績を見て要否を再判断する対象として注記する |
 | `evidence-check` | CP-C | 変更なし。実装者の申告を信じず`tdd-evaluator`が自ら再実行する中核機構を維持する |
-| `review-aggregate` | CP-D | `review-maintainability`の判定基準をponytailのラダー式（既存流用→stdlib→ネイティブ→既存依存→一行→最小実装の降順チェック）に差し替える。プロファイル階層・独自モデル階層化ルールを削除し、`subagent-driven-development`本体のModel Selection節に一本化する |
+| `review-aggregate` | CP-D | 内容は変更なし（旧CP-Dをそのまま移設）。`review-maintainability`の判定基準をponytailのラダー式に差し替える案は、前提事実の誤り（「プロファイル階層」は`checkpoints.md`に実在しない）と波及リスク（判定基準中の数値基準は`planner.md`・`dev-python.md`が単一の真実源として参照している）が判明したため、前提を洗い直した上での別タスクへ切り離す。モデル選定ルールは`subagent-driven-development`本体を変更せず、`review-aggregate/SKILL.md`に「モデル選定は`subagent-driven-development`のModel Selection節を参照する」という注記のみ追加する |
 
 ### CI整備・文書同期タスク（旧CP-E/F）
 
@@ -60,17 +62,20 @@ superpowers標準チェーン（`brainstorming`→`writing-plans`→`subagent-dr
 
 ### オーケストレーターの責務
 
-`SKILL.md`（プラグイン直下）が以下を担う。
+`skills/trust-but-verify/SKILL.md`（`trust-but-verify:trust-but-verify`として呼び出す）が以下を担う。
 
-- Mainがsubstantial規模のタスクで本スキルを起動する。
+- Mainがsubstantial規模のタスクで`trust-but-verify:trust-but-verify`を起動する。
 - `brainstorming`→`design-audit`→`writing-plans`→`plan-audit`→`subagent-driven-development`（`evidence-check`を各タスクのレビュー役として自動組込）→`review-aggregate`→`finishing-a-development-branch`の順に指示する。
 - `evidence-check`は必ずSDDのタスクレビュー段階に自動組込で使う。単体で呼び出し可能なスキルとしても存在するが、それは「レビュー単独」経路（`review-aggregate`の専門レビュアー群だけを単発利用する場合）向けであり、`evidence-check`自体を単体運用の起点にはしない。
 
 ## 移行対応
 
-- `~/.claude/skills/tdd-gates/`の内容を`~/.claude/skills/trust-but-verify/`へ改名・再構成する。
-- `~/.claude/agents/tdd-evaluator.md`・`tdd-implementer.md`・`review-*.md`は変更しない（汎用エージェントのため参照のみ）。
-- `~/.claude/CLAUDE.md`のルーティング表・reference記載にある`tdd-gates`という名称を`trust-but-verify`に更新する。
+- 実装はこのリポジトリのCLAUDE.md記載の手順（実機`~/.claude/`側で変更→`my-claude-pull`でミラー同期）に従う。live版`~/.claude/skills/tdd-gates/`の内容を`~/.claude/skills/trust-but-verify/`へ改名・再構成した後、`my-claude-pull`スキルで本リポジトリの`linux/claude/skills/`へ同期する。
+- `~/.claude/agents/tdd-evaluator.md`・`tdd-implementer.md`・`review-*.md`の**振る舞いは変更しない**（汎用エージェントのため参照のみ）。ただし`tdd-gates`という文字列を含むパス・名称参照は、リネームの機械的な帰結として更新する（`tdd-evaluator.md`・`tdd-implementer.md`は対象、`review-*.md`は該当箇所なし）。
+- `subagent-driven-development`（superpowers本体）は変更しない。モデル選定ルールの統合は行わず、`review-aggregate/SKILL.md`からの参照のみとする。
+- `~/.claude/CLAUDE.md`の以下3箇所を更新する。
+  - `CLAUDE.md:120`・`:121`：`tdd-gates`という名称を`trust-but-verify:trust-but-verify`に更新する。
+  - `CLAUDE.md:151`：reviewer構成・本数の正典パスを`~/.claude/skills/tdd-gates/references/checkpoints.md`から`~/.claude/skills/trust-but-verify/references/checkpoints.md`に更新する。
 - memory（`project-tdd-gates-harness.md`等）の名称反映は本タスクのスコープ外とし、別途対応する。
 - `my-claude-pull`によるミラー同期は追加対応不要（`~/.claude/skills/`配下のため既存の同期対象に含まれる）。
 
