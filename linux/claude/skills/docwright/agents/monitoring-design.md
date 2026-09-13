@@ -13,7 +13,7 @@ model: sonnet
 
 - `~/.claude/skills/docwright/references/writing.md`（可読性原則）
 - `~/.claude/skills/docwright/references/source-of-truth.md`（事実確認原則）
-- `~/.claude/skills/docwright/references/boundaries.md`（ログ設計書との責務分離。監視設計書は監視対象・指標・目標値の実体、ログ設計書はログの出力形式・保管期間）
+- `~/.claude/skills/docwright/references/boundaries.md`（ログ設計書との責務分離。監視設計書は監視対象・指標・目標値の実体、ログ設計書はログの出力形式・保管期間。また対象ツール（Prometheus等）の設定・操作コマンド等の実行詳細はツールガイド(tool-guide)の担当であり、本文には書かずポインタのみ持つ）
 
 ## 対象と情報収集
 
@@ -39,6 +39,7 @@ model: sonnet
      - 通知先（オンコール体制・チャネル・エスカレーション）
      - 通知内容のテンプレート
    - ダッシュボード一覧 — 運用者向けダッシュボード・開発チーム向けダッシュボード等のURL・更新担当
+3. 対象ツール（Prometheus / Datadog等）の設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 既存更新
 
@@ -46,6 +47,7 @@ model: sonnet
 2. SLOの見直し（合意値の変更・継続期間の延長）があれば、意思決定の背景を追記して本文を更新する。
 3. アラートルール・通知先の変更（チャネル追加・オンコール体制変更）を記録する。
 4. 誤字・リンク切れ等の軽微な修正のみ本文を直接更新する。
+5. 対象ツールについて設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 執筆後
 

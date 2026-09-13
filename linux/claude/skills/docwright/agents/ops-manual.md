@@ -13,7 +13,7 @@ model: sonnet
 
 - `~/.claude/skills/docwright/references/writing.md`（可読性原則）
 - `~/.claude/skills/docwright/references/source-of-truth.md`（事実確認原則）
-- `~/.claude/skills/docwright/references/boundaries.md`（runbookとの責務分離。運用手順書は平常時の定期作業、runbookは障害発生時の対応）
+- `~/.claude/skills/docwright/references/boundaries.md`（runbookとの責務分離。運用手順書は平常時の定期作業、runbookは障害発生時の対応。また対象ツールの操作コマンド等の実行詳細はツールガイド(tool-guide)の担当であり、本文には書かずポインタのみ持つ）
 
 ## 対象と情報収集
 
@@ -29,12 +29,14 @@ model: sonnet
    - 定期作業一覧（日次・週次・月次） — 表形式（作業名／頻度／担当／所要時間目安）
    - 手順詳細 — 各作業の実行手順（コマンド・確認ポイントを明記）
    - 注意事項 — 実行タイミングの制約・失敗時の連絡先・障害対応が必要になった場合は`runbook`を参照する旨
+3. 対象ツールの設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 既存更新
 
 1. 対象文書を読み、記載された手順が実際のスクリプト・設定と食い違っていないかを確認する。
 2. 定期作業の頻度・担当・手順が変わっていれば該当箇所のみ更新する。
 3. 障害対応の記述が紛れ込んでいれば`runbook`側への移設をユーザーに提案する（本ファイルでは扱わない）。
+4. 対象ツールについて設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 執筆後
 

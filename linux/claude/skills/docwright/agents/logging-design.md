@@ -13,7 +13,7 @@ model: sonnet
 
 - `~/.claude/skills/docwright/references/writing.md`（可読性原則）
 - `~/.claude/skills/docwright/references/source-of-truth.md`（事実確認原則）
-- `~/.claude/skills/docwright/references/boundaries.md`（監視設計書との責務分離。ログ設計書はログの出力形式・保管期間の実体、監視設計書は監視対象・アラート閾値）
+- `~/.claude/skills/docwright/references/boundaries.md`（監視設計書との責務分離。ログ設計書はログの出力形式・保管期間の実体、監視設計書は監視対象・アラート閾値。また対象ツール（ELK等）の設定・操作コマンド等の実行詳細はツールガイド(tool-guide)の担当であり、本文には書かずポインタのみ持つ）
 
 ## 対象と情報収集
 
@@ -44,6 +44,7 @@ model: sonnet
      - ログローテーション間隔・ファイルサイズ上限
      - アーカイブ・削除ポリシー
      - 法的保管要件（規制対応）
+3. 対象ツール（ELK / Loki等）の設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 既存更新
 
@@ -51,6 +52,7 @@ model: sonnet
 2. マスキング方針の追加（新しい機密情報分類）や保管期間の変更があれば、背景を付記して本文を更新する。
 3. ログ集約システムの変更（ELK → Loki 等）や出力フォーマットの統一があれば記録する。
 4. 誤字・リンク切れ等の軽微な修正のみ本文を直接更新する。
+5. 対象ツールについて設定・操作コマンド等の実行詳細を書きたくなった場合、該当ツールガイドが既存にあればそこへのポインタのみを書く。無ければユーザーに`/docwright:create tool-guide <tool-name>`の利用を提案し、本文には詳細を書き込まない。
 
 ## 執筆後
 

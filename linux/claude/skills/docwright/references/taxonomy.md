@@ -1,4 +1,4 @@
-# 文書体系（17タイプ）
+# 文書体系（18タイプ）
 
 `docwright:create`・`docwright:update`・`docwright:audit`が共通で参照する体系定義。文書タイプの追加・削除はこのファイルだけを更新すればよい。
 
@@ -20,9 +20,10 @@
 | 運用 | 運用手順書 | `docwright:ops-manual` | 定常運用作業 | 運用担当 |
 | 運用 | 障害対応手順書（Runbook） | `docwright:runbook` | 障害時の対応手順 | オンコール担当 |
 | 運用 | 保守・引継ぎ資料 | `docwright:handover` | 知識移転・属人化排除 | 後任担当 |
+| 運用 | ツールガイド | `docwright:tool-guide` | 運用・試験ツールの設計・運用・保守を一元記録 | 運用担当・QA・開発者 |
 | 利用者向け | ユーザーマニュアル | `docwright:user-manual` | 操作説明 | エンドユーザー |
 
-agent名の`docwright:`以降の部分（`requirements`, `adr`等）が、`/docwright:create`・`/docwright:update`・`/docwright:audit`の引数として受け付ける文書タイプ指定値。引数がこの17個のいずれとも一致しない場合は、推測でdispatchせず一覧を提示してユーザーに再指定を求める。
+agent名の`docwright:`以降の部分（`requirements`, `adr`等）が、`/docwright:create`・`/docwright:update`・`/docwright:audit`の引数として受け付ける文書タイプ指定値。引数がこの18個のいずれとも一致しない場合は、推測でdispatchせず一覧を提示してユーザーに再指定を求める。
 
 ## 判定チェックリスト（引数なし呼び出し時の自動判定）
 
@@ -44,6 +45,7 @@ agent名の`docwright:`以降の部分（`requirements`, `adr`等）が、`/docw
 | 運用手順書 | デプロイスクリプト/IaC/定期実行(cron等)がある | デプロイ関連ファイル |
 | 障害対応手順書 | 監視・アラート・オンコール運用がある | アラート通知設定 |
 | 保守・引継ぎ資料 | **自動判定しない**。ユーザーが引継ぎイベントを明示的に依頼した場合のみ`/docwright:create handover`として個別に候補へ入れる | ユーザーへの直接確認 |
+| ツールガイド | **自動判定しない**。ユーザーが特定ツールのドキュメント化を明示的に依頼した場合のみ`/docwright:create tool-guide <tool-name>`として個別に候補へ入れる | ユーザーへの直接確認 |
 | ユーザーマニュアル | エンドユーザー向けUIが存在する | フロントエンドの有無 |
 
 ## dispatch順序の注意
