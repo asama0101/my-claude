@@ -41,9 +41,11 @@ $DirTargets = @(
     "assets",
     "commands"
 )
-# ディレクトリごとの除外サブディレクトリ（claude.ai が自動同期する環境固有の資産で、リポジトリに含めない）
+# ディレクトリごとの除外サブディレクトリ（リポジトリに含めない）
+# synced: claude.ai が自動同期する環境固有の資産
+# grilling: 第三者（mattpocock/skills, MIT）のスキルで、再配布せず README の手順で導入する
 $DirExcludes = @{
-    "skills" = @("synced")
+    "skills" = @("synced", "grilling")
 }
 
 New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
