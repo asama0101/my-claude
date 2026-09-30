@@ -31,7 +31,6 @@ Windows 版 Claude Code のユーザー設定（`%USERPROFILE%\.claude\`）を�
 | `settings.json` | 権限・フック配線・プラグイン。パスは `__CLAUDE_HOME__` プレースホルダで保存され、反映時に実環境のパスへ変換される |
 | `statusline-command.sh` | ステータスライン表示 |
 | `hooks/` | PreToolUse フック（`branch-guard.sh`、`venv-guard.sh`）と、共通ライブラリ・テスト |
-| `rules/` | フックの効果一覧（`hooks.md`） |
 
 上記以外（`projects/`、`sessions/`、`logs/`、`settings.local.json` など環境固有の資産）には触れない。
 
