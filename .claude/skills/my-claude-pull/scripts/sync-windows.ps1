@@ -1,7 +1,7 @@
 ﻿# sync-windows.ps1 — %USERPROFILE%\.claude\ の設定をリポジトリの windows/claude/ ミラーへ同期する。
 #
 # 方向: $CLAUDE_HOME  →  <repo>\windows\claude\   （source が真実の源）
-# 逆方向（repo → $CLAUDE_HOME）の展開は Claude Code に直接依頼する（linux 版と同じ運用）。
+# 逆方向（repo → $CLAUDE_HOME）の展開は `my-claude-push` スキルで行う。
 # settings.json のプレースホルダ実体化（下記）を含め、展開手順はリポジトリ直下 CLAUDE.md を参照。
 #
 # 同期方式:
@@ -12,7 +12,7 @@
 #   （Claude Code は settings.json 内で $HOME を展開しないため、repo にはプレースホルダを置く。
 #     展開先の絶対パスへの実体化は、別環境セットアップ時に Claude Code へ依頼する。）
 #
-# commit/push は行わない（同期のみ）。反映後に commit/push が必要なら /pr-create を使う。
+# commit/push は行わない（同期のみ）。反映後に commit/push が必要なら git と gh で行う。
 #
 # パスはスクリプト位置から導出するので、どの環境でも動作する。
 # 展開元は CLAUDE_HOME 環境変数で上書き可能（既定 $env:USERPROFILE\.claude）。
@@ -41,6 +41,10 @@ $DirTargets = @(
     "assets",
     "commands"
 )
+# ディレクトリごとの除外サブディレクトリ（claude.ai が自動同期する環境固有の資産で、リポジトリに含めない）
+$DirExcludes = @{
+    "skills" = @("synced")
+}
 
 New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
 
@@ -81,7 +85,8 @@ foreach ($Name in $DirTargets) {
     $Src = Join-Path $ClaudeHome $Name
     $Dst = Join-Path $DestDir $Name
     if (Test-Path $Src -PathType Container) {
-        robocopy $Src $Dst /MIR /NFL /NDL /NJH /NJS | Out-Null
+        $XD = if ($DirExcludes.ContainsKey($Name)) { @("/XD") + $DirExcludes[$Name] } else { @() }
+        robocopy $Src $Dst /MIR @XD /NFL /NDL /NJH /NJS | Out-Null
         # robocopy の終了コードは 0〜7 が成功。8以上のみエラー扱い。
         if ($LASTEXITCODE -ge 8) {
             Write-Error "robocopy が失敗しました ($Name): 終了コード $LASTEXITCODE"
