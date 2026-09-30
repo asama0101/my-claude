@@ -2,6 +2,8 @@
 
 目的・セットアップ・ディレクトリ構成は `README.md` を参照。Windows 専用。
 
+このリポジトリは公開（PUBLIC）リポジトリである。機密情報・認証情報・個人情報を commit・push しないこと。
+
 ## コマンド
 
 - 実機 → リポジトリ: `my-claude-pull` スキル（`.claude/skills/my-claude-pull/`）。`scripts/sync-windows.ps1` が `%USERPROFILE%\.claude\` の内容を `windows/claude/` へコピーする（commit・pushは行わない）。
