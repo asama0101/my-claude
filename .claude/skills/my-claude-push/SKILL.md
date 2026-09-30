@@ -1,11 +1,11 @@
 ---
 name: my-claude-push
-description: このmy-claudeリポジトリの`linux/claude/`（Linux/macOS環境の場合）または`windows/claude/`（Windows環境の場合）の内容を、実行環境の`$CLAUDE_HOME`（既定`~/.claude`、環境変数で上書き可）へ反映する。`my-claude-pull`（実機→リポジトリの一方向コピー）の逆方向であり、方向が逆であるため混同しないこと。ユーザーが「ローカルリポジトリを実機に反映して」「my-claude-pushして」「リポジトリの設定を実機に展開して」「pullの逆をやって」と言ったとき、またはリポジトリ内のミラーディレクトリの変更を実行中の環境へ即座に適用したい場面で使う。commit・pushは行わない（反映のみ）。
+description: このmy-claudeリポジトリの`windows/claude/`の内容を、実行環境の`$CLAUDE_HOME`（既定`~/.claude`、環境変数で上書き可）へ反映する。`my-claude-pull`（実機→リポジトリの一方向コピー）の逆方向であり、方向が逆であるため混同しないこと。ユーザーが「ローカルリポジトリを実機に反映して」「my-claude-pushして」「リポジトリの設定を実機に展開して」「pullの逆をやって」と言ったとき、またはリポジトリ内のミラーディレクトリの変更を実行中の環境へ即座に適用したい場面で使う。commit・pushは行わない（反映のみ）。
 ---
 
 # my-claude-push
 
-リポジトリ内の `linux/claude/` または `windows/claude/` が最新の真実で、実行環境の `$CLAUDE_HOME` はそれを反映する先。このスキルは実機の設定をミラーの状態へ更新するだけで、commit・pushは行わない。
+リポジトリ内の `windows/claude/` が最新の真実で、実行環境の `$CLAUDE_HOME` はそれを反映する先。このスキルは実機の設定をミラーの状態へ更新するだけで、commit・pushは行わない。
 
 ## 目的
 
@@ -16,25 +16,24 @@ description: このmy-claudeリポジトリの`linux/claude/`（Linux/macOS環�
 以下のファイル・ディレクトリのみを同期対象とする。`projects/`・`sessions/`・`logs/`・`settings.local.json` など、他のパスは一切触れない。
 
 - **ファイル**: `CLAUDE.md`, `settings.json`, `statusline-command.sh`
-- **ディレクトリ**: `hooks`, `skills`, `agents`, `rules`, `assets`, `commands`
+- **ディレクトリ**: `hooks`, `skills`, `rules`
 
 ## 実行方式の特徴
 
-スクリプト（rsync/robocopy）は使わない。`my-claude-pull` がスクリプト方式（`sync-linux.sh`/`sync-windows.ps1` 使用）であるのに対し、このスキルは Claude Code の Read/Write ツール + 最小限の Bash/PowerShell（OS判定のみ）を用いて1ファイルずつ内容を比較・反映する。
+スクリプト（robocopy）は使わない。`my-claude-pull` がスクリプト方式（`sync-windows.ps1` 使用）であるのに対し、このスキルは Claude Code の Read/Write ツール + 最小限の Bash/PowerShell を用いて1ファイルずつ内容を比較・反映する。
 
-これはリポジトリの CLAUDE.md に記載されている既存方針「展開時は rsync に依存しない（Claude Code が Read/Write ツールで直接ファイル操作する）」を踏襲するもの。実行環境に rsync/robocopy が無くても実行可能。
+これはリポジトリの CLAUDE.md に記載されている既存方針「`my-claude-push` は Claude Code が Read/Write ツールで直接ファイル操作する」を踏襲するもの。実行環境に robocopy が無くても実行可能。
 
 ## 実行手順
 
-1. **OS判定と対応ミラーの選択**
-   - 実行環境のOSを判定する（`uname` の有無、または PowerShell で `$IsWindows` 相当）。
-   - Linux/macOS なら `linux/claude/` を、Windows なら `windows/claude/` をソースとして選択する。
-   - 同時に `$CLAUDE_HOME` の値を確認し、既定値（`~/.claude` または `%USERPROFILE%\.claude\`）か環境変数で上書きされた値かを把握する。
+1. **`$CLAUDE_HOME` の確認**
+   - `windows/claude/` をソースとする。
+   - `$CLAUDE_HOME` の値を確認し、既定値（`%USERPROFILE%\.claude\`）か環境変数で上書きされた値かを把握する。
 
 2. **差分比較と一覧作成**
    - 対象（上記ホワイトリスト）ごとに、リポジトリのミラー側とのファイル内容・タイムスタンプ・ファイル一覧を比較する。
-   - **ディレクトリ対象の比較粒度**: `hooks`・`skills`・`agents`・`rules`・`assets`・`commands` のようなディレクトリ対象は、ディレクトリ単位でなく、配下のファイルを1つずつ再帰的に比較する（存在有無・内容差分をファイル単位で見る）。これにより「実機のみに存在する孤立ファイル」の検出粒度を正確に保つ。
-   - **`settings.json` の比較時の注意**: ミラー側の `settings.json` にはプレースホルダ `__CLAUDE_HOME__` が含まれているのに対し、実機側は展開済みの絶対パスが含まれています。実質的な差分を正確に検出するため、比較前にミラー側の `settings.json` 内容に対して手順4bと同じプレースホルダ変換を適用してから、実機側の内容と比較してください（Linux/macOS なら `__CLAUDE_HOME__` を `$CLAUDE_HOME` の値に、Windows なら git-bash 形式のパスに置換）。プレースホルダ変換以外の部分での差分のみをここで検出の対象とします。
+   - **ディレクトリ対象の比較粒度**: `hooks`・`skills`・`rules` のようなディレクトリ対象は、ディレクトリ単位でなく、配下のファイルを1つずつ再帰的に比較する（存在有無・内容差分をファイル単位で見る）。これにより「実機のみに存在する孤立ファイル」の検出粒度を正確に保つ。
+   - **`settings.json` の比較時の注意**: ミラー側の `settings.json` にはプレースホルダ `__CLAUDE_HOME__` が含まれているのに対し、実機側は展開済みの絶対パスが含まれています。実質的な差分を正確に検出するため、比較前にミラー側の `settings.json` 内容に対して手順4bと同じプレースホルダ変換を適用してから、実機側の内容と比較してください（`__CLAUDE_HOME__` を git-bash 形式のパスに置換）。プレースホルダ変換以外の部分での差分のみをここで検出の対象とします。
    - 次の分類で差分一覧を作る：
      - **新規追加**: ミラー側に存在するが実機の `$CLAUDE_HOME` には存在しない。
      - **変更**: 同じパスが両側に存在するが、内容が異なる（タイムスタンプのみの違いは無視してよい）。ただし、改行コード（CRLFとLF）の違いのみの場合は「実質差分なし」として扱う。比較前に両ファイルの改行コードを正規化（CR文字を削除）してからハッシュ・内容比較を行い、改行コードのみが異なる場合は Skip と判定すること。
@@ -48,9 +47,8 @@ description: このmy-claudeリポジトリの`linux/claude/`（Linux/macOS環�
 4. **バックアップと書き込み**
    - ユーザーが承認した後、新規追加・変更の対象ごとに次を行う：
      - a. 実機に既存のファイルがあれば、書き込み前に `$CLAUDE_HOME/backup/<同じ相対パス>` へ退避する。ディレクトリを丸ごと退避するのではなく、**変更・上書きされる個別ファイルのみ**を、同じ相対パスを保ったまま `$CLAUDE_HOME/backup/` 配下に退避する（例: `hooks/foo.sh` を上書きするなら `$CLAUDE_HOME/backup/hooks/foo.sh` へ退避）。バックアップパスはタイムスタンプを含めず固定とし、実行のたびに上書きしてよい。
-     - b. ミラー側の内容を実機へ書き込む。**`settings.json` のみ**、プレースホルダ `__CLAUDE_HOME__` を実行環境の絶対パスへ順変換してから書き込む。変換方式はOSに応じて異なる（以下を参照）。これは `my-claude-pull` の逆変換と対になる変換である。
-       - **Linux/macOS**: `__CLAUDE_HOME__` を `$CLAUDE_HOME` の値（例: `/home/user/.claude`）に置換。POSIX形式のため直接使用可。
-       - **Windows**: `__CLAUDE_HOME__` を git-bash 形式のパス（ドライブレターを小文字化し、バックスラッシュをフォワードスラッシュに置換した形式）に置換。例: `C:\Users\sioay\.claude` → `/c/Users/sioay/.claude`（小文字化するのはドライブレターのみで、それ以外の大文字小文字は保持する。`sync-windows.ps1`の逆変換ロジックと同じ）。これを怠ると settings.json 内でバックスラッシュが JSON のエスケープ文字として解釈され、構文エラーが発生する。
+     - b. ミラー側の内容を実機へ書き込む。**`settings.json` のみ**、プレースホルダ `__CLAUDE_HOME__` を実行環境の絶対パスへ順変換してから書き込む。変換は次のとおり行う。これは `my-claude-pull` の逆変換と対になる変換である。
+       - `__CLAUDE_HOME__` を git-bash 形式のパス（ドライブレターを小文字化し、バックスラッシュをフォワードスラッシュに置換した形式）に置換。例: `C:\Users\sioay\.claude` → `/c/Users/sioay/.claude`（小文字化するのはドライブレターのみで、それ以外の大文字小文字は保持する。`sync-windows.ps1`の逆変換ロジックと同じ）。これを怠ると settings.json 内でバックスラッシュが JSON のエスケープ文字として解釈され、構文エラーが発生する。
        - 書き込み後は、JSON ファイルの構文が妥当か（JSON パーサで読み込める状態か）必ず検証すること。
      - c. 書き込みは BOM なし UTF-8 で行う（文字化け対策。`sync-windows.ps1` が同じ理由で `.NET API` を使用しているのと同じ配慮）。
 
@@ -65,7 +63,7 @@ description: このmy-claudeリポジトリの`linux/claude/`（Linux/macOS環�
      - `Backup: $CLAUDE_HOME/backup/<パス>` — 既存内容の退避先パス
      - `Skip: <パス>` — 差分なし、処理スキップ
    - 孤立ファイル一覧も付記する。
-   - **このスキル自身は commit・push を行わない。** git 操作が必要ならユーザーが別途 `/pr-create` を使うこと。
+   - **このスキル自身は commit・push を行わない。** git 操作が必要ならユーザーが別途 `git` と `gh` で行うこと。
 
 ## 注意
 
