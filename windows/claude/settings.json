@@ -78,7 +78,6 @@
     "disableBypassPermissionsMode": "disable"
   },
   "model": "sonnet",
-  "theme": "dark",
   "hooks": {
     "PreToolUse": [
       {
@@ -114,8 +113,14 @@
     "playwright@claude-plugins-official": true
   },
   "effortLevel": "high",
+  "modelSettings": {
+    "claude-sonnet-5-5": {
+      "effortLevel": "high"
+    }
+  },
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
+  "theme": "dark",
   "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
