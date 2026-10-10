@@ -14,8 +14,29 @@ GRAY = "\033[90m"
 BAR_WIDTH = 5
 SEP = "{} │ {}".format(GRAY, RESET)
 
+BOLD = "\033[1m"
 CYAN = "\033[36m"
-BOLD_CYAN = "\033[1;36m"
+MAGENTA = "\033[35m"
+BOLD_MAGENTA = "\033[1;35m"
+BRIGHT_BLUE = "\033[94m"
+BRIGHT_CYAN = "\033[96m"
+
+# モデル名に含まれる系統名で色を分ける（小文字で判定。該当なしは MODEL_DEFAULT）
+MODEL_COLORS = (
+    ("opus", MAGENTA),
+    ("sonnet", CYAN),
+    ("haiku", BRIGHT_BLUE),
+    ("fable", BRIGHT_CYAN),
+)
+MODEL_DEFAULT = CYAN
+# effort は強さの段階で濃淡を付ける。該当なしは灰色
+EFFORT_COLORS = {
+    "low": GRAY,
+    "medium": "",
+    "high": CYAN,
+    "xhigh": MAGENTA,
+    "max": BOLD_MAGENTA,
+}
 
 ICON_MODEL = "🤖"
 ICON_DIR = "📁"
@@ -32,6 +53,14 @@ WEEK = ("📅", "7d", GRAY)
 
 def paint(color, text):
     return "{}{}{}".format(color, text, RESET)
+
+
+def model_color(name):
+    lower = str(name).lower()
+    for key, color in MODEL_COLORS:
+        if key in lower:
+            return color
+    return MODEL_DEFAULT
 
 
 def level_color(pct):
@@ -116,9 +145,9 @@ cwd = sub(data, "workspace").get("current_dir") or data.get("cwd") or ""
 cwd = str(cwd).replace("\\", "/")
 
 # 1行目: モデル / effort、ディレクトリ、ブランチ、PR
-head = ICON_MODEL + " " + paint(BOLD_CYAN, model)
+head = ICON_MODEL + " " + paint(BOLD + model_color(model), model)
 if effort:
-    head += paint(GRAY, " / ") + paint(GRAY, effort)
+    head += paint(GRAY, " / ") + paint(EFFORT_COLORS.get(str(effort).lower(), GRAY), effort)
 line1 = [head]
 
 if cwd:
