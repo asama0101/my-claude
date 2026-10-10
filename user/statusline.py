@@ -16,15 +16,23 @@ GRAY = "\033[90m"
 BAR_WIDTH = 5
 SEP = "{} │ {}".format(GRAY, RESET)
 
-ICON_MODEL = "◆"
-ICON_DIR = "▸"
-ICON_BRANCH = "⎇"
+MAGENTA = "[35m"
+BRIGHT_CYAN = "[96m"
+BRIGHT_MAGENTA = "[95m"
+WHITE = "[37m"
+BOLD_WHITE = "[1;97m"
+
+ICON_MODEL = "🤖"
+ICON_DIR = "📁"
+ICON_BRANCH = "🌿"
 ICON_DIRTY = "●"
-ICON_PR = "⇄"
-ICON_SESSION = "✎"
-ICON_CTX = "◔"
-ICON_5H = "⏱"
-ICON_7D = "▦"
+ICON_PR = "🔀"
+ICON_SESSION = "🏷"
+
+# メーターごとの (絵文字, ラベル, ラベル色)。バーと数値は使用率の色、ラベルは項目ごとの固定色
+CTX = ("💬", "ctx", BRIGHT_CYAN)
+FIVE = ("⏳", "5h", BRIGHT_MAGENTA)
+WEEK = ("📅", "7d", BLUE)
 
 
 def paint(color, text):
@@ -44,12 +52,13 @@ def bar(pct):
     return "▓" * filled + "░" * (BAR_WIDTH - filled)
 
 
-def meter(icon, pct, resets_at=None):
+def meter(spec, pct, resets_at=None):
     # 取れない値は項目ごと省略する（ctx のみ呼び出し側で "--" を渡す）
     if not isinstance(pct, (int, float)):
         return None
+    icon, label, label_color = spec
     color = level_color(pct)
-    out = paint(color, "{} {:.0f}% {}".format(icon, pct, bar(pct)))
+    out = "{} {} {}".format(icon, paint(label_color, label), paint(color, "{:.0f}% {}".format(pct, bar(pct))))
     left = remaining(resets_at)
     if left:
         out += " " + paint(GRAY, left)
@@ -111,16 +120,19 @@ effort = sub(data, "effort").get("level")
 cwd = sub(data, "workspace").get("current_dir") or data.get("cwd") or ""
 cwd = str(cwd).replace("\\", "/")
 
-# 1行目: モデル / effort、ブランチ、PR
-head = paint(CYAN, "{} {}".format(ICON_MODEL, model))
+# 1行目: モデル / effort、ディレクトリ、ブランチ、PR
+head = ICON_MODEL + " " + paint(BOLD_WHITE, model)
 if effort:
     head += paint(GRAY, " / ") + paint(CYAN, effort)
 line1 = [head]
 
+if cwd:
+    line1.append("{} {}".format(ICON_DIR, paint(WHITE, cwd)))
+
 branch = git_branch(cwd)
 if branch:
     name, dirty = branch
-    git = paint(GREEN, "{} {}".format(ICON_BRANCH, name))
+    git = ICON_BRANCH + " " + paint(GREEN, name)
     if dirty:
         git += " " + paint(YELLOW, ICON_DIRTY)
     line1.append(git)
@@ -129,31 +141,28 @@ pr = sub(data, "pr")
 if pr.get("number"):
     label = "MR" if pr.get("kind") == "mr" else "PR"
     state = pr.get("review_state")
-    text = paint(BLUE, "{} {} #{}".format(ICON_PR, label, pr["number"]))
+    text = ICON_PR + " " + paint(MAGENTA, "{} #{}".format(label, pr["number"]))
     if state:
         state_color = {"approved": GREEN, "changes_requested": RED}.get(state, YELLOW)
         text += " " + paint(state_color, state)
     line1.append(text)
 
-# 2行目: ディレクトリ
-line2 = [paint(BLUE, "{} {}".format(ICON_DIR, cwd))] if cwd else []
-
-# 3行目: ctx、5h、7d、セッション名
+# 2行目: ctx、5h、7d、セッション名
 limits = sub(data, "rate_limits")
 five = sub(limits, "five_hour")
 week = sub(limits, "seven_day")
 ctx = sub(data, "context_window").get("used_percentage")
 
-line3 = [meter(ICON_CTX, ctx) or paint(GRAY, "{} --".format(ICON_CTX))]
-for icon, window in ((ICON_5H, five), (ICON_7D, week)):
-    item = meter(icon, window.get("used_percentage"), window.get("resets_at"))
+line2 = [meter(CTX, ctx) or "{} {} {}".format(CTX[0], paint(CTX[2], CTX[1]), paint(GRAY, "--"))]
+for spec, window in ((FIVE, five), (WEEK, week)):
+    item = meter(spec, window.get("used_percentage"), window.get("resets_at"))
     if item:
-        line3.append(item)
+        line2.append(item)
 
 session_name = data.get("session_name")
 if session_name:
-    line3.append(paint(CYAN, "{} {}".format(ICON_SESSION, session_name)))
+    line2.append(ICON_SESSION + " " + paint(CYAN, session_name))
 
-for line in (line1, line2, line3):
+for line in (line1, line2):
     if line:
         print(SEP.join(line))
