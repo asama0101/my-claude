@@ -6,8 +6,6 @@ import time
 sys.stdout.reconfigure(encoding="utf-8")
 
 RESET = "\033[0m"
-CYAN = "\033[36m"
-BLUE = "\033[94m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
 RED = "\033[31m"
@@ -16,9 +14,6 @@ GRAY = "\033[90m"
 BAR_WIDTH = 5
 SEP = "{} │ {}".format(GRAY, RESET)
 
-MAGENTA = "[35m"
-BRIGHT_CYAN = "[96m"
-BRIGHT_MAGENTA = "[95m"
 WHITE = "[37m"
 BOLD_WHITE = "[1;97m"
 
@@ -29,10 +24,10 @@ ICON_DIRTY = "●"
 ICON_PR = "🔀"
 ICON_SESSION = "🏷"
 
-# メーターごとの (絵文字, ラベル, ラベル色)。バーと数値は使用率の色、ラベルは項目ごとの固定色
-CTX = ("💬", "ctx", BRIGHT_CYAN)
-FIVE = ("⏳", "5h", BRIGHT_MAGENTA)
-WEEK = ("📅", "7d", BLUE)
+# メーターごとの (絵文字, ラベル, ラベル色)。バーと数値は使用率の色、ラベルは灰色
+CTX = ("💬", "ctx", GRAY)
+FIVE = ("⏳", "5h", GRAY)
+WEEK = ("📅", "7d", GRAY)
 
 
 def paint(color, text):
@@ -123,7 +118,7 @@ cwd = str(cwd).replace("\\", "/")
 # 1行目: モデル / effort、ディレクトリ、ブランチ、PR
 head = ICON_MODEL + " " + paint(BOLD_WHITE, model)
 if effort:
-    head += paint(GRAY, " / ") + paint(CYAN, effort)
+    head += paint(GRAY, " / ") + paint(WHITE, effort)
 line1 = [head]
 
 if cwd:
@@ -132,7 +127,7 @@ if cwd:
 branch = git_branch(cwd)
 if branch:
     name, dirty = branch
-    git = ICON_BRANCH + " " + paint(GREEN, name)
+    git = ICON_BRANCH + " " + paint(WHITE, name)
     if dirty:
         git += " " + paint(YELLOW, ICON_DIRTY)
     line1.append(git)
@@ -141,7 +136,7 @@ pr = sub(data, "pr")
 if pr.get("number"):
     label = "MR" if pr.get("kind") == "mr" else "PR"
     state = pr.get("review_state")
-    text = ICON_PR + " " + paint(MAGENTA, "{} #{}".format(label, pr["number"]))
+    text = ICON_PR + " " + paint(WHITE, "{} #{}".format(label, pr["number"]))
     if state:
         state_color = {"approved": GREEN, "changes_requested": RED}.get(state, YELLOW)
         text += " " + paint(state_color, state)
@@ -161,7 +156,7 @@ for spec, window in ((FIVE, five), (WEEK, week)):
 
 session_name = data.get("session_name")
 if session_name:
-    line2.append(ICON_SESSION + " " + paint(CYAN, session_name))
+    line2.append(ICON_SESSION + " " + paint(GRAY, session_name))
 
 for line in (line1, line2):
     if line:
