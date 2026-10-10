@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `settings.json`
 - 汎用的なサブエージェント定義
 - ステータスラインの設定
+- ユーザースコープの MCP サーバー定義（`user\mcp-servers.json`）
 
 管理対象外: スキルとプラグインの本体。追加しない。自作以外のスキル・プラグインは、名前と入手元だけを `skills-manifest.md` に記録する。
 
@@ -38,6 +39,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `settings.json` の `statusLine.command` は `py {{HOME}}/.claude/statusline.py`。反映先に `statusline.py` と Python が必要。
   - `python` コマンドは使わない。この環境では Microsoft Store のエイリアス（`WindowsApps\python.exe` のスタブ）が先に解決され、スクリプトが実行されない（2026-10-10 確認）。`py` ランチャー経由なら実行できる。
   - `~/.claude/statusline.py` の形は未検証。直前に `python` と組み合わせて表示されなかったが、原因は `~` ではなく `python` だった可能性が高い。
+- MCP サーバーは `user\mcp-servers.json`（`.mcp.json` と同じ `{"mcpServers": {...}}` 形式）に定義する。`~\.claude\` にはコピーしない。`sync.ps1` が `claude mcp add-json --scope user` で `~\.claude.json` に登録する。
+  - 同名のサーバーが登録済みで内容が違う場合は、警告してスキップする。`-Force` で上書きする。定義にないサーバーは触らない（削除しない）。
+  - `~\.claude.json` 全体は管理しない（認証情報や履歴を含むため）。
+  - `env` や `headers` にトークンが必要なサーバーは、定義に書かず手動で `claude mcp add` する。
+  - `sync.ps1` は Windows PowerShell 5.1 でも動く。`~\.claude.json` は 5.1 の `ConvertFrom-Json` で読めないことがあるため、`mcpServers` だけを node で取り出している。
 - 自作の `guild`（プラグイン兼ローカルマーケットプレイス）は、`settings.json` に含めない。`extraKnownMarketplaces` と `enabledPlugins` から外してある。
 
 ## 秘密情報
