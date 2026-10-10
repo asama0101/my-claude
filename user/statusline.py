@@ -14,8 +14,7 @@ GRAY = "\033[90m"
 BAR_WIDTH = 5
 SEP = "{} │ {}".format(GRAY, RESET)
 
-WHITE = "[37m"
-BOLD_WHITE = "[1;97m"
+BOLD = "[1m"
 
 ICON_MODEL = "🤖"
 ICON_DIR = "📁"
@@ -116,18 +115,18 @@ cwd = sub(data, "workspace").get("current_dir") or data.get("cwd") or ""
 cwd = str(cwd).replace("\\", "/")
 
 # 1行目: モデル / effort、ディレクトリ、ブランチ、PR
-head = ICON_MODEL + " " + paint(BOLD_WHITE, model)
+head = ICON_MODEL + " " + paint(BOLD, model)
 if effort:
-    head += paint(GRAY, " / ") + paint(WHITE, effort)
+    head += paint(GRAY, " / ") + paint(GRAY, effort)
 line1 = [head]
 
 if cwd:
-    line1.append("{} {}".format(ICON_DIR, paint(WHITE, cwd)))
+    line1.append("{} {}".format(ICON_DIR, paint(GRAY, cwd)))
 
 branch = git_branch(cwd)
 if branch:
     name, dirty = branch
-    git = ICON_BRANCH + " " + paint(WHITE, name)
+    git = ICON_BRANCH + " " + name
     if dirty:
         git += " " + paint(YELLOW, ICON_DIRTY)
     line1.append(git)
@@ -136,7 +135,7 @@ pr = sub(data, "pr")
 if pr.get("number"):
     label = "MR" if pr.get("kind") == "mr" else "PR"
     state = pr.get("review_state")
-    text = ICON_PR + " " + paint(WHITE, "{} #{}".format(label, pr["number"]))
+    text = ICON_PR + " " + "{} #{}".format(label, pr["number"])
     if state:
         state_color = {"approved": GREEN, "changes_requested": RED}.get(state, YELLOW)
         text += " " + paint(state_color, state)
