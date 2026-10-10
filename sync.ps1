@@ -1,6 +1,6 @@
 ﻿# user\ の内容を ~\.claude\ に反映する（user\ -> ~\.claude\ の一方向）
 # 対象は Windows のみ（パス区切りに \ を前提にしている）
-# 使い方: pwsh .\sync.ps1 [-Force]
+# 使い方: powershell -NoProfile -ExecutionPolicy Bypass -File .\sync.ps1 [-Force]（pwsh でも可）
 #   既定: 反映先が反映元より新しいファイルはスキップして警告する（~\.claude 側で変更された可能性）
 #   -Force: 上記のファイルも上書きする（MCP も、内容が違う同名サーバーを上書きする）
 #

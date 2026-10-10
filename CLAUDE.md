@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `user\` 内のファイルを、コピーで `C:\Users\<ユーザー名>\.claude\` に反映する。シンボリックリンクは使わない。
 
 - 理由: 公式ドキュメントに、`~/.claude\` 直下のファイルをリンクにした場合の動作（読み込み、`settings.json` の書き込み）の記載がなく、動作が保証されないため。
-- 反映は `sync.ps1` で行う（`user\` → `~\.claude\` の一方向）。`pwsh .\sync.ps1`
+- 反映は `sync.ps1` で行う（`user\` → `~\.claude\` の一方向）。`powershell -NoProfile -ExecutionPolicy Bypass -File .\sync.ps1`（この環境に `pwsh` は無い。PowerShell 7 があれば `pwsh .\sync.ps1` でも動く）
   - 内容が同一のファイルは何もしない。
   - 反映先のほうが新しいファイルはスキップして警告する。`-Force` で上書きする。
 - 常に `user\` を編集して、`sync.ps1` を実行する。`~\.claude\` 側を直接編集しない。
