@@ -17,6 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - 動作確認は、stdin に JSON を流して `py ~/.claude/hooks/<script>.py` を実行する。Bash の `echo` で JSON を作るときは、パスの区切りを `/` にする（`\` だと JSON が壊れて、例外が握りつぶされ、無出力になる）。
 
 管理対象外: スキルとプラグインの本体。追加しない。自作以外のスキル・プラグインは、名前と入手元だけを README.md のプラグイン・スキルの節に記録する。
+- プラグインやスキルを追加・削除・入れ替えたら（`enabledPlugins` の変更を含む）、README.md のプラグイン表とスキル表（入手元・導入手順）も更新する。
 
 ## ディレクトリ構成と CLAUDE.md の役割分担
 
