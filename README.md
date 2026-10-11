@@ -50,7 +50,7 @@ playwright はプラグインではなく MCP サーバーとして導入して�
 | スキル | 配置先 | 管理 |
 |---|---|---|
 | grilling | `~\.claude\skills\grilling` | 手動コピー（入手元: https://github.com/mattpocock/skills/blob/main/docs/productivity/grilling.md） |
-| roundtable | `~\.claude\skills\roundtable` | 自作。このリポジトリでは管理しない |
+| grill-form | `~\.claude\skills\grill-form` | 自作。このリポジトリでは管理しない |
 | synced | `~\.claude\skills\synced` | Claude Code が自動で管理する |
 
 ## MCP サーバー

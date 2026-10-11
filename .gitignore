@@ -2,6 +2,6 @@ settings.local.json
 *.local.json
 .credentials.json
 
-# roundtable のセッションと Playwright MCP の記録
+# roundtable（旧スキル）のセッションと Playwright MCP の記録
 *_roundtable_*/
 .playwright-mcp/
