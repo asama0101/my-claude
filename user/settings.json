@@ -104,6 +104,38 @@
             "type": "command",
             "command": "py {{HOME}}/.claude/hooks/readme_guard.py check",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "py {{HOME}}/.claude/hooks/uncommitted_warn.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "py {{HOME}}/.claude/hooks/notify.py done",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py {{HOME}}/.claude/hooks/notify.py start",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py {{HOME}}/.claude/hooks/notify.py attention",
+            "timeout": 10
           }
         ]
       }

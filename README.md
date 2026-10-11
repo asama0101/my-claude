@@ -66,11 +66,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\sync.ps1
 |---|---|---|
 | PostToolUse | `Edit\|Write` | 編集したファイルを、セッションごとに一時ファイルへ記録する |
 | Stop | すべて | プロジェクト直下に README.md があり、README を更新せずにソース／設定ファイルを編集していれば、1回だけ block して更新要否の確認を促す |
+| Stop | すべて | Git リポジトリに未コミットの変更があれば、`systemMessage` で件数とファイル（最大 10 件、`git status --porcelain` の形式）を警告する（block しない） |
+| UserPromptSubmit | すべて | 応答の開始時刻を、セッションごとに一時ファイルへ記録する |
+| Stop | すべて | 開始から 30 秒以上かかっていれば、トースト通知と音で完了を知らせる |
+| Notification | すべて | 許可待ち（`permission_prompt`）と入力待ち（`elicitation_dialog`）のとき、トースト通知と音で知らせる |
 
 - スクリプト: `user\hooks\readme_guard.py`（`record` と `check`）。仕様は [docs\readme-update-hook-spec.md](docs/readme-update-hook-spec.md)。
 - 対象外の編集: `.md` などの文書、docs・テスト、ロックファイル。プロジェクト外のファイル。
 - 対象ファイルの編集後に README を編集すると、確認済みとして扱う。block 後に続けて応答を終えようとしても、再度は block しない。
 - 一時ファイルは `%TEMP%\claude-readme-guard\` に置き、7 日で削除する。
+- 未コミットの警告: `user\hooks\uncommitted_warn.py`。Stop は応答のたびに走るため、同じ変更内容では同じセッション中に1回しか警告しない（状態は `%TEMP%\claude-commit-warn\` に置き、7 日で削除する）。
+- 通知: `user\hooks\notify.py`（`start`・`done`・`attention`）と `notify.ps1`。しきい値は `notify.py` の `THRESHOLD_SEC`。サブエージェントの完了（SubagentStop）には hook を付けないので通知しない。状態は `%TEMP%\claude-notify\` に置き、7 日で削除する。
 
 ## 秘密情報
 
