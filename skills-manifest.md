@@ -1,7 +1,7 @@
 # スキル・プラグイン マニフェスト
 
 自作以外のスキルとプラグインの名前と入手元だけを記録する。本体は管理しない。
-最終確認: 2026-10-10（`~/.claude\` を読み取って作成）
+最終確認: 2026-10-11（`~/.claude\plugins\installed_plugins.json` と `user\settings.json` を読み取って更新）
 
 ## プラグイン
 
@@ -15,12 +15,13 @@
 
 | プラグイン | 入手元 | メモ |
 |---|---|---|
-| skill-creator | claude-plugins-official | |
-| frontend-design | claude-plugins-official | |
+| skill-creator | claude-plugins-official | a9fd21643fc1 |
+| frontend-design | claude-plugins-official | a9fd21643fc1 |
 | superpowers | claude-plugins-official | 6.4.1 |
-| code-review | claude-plugins-official | |
-| playwright | claude-plugins-official | |
+| code-review | claude-plugins-official | a9fd21643fc1 |
 | claude-md-management | claude-plugins-official | 1.0.0 |
+
+playwright はプラグインではなく MCP サーバーとして導入している（`user\mcp-servers.json`）。
 
 ## 手動コピーのスキル
 
