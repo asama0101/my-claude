@@ -13,7 +13,6 @@ Claude Code の個人設定を一元管理するリポジトリ。`user\` の内
 | `user\statusline.py` | ステータスライン | `~\.claude\statusline.py` |
 | `user\hooks\` | Hooks のスクリプト | `~\.claude\hooks\` |
 | `user\mcp-servers.json` | MCP サーバー定義 | `~\.claude.json`（`claude mcp add-json` で登録） |
-| `skills-manifest.md` | 自作以外のスキル・プラグインの入手元の記録 | 反映しない |
 | `docs\` | SPEC | 反映しない |
 
 ## 反映方法
@@ -28,23 +27,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\sync.ps1
 
 ## プラグイン
 
-`user\settings.json` の `enabledPlugins` で有効にしている。すべて `claude-plugins-official` から導入している。
+`user\settings.json` の `enabledPlugins` で有効にしている。すべてマーケットプレイス `claude-plugins-official`（GitHub の `anthropics/claude-plugins-official`）から導入している。プラグインの本体はこのリポジトリで管理しない。
 
-| プラグイン | 用途 |
-|---|---|
-| skill-creator | スキルの作成・改善・評価 |
-| frontend-design | UI のデザイン |
-| superpowers | 開発ワークフローのスキル群（ブレインストーミング、デバッグ、TDD など） |
-| code-review | コードレビュー |
-| claude-md-management | CLAUDE.md の監査・更新 |
+| プラグイン | 入手元 | 用途 |
+|---|---|---|
+| skill-creator | claude-plugins-official | スキルの作成・改善・評価 |
+| frontend-design | claude-plugins-official | UI のデザイン |
+| superpowers | claude-plugins-official | 開発ワークフローのスキル群（ブレインストーミング、デバッグ、TDD など） |
+| code-review | claude-plugins-official | コードレビュー |
+| claude-md-management | claude-plugins-official | CLAUDE.md の監査・更新 |
 
-導入元と手順は [skills-manifest.md](skills-manifest.md) を参照。プラグインの本体はこのリポジトリで管理しない。
+導入手順（未検証、Claude Code 上で実行）:
+```
+/plugin marketplace add anthropics/claude-plugins-official
+/plugin install <プラグイン名>@claude-plugins-official
+```
+
+playwright はプラグインではなく MCP サーバーとして導入している（下の「MCP サーバー」の節）。
 
 ## スキル
 
 | スキル | 配置先 | 管理 |
 |---|---|---|
-| grilling | `~\.claude\skills\grilling` | 手動コピー（入手元は [skills-manifest.md](skills-manifest.md)） |
+| grilling | `~\.claude\skills\grilling` | 手動コピー（入手元: https://github.com/mattpocock/skills/blob/main/docs/productivity/grilling.md） |
 | roundtable | `~\.claude\skills\roundtable` | 自作。このリポジトリでは管理しない |
 | synced | `~\.claude\skills\synced` | Claude Code が自動で管理する |
 
