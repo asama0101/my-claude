@@ -84,6 +84,31 @@
     "command": "py {{HOME}}/.claude/statusline.py",
     "refreshInterval": 30
   },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py {{HOME}}/.claude/hooks/readme_guard.py record",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py {{HOME}}/.claude/hooks/readme_guard.py check",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
   "language": "japanese",
   "effortLevel": "high",
   "modelSettings": {

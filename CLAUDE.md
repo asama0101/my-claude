@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 汎用的なサブエージェント定義
 - ステータスラインの設定
 - ユーザースコープの MCP サーバー定義（`user\mcp-servers.json`）
+- Hooks（`user\settings.json` の `hooks` と `user\hooks\` のスクリプト。README 更新の確認は `docs\readme-update-hook-spec.md`）
 
 管理対象外: スキルとプラグインの本体。追加しない。自作以外のスキル・プラグインは、名前と入手元だけを `skills-manifest.md` に記録する。
 
