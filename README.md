@@ -86,3 +86,7 @@ playwright はプラグインではなく MCP サーバーとして導入して�
 ## 秘密情報
 
 `settings.local.json` や認証情報ファイルは管理対象外で、`.gitignore` で除外している。`settings.json` や MCP 定義にトークンやキーを書かない。
+
+## ライセンス
+
+MIT License（`LICENSE`）。
