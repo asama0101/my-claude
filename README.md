@@ -59,7 +59,7 @@ playwright はプラグインではなく MCP サーバーとして導入して�
 
 | サーバー | 種類 | 内容 |
 |---|---|---|
-| playwright | stdio | `npx @playwright/mcp@latest`（Chrome。ファイルへのアクセス制限を解除し、出力先は `~\.playwright-mcp`） |
+| playwright | stdio | `npx @playwright/mcp@latest`（Chrome。ファイルへのアクセス制限を解除し、出力先は OS の一時フォルダ配下の `playwright-mcp`） |
 
 トークンが必要なサーバーは定義に書かず、手動で `claude mcp add` する。
 

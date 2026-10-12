@@ -9,7 +9,7 @@
         "chrome",
         "--allow-unrestricted-file-access",
         "--output-dir",
-        "{{HOME_JSON}}\\.playwright-mcp"
+        "{{HOME_JSON}}\\AppData\\Local\\Temp/playwright-mcp"
       ],
       "env": {}
     }
