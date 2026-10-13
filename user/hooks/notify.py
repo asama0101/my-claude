@@ -18,8 +18,9 @@ import time
 
 STATE_DIR = os.path.join(tempfile.gettempdir(), "claude-notify")
 STATE_TTL_SEC = 7 * 24 * 3600
-THRESHOLD_SEC = 30  # この秒数以上かかった応答だけ通知する
+THRESHOLD_SEC = 0  # この秒数以上かかった応答だけ通知する（0 なら毎回通知する）
 ATTENTION_TYPES = {"permission_prompt", "elicitation_dialog"}  # 通知する Notification の種類
+TAIL_BYTES = 512 * 1024  # セッション名を探すために、jsonl の末尾から読む量
 SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "notify.ps1")
 
 
@@ -39,11 +40,36 @@ def prune_old_states():
         pass
 
 
-def notify(message):
+def session_title(data):
+    """transcript の末尾から、最新の自動生成タイトル（ai-title）を探す。無ければ空文字。"""
+    try:
+        with open(data.get("transcript_path"), "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - TAIL_BYTES))
+            lines = f.read().decode("utf-8", errors="replace").splitlines()
+        for line in reversed(lines):
+            if '"ai-title"' not in line:
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue  # 読み始めで途切れた行
+            if entry.get("type") == "ai-title" and entry.get("aiTitle"):
+                return entry["aiTitle"]
+    except (OSError, TypeError):
+        pass
+    return ""
+
+
+def notify(message, data):
     """通知用の PowerShell を、hook を待たせないよう切り離して起動する。"""
+    title = "Claude Code"
+    name = session_title(data)
+    if name:
+        title += "：" + name
     subprocess.Popen(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", SCRIPT,
-         "-Message", message],
+         "-Title", title, "-Message", message],
         creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
@@ -65,12 +91,12 @@ def done(data):
         return
     elapsed = time.time() - started
     if elapsed >= THRESHOLD_SEC:
-        notify("処理が完了しました（%d 分 %d 秒）" % divmod(int(elapsed), 60))
+        notify("処理が完了しました（%d 分 %d 秒）" % divmod(int(elapsed), 60), data)
 
 
 def attention(data):
     if data.get("notification_type") in ATTENTION_TYPES:
-        notify(data.get("message") or "操作を待っています")
+        notify(data.get("message") or "操作を待っています", data)
 
 
 def main():

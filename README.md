@@ -81,7 +81,7 @@ playwright はプラグインではなく MCP サーバーとして導入して�
 - 対象ファイルの編集後に README を編集すると、確認済みとして扱う。block 後に続けて応答を終えようとしても、再度は block しない。
 - 一時ファイルは `%TEMP%\claude-readme-guard\` に置き、7 日で削除する。
 - 未コミットの警告: `user\hooks\uncommitted_warn.py`。Stop は応答のたびに走るため、同じ変更内容では同じセッション中に1回しか警告しない（状態は `%TEMP%\claude-commit-warn\` に置き、7 日で削除する）。
-- 通知: `user\hooks\notify.py`（`start`・`done`・`attention`）と `notify.ps1`。しきい値は `notify.py` の `THRESHOLD_SEC`。サブエージェントの完了（SubagentStop）には hook を付けないので通知しない。状態は `%TEMP%\claude-notify\` に置き、7 日で削除する。
+- 通知: `user\hooks\notify.py`（`start`・`done`・`attention`）と `notify.ps1`。しきい値は `notify.py` の `THRESHOLD_SEC`。通知のタイトルは「Claude Code：セッション名」（transcript 末尾の ai-title。無ければ「Claude Code」だけ）。サブエージェントの完了（SubagentStop）には hook を付けないので通知しない。状態は `%TEMP%\claude-notify\` に置き、7 日で削除する。
 
 ## 秘密情報
 
