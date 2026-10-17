@@ -24,6 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ルートの `CLAUDE.md`（このファイル）は、このリポジトリで作業するための指示。`~/.claude\` には反映しない。
 - `user\` は `~/.claude\` に反映する設定の実体。`user\CLAUDE.md` がユーザレベルの指示、`user\settings.json`、`user\statusline.py` などを置く。
 - ユーザレベルの指示を変えるときは `user\CLAUDE.md` を編集する。ルートの `CLAUDE.md` に書かない。
+  - `user\CLAUDE.md` は200行未満を保つ。IMPORTANT は、守られない行にだけ付ける（現在2行）。
 
 ## 配置方式
 
