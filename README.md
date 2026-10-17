@@ -50,6 +50,7 @@ playwright はプラグインではなく MCP サーバーとして導入して�
 | スキル | 配置先 | 管理 |
 |---|---|---|
 | grilling | `~\.claude\skills\grilling` | 手動コピー（入手元: https://github.com/mattpocock/skills/blob/main/docs/productivity/grilling.md） |
+| ponytail<br>ponytail-audit<br>ponytail-debt<br>ponytail-gain<br>ponytail-help<br>ponytail-review | `~\.claude\skills\<スキル名>` | 手動コピー（入手元: https://github.com/DietrichGebert/ponytail の `skills\` 配下、コミット 16352ac）。各 `SKILL.md` を同名のフォルダに置く。プラグイン版（hooks・バンド表示付き）は入れていない |
 | grill-form | `~\.claude\skills\grill-form` | 自作。このリポジトリでは管理しない |
 | synced | `~\.claude\skills\synced` | Claude Code が自動で管理する |
 
